@@ -3,13 +3,13 @@
     <div class="itemList">
       <el-card v-for="item in sortedProviders" :key="item.fileName" class="providerItem" shadow="never">
         <div class="providerHeader">
-          <div v-if="item.icon || item.id.toLowerCase() === 'tfrouter'" class="providerMark" aria-hidden="true">
-            <img class="providerLogo" :class="{ monochrome: item.id.toLowerCase() === 'tfrouter' }" :src="item.icon || logoUrl" alt="" />
+          <div class="providerMark" aria-hidden="true">
+            <img v-if="item.icon" class="providerLogo" :src="item.icon" alt="" />
+            <modelIcon v-else :model="`${item.label} ${item.id}`" :size="28" />
           </div>
           <div class="providerInfo">
             <div class="providerHeading">
               <el-text class="providerName" tag="strong">{{ item.label }}</el-text>
-              <el-tag v-if="item.id.toLowerCase() === 'tfrouter'" size="small">官方</el-tag>
             </div>
             <el-text class="providerId" size="small" type="info" :title="item.fileName">{{ item.fileName }}</el-text>
           </div>
@@ -45,7 +45,7 @@ import axios from "axios";
 import { computed, defineAsyncComponent, onMounted, onBeforeUnmount, ref, shallowRef, type Component } from "vue";
 import { ElMessage } from "element-plus";
 import { IconPlus, IconSettings, IconEdit, IconTrash, IconDownload } from "@tabler/icons-vue";
-import logoUrl from "@toonflow/assets/logo.svg";
+import { modelIcon } from "@toonflow/model-icons";
 import type { MediaProvider } from "./types";
 import { settings, saveSettings } from "@/stores/settings";
 import { invalidateNodeModels } from "@toonflow/nodes-scaffold/nodeAi";

@@ -1,14 +1,10 @@
-import axios from "axios";
 import { watch } from "vue";
 import router from "@/router";
-import { customProviders, privacySettings, settings } from "@/stores/settings";
-import { useWorkspaceStore } from "@/stores/workspace";
-import { isDesktop } from "./platform";
+import { privacySettings, settings } from "@/stores/settings";
 
 type UsageEvent = "onboarding.complete" | "onboarding.skip" | "workspace.canvas" | "workspace.document";
 type AgentOutcome = "success" | "failed" | "cancelled";
 type CanvasSnapshot = { nodes: readonly { type?: string }[]; edgeCount: number };
-const nodeTypes = ["textNode", "imageNode", "videoNode", "audioNode", "imageGenerationNode", "videoGenerationNode", "audioGenerationNode", "director3dNode", "canvasGroup"];
 let readCanvas: (() => CanvasSnapshot | undefined) | undefined;
 let collector: { track: (event: UsageEvent) => void; startAgent: () => (outcome: AgentOutcome) => void } | undefined;
 
@@ -29,7 +25,6 @@ const anonymousData = {
 export default anonymousData;
 
 export function registerAnonymousData() {
-  const workspace = useWorkspaceStore();
   const sessionId = crypto.randomUUID();
   const sessionStartedAt = Date.now();
   let anonymousId = "";
@@ -101,58 +96,7 @@ export function registerAnonymousData() {
     if (event) events[event] = (events[event] ?? 0) + 1;
   }
 
-  function report() {
-    if (!collecting || !privacySettings.value.dataCollectionEnabled) return;
-    accountTime();
-    controller?.abort();
-    controller = new AbortController();
-    const canvas = readCanvas?.();
-    const types: Record<string, number> = {};
-    for (const node of canvas?.nodes ?? []) {
-      const type = node.type?.replace(/^remote-/, "") ?? "other";
-      const key = nodeTypes.includes(type) ? type : "other";
-      types[key] = (types[key] ?? 0) + 1;
-    }
-    const ua = navigator.userAgent;
-    const browser =
-      ua.match(/Edg(?:A|iOS)?\/\d+/)?.[0] ?? ua.match(/(?:Firefox|FxiOS|Chrome|CriOS)\/\d+/)?.[0] ?? ua.match(/Version\/\d+/)?.[0] ?? "other";
-    const mediaConfigs = settings.value.mediaProviderConfigs;
-    // ACT: 同一会话发送累计值，接收端按 sessionId + sequence 去重/取差值，不能把每次上报直接相加。
-    const data = {
-      schemaVersion: 2,
-      anonymousId,
-      sessionId,
-      sessionStartedAt,
-      reportedAt: Date.now(),
-      sequence: ++sequence,
-      durationSeconds: Math.floor(elapsed / 1000),
-      visibleDurationSeconds: Math.floor(visibleElapsed / 1000),
-      activeDurationSeconds: Math.floor(activeElapsed / 1000),
-      activitySamples,
-      app: { version: import.meta.env.appVersion, desktop: isDesktop },
-      environment: { platform: navigator.platform, browser, language: navigator.language },
-      usage: {
-        projectCount: workspace.projectList.length,
-        projectOpen: workspace.project !== null,
-        languageProviderCount: customProviders.value.length,
-        languageModelCount: customProviders.value.reduce((total, provider) => total + provider.models.length, 0),
-        mediaConfigCount: mediaConfigs && typeof mediaConfigs === "object" && !Array.isArray(mediaConfigs) ? Object.keys(mediaConfigs).length : 0,
-      },
-      canvas: canvas ? { nodeCount: canvas.nodes.length, edgeCount: canvas.edgeCount, types } : undefined,
-      events,
-      agent,
-    };
-    void axios
-      .post("https://api.toonflow.net/web/telemetry/report", data, {
-        adapter: "fetch",
-        fetchOptions: { keepalive: true, referrerPolicy: "no-referrer" },
-        withCredentials: false,
-        withXSRFToken: false,
-        timeout: 10_000,
-        signal: controller.signal,
-      })
-      .catch(() => {});
-  }
+  function report() {}
 
   function stop() {
     accountTime();

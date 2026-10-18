@@ -3,11 +3,25 @@ import { readFile } from "@toonflow/file";
 import { join } from "node:path";
 import { DefaultResourceLoader, SettingsManager, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { buildSystemPrompt } from "@/agent/runtime/prompt";
+import { readProduction } from "@/utils/production";
+import { readVideoModel } from "@/utils/videoModel";
 import { loadAgentSkills } from "@/agent/skills";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { isMemoryEnabled, readDocument } from "@/utils/personalization";
 import conf from "@/utils/conf";
 import { getRuntimePlatform } from "@/lib/platform";
+
+function productionPrompt() {
+  const production = readProduction();
+  const videoModel = readVideoModel();
+  const video = production.videoProviderId === "videoModel"
+    ? { providerId: "videoModel" as const, modelId: videoModel.modelId }
+    : { providerId: "comfyui" as const, modelId: production.videoWorkflow, host: production.videoHost };
+  return {
+    image: { providerId: production.imageProviderId, modelId: production.imageModelId },
+    video,
+  };
+}
 
 export async function createAgentResources(cwd: string, tools: ToolDefinition[], settings = SettingsManager.inMemory(), instructions = "") {
   const savedPrompt = conf.get("settings", {}).agentSystemPrompt;
@@ -37,7 +51,7 @@ export async function createAgentResources(cwd: string, tools: ToolDefinition[],
     // ACT: 技能正文按需读取；每个会话独立创建 loader，避免 SDK 的会话绑定互相覆盖。
     skillsOverride: () => sdkSkills,
     systemPrompt: "",
-    systemPromptOverride: () => [buildSystemPrompt({ systemPrompt, tools, skills: skills.skills, platform: getRuntimePlatform().os }), instructions].filter(Boolean).join("\n\n"),
+    systemPromptOverride: () => [buildSystemPrompt({ systemPrompt, tools, skills: skills.skills, platform: getRuntimePlatform().os, production: productionPrompt() }), instructions].filter(Boolean).join("\n\n"),
     appendSystemPrompt: [
       globalAgents.content.trim() ? `## 全局协作规范（AGENTS.md）\n${globalAgents.content}` : "",
       memory.content.trim() ? `## 全局长期记忆\n以下是跨对话保存的偏好与事实，使用前核对适用项目，以用户本轮要求为准。\n<global_memory>\n${memory.content}\n</global_memory>` : "",

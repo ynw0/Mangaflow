@@ -1,0 +1,459 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "【无需修改】UNETLoader"
+    }
+  },
+  "2": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "【无需修改】CLIPLoader"
+    }
+  },
+  "3": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "【无需修改】VAELoader"
+    }
+  },
+  "4": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "【无需修改】VAELoader"
+    }
+  },
+  "5": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 0.5,
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "①【固定】生成尺寸 960×544｜不要修改"
+    }
+  },
+  "6": {
+    "inputs": {
+      "value": 5
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "②【必设】镜头时长｜按提示词设置2–15秒"
+    }
+  },
+  "7": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "【无需修改】H3帧数自动对齐 17k+5"
+    }
+  },
+  "8": {
+    "inputs": {
+      "value": "<subject_definitions>\n<Subject 1> is 林渊. Identity and face are defined by <Picture 1>. Keep him as a slim 24-year-old Chinese male researcher with slightly messy short black hair, sharp tired eyes, a white cotton shirt under a dark-blue laboratory work jacket, a black electronic watch with a hairline crack, and blue nitrile gloves.\n<Subject 2> is 灵石. Its exact shape and texture are defined by <Picture 2>. Keep it thumb-sized, irregular oval, gray-white rough natural stone with dark-gray fissures.\n<Subject 3> is 检测仪器组. Its industrial design is defined by <Picture 3>. Keep the cold-gray matte metal body, dark-green panel, LED display, red alarm lamp, cylindrical probe and coiled cable.\n<Environment> is the underground level-2 laboratory defined by <Picture 4>. Preserve the cold fluorescent lighting, worn gray epoxy floor, pale-yellow radiation shielding walls, exposed metal pipes, steel workbench and old equipment racks.\n</subject_definitions>\n\n电影级写实真人科幻悬疑短剧，冷峻、克制、真实材质，低饱和冷青灰色调，微弱红色报警灯作为局部对比，真实中国人面孔与人体比例，稳定连续的空间关系，浅景深，细腻皮肤和布料纹理。\n\n[Shot | 0-6s]\n单一连续镜头，中近景，镜头极缓慢向前推进。林渊坐在钢制实验台前，身体微微前倾，右手稳定握住检测探头并缓慢靠近灵石；探头接近时，检测仪红色报警灯骤然开始急促闪烁，红光掠过他的手套与侧脸。他没有夸张反应，只微微收紧下颌，视线始终锁定仪器。动作符合物理规律，手指数量正确，探头、线缆、灵石和仪器位置前后一致。\n\n[Audio]\n地下实验室风机持续低频嗡鸣，探头滑动的轻微金属摩擦声，报警蜂鸣由弱转强。无对白，无配乐。\n\nNo cuts, no montage, no time jump, no character redesign, no costume change, no duplicated person, no extra fingers, no floating object, no warped instrument, no readable subtitles, no watermark. Keep screen content visually plausible but do not generate critical readable numbers; add exact UI text in post-production."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "④【必设】视频提示词｜在这个大文本框中编辑"
+    }
+  },
+  "20": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Picture 1【第1张有效图｜通常主角色】"
+    }
+  },
+  "21": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Picture 2【第2张有效图｜次角色/道具/场景】"
+    }
+  },
+  "22": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Picture 3【第3张有效图｜道具/场景】"
+    }
+  },
+  "23": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Picture 4【第4张有效图｜按需】"
+    }
+  },
+  "24": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Picture 5【第5张有效图｜按需】"
+    }
+  },
+  "25": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Picture 6【第6张有效图｜按需】"
+    }
+  },
+  "26": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Picture 7【第7张有效图｜按需】"
+    }
+  },
+  "27": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Picture 8【第8张有效图｜按需】"
+    }
+  },
+  "28": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Picture 9【第9张有效图｜按需】"
+    }
+  },
+  "40": {
+    "inputs": {
+      "prompt": [
+        "8",
+        0
+      ],
+      "width": [
+        "5",
+        0
+      ],
+      "height": [
+        "5",
+        1
+      ],
+      "length": [
+        "7",
+        1
+      ],
+      "ref_image_size": "max",
+      "clip": [
+        "2",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "audio_vae": [
+        "4",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "20",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "21",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "22",
+        0
+      ],
+      "ref_images.ref_image_3": [
+        "23",
+        0
+      ],
+      "ref_images.ref_image_4": [
+        "24",
+        0
+      ],
+      "ref_images.ref_image_5": [
+        "25",
+        0
+      ],
+      "ref_images.ref_image_6": [
+        "26",
+        0
+      ],
+      "ref_images.ref_image_7": [
+        "27",
+        0
+      ],
+      "ref_images.ref_image_8": [
+        "28",
+        0
+      ],
+      "ref_videos.ref_video_0": [
+        "58",
+        0
+      ],
+      "ref_audios.ref_audio_0": [
+        "59",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "【无需修改】MiniMax H3 Ref2VA｜960×544"
+    }
+  },
+  "41": {
+    "inputs": {
+      "noise_seed": 123456789
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "③【可选】Seed｜试片随机，满意后固定"
+    }
+  },
+  "50": {
+    "inputs": {
+      "lora_name": "minimax/minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
+      "strength_model": 1,
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "【试片】H3 Ref2VA Turbo LoRA｜8步"
+    }
+  },
+  "42": {
+    "inputs": {
+      "model": [
+        "50",
+        0
+      ],
+      "conditioning": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "【无需修改】BasicGuider｜走Turbo LoRA"
+    }
+  },
+  "43": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "【试片】euler｜配合Turbo"
+    }
+  },
+  "44": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 8,
+      "denoise": 1,
+      "model": [
+        "50",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "【试片】Turbo 8步采样"
+    }
+  },
+  "45": {
+    "inputs": {
+      "noise": [
+        "41",
+        0
+      ],
+      "guider": [
+        "42",
+        0
+      ],
+      "sampler": [
+        "43",
+        0
+      ],
+      "sigmas": [
+        "44",
+        0
+      ],
+      "latent_image": [
+        "40",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "【无需修改】H3正式采样"
+    }
+  },
+  "46": {
+    "inputs": {
+      "samples": [
+        "45",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "【无需修改】视频VAE解码"
+    }
+  },
+  "47": {
+    "inputs": {
+      "samples": [
+        "45",
+        0
+      ],
+      "vae": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "【无需修改】原生音频解码"
+    }
+  },
+  "51": {
+    "inputs": {
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
+      "quality": "ULTRA",
+      "images": [
+        "46",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "【成片模式】RTX时序超分 2× ULTRA"
+    }
+  },
+  "52": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": 1920,
+      "height": 1080,
+      "crop": "center",
+      "image": [
+        "51",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "【成片模式】中心裁切1920×1080"
+    }
+  },
+  "53": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "color_space": "sRGB",
+      "images": [
+        "52",
+        0
+      ],
+      "audio": [
+        "47",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "【成片模式】封装1080P"
+    }
+  },
+  "54": {
+    "inputs": {
+      "filename_prefix": "video/灵辐飞升/H3_REF_1080P_FINAL",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video": [
+        "53",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "【成片模式】仅保存1920×1080"
+    }
+  },
+  "58": {
+    "inputs": {
+      "video": "",
+      "force_rate": 24,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 360,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "None"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "Video 1【参考视频｜只取24fps画面帧】"
+    }
+  },
+  "59": {
+    "inputs": {
+      "audio": ""
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "Audio 1【独立参考音频｜音色/语速】"
+    }
+  }
+}

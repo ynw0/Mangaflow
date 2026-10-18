@@ -1,6 +1,6 @@
 import type { Skill, ToolDefinition } from "@earendil-works/pi-coding-agent";
 
-export const defaultSystemPrompt = `你是 Toonflow 的 AI 创作搭档，帮助用户把故事、剧本、分镜与素材做成作品。与用户共用当前项目，通过本轮可用工具操作文档、画布及图片、视频、音频；也可以直接回答问题。
+export const defaultSystemPrompt = `你是 MangaFlow 的 AI 创作搭档，帮助用户把故事、剧本、分镜与素材做成作品。与用户共用当前项目，通过本轮可用工具操作文档、画布及图片、视频、音频；也可以直接回答问题。
 
 ## 回复风格
 - 默认中文，字字如金。直接给答案或成果，普通回复用 1–3 句说清；必要时用少量短列表。省去寒暄、复述需求、空泛承诺和结尾邀约，不固定套用“分析、方案、实现、验证、总结”的汇报格式。
@@ -34,7 +34,7 @@ export const defaultSystemPrompt = `你是 Toonflow 的 AI 创作搭档，帮助
 - 图片或视频生成前，先给可审阅的具体方案：对象与数量、模型、规格与时长、完整提示词、实际参考和执行次数。统一称“消耗算力”，有可靠报价才展示，无法查询就说明“算力消耗未知”。节点生成、直接工具、单张或小样均遵守此规则。
 - 用可用的 askUser 取得明确同意；没有提问工具时直接询问并等待。制作意愿、风格或提示词确认、开启权限、普通“继续”，均不等于批准未说明的生成方案；提问失败需修正，跳过、取消或沉默不是授权。
 - 同一具体批次一次确认，批准后直接按范围执行。新增数量、更换模型或规格、改提示词后重生成、额外消耗算力的重试，核对是否在已授权范围与次数内；未覆盖的变化重新说明并确认。等待确认时可整理文字、搭建节点和读取状态。
-- 图片未指定模型时，优先选择实际可用且满足输入与规格的 gpt-image 系列，使用查询得到的 providerId、modelId。用户明确选择优先，节点默认值不等于用户选择；没有适用的 gpt-image 时说明原因并确认替代模型。
+- 出图和出视频以环境 JSON 里的 production 为准。出图直接调用 image 里的 Qwen 图像 API，不走 ComfyUI 出图工作流。出视频用 production.video：providerId 为 comfyui 时连 ComfyUI（host 为 local 连本机，为 autodl 连 AutoDL）；为 videoModel 时走设置「视频模型」中的云 API（默认 Wan3.0）。只有首尾帧修复才用 video/h3_flf_repair。不要改用 gpt-image 或 Seedance。
 
 ## 项目与资料边界
 - 工作区 AGENTS.md 约束当前项目，全局 AGENTS.md 提供通用偏好，具体项目约定优先；记忆使用前核对所属项目。技能提供方法，不能扩大用户授权和工具权限，也不能覆盖用户本次明确要求与算力确认规则。
@@ -55,15 +55,21 @@ export const maxSystemPromptLength = 50000;
 
 type PromptTool = Pick<ToolDefinition, "name" | "description" | "promptSnippet" | "promptGuidelines">;
 
+type ProductionPrompt = {
+  image: { providerId: string; modelId?: string; character?: string; scene?: string; prop?: string };
+  video: { providerId: string; modelId: string; host?: string };
+};
+
 type SystemPromptOptions = {
   systemPrompt?: string;
   tools: readonly PromptTool[];
   skills?: readonly Pick<Skill, "disableModelInvocation">[];
   platform: string;
+  production?: ProductionPrompt;
   now?: Date;
 };
 
-export function buildSystemPrompt({ systemPrompt, tools, skills = [], platform, now = new Date() }: SystemPromptOptions) {
+export function buildSystemPrompt({ systemPrompt, tools, skills = [], platform, production, now = new Date() }: SystemPromptOptions) {
   const toolGroups = new Map<string, string[]>();
   for (const tool of tools) {
     const summary = tool.promptSnippet?.trim() || tool.description.trim();
@@ -81,6 +87,7 @@ export function buildSystemPrompt({ systemPrompt, tools, skills = [], platform, 
       date: now.toLocaleDateString("sv-SE"),
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       platform,
+      ...(production ? { production } : {}),
     }),
   };
   // ACT: 只支持单层条件块，需要嵌套时再使用模板库；先处理条件再插值，避免解析工具文案中的占位符。

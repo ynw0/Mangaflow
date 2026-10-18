@@ -1,4 +1,4 @@
-import { copyFile, cp, mkdir, readFile, readdir, rename, unlink, writeAtomic, writeFile } from "@toonflow/file";
+import { copyFile, cp, lstat, mkdir, readFile, readdir, rename, unlink, writeAtomic, writeFile } from "@toonflow/file";
 import { resolve } from "node:path";
 
 export default async function initializePlugins(targetDirectory: string, sourceDirectory: string, fileFilter?: RegExp | readonly string[], revision?: string) {
@@ -7,7 +7,10 @@ export default async function initializePlugins(targetDirectory: string, sourceD
     if (error.code === "ENOENT") return null;
     throw error;
   });
-  if (initialized !== null && (revision === undefined || initialized === revision)) return;
+  if (initialized !== null && (revision === undefined || initialized === revision)) {
+    if (revision === undefined) await copyMissingDirectories(sourceDirectory, targetDirectory);
+    return;
+  }
 
   const entries = await readdir(sourceDirectory, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return null;
@@ -42,4 +45,22 @@ export default async function initializePlugins(targetDirectory: string, sourceD
   await (revision === undefined ? writeFile(marker, "", { flag: "wx" }) : writeAtomic(marker, revision, { mode: 0o666 })).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== "EEXIST") throw error;
   });
+}
+
+async function copyMissingDirectories(sourceDirectory: string, targetDirectory: string) {
+  const entries = await readdir(sourceDirectory, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  if (!entries) return;
+  await mkdir(targetDirectory, { recursive: true });
+  for (const file of entries) {
+    if (!file.isDirectory()) continue;
+    const target = resolve(targetDirectory, file.name);
+    const exists = await lstat(target).then(() => true).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return false;
+      throw error;
+    });
+    if (!exists) await cp(resolve(sourceDirectory, file.name), target, { recursive: true, force: false });
+  }
 }

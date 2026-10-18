@@ -31,6 +31,7 @@ export async function createSubAgentTool({ cwd, tools, canvas, runTask, ...model
       "简单任务直接完成；只委派相互独立的工作，提供必要背景和真实授权。并行任务不得修改同一文件或画布，依赖任务分次处理。",
       "委派不扩大权限或消耗算力授权。远端团队会收到 task 文本，仅发送完成任务所需且获准分享的内容；不能访问本机工具或未发送的文件。",
       "核验结果和 status；inputRequired 表示等待补充，应向用户确认后带原 taskId/contextId 继续该远端团队。错误、取消、达到限制均不等于完成，不自动重试可能已经产生副作用的任务。",
+      "合法调用示例：{\"tasks\":[{\"name\":\"      \",\"task\":\"      \"}]}。",
     ],
     parameters: z.toJSONSchema(parameters, { io: "input", target: "draft-07" }),
     executionMode: "sequential",

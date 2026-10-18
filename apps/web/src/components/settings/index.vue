@@ -7,12 +7,12 @@
           <button
             class="settingsItem"
             type="button"
-            :aria-label="item.id === 'about' && hasDesktopUpdate ? `${item.label}，有新版本可用` : item.label"
+            :aria-label="item.label"
             :aria-pressed="activePanel.id === item.id"
             @click="activePanel = item">
-            <el-badge class="panelIcon" isDot :hidden="item.id !== 'about' || !hasDesktopUpdate">
+            <span class="panelIcon">
               <component :is="item.icon" :size="18" aria-hidden="true" />
-            </el-badge>
+            </span>
             <span>{{ item.label }}</span>
           </button>
         </template>
@@ -25,7 +25,7 @@
               <component
                 :is="activePanel.component"
                 v-bind="
-                  ['pluginMarket', 'languageModel', 'mediaModel', 'personalization', 'deviceLink'].includes(activePanel.id) ? { visible } : {}
+                  ['pluginMarket', 'languageModel', 'mediaModel', 'videoModel', 'personalization', 'deviceLink'].includes(activePanel.id) ? { visible } : {}
                 " />
             </keep-alive>
           </transition>
@@ -37,7 +37,6 @@
 
 <script setup lang="ts">
 import { defineAsyncComponent, shallowRef } from "vue";
-import { hasDesktopUpdate } from "@/stores/desktopUpdate";
 import { isMobile } from "@/lib/platform";
 import {
   IconPalette,
@@ -46,11 +45,12 @@ import {
   IconBuildingStore,
   IconInfoCircle,
   IconCode,
-  IconShieldLock,
   IconPlugConnected,
   IconUserCog,
   IconSubtitlesAi,
   IconDevices,
+  IconRoute,
+  IconMovie,
 } from "@tabler/icons-vue";
 
 const settingsPanels = [
@@ -64,6 +64,8 @@ const settingsPanels = [
     component: defineAsyncComponent(() => import("./panels/languageModel/index.vue")),
   },
   { id: "mediaModel", label: "媒体模型", icon: IconPhotoVideo, component: defineAsyncComponent(() => import("./panels/mediaModel/index.vue")) },
+  { id: "videoModel", label: "视频模型", icon: IconMovie, component: defineAsyncComponent(() => import("./panels/videoModel/index.vue")) },
+  { id: "workflow", label: "工作流", icon: IconRoute, component: defineAsyncComponent(() => import("./panels/workflow/index.vue")) },
   {
     id: "pluginMarket",
     label: "插件市场",
@@ -82,7 +84,6 @@ const settingsPanels = [
     groupLabel: "其他",
     component: defineAsyncComponent(() => import("./panels/personalization.vue")),
   },
-  { id: "privacy", label: "隐私", icon: IconShieldLock, component: defineAsyncComponent(() => import("./panels/privacy.vue")) },
   { id: "developer", label: "开发者选项", icon: IconCode, component: defineAsyncComponent(() => import("./panels/developer/index.vue")) },
   { id: "about", label: "关于", icon: IconInfoCircle, component: defineAsyncComponent(() => import("./panels/about.vue")) },
 ];

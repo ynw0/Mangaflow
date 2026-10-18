@@ -28,8 +28,10 @@ function mediaUrl(input: MediaInput) {
   return data.startsWith("data:") ? data : `data:${input.mimeType};base64,${data}`;
 }
 
-function getBaseUrl(isOverseas: string | undefined) {
-  return isOverseas === "2" ? "https://api.apimart.ai/v1" : "https://api.apib.ai/v1";
+function getBaseUrl(config: { isOverseas?: string; baseUrl?: string } | undefined) {
+  const explicit = typeof config?.baseUrl === "string" ? config.baseUrl.trim().replace(/\/+$/, "") : "";
+  if (explicit) return explicit;
+  return config?.isOverseas === "2" ? "https://api.apimart.ai/v1" : "https://api.apib.ai/v1";
 }
 
 function wait(signal: AbortSignal, ms: number) {
@@ -224,7 +226,7 @@ export default {
   async generateImage(request: ImageRequest): Promise<MediaAsset[]> {
     const apiKey = this.config.apiKey?.trim();
     if (!apiKey) throw new Error("请填写 API Key");
-    const baseUrl = getBaseUrl(this.config.isOverseas);
+    const baseUrl = getBaseUrl(this.config);
     const lowerName = request.model.toLowerCase();
     // ACT: 单次生成最多等待 10 分钟。
     const signal = AbortSignal.any([AbortSignal.timeout(10 * 60_000), ...(this.signal ? [this.signal] : [])]);
@@ -269,7 +271,7 @@ export default {
   async generateVideo(request: VideoRequest): Promise<MediaAsset[]> {
     const apiKey = this.config.apiKey?.trim();
     if (!apiKey) throw new Error("请填写 API Key");
-    const baseUrl = getBaseUrl(this.config.isOverseas);
+    const baseUrl = getBaseUrl(this.config);
     const lowerName = request.model.toLowerCase();
     // ACT: 单次生成最多等待 30 分钟。
     const signal = AbortSignal.any([AbortSignal.timeout(30 * 60_000), ...(this.signal ? [this.signal] : [])]);
@@ -353,7 +355,7 @@ export default {
   async updateVendor(): Promise<string> {
     const apiKey = this.config.apiKey?.trim();
     if (!apiKey) throw new Error("请填写 API Key");
-    const baseUrl = getBaseUrl(this.config.isOverseas);
+    const baseUrl = getBaseUrl(this.config);
     const response = await this.tool.fetch(`${baseUrl}/vendor/downloadVendor`, {
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       signal: this.signal,

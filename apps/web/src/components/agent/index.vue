@@ -15,7 +15,7 @@
       @select="selectConversation"
       @rename="renameConversation"
       @remove="removeConversation"
-      @close="visible = false">
+      @close="tryClose">
       <template #actions><slot name="menuActions" /></template>
     </agentMenu>
     <conversation
@@ -297,6 +297,16 @@ watch(() => workspaceStore.project?.directory, directory => {
 watch(visible, active => {
   if (active && !initialized.value) void loadHistory(true);
 });
+function tryClose() {
+  for (const view of conversationRefs.values()) {
+    if (view.hasPendingQuestion) {
+      ElMessage.warning("请先回答提问后再关闭对话");
+      return;
+    }
+  }
+  visible.value = false;
+}
+
 onBeforeUnmount(() => { requestId++; });
 
 </script>

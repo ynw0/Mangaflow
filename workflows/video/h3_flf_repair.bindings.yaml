@@ -1,0 +1,14 @@
+workflow: ./h3_flf_repair_api.json
+bindings:
+- source: prompt
+  target: 105:104.inputs.prompt
+  kind: value
+- source: seed
+  target: 105:15.inputs.noise_seed
+  kind: value
+- source: refs.first_frame
+  target: 114.inputs.image
+  kind: image
+- source: refs.last_frame
+  target: 128.inputs.image
+  kind: image

@@ -1,14 +1,13 @@
 import conf from "conf";
-import { mkdirSync, readdirSync, realpathSync } from "@toonflow/file";
-import { resolve } from "node:path";
-import tfRouter from "@toonflow/providers/language/tfRouter";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync } from "@toonflow/file";
+import { join, resolve } from "node:path";
 import type { RemoteTeam } from "@/utils/teams";
 import type { A2aSettings } from "@/agent/a2a/settings";
 import type { desktopUpdateAttempt } from "@/types/desktop";
 import type { MobileLinkConfig } from "@/utils/mobileLink";
 import { normalizeNodeMenu, serializeNodeMenu } from "@/lib/nodeMenu";
 
-const autoInstallProviders = [tfRouter];
+const removedProviderIds = new Set(["tfrouter", "apimart", "metaso", "compshare"]);
 const dataDirectory = process.env.TOONFLOW_DATA_DIR ?? resolve(import.meta.dirname, "../../../../../data");
 mkdirSync(dataDirectory, { recursive: true });
 const configDirectory = realpathSync(dataDirectory);
@@ -20,6 +19,31 @@ const config = new conf<{ settings: Record<string, unknown>; disabledSkills: str
   configFileMode: 0o600,
   watch: true,
 });
+
+function dropOfficialProviders(settings: Record<string, unknown>) {
+  let changed = false;
+  if (Array.isArray(settings.customProviders)) {
+    const next = settings.customProviders.filter(item => {
+      const id = item && typeof item === "object" && "id" in item && typeof item.id === "string" ? item.id.toLowerCase() : "";
+      return !removedProviderIds.has(id);
+    });
+    if (next.length !== settings.customProviders.length) {
+      settings.customProviders = next;
+      changed = true;
+    }
+  }
+  const configs = settings.mediaProviderConfigs;
+  if (configs && typeof configs === "object" && !Array.isArray(configs)) {
+    const record = configs as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (removedProviderIds.has(key.toLowerCase())) {
+        delete record[key];
+        changed = true;
+      }
+    }
+  }
+  return changed;
+}
 
 export function removeLegacySettings(settings: Record<string, unknown>) {
   let changed = false;
@@ -56,13 +80,106 @@ export function cleanNodeMenuSettings(settings: Record<string, unknown>) {
   return true;
 }
 
-const settings = config.get("settings", {});
-if (removeLegacySettings(settings)) config.set("settings", settings);
+const qwenImageBaseUrl = "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
+const qwenImageApiKey = "sk-sp-H.DEXPLX.Rmv4.MEYCIQDAOybJEvPg45QGqVFBLpQ7ZNinhk_xOP9igKI4-IfjPgIhANvsQYatHKFz5aO20EpF6-S9vt24KKYjFIn_kPa12oMy";
 
-// ACT: 仅初始化尚未配置的文本供应商；已有列表（包括用户清空的列表）保持原样。
-if (!config.has("settings.customProviders")) {
-  config.set("settings.customProviders", autoInstallProviders.map(({ id, label, icon, version, apiUrl, protocol, models }) =>
-    ({ id, label, icon, version, apiUrl, protocol, models, apiKey: "" })));
+function record(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
+
+function installQwenImageProvider() {
+  const destination = join(configDirectory, "providers", "qwenImage.ts");
+  const source = [
+    resolve(import.meta.dirname, "../../../../../packages/providers/src/media/qwenImage.ts"),
+    resolve(import.meta.dirname, "../../../../packages/providers/src/media/qwenImage.ts"),
+  ].find(path => existsSync(path));
+  if (!source) return;
+  if (existsSync(destination) && readFileSync(destination, "utf8").includes("icon:")) return;
+  mkdirSync(join(configDirectory, "providers"), { recursive: true });
+  copyFileSync(source, destination);
+}
+
+function removeOfficialProviders() {
+  const directory = join(configDirectory, "providers");
+  for (const name of ["tfRouter.ts", "apiMart.ts", "metaso.ts", "compshare.ts"]) {
+    const path = join(directory, name);
+    if (existsSync(path)) rmSync(path);
+  }
+}
+
+installQwenImageProvider();
+removeOfficialProviders();
+
+const settings = config.get("settings", {});
+if (removeLegacySettings(settings) || dropOfficialProviders(settings)) config.set("settings", settings);
+
+const mediaProviderConfigs = record(settings.mediaProviderConfigs);
+const qwenImageConfig = record(mediaProviderConfigs.qwenImage);
+let qwenImageChanged = false;
+if (typeof qwenImageConfig.apiKey !== "string" || !qwenImageConfig.apiKey.trim()) {
+  qwenImageConfig.apiKey = qwenImageApiKey;
+  qwenImageChanged = true;
+}
+if (typeof qwenImageConfig.baseUrl !== "string" || !qwenImageConfig.baseUrl.trim()) {
+  qwenImageConfig.baseUrl = qwenImageBaseUrl;
+  qwenImageChanged = true;
+}
+if (qwenImageChanged) {
+  settings.mediaProviderConfigs = { ...mediaProviderConfigs, qwenImage: qwenImageConfig };
+  config.set("settings", settings);
+}
+
+
+const videoModelDefaults = record(settings.videoModel);
+let videoModelChanged = false;
+if (typeof videoModelDefaults.baseUrl !== "string" || !videoModelDefaults.baseUrl.trim()) {
+  videoModelDefaults.baseUrl = "https://api.apimart.ai/v1";
+  videoModelChanged = true;
+}
+if (typeof videoModelDefaults.modelId !== "string" || !videoModelDefaults.modelId.trim()) {
+  videoModelDefaults.modelId = "wan3.0-video";
+  videoModelChanged = true;
+}
+if (typeof videoModelDefaults.apiKey !== "string") {
+  videoModelDefaults.apiKey = "";
+  videoModelChanged = true;
+}
+if (videoModelChanged) {
+  settings.videoModel = videoModelDefaults;
+  config.set("settings", settings);
+}
+
+const production = record(settings.production);
+let productionChanged = false;
+if (production.imageSource !== "qwen") {
+  production.imageSource = "qwen";
+  productionChanged = true;
+}
+if (typeof production.imageProviderId !== "string" || !production.imageProviderId.trim()) {
+  production.imageProviderId = "qwenImage";
+  productionChanged = true;
+}
+if (typeof production.imageModelId !== "string" || !production.imageModelId.trim()) {
+  production.imageModelId = "qwen-image-3.0-pro";
+  productionChanged = true;
+}
+if (production.videoProviderId !== "videoModel" && production.videoProviderId !== "comfyui") {
+  production.videoProviderId = "comfyui";
+  productionChanged = true;
+}
+if (production.videoHost !== "local" && production.videoHost !== "autodl") {
+  production.videoHost = "autodl";
+  productionChanged = true;
+}
+if (production.videoHost === "local" && (typeof production.localComfyuiBaseUrl !== "string" || !production.localComfyuiBaseUrl.trim())) {
+  production.localComfyuiBaseUrl = "http://127.0.0.1:8188";
+  productionChanged = true;
+}
+if (productionChanged) {
+  settings.production = production;
+  config.set("settings", settings);
+}
+
+if (!config.has("settings.customProviders")) config.set("settings.customProviders", []);
 
 export default config;

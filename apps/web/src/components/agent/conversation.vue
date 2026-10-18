@@ -8,7 +8,7 @@
               <div class="welcomeHeader">
                 <span class="welcomeIcon" aria-hidden="true"><span class="welcomeLogo" :style="{ maskImage: `url(${logoUrl})` }" /></span>
                 <div>
-                  <p class="welcomeLabel">你好，我是 Toonflow 助手</p>
+                  <p class="welcomeLabel">你好，我是 MangaFlow 助手</p>
                   <h3>从一个想法开始</h3>
                 </div>
               </div>
@@ -386,7 +386,11 @@ function receiveEvent(event: AgentEvent) {
   applyEvent(event);
 }
 
-defineExpose({ receiveEvent });
+// 是否有未回答的 askUser 提问（关面板前检查）
+const hasPendingQuestion = computed(() => messages.value.some(message =>
+  message.parts?.some(part => part.type === "tool" && part.tool.status === "running" && !!part.tool.question?.callId)
+));
+defineExpose({ receiveEvent, hasPendingQuestion });
 
 function getDraftContent() {
   return sender?.getModel().map((line, lineIndex) => line.map((tag, tagIndex) => {

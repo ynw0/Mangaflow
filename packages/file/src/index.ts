@@ -11,6 +11,13 @@ export type { FileHandle } from "node:fs/promises";
 
 const retryOptions = { timeout: 5000, interval: 100 };
 const useExclusiveRename = process.platform === "android" || (process.platform === "linux" && process.env.TOONFLOW_PLATFORM === "ohos");
+const useWindowsExclusiveRename = process.platform === "win32";
+
+function publishExclusive(source: string, target: string) {
+  if (useExclusiveRename) return require("./renameExclusive.ts").renameExclusive(source, target);
+  if (useWindowsExclusiveRename) return require("./renameExclusiveWindows.ts").renameExclusive(source, target);
+  throw Object.assign(new Error("当前系统不能独占创建文件"), { code: "ENOTSUP" });
+}
 
 // 元数据查询不持有长期句柄；保留标准 API 的重载和错误语义。
 export const access = promises.access;
@@ -161,7 +168,7 @@ export async function writeAtomic(path: string, content: string | Uint8Array, op
         });
       }
       if (options.exclusive) {
-        if (useExclusiveRename) require("./renameExclusive.ts").renameExclusive(temporary, path);
+        if (useExclusiveRename || useWindowsExclusiveRename) publishExclusive(temporary, path);
         else await promises.link(temporary, path);
       }
       else await stubborn.retry.rename(retryOptions)(temporary, path);
@@ -193,7 +200,7 @@ export function writeAtomicSync(path: string, content: string | Uint8Array, opti
         }
       }
       if (options.exclusive) {
-        if (useExclusiveRename) require("./renameExclusive.ts").renameExclusive(temporary, path);
+        if (useExclusiveRename || useWindowsExclusiveRename) publishExclusive(temporary, path);
         else native.linkSync(temporary, path);
       }
       else stubborn.retry.renameSync(retryOptions)(temporary, path);

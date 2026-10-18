@@ -5,6 +5,8 @@ import { mediaProviders, type Provider } from "@toonflow/providers";
 import type { GeneratedMedia, MediaGenerationRequest, MediaModel, MediaReference } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
 import { getMediaProvider, listMediaProviders, loadMediaProviderSource } from "@/utils/media/provider";
+import { runComfyWorkflow, toMediaModel, listWorkflowCatalog, readProduction } from "@/utils/production";
+import { loadVideoModelProvider, readVideoModel, requireVideoModel, videoModelAsMediaModel } from "@/utils/videoModel";
 import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { beginGeneration, getProviderPrice } from "@/utils/media/billing";
 import { detectMimeType, readPriceReference } from "@/utils/media/priceReference";
@@ -32,7 +34,8 @@ function imageOptions(value: unknown, pattern: RegExp) {
 
 export async function listMediaModels(): Promise<MediaModel[]> {
   const installedProviders = await listMediaProviders();
-  return installedProviders.flatMap(provider => provider.models.flatMap(model => {
+  const workflows = (await listWorkflowCatalog()).filter(item => item.kind === "video").map(item => toMediaModel(item) as MediaModel);
+  const installed = installedProviders.flatMap(provider => provider.models.flatMap(model => {
     if (model.type !== "image" && model.type !== "video" && model.type !== "audio") return [];
     const builtIn = (mediaProviders as readonly Provider[]).find(item => item.id === provider.id)?.models.find(item => item.id === model.id);
     return [{
@@ -46,6 +49,26 @@ export async function listMediaModels(): Promise<MediaModel[]> {
       } : {}),
     } as MediaModel];
   }));
+  // ACT: 云视频走独立 videoModel，不把 apiMart 整包塞进媒体列表。
+  const cloudVideo = videoModelAsMediaModel(readVideoModel());
+  const models = [...installed, ...workflows, cloudVideo];
+  const production = readProduction();
+  const ordered = preferModel(models, "image", production.imageProviderId, production.imageModelId);
+  if (production.videoProviderId === "videoModel") {
+    return preferModel(ordered, "video", "videoModel", cloudVideo.modelId);
+  }
+  return preferModel(ordered, "video", "comfyui", production.videoWorkflow);
+}
+
+function preferModel(models: MediaModel[], type: MediaModel["type"], providerId: string, modelId: string) {
+  const index = models.findIndex(item => item.type === type && item.providerId === providerId && item.modelId === modelId);
+  if (index <= 0) return models;
+  const next = models.slice();
+  const chosen = next.splice(index, 1)[0];
+  if (!chosen) return models;
+  const insertAt = next.findIndex(item => item.type === type);
+  next.splice(insertAt < 0 ? next.length : insertAt, 0, chosen);
+  return next;
 }
 
 export async function readReference(cwd: string, reference: MediaReference, mediaType: string, signal?: AbortSignal): Promise<Extract<MediaInput, { type: "base64" }>> {
@@ -154,11 +177,34 @@ async function preparePriceRequest(directory: string | undefined, mediaType: "im
 
 export async function getMediaPrice(directory: string | undefined, mediaType: "image" | "video" | "audio", request: MediaGenerationRequest, signal?: AbortSignal) {
   signal?.throwIfAborted();
+  if (request.providerId === "comfyui" || request.providerId === "videoModel") return null;
   const provider = await configuredProvider(request, mediaType, signal, directory);
   if (!provider.getPrice) return null;
   const prepared = await preparePriceRequest(directory, mediaType, request, signal);
   signal?.throwIfAborted();
   return getProviderPrice(provider, prepared);
+}
+
+async function writeGenerated(directory: string, outputDirectory: string, mediaType: "image" | "video", bytes: Uint8Array, mimeType: string, signal?: AbortSignal): Promise<GeneratedMedia[]> {
+  if (!mediaExtensions[mimeType]) invalid("生成结果不是支持的图片或视频格式");
+  const written: string[] = [];
+  try {
+    signal?.throwIfAborted();
+    const output = await resolveWorkspacePath(directory, outputDirectory, true);
+    const release = lockWorkspaceFiles([output.path]);
+    try {
+      await mkdir(output.path, { recursive: true });
+      const file = join(outputDirectory, `${mediaType}${crypto.randomUUID()}.${mediaExtensions[mimeType]}`);
+      const { path } = await resolveWorkspacePath(directory, file);
+      signal?.throwIfAborted();
+      await writeWorkspaceFile(path, bytes, true);
+      written.push(path);
+      return [{ path: relative(directory, path).replace(/\\/g, "/"), mimeType, mediaType }];
+    } finally { release(); }
+  } catch (err) {
+    await Promise.all(written.map(path => unlink(path).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; })));
+    throw err;
+  }
 }
 
 export async function generateMedia(
@@ -172,6 +218,52 @@ export async function generateMedia(
   const directory = await realpath(cwd);
   const outputDirectory = request.outputDirectory ?? "assets/generated";
   await resolveWorkspacePath(directory, outputDirectory, true);
+  if (request.providerId === "comfyui") {
+    if (mediaType === "image") invalid("出图直接调用 Qwen 图像 API，不走 ComfyUI 工作流");
+    if (mediaType === "audio") invalid("ComfyUI 工作流用于出视频");
+    const output = await runComfyWorkflow({ directory, mediaType, request, signal });
+    return writeGenerated(directory, outputDirectory, mediaType, output.bytes, output.mimeType, signal);
+  }
+  if (request.providerId === "videoModel") {
+    if (mediaType !== "video") invalid("视频模型仅用于出视频");
+    const videoModel = requireVideoModel();
+    if (request.modelId !== videoModel.modelId) invalid("所选云视频模型与设置「视频模型」不一致，请重新选择");
+    const provider = await loadVideoModelProvider(videoModel, signal, directory);
+    if (typeof provider.generateVideo !== "function") invalid("云视频适配器不支持视频生成");
+    const prepared = await prepareRequest(directory, mediaType, request, readReference, signal);
+    signal?.throwIfAborted();
+    const finish = beginGeneration(provider);
+    const written: string[] = [];
+    const result: GeneratedMedia[] = [];
+    try {
+      signal?.throwIfAborted();
+      const { type, ...parameters } = prepared;
+      if (type !== "video") invalid("云视频请求类型错误");
+      const assets = await provider.generateVideo!(parameters as VideoRequest);
+      if (!Array.isArray(assets) || !assets.length) invalid("供应商未返回生成结果");
+      for (const asset of assets) {
+        signal?.throwIfAborted();
+        const { bytes, mimeType } = await assetBytes(asset, mediaType, signal);
+        signal?.throwIfAborted();
+        const output = await resolveWorkspacePath(directory, outputDirectory, true);
+        const release = lockWorkspaceFiles([output.path]);
+        try {
+          await mkdir(output.path, { recursive: true });
+          const file = join(outputDirectory, `${mediaType}${crypto.randomUUID()}.${mediaExtensions[mimeType]}`);
+          const { path } = await resolveWorkspacePath(directory, file);
+          signal?.throwIfAborted();
+          await writeWorkspaceFile(path, bytes, true);
+          written.push(path);
+          result.push({ path: relative(directory, path).replace(/\\/g, "/"), mimeType, mediaType });
+        } finally { release(); }
+      }
+      signal?.throwIfAborted();
+      return result;
+    } catch (err) {
+      await Promise.all(written.map(path => unlink(path).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; })));
+      throw err;
+    } finally { finish(); }
+  }
   const provider = await configuredProvider(request, mediaType, signal, directory);
   const generate = mediaType === "image" ? provider.generateImage : mediaType === "video" ? provider.generateVideo : provider.generateAudio;
   if (typeof generate !== "function") invalid(t`此供应商不支持${translateMessage({ image: "图片", video: "视频", audio: "音频" }[mediaType])}生成`);

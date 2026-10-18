@@ -1,0 +1,17 @@
+workflow: ./prop_image_api.json
+bindings:
+- source: image_prompt
+  target: 187.inputs.text
+  kind: value
+- source: seed
+  target: 3.inputs.seed
+  kind: value
+- source: params.width
+  target: 118.inputs.width
+  kind: value
+- source: params.height
+  target: 118.inputs.height
+  kind: value
+- source: negative_prompt
+  target: 437.inputs.text
+  kind: value

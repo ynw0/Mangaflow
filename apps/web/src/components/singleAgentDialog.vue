@@ -7,7 +7,8 @@
     alignCenter
     appendToBody
     destroyOnClose
-    :closeOnClickModal="false">
+    :closeOnClickModal="false"
+    :beforeClose="handleBeforeClose">
     <div class="singleAgentBody" :class="{ withAside: !!slots.aside }">
       <div class="conversationColumn">
         <div ref="messageList" class="messageList" role="region" aria-label="对话消息" tabindex="0" @scroll="updateFollowing">
@@ -313,7 +314,38 @@ function reset() {
 }
 
 const slotContext = computed(() => ({ sessionId: sessionId.value, directory: sessionDirectory.value, messages: msgList.value, tools: tools.value, status: status.value, busy: busy.value, send, pause, resume, stop }));
-watch(visible, () => { reset(); }, { immediate: true });
+
+// 未回答提问时不允许关闭临时 Agent 对话框
+function hasPendingQuestion() {
+  return tools.value.some(tool => tool.status === "running" && !!tool.question?.callId);
+}
+
+function handleBeforeClose(done: () => void) {
+  if (hasPendingQuestion()) {
+    ElMessage.warning("请先回答提问后再关闭");
+    return;
+  }
+  done();
+}
+
+let restoringVisible = false;
+watch(visible, value => {
+  if (!value) {
+    if (hasPendingQuestion()) {
+      ElMessage.warning("请先回答提问后再关闭");
+      restoringVisible = true;
+      nextTick(() => { visible.value = true; });
+      return;
+    }
+    reset();
+    return;
+  }
+  if (restoringVisible) {
+    restoringVisible = false;
+    return;
+  }
+  reset();
+}, { immediate: true });
 watch(msgList, async () => {
   if (!following) return;
   await nextTick();

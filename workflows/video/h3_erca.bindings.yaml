@@ -1,0 +1,68 @@
+workflow: ./h3_erca_api.json
+# 二采 MiniMax H3：9 张参考图 + 视频/音频；duration 走 PrimitiveFloat 秒（合同常用 2–15）。
+# H3 节点支持 ref_image_0..8（9 槽）；官方同款。
+capabilities:
+  duration_seconds:
+    min: 2
+    max: 15
+bindings:
+- source: prompt
+  target: 6.inputs.prompt
+  kind: value
+- source: seed
+  target: 12.inputs.seed
+  kind: value
+- source: duration
+  target: 17.inputs.value
+  kind: value
+- source: refs.slot1
+  target: 24.inputs.image
+  kind: image
+- source: refs.slot2
+  target: 15.inputs.image
+  kind: image
+  required: false
+- source: refs.slot3
+  target: 123.inputs.image
+  kind: image
+  required: false
+- source: refs.slot4
+  target: 130.inputs.image
+  kind: image
+  required: false
+- source: refs.slot5
+  target: 132.inputs.image
+  kind: image
+  required: false
+- source: refs.slot6
+  target: 133.inputs.image
+  kind: image
+  required: false
+- source: refs.slot7
+  target: 159.inputs.image
+  kind: image
+  required: false
+- source: refs.slot8
+  target: 160.inputs.image
+  kind: image
+  required: false
+- source: refs.slot9
+  target: 161.inputs.image
+  kind: image
+  required: false
+- source: media.video1
+  target: 135.inputs.video
+  kind: video
+  required: false
+- source: media.audio1
+  target: 27.inputs.audio
+  kind: audio
+  required: false
+- source: media.audio2
+  target: 41.inputs.audio
+  kind: audio
+  required: false
+- source: media.audio3
+  target: 134.inputs.audio
+  kind: audio
+  required: false

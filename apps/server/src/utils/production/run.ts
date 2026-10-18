@@ -119,6 +119,8 @@ export async function runComfyWorkflow(options: {
     media: {
       video1: await localFile(directory, request.videos?.[0]),
       audio1: await localFile(directory, request.audios?.[0]),
+      audio2: await localFile(directory, request.audios?.[1]),
+      audio3: await localFile(directory, request.audios?.[2]),
     },
   };
   const workflow = await renderWorkflow(entry, context, baseUrl, signal);

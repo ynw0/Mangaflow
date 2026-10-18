@@ -20,6 +20,7 @@ const labels: Record<string, string> = {
   "image/scene_image": "场景图",
   "image/prop_image": "道具原画",
   "video/h3_ref2va_1080p": "H3 全能参考",
+  "video/h3_erca": "二采 MiniMax H3",
   "video/h3_flf_repair": "H3 首尾帧",
 };
 
@@ -114,7 +115,9 @@ export function toMediaModel(entry: WorkflowEntry) {
   const durations = limits
     ? Array.from({ length: limits.max - limits.min + 1 }, (_, index) => limits.min + index)
     : [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-  const hasAudio = entry.bindings.bindings.some(item => item.kind === "audio");
+  const audioSlots = entry.bindings.bindings.filter(item => item.kind === "audio").length;
+  const hasAudio = audioSlots > 0;
+  const audioReference = `audioReference:${audioSlots > 0 ? audioSlots : 1}`;
   const frames = entry.bindings.bindings.some(item => item.source === "refs.first_frame");
   const needsImage = entry.bindings.bindings.some(item => item.kind === "image" && item.required);
   if (entry.kind === "image") {
@@ -140,8 +143,8 @@ export function toMediaModel(entry: WorkflowEntry) {
     mode: frames
       ? ["startEndRequired"]
       : needsImage
-        ? ["singleImage", ["imageReference:9", "videoReference:1", "audioReference:1"]]
-        : ["text", "singleImage", ["imageReference:9", "videoReference:1", "audioReference:1"]],
+        ? ["singleImage", ["imageReference:9", "videoReference:1", audioReference]]
+        : ["text", "singleImage", ["imageReference:9", "videoReference:1", audioReference]],
     durationResolutionMap: [{ duration: durations, resolution: ["1080P"] }],
     audio: hasAudio ? "optional" as const : false,
   };

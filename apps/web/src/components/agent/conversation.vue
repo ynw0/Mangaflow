@@ -254,6 +254,28 @@ const draftMentionPreview = ref<InstanceType<typeof mentionContent>>();
 let editDraft: { model: AnyTagProps[][]; mentions: AgentMention[]; attachments: AgentAttachment[] } | undefined;
 const messageList = ref<HTMLDivElement>();
 const atLatestMessage = ref(true);
+/** 按消息形态粗估行高；库会优先用 itemSizeCache，估高只补未测条目 */
+function estimateMessageSize(message: AgentMessage | undefined) {
+  if (!message) return 160;
+  const attachments = message.attachments?.length ?? 0;
+  const attachmentBoost = attachments ? 96 + Math.min(2, attachments - 1) * 64 : 0;
+  if (message.role === "user") {
+    const textLen = message.content?.length ?? 0;
+    return Math.min(420, 64 + Math.ceil(textLen / 48) * 22 + attachmentBoost);
+  }
+  let height = 88;
+  if (message.report) height += 36;
+  if (message.error) height += 40;
+  height += attachmentBoost;
+  for (const part of message.parts ?? []) {
+    if (part.type === "text" && part.content) height += Math.min(720, 48 + Math.ceil(part.content.length / 52) * 22);
+    else if (part.type === "thinking") height += (part.collapsed ?? true) ? 36 : Math.min(360, 40 + Math.ceil((part.content?.length ?? 0) / 52) * 20);
+    else if (part.type === "tool") height += (part.collapsed ?? true) ? 52 : 180;
+  }
+  if (!message.parts?.length && message.content) height += Math.min(720, 48 + Math.ceil(message.content.length / 52) * 22);
+  if (browserMessages.value.tools.has(message.id)) height += 220;
+  return Math.max(72, height);
+}
 let messageListInitialized = false;
 let messageScrollOffset = 0;
 const messageKeys = computed(() => displayedMessages.value.map(item => item.id));
@@ -266,7 +288,7 @@ const messageVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>(comput
     count: keys.length,
     getScrollElement: () => messageList.value ?? null,
     getItemKey: (index: number) => keys[index]!,
-    estimateSize: () => 240,
+    estimateSize: (index: number) => estimateMessageSize(displayedMessages.value[index]),
     overscan: 3,
     paddingStart: 12,
     anchorTo: "end" as const,
@@ -286,13 +308,32 @@ const messageVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>(comput
     },
   };
 }));
+// 视口上方条目重测后始终补 scroll（含向上拖历史），避免估高差导致整段跳
+messageVirtualizer.value.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+  const offset = instance.getScrollOffset() + instance.scrollAdjustments;
+  if (!instance.itemSizeCache.has(item.key)) return item.start < offset;
+  return item.start + item.size <= offset;
+};
 const visibleMessages = computed(() => messageVirtualizer.value.getVirtualItems().map(row => ({ row, item: displayedMessages.value[row.index]! })));
 let messageMeasurePending = false;
 
 function measureMessage(element: Element | ComponentPublicInstance | null) {
   const instance = messageVirtualizer.value;
   if (!(element instanceof HTMLDivElement) || !props.active || !atLatestMessage.value || !element.dataset.liveMessage) {
+    // 浏览历史时记下视口锚点，测量后若上方条目高度变了则补偿 scrollOffset
+    const browsing = props.active && !atLatestMessage.value && element instanceof HTMLDivElement;
+    const beforeOffset = browsing ? (instance.scrollOffset ?? 0) : 0;
+    const anchor = browsing ? instance.getVirtualItems()[0] : undefined;
+    const beforeStart = anchor?.start;
+    const anchorKey = anchor?.key;
     instance.measureElement(element instanceof HTMLDivElement ? element : null);
+    if (browsing && anchor && beforeStart !== undefined && anchorKey !== undefined) {
+      const after = instance.measurementsCache[anchor.index];
+      const afterStart = after?.key === anchorKey ? after.start : undefined;
+      if (afterStart !== undefined && afterStart !== beforeStart) {
+        instance.scrollToOffset(beforeOffset + (afterStart - beforeStart));
+      }
+    }
     return;
   }
   const index = instance.indexFromElement(element);

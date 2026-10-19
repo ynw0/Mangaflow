@@ -945,6 +945,10 @@ watch(() => !props.initialSession?.parentFile && !!workspaceStore.pendingAgentMe
     .messageList {
       overflow-anchor: none;
       scrollbar-gutter: stable;
+
+      &::-webkit-scrollbar {
+        width: 12px;
+      }
     }
 
     .messageSpace {

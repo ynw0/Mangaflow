@@ -243,8 +243,8 @@ onBeforeUnmount(() => {
       left: 0;
     }
     &.right {
-      right: 8px;
-      width: 12px;
+      right: -4px;
+      width: 8px;
     }
     &.bottom {
       right: 0;

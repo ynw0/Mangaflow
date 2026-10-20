@@ -112,7 +112,8 @@ export async function runComfyWorkflow(options: {
     prompt: request.prompt,
     image_prompt: request.prompt,
     negative_prompt: "",
-    seed: crypto.getRandomValues(new Uint32Array(1))[0],
+    // 画布传入则用；未传保持旧行为随机
+    seed: request.seed ?? crypto.getRandomValues(new Uint32Array(1))[0],
     duration: request.duration,
     params: size,
     refs,

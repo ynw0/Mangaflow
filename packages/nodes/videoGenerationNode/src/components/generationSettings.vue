@@ -39,13 +39,31 @@
         <span class="sectionLabel">生成音频</span>
         <el-switch v-model="generateAudio" :disabled="disabled" aria-label="生成音频" />
       </div>
+      <div class="sectionLabel seedLabel">种子</div>
+      <div class="seedRow">
+        <el-select v-model="seedMode" class="seedModeSelect" :disabled="disabled" :teleported="false" aria-label="种子模式">
+          <el-option value="fixed" label="固定" />
+          <el-option value="random" label="随机" />
+          <el-option value="last" label="固定上次随机" />
+        </el-select>
+        <el-input-number
+          v-model="seed"
+          class="seedInput"
+          :disabled="disabled || seedMode === 'random'"
+          :controls="false"
+          :min="0"
+          :max="Number.MAX_SAFE_INTEGER"
+          :step="1"
+          :precision="0"
+          aria-label="种子值" />
+      </div>
     </div>
   </el-popover>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch } from "element-plus";
+import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch, ElInputNumber } from "element-plus";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import type { NodeMediaModel } from "@toonflow/nodes-scaffold/runtime";
 
@@ -56,6 +74,8 @@ const resolution = defineModel<string>("resolution", { required: true });
 const ratio = defineModel<string>("ratio", { required: true });
 const mode = defineModel<string>("mode", { required: true });
 const generateAudio = defineModel<boolean>("generateAudio", { required: true });
+const seed = defineModel<number>("seed", { required: true });
+const seedMode = defineModel<"fixed" | "random" | "last">("seedMode", { required: true });
 const modeLabels: Record<string, string> = {
   text: "文生视频", singleImage: "单图参考", startEndRequired: "首尾帧必填", endFrameOptional: "尾帧可选", startFrameOptional: "首帧可选",
 };
@@ -147,6 +167,25 @@ function ratioStyle(value: string) {
     justify-content: space-between;
     margin-top: 14px;
     .sectionLabel { margin: 0; }
+  }
+
+  .seedLabel { margin-top: 14px; }
+
+  .seedRow {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+
+    .seedModeSelect {
+      width: 132px;
+      flex-shrink: 0;
+    }
+
+    .seedInput {
+      flex: 1;
+      min-width: 0;
+      :deep(.el-input__inner) { text-align: left; }
+    }
   }
 }
 </style>

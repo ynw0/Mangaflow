@@ -78,6 +78,8 @@
             v-model:ratio="data.ratio"
             v-model:mode="data.mode"
             v-model:generateAudio="data.generateAudio"
+            v-model:seed="data.seed"
+            v-model:seedMode="data.seedMode"
             :ratios="ratioOptions"
             :model="selectedModel"
             :disabled="generating || deleting || !selectedModel" />
@@ -128,7 +130,9 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
   label: "视频生成",
 });
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
-const data = computed(() => node.data as { prompt: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; ratio: string; mode: string; generateAudio: boolean });
+type SeedMode = "fixed" | "random" | "last";
+const defaultSeed = 519111680057095;
+const data = computed(() => node.data as { prompt: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number });
 data.value.prompt ??= "";
 data.value.promptModel ??= [];
 data.value.model ??= "";
@@ -136,6 +140,8 @@ data.value.resolution ??= "";
 data.value.mode ??= "";
 data.value.generateAudio ??= true;
 data.value.ratio ??= "9:16";
+data.value.seedMode ??= "fixed";
+data.value.seed ??= defaultSeed;
 const { refList, referenceMentions, setReferencePreview, removeReference } = useNodeReferences();
 const models = ref<NodeMediaModel[]>([]);
 const modelsLoading = ref(false);
@@ -305,6 +311,25 @@ function loadModels() {
   return modelsRequest;
 }
 
+function randomSeed() {
+  return crypto.getRandomValues(new Uint32Array(1))[0]!;
+}
+
+/** 按种子模式解析本次生成要用的种子 */
+function resolveSeed() {
+  const mode = data.value.seedMode ?? "fixed";
+  if (mode === "fixed") return data.value.seed ?? defaultSeed;
+  if (mode === "last") {
+    if (data.value.lastSeed == null) data.value.lastSeed = randomSeed();
+    data.value.seed = data.value.lastSeed;
+    return data.value.lastSeed;
+  }
+  const next = randomSeed();
+  data.value.lastSeed = next;
+  data.value.seed = next;
+  return next;
+}
+
 async function startGeneration() {
   const choice = selectedModel.value;
   const input = generationInput.value;
@@ -323,7 +348,7 @@ async function startGeneration() {
     .list()
     .then(({ directory }) => {
       controller.signal.throwIfAborted();
-      return ai.generateVideo({ ...input, directory }, controller.signal);
+      return ai.generateVideo({ ...input, directory, seed: resolveSeed() }, controller.signal);
     })
     .then(([result]) => {
       controller.signal.throwIfAborted();
@@ -370,6 +395,9 @@ function getConfig() {
       ratio: data.value.ratio,
       mode: selectedMode.value,
       generateAudio: data.value.generateAudio,
+      seed: data.value.seed,
+      seedMode: data.value.seedMode,
+      lastSeed: data.value.lastSeed,
     },
     models: models.value,
     ratios: ratioOptions,
@@ -379,7 +407,7 @@ function getConfig() {
 
 nodeTools.register({
   name: "getConfig",
-  description: "读取此视频生成节点的当前配置、可选视频模型能力、通用比例及适合当前引用的模式，不含密钥；时长与分辨率须符合 durationResolutionMap",
+  description: "读取此视频生成节点的当前配置（含种子与种子模式）、可选视频模型能力、通用比例及适合当前引用的模式，不含密钥；时长与分辨率须符合 durationResolutionMap",
   parameters: z.strictObject({}),
   async execute(_args, { signal }) {
     signal?.throwIfAborted();
@@ -391,7 +419,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setConfig",
-  description: "修改此视频生成节点的模型、时长、分辨率、比例、模式或声音；先用 getConfig 查询能力，providerId 与 modelId 必须同时提供；mode 使用返回的原始字符串或数组，须匹配当前引用；不修改提示词、不启动生成",
+  description: "修改此视频生成节点的模型、时长、分辨率、比例、模式、声音或种子；先用 getConfig 查询能力，providerId 与 modelId 必须同时提供；mode 使用返回的原始字符串或数组，须匹配当前引用；不修改提示词、不启动生成",
   parameters: z.strictObject({
     providerId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),
@@ -400,6 +428,8 @@ nodeTools.register({
     ratio: z.enum(ratioOptions).optional(),
     mode: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     generateAudio: z.boolean().optional(),
+    seed: z.number().int().nonnegative().optional(),
+    seedMode: z.enum(["fixed", "random", "last"]).optional(),
   }).refine((args) => (args.providerId === undefined) === (args.modelId === undefined), "providerId 与 modelId 必须同时提供"),
   async execute(args, { signal }) {
     signal?.throwIfAborted();
@@ -424,6 +454,8 @@ nodeTools.register({
     if (args.ratio !== undefined) data.value.ratio = args.ratio;
     if (args.mode !== undefined) data.value.mode = JSON.stringify(args.mode);
     if (args.generateAudio !== undefined) data.value.generateAudio = args.generateAudio;
+    if (args.seedMode !== undefined) data.value.seedMode = args.seedMode;
+    if (args.seed !== undefined) data.value.seed = args.seed;
     return getConfig();
   },
 });
@@ -442,7 +474,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "generateVideo",
-  description: "启动此节点的后台视频生成，使用当前提示词、模型、模式、时长、分辨率、比例和参考素材；立即返回已开始，用 getGenerationStatus 查询完成结果，cancelGeneration 停止生成",
+  description: "启动此节点的后台视频生成，使用当前提示词、模型、模式、时长、分辨率、比例、种子和参考素材；立即返回已开始，用 getGenerationStatus 查询完成结果，cancelGeneration 停止生成",
   parameters: z.strictObject({}),
   execute(_args, { signal }) {
     signal?.throwIfAborted();

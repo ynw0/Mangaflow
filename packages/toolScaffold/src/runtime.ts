@@ -105,6 +105,8 @@ export interface MediaGenerationRequest {
   size?: string;
   resolution?: string;
   duration?: number;
+  /** ComfyUI 工作流种子；云视频可忽略 */
+  seed?: number;
   generateAudio?: boolean;
   voice?: string;
   speed?: number;

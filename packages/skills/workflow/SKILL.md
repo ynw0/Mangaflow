@@ -26,6 +26,8 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | 道具原画 | [prop-art.md](references/prop-art.md) 然后 [prop-prompt-review.md](references/prop-prompt-review.md) | 审核通过后出图 |
 | 成片 | 先读 bundled [h3-prompt-writing](../h3-prompt-writing/SKILL.md)（Ref2VA 再读其 `references/ref-en.txt`；首尾帧再读 `references/base-en.txt`），再读 [video-director.md](references/video-director.md)，然后 [video-prompt-review.md](references/video-prompt-review.md) | 审核通过后用 `video/h3_ref2va_1080p`；只有首尾帧修复用 `video/h3_flf_repair` |
 
+官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing → video-director → video-prompt-review → Comfy H3 Ref2VA）。
+
 出图用系统设置里的 Qwen 图像模型，默认 `qwen-image-3.0-pro`，`providerId` 为 `qwenImage`，直接调模型 API。出视频只用 ComfyUI 工作流，`providerId` 为 `comfyui`；`production.video.host` 为 `local` 时用本机地址，为 `autodl` 时用 AutoDL 实例。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片 16:9。
 
 生成前把方案里的提示词、参考图和所选工作流给用户看。用户同意后才生成。出视频失败先看当前选中的 ComfyUI 是否连通，不换工作流重试。

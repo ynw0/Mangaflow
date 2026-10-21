@@ -305,6 +305,34 @@
       "title": "加载音频"
     }
   },
+  "83": {
+    "inputs": {
+      "samples": [
+        "113",
+        0
+      ],
+      "vae": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE解码_Audio"
+    }
+  },
+  "90": {
+    "inputs": {
+      "av_latent": [
+        "7",
+        1
+      ]
+    },
+    "class_type": "LTXVSeparateAVLatent",
+    "_meta": {
+      "title": "分离 AV 潜空间"
+    }
+  },
   "98": {
     "inputs": {
       "chunk_length": 153,
@@ -314,6 +342,117 @@
     "class_type": "MMH3TemporalSplitParams",
     "_meta": {
       "title": "MMH3 Temporal Split Params"
+    }
+  },
+  "106": {
+    "inputs": {
+      "video_latent": [
+        "118",
+        0
+      ],
+      "audio_latent": [
+        "90",
+        1
+      ]
+    },
+    "class_type": "LTXVConcatAVLatent",
+    "_meta": {
+      "title": "拼接 AV 潜空间"
+    }
+  },
+  "107": {
+    "inputs": {
+      "samples": [
+        "113",
+        0
+      ],
+      "vae": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "110": {
+    "inputs": {
+      "conditioning": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "条件零化"
+    }
+  },
+  "113": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "129",
+        0
+      ],
+      "conditioning": [
+        "6",
+        0
+      ],
+      "latent": [
+        "106",
+        0
+      ],
+      "noise": [
+        "11",
+        0
+      ],
+      "sampler": [
+        "10",
+        0
+      ],
+      "sigmas": [
+        "117",
+        1
+      ],
+      "negative": [
+        "110",
+        0
+      ],
+      "temporal_split_param": [
+        "98",
+        0
+      ]
+    },
+    "class_type": "MMH3UltimateUpscale",
+    "_meta": {
+      "title": "MMH3 Ultimate Upscale"
+    }
+  },
+  "114": {
+    "inputs": {
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "video/自改二采/二采/minimax_二采_",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "107",
+        0
+      ],
+      "audio": [
+        "83",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "合并为视频"
     }
   },
   "117": {
@@ -332,6 +471,29 @@
       "title": "分离Sigmas"
     }
   },
+  "118": {
+    "inputs": {
+      "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+      "mode": "scale by multiplier",
+      "mode.scale": [
+        "151",
+        0
+      ],
+      "align": 32,
+      "enable_temporal_chunking": "cuda",
+      "force_unload": "fp16",
+      "device": "cuda",
+      "precision": "fp16",
+      "latent": [
+        "90",
+        0
+      ]
+    },
+    "class_type": "MinimaxH3LatentUpscaler3D",
+    "_meta": {
+      "title": "Minimax H3 Latent Upscaler (3D)"
+    }
+  },
   "119": {
     "inputs": {
       "scheduler": "simple",
@@ -348,6 +510,31 @@
     "class_type": "BasicScheduler",
     "_meta": {
       "title": "基础调度器"
+    }
+  },
+  "120": {
+    "inputs": {
+      "slider_position": 0.19,
+      "before_label": "一采",
+      "after_label": "二采",
+      "show_labels": true,
+      "loop": true,
+      "muted": false,
+      "record_duration": 5,
+      "before_selected": "",
+      "after_selected": "",
+      "before_video": [
+        "126",
+        0
+      ],
+      "after_video": [
+        "114",
+        0
+      ]
+    },
+    "class_type": "VRGDG_VideoCompareSlider",
+    "_meta": {
+      "title": "一二采对比VRGDG Video Compare Slider"
     }
   },
   "123": {

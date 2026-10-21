@@ -21,7 +21,8 @@ const labels: Record<string, string> = {
   "image/scene_image": "场景图",
   "image/prop_image": "道具原画",
   "video/h3_ref2va_1080p": "H3 全参参考",
-  "video/h3_erca": "二采 MiniMax H3",
+  "video/h3_erca_16x9": "二采 MiniMax H3 16:9",
+  "video/h3_erca_9x16": "二采 MiniMax H3 9:16",
   "video/h3_flf_repair": "H3 首尾帧",
 };
 

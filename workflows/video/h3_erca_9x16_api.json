@@ -1,0 +1,572 @@
+{
+  "5": {
+    "inputs": {
+      "samples": [
+        "7",
+        1
+      ],
+      "vae": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "6": {
+    "inputs": {
+      "prompt": "subject_definitions:\n<Picture 1> is the reference character sheet showing the same chibi girl from front view, side view, back view, and a frontal face close-up.\n<Subject 1> is the chibi girl in <Picture 1>: a petite SD-proportioned body with an oversized head, long wavy silver-white hair fading into teal at the tips, a black headband with a small teal diamond, a pale-green leaf hairpin with a dark-blue ribbon on her right side, simple pink-to-aqua gradient eyes and a calm, confident slight smile; she wears a black-white-and-teal dress with gold trim, white sleeves, a short black collar capelet set with a teal gem, and small teal boots. In the target video a crisp white cook apron is added over the outfit while every signature element from <Picture 1> is retained. The character is rendered non-realistically in a 3D-rendered-2D-anime (\"cel-shaded\") look: flat cel color bands, crisp outlines, very simple anime faces — plain round eyes with at most one small highlight each, tiny line-shaped mouths, no realistic human facial anatomy.\n<Subject 2> is a photorealistic real-world modern kitchen with realistic materials and lighting: marble-and-wood countertops, a stainless-steel gas stove, a wall rack of metal utensils, ceramic bowls and a white dinner plate, and natural daylight from a side window.\n<Subject 3> is a seasoned black carbon-steel wok and the fresh ingredients — green pepper, carrot, baby corn — plus an oil bottle and a small dish of salt and spices.\n\nsummary:\n[reference generation] The target video is a 15-second single-character cooking showcase in which <Subject 1>, using the exact appearance from <Picture 1>, works inside the photorealistic kitchen <Subject 2>. In strict order she chops and gathers ingredients into a bowl, lights the stove and adds oil, pours ONLY the food from the bowl into the wok (bowl returned to the counter), stir-fries with both hands on the wok, seasons with one hand while the other rests, plates by tilting the wok over a plate held in her other hand, and presents the dish with eyes open and a simple proud smile. She has exactly two hands; every prop is released before the same hand takes the next one, and no bowl, bottle, knife, board, or plate ever enters the wok.\n\nretention_analysis:\n<Subject 1> (appears in [Shot 1] through [Shot 5]): partially_preserved - the face, hair, headband, leaf hairpin, gradient eyes and full outfit from <Picture 1> are retained in non-realistic cel-shaded style; only a white apron is added.\n<Picture 1> (identity anchor for all shots): fully_preserved - its views guide proportions, features, hair and costume from every angle.\n<Subject 2> (appears in [Shot 1] through [Shot 5]): fully_preserved - the photorealistic kitchen, stove, utensils and daylight stay consistent and realistic.\n<Subject 3> (appears in [Shot 1] through [Shot 5]): fully_preserved - the wok and the same ingredients travel from board to plate; the bowl, oil bottle and seasoning dish remain on the counter and never enter the wok.\n\ndetailed_description:\nA non-realistic cel-shaded anime chibi character is placed inside a photorealistic real kitchen: true-to-life materials, natural light, realistic steam and fire, contrasted against flat anime shading, crisp outlines and exaggerated chibi proportions. The character has exactly two hands; each hand holds only one object at a time, an object is set down before that hand takes another, and the free hand is always shown either at her side or on the named prop — never render a third hand, extra fingers, or duplicated hands. Facial expressions stay minimal throughout: plain round eyes, tiny line mouths, simple flat anime emoting. Beat-cut editing with brief speed ramps keeps the actions cute yet razor-clean. Only cut ingredients and seasonings ever enter the wok.\n[Shot 1] Medium-wide view of <Subject 2>, the realistic sunlit kitchen; <Subject 1> stands on a small footstool in her white apron, matching <Picture 1>. Hand assignment for the whole shot: her LEFT hand simply presses and steadies the vegetable on the board — a normal human hand, no animal paws or claws of any kind — fingertips kept safely back; her RIGHT hand holds the knife and only moves the knife. Wearing an easy assured smile, she dices at dazzling speed, the blade rising and falling in a tight blur beside her left knuckles. IMPORTANT: she keeps chopping until EVERY piece on the board is fully cut into uniform small cubes — all the green pepper, all the carrot, and all the baby corn are completely diced; no half-cut slices, no whole chunks, and no uncut vegetable remain on the board. Only when the board holds nothing but a neat pile of finished dice does she stop. Then, in one fluid continuous motion, she slides the flat of the knife under the pile, scoops ALL the diced pieces onto the blade, lifts the blade and flicks her wrist so every last piece leaves the knife together and travels through the air in a single perfect parabolic arc, landing cleanly inside the ceramic bowl beside the board — not one piece is left on the board and not one misses the bowl. She gives the blade one light shake to clear any last crumb, but does NOT put the knife down; her right hand keeps holding the knife resting loosely at her side while her LEFT hand releases the vegetable and returns to her side. The shot ends with the board clean, the knife still held in her right hand, and one small satisfied nod under the same confident smile. Sound sync: each chop lands exactly on a blade strike in a tight musical chop-chop-chop rhythm; a quick blade-whoosh plays on the wrist flick, and a soft uniform clatter plays as all the dice land together in the bowl.\n[Shot 2] At 00:03.000, low hero angle on the gas stove where the wok already sits centered on the burner. Hand assignment: her RIGHT hand twists the stove knob (a ring of blue flame blooms with a soft whoosh), then moves straight to the wok handle and keeps holding it for the rest of the shot; her LEFT hand picks up the oil bottle, pours one thin stream into the wok, pulls the bottle back, sets it firmly on the counter away from the flame and lets go, then returns to rest at her side. Her RIGHT hand swirls the wok so the oil films the surface, heat haze rising. Expression: normal open eyes with a calm, confident smile. The camera arcs halfway around the wok. Sound sync: a small knob-click is followed immediately by the gas whoosh and flame ignition exactly when the blue flame blooms; a thin oil glug plays while she pours, a tiny clink when the bottle is set down, and a faint sizzle builds as the oil heats.\n[Shot 3] At 00:05.500, the plating-in step. Hand assignment, no hands swapped: her RIGHT hand never releases the wok handle; her LEFT hand picks up the bowl of cut ingredients, brings it to the wok rim and tilts it so ONLY the vegetables slide in a colorful stream into the oil — a bright sizzle erupts with realistic steam. As the last piece leaves, her LEFT hand pulls the bowl up and away, taps the rim once in mid-air, turns and sets the empty bowl firmly on the counter and lets go (the bowl never enters or leans inside the wok). Her LEFT hand then moves to the wok handle and grips it just in front of her RIGHT hand; only now, with both hands on the one handle, she tosses: the food arcs up glittering, orange wok-hei flame licks around it, and every piece falls back cleanly; two quicker tosses follow on the beat. Expression: calm focused eyes and an easy confident smile even mid-effort; hair and apron flare. The camera circles with slow motion on the highest arc; the bowl stays visible on the counter. Sound sync: the loud sizzle burst starts the instant the vegetables touch the oil; a light rim-tap plays in mid-air and a soft set-down thud when the bowl reaches the counter; each toss carries a short air-whoosh and a flame roar at the highest point, ending with a clean clatter as the food falls back into the wok.\n[Shot 4] At 00:10.000, dutch-angle close-up for seasoning. First BOTH hands release the wok handle so the wok rests on the burner; her LEFT hand stays plainly visible at her side and holds nothing for the whole shot. Her RIGHT hand alone does one simple seasoning move: it pinches a small amount of salt and spices from the small dish on the counter, and sprinkles them in one light arc over the food — this is the only seasoning action, no sauce bottle, no second pinch, and nothing else enters the wok. Her RIGHT hand then returns to the wok handle and her LEFT hand joins it; both hands perform one final powerful toss, the food spinning into a glowing ring against the realistic flame, and land the wok with a sharp metallic clang. Expression: relaxed eyes with a faint confident smile; one fist is NOT raised this time, both hands simply stay on the handle. Sound sync: a soft fine sprinkle-patter plays as the seasoning falls; the final toss has a longer whoosh and flame roar, ending with one sharp metallic clang exactly when the wok hits the stove.\n[Shot 5] At 00:12.500, clean front medium shot, plating and serving in fixed hand order: her LEFT hand picks up the white dinner plate and holds it just below and beside the wok rim (the plate stays outside the wok); her RIGHT hand keeps the wok handle, tilts the wok so the finished dish slides out in one glossy mound onto the plate while a single tiny green garnish flutters onto the top, then stands the wok back on the lowered-flame stove and lets go completely. Her RIGHT hand now moves over to the plate edge so BOTH hands hold the plate, and she presents it toward the camera, palms mostly up. Expression, kept simple and with eyes OPEN: plain round eyes each with one small highlight, relaxed eyebrows, a bright confident proud smile — she does not close or squint her eyes. A few simple sparkle dots twinkle around the plate. Sound sync: a smooth glossy schhhh plays as the food slides onto the plate, a tiny tick when the garnish lands, a gentle wok set-down, and soft twinkles with the sparkle dots; hold on her open-eyed simple proud face until 00:15.000.\n\noverall_soundscape:\nA realistic bright kitchen room tone with faint daytime ambience runs underneath every shot. All effects are strictly action-synced and never play before or after their matching visual: Shot 1 — chopping on each blade strike, a blade-whoosh on the flick, and a uniform clatter as all dice land in the bowl; Shot 2 — knob-click, gas whoosh and ignition exactly on the blue flame, oil glug, bottle clink, and rising sizzle; Shot 3 — sizzle burst the instant ingredients touch the oil, rim-tap in mid-air, bowl set-down thud, toss whooshes, flame roars at the apex, and food clatter on landing; Shot 4 — soft sprinkle-patter as seasoning falls, and one sharp metallic clang exactly when the wok lands on the stove; Shot 5 — glossy food-slide schhhh, garnish tick, gentle wok set-down, and soft twinkles with the sparkle dots.\n\nnon_diegetic_music:\nAn upbeat cute-yet-stylish groove around 124 BPM: plucky marimba and bright synth melodies carry the charm, crisp snares, handclaps and bouncy bass land exactly on the cuts and tosses; a quick riser under ignition, hard accents on the slow-motion flips, a bright chime as the food lands on the plate, and a cheerful final cadence on a bright resolving chord.",
+      "width": [
+        "8",
+        0
+      ],
+      "height": [
+        "8",
+        1
+      ],
+      "length": [
+        "40",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "18",
+        0
+      ],
+      "vae": [
+        "26",
+        0
+      ],
+      "audio_vae": [
+        "19",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "24",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "15",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "123",
+        0
+      ],
+      "ref_images.ref_image_3": [
+        "130",
+        0
+      ],
+      "ref_images.ref_image_4": [
+        "132",
+        0
+      ],
+      "ref_images.ref_image_5": [
+        "133",
+        0
+      ],
+      "ref_images.ref_image_6": [
+        "159",
+        0
+      ],
+      "ref_videos.ref_video_0": [
+        "135",
+        0
+      ],
+      "ref_video_audios.ref_video_audio_0": [
+        "135",
+        2
+      ],
+      "ref_audios.ref_audio_0": [
+        "27",
+        0
+      ],
+      "ref_audios.ref_audio_1": [
+        "41",
+        0
+      ],
+      "ref_audios.ref_audio_2": [
+        "134",
+        0
+      ],
+      "ref_images.ref_image_7": [
+        "160",
+        0
+      ],
+      "ref_images.ref_image_8": [
+        "161",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "MiniMax H3 参考转视频"
+    }
+  },
+  "7": {
+    "inputs": {
+      "noise": [
+        "11",
+        0
+      ],
+      "guider": [
+        "14",
+        0
+      ],
+      "sampler": [
+        "10",
+        0
+      ],
+      "sigmas": [
+        "117",
+        0
+      ],
+      "latent_image": [
+        "6",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "自定义采样器(高级)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "aspect_ratio": "9:16 (Portrait Widescreen)",
+      "megapixels": 0.2,
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "分辨率选择器"
+    }
+  },
+  "10": {
+    "inputs": {
+      "sampler_name": "res_multistep"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "K采样器选择"
+    }
+  },
+  "11": {
+    "inputs": {
+      "noise_seed": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "随机噪波"
+    }
+  },
+  "12": {
+    "inputs": {
+      "seed": 519111680057095
+    },
+    "class_type": "Seed (rgthree)",
+    "_meta": {
+      "title": "随机种"
+    }
+  },
+  "14": {
+    "inputs": {
+      "model": [
+        "129",
+        0
+      ],
+      "conditioning": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "基础引导"
+    }
+  },
+  "15": {
+    "inputs": {
+      "image": "爷日常服装2参考图.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "17": {
+    "inputs": {
+      "value": 15
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Float (duration)"
+    }
+  },
+  "18": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "CLIP加载器"
+    }
+  },
+  "19": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAE加载器"
+    }
+  },
+  "20": {
+    "inputs": {
+      "unet_name": "h3\\DasiwaMinimaxH3_dasiwaHybridV2_int8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNET加载器"
+    }
+  },
+  "21": {
+    "inputs": {
+      "lora_name": "minimax h3\\加速\\TaoMate-H3-3step.safetensors",
+      "strength_model": 1,
+      "model": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器(仅模型)"
+    }
+  },
+  "24": {
+    "inputs": {
+      "image": "图片-流萤Q版三视图正脸图.jpeg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "26": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAE加载器"
+    }
+  },
+  "27": {
+    "inputs": {
+      "audio": "三月参考音频.mp3"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "加载音频"
+    }
+  },
+  "40": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "17",
+        0
+      ],
+      "values.b": [
+        "8",
+        1
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "数学表达式"
+    }
+  },
+  "41": {
+    "inputs": {
+      "audio": "爷参考音频.mp3"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "加载音频"
+    }
+  },
+  "98": {
+    "inputs": {
+      "chunk_length": 153,
+      "temporal_overlap": 17,
+      "anchor_strength": 0.99
+    },
+    "class_type": "MMH3TemporalSplitParams",
+    "_meta": {
+      "title": "MMH3 Temporal Split Params"
+    }
+  },
+  "117": {
+    "inputs": {
+      "step": [
+        "150",
+        0
+      ],
+      "sigmas": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "SplitSigmas",
+    "_meta": {
+      "title": "分离Sigmas"
+    }
+  },
+  "119": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": [
+        "149",
+        1
+      ],
+      "denoise": 1,
+      "model": [
+        "129",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "基础调度器"
+    }
+  },
+  "123": {
+    "inputs": {
+      "image": "椅子2.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "125": {
+    "inputs": {
+      "attention": "comfy kitchen attention",
+      "model": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "模型注意力后端"
+    }
+  },
+  "126": {
+    "inputs": {
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "video/自改二采/一采/minimax_一采_",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "5",
+        0
+      ],
+      "audio": [
+        "128",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "合并为视频"
+    }
+  },
+  "128": {
+    "inputs": {
+      "samples": [
+        "7",
+        1
+      ],
+      "vae": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE解码_Audio"
+    }
+  },
+  "129": {
+    "inputs": {
+      "max_resolution": 480,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": 999,
+      "preview_fps": 8,
+      "tiny_vae": "taeh3.safetensors",
+      "model": [
+        "156",
+        0
+      ]
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "采样预览Model Preview Override"
+    }
+  },
+  "130": {
+    "inputs": {
+      "image": "椅子2.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "132": {
+    "inputs": {
+      "image": "椅子2.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "133": {
+    "inputs": {
+      "image": "椅子2.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "134": {
+    "inputs": {
+      "audio": "爷参考音频.mp3"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "加载音频"
+    }
+  },
+  "135": {
+    "inputs": {
+      "video": "梦的翅膀受了伤 - 1.梦的翅膀受了伤(Av116955734411096,P1).mp4",
+      "force_rate": 24,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "加载视频"
+    }
+  },
+  "148": {
+    "inputs": {
+      "value": 4
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "整数常量"
+    }
+  },
+  "149": {
+    "inputs": {
+      "expression": "a + b",
+      "values.a": [
+        "150",
+        0
+      ],
+      "values.b": [
+        "148",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "数学表达式"
+    }
+  },
+  "150": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "整数常量"
+    }
+  },
+  "151": {
+    "inputs": {
+      "value": 2
+    },
+    "class_type": "FloatConstant",
+    "_meta": {
+      "title": "浮点常量"
+    }
+  },
+  "156": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "MiniMax H3 Sigma Shift"
+    }
+  },
+  "159": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "160": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "161": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  }
+}

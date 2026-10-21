@@ -1,6 +1,7 @@
-workflow: ./h3_erca_api.json
-# 二采 MiniMax H3：9 张参考图 + 视频/音频；duration 走 PrimitiveFloat 秒（合同常用 2–15）。
-# H3 节点支持 ref_image_0..8（9 槽）；官方同款。
+workflow: ./h3_erca_16x9_api.json
+label: 二采 MiniMax H3 16:9
+# 二采 MiniMax H3（16:9）：9 槽参考图 + 视频/音频；duration 经 PrimitiveFloat 注入（合同秒 2–15）。
+# H3 节点支持 ref_image_0..8（9 槽）；节点 id 与旧 h3_erca 对齐。
 capabilities:
   duration_seconds:
     min: 2

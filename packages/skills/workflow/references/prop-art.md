@@ -13,6 +13,7 @@ production_profile、资产规划、asset_key、variant_key、canonical_descript
   - 宽明显大于高 → `product_wide` 1344×768
 - 方图留白会诱发出多余物体或拼版。只有物体本身是宽构图才用 `product_wide`。禁止把成片 16:9 写进 layout_lock 或 review_checklist。
 - 固定轮廓、比例、材质、颜色、纹理、接口及操作部件。默认单件 3/4 产品视角、完整可见、简洁背景、无人无手；多件组成一套的资产必须同框、连接关系完整。
+- **尺度可核对**：在 prompt 与 `geometry_lock` 写明手持级 / 桌面级 / 家具级（或等价可拍表述），避免手持物被画成家具尺寸。白底、无人、无手规则不变。
 - canonical **只锁身份/结构**。`allowed_changes` 列出的可变状态不准画进本张 canonical。活动部件只按规划已定义能力变化，不改变连接关系和主体结构。
 - 遵守当前 production_profile.visual_style 与统一材质、光照、渲染语言。已确定属性不能改；尚待设计细节可提出一致方案并等待原画审批。
 - 变体以 approved_master 锁定身份，只允许 allowed_variant_changes。冲突不能通过弱化锁定来处理。

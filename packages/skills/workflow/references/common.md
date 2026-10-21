@@ -58,6 +58,11 @@ prompt 按层写清（本张画种没有的层可省略，不得用成片环境�
 - 软精简：去掉重复信息，每句独立信息量；不硬卡字数（四格长 prompt 需要篇幅）。
 - 方向性道具静帧朝向≠成片朝向：见 `video-director.md`；原画新建静帧见 `prop-art.md`。
 
+
+## 跨镜连续性（原则）
+
+资产规划阶段标出的跨镜锁面事实（见 [asset-planner.md](asset-planner.md)），原画须写进对应 lock 与 prompt 正文；成片须写进 `<Subject N>` 与 `retention_analysis`，不得以参考图已交代为由省略。状态与瞬态走 `required_state` / 镜头 continuity，不与锁面混写。具体站位与镜内负荷见 [story-planner.md](story-planner.md)；成片保留见 [video-director.md](video-director.md)。
+
 ## 合同和阻塞
 专业 Agent 只返回合法 JSON，不执行生产操作。成功对象严格遵循对应合同，不额外添加解释字段。约束事实使用 {"text":"可验证事实","evidence_type":"visual"}，证据类型只允许 visual、audio、temporal。字符串数组字段无内容时返回 []。
 blocked 须有非空 reason，并至少填写 missing_fields 或 blocking_items 一项。缺关键事实用 missing_fields。已确认事实冲突用 blocking_items。阻塞对象不夹带成功结果或半成品。不擅自补事实、放宽要求或修改动作类型。

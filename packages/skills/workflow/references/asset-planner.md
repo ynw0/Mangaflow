@@ -23,6 +23,23 @@ generate_variant：身份不变、剧情需要可见状态变化，依托已批�
 
 短剧漫剧强钩子要求资产规划不得拖慢节奏，但不得为省事删必需变体；关键爽点/反转/身份暴露状态缺失时，阻塞而非暗改。
 
+
+## 连续性锁原则（不是脚本语法）
+
+跨镜会漂、观众一眼能看出、且**不随剧情改变**的可见事实，才值得写成须带进后续原画与成片 prompt 的锁面：例如服装主色与形制、道具主色与材质、发型长度、伤口位置与形状。情绪、姿势、机位、时段光线、破损进度、持有人属于状态或瞬态，写进 `required_state` 或镜头 `continuity_*`，不上锁。
+
+锁面用最小可辨识名词短语（颜色 + 材质/形制 + 物体），不含动作、剧情、数量、镜头信息。变体只改 `allowed_variant_changes`；锁面在生效范围内不得以「参考图已经交代过」为由从成片 prompt 删掉。一集锁面宜少：把每个识别锚点都升级成锁会挤掉本镜动作。
+
+**不要**输出外部工具的 LOCK-ID / 校验器语法；用 `canonical_description`、`required_state`、`allowed_variant_changes` 与交接说明表达同一意图。
+
+## 身份与变体决策（三问）
+
+1. 去掉临时状态后，是否仍是同一持续身份？否 → 才考虑 `generate_new`。
+2. 变化是否会持续、再次出现，或影响参考图绑定与跨镜连续性？是 → `generate_variant`；一瞬表情、姿势、机位 → 交给镜头，不建变体。
+3. 证据不足时报告缺失或 blocked，不静默新建、不拿显示名当同一性。
+
+年龄阶段、伪装、战损装束通常是同一身份下的 variant；双胞胎/冒名者是不同身份。同址但入口与固定锚点不同的空间可分开建景；同款多件是否分建看故事是否要独立追踪。
+
 ## 输出合同
 返回 status、shot_id、requirements[]。每项包含 role、asset_type、asset_key、variant_key、name、action、evidence、required_state、allowed_variant_changes、canonical_description、variant_description。role 仅 main_character、second_character、core_prop、action_prop、scene、extra_ref；asset_type 仅 character、scene、prop。required_state 和两类 description 为对象，allowed_variant_changes 为字符串数组。evidence 说明原文或镜头事实依据，不写批准猜测。action 保留总控动作类型；短剧漫剧爽点/钩子相关状态必须在 required_state 中可验证。
 

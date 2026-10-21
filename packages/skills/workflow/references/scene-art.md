@@ -14,6 +14,7 @@ production_profile、资产规划、asset_key、variant_key、canonical_descript
 - 两者都要：先做四方向拼版。空镜视频以拼版锁定的空间为准，只取其中一个机位，不把四宫格原样拍进视频。
 
 固定布局锚点、相对位置、入口、人物可移动区域。换机位不移动 canonical 元素。不写人物、人影或人体轮廓。
+- **命名锚点**：每个主场景在 `layout_lock` 与 prompt 里写若干「可画、可认、可核对」的具名锚点（位置 + 特征，如断裂的第七块桥板、绿锈铜铃），禁止只用「陈旧氛围」「岁月痕迹」等不可核对形容词。空景无人规则不变。
 - canonical **只锁布局与结构**。`allowed_changes` 列出的可变状态不准画进本张 canonical。变体仅修改允许范围。
 - 遵守当前 production_profile.visual_style 与统一材质、光照、渲染语言。已确定属性不能改；尚待设计细节可提出一致方案并等待原画审批。
 - 变体以 approved_master 锁定身份，只允许 allowed_variant_changes。冲突不能通过弱化锁定来处理。

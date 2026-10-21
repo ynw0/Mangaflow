@@ -40,6 +40,20 @@ generate_variant：身份不变、剧情需要可见状态变化，依托已批�
 
 年龄阶段、伪装、战损装束通常是同一身份下的 variant；双胞胎/冒名者是不同身份。同址但入口与固定锚点不同的空间可分开建景；同款多件是否分建看故事是否要独立追踪。
 
+
+
+## 默认衍生范围
+
+在 `generate_variant` 决策时，默认只为**稳定、可复用、改变整体识别外观**的状态建变体：
+
+| 类型 | 默认可建变体 | 默认不建变体（交给镜头） |
+| --- | --- | --- |
+| 角色 | 整体换装、变身/形态变化 | 瞬时表情、局部特写、单镜姿态 |
+| 场景 | 同一地点的日/夜/晨/昏等时段 | 单纯换机位；天气与破损除非用户或剧情明确要求独立资产 |
+| 道具 | 不自动衍生；剧情要独立追踪状态时再 `generate_variant` | 一次性持用状态 |
+
+用户明确要求额外变体时，按该范围制作；每个父资产通常 0～少量有依据变体即可。跳过或只生成子集时，写清「需要的剧情状态、现有可用图、影响镜头」，不能把基础图冒称所需状态图。
+
 ## 输出合同
 返回 status、shot_id、requirements[]。每项包含 role、asset_type、asset_key、variant_key、name、action、evidence、required_state、allowed_variant_changes、canonical_description、variant_description。role 仅 main_character、second_character、core_prop、action_prop、scene、extra_ref；asset_type 仅 character、scene、prop。required_state 和两类 description 为对象，allowed_variant_changes 为字符串数组。evidence 说明原文或镜头事实依据，不写批准猜测。action 保留总控动作类型；短剧漫剧爽点/钩子相关状态必须在 required_state 中可验证。
 

@@ -1,13 +1,15 @@
 ---
 name: v118workflow
-description: 融合旧版编剧方法与资产、分镜、图像提示词知识，将小说或剧本逐阶段制作并确认。统一维护剧本画布、资产画布和每集制作画布；用于旧版流程复现、分集制作或续作，讨论或编辑技能本身时不启动制作。
+description: 【遗留备用·默认禁用】旧版分步确认制作流程。现行制作请用 workflow。仅当用户点名启用本技能、或旧项目必须续作时才读取；新项目不要主动套用。
 metadata:
-  version: "1.1.1"
-  displayName: v1.1.8 分集制作流程
+  version: "1.1.2"
+  displayName: v1.1.8 分步制作（遗留备用）
   author: MangaFlow
 ---
 
 # v1.1.8 分集制作流程
+
+> **遗留备用（默认禁用）**：有用段落已迁入 `workflow`（改编原则、逐集剧本、导演规划、画布逐步确认、默认衍生范围等）。系统启动会把本技能加入 `disabledSkills`；用户可在设置里重新启用。断链的 knowledge（scriptCraft / narrativeGenres / shotCraft / visualStyles / sourceMap 等）**不要虚构读取**。新制作优先 `workflow`。
 
 把旧版的「编剧流水线 + 制作流水线 + 视频工作台」转换为当前 MangaFlow 的画布操作。每步执行顺序是：**读已确认输入 → 完成本阶段 → 保存到指定画布 → 回读并检查 → 展示结果 → 等待用户确认**。聊天摘要不能代替画布成果，任务启动不能代替媒体成功。
 

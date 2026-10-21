@@ -182,4 +182,17 @@ if (productionChanged) {
 
 if (!config.has("settings.customProviders")) config.set("settings.customProviders", []);
 
+
+// ACT: 一次性把遗留技能 v118workflow 加入默认禁用；用户之后在设置里重新启用不会被再次关掉。
+function ensureV118workflowDisabled() {
+  const settings = config.get("settings", {});
+  if (settings.skillDefaultDisabledV118) return;
+  const disabled = new Set(config.get("disabledSkills", []));
+  disabled.add("v118workflow");
+  config.set("disabledSkills", [...disabled]);
+  settings.skillDefaultDisabledV118 = true;
+  config.set("settings", settings);
+}
+ensureV118workflowDisabled();
+
 export default config;

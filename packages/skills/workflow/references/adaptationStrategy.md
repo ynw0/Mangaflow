@@ -37,4 +37,4 @@
 
 ## 交接要求
 
-用户确认后再进入 [story-planner.md](story-planner.md)。本文件是 `workflow` 线的改编入口；不替代、不禁用 `v118workflow`。
+用户确认后：需要完整场次正文时进入 [episodeScript.md](episodeScript.md)；直接做镜头合同时进入 [story-planner.md](story-planner.md)。本文件是现行制作主线的改编入口。

@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "@toonflow/file";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseWorkflowBindings, type WorkflowBindings } from "@/utils/production/bindings";
 import { readProduction, fail } from "@/utils/production/config";
+import { resolveAppDirectory } from "@/resolveAppDirectory";
 
 export type WorkflowKind = "image" | "video";
 
@@ -24,18 +25,18 @@ const labels: Record<string, string> = {
   "video/h3_flf_repair": "H3 首尾帧",
 };
 
+/** 内置 workflows 目录（与 upload 共用，按仓库根解析）。 */
+export function resolveBuiltinWorkflowsRoot() {
+  return resolve(resolveAppDirectory(), "workflows");
+}
+
 function builtinRoots() {
-  const here = import.meta.dirname;
-  return [
-    resolve(here, "../../../../../workflows"),
-    resolve(here, "../../../../workflows"),
-    resolve(process.cwd(), "workflows"),
-  ];
+  return [resolveBuiltinWorkflowsRoot()];
 }
 
 /** 用户数据下的自定义工作流目录（上传落盘处，不写仓库 workflows/）。 */
 export function customWorkflowRoot() {
-  const dataDirectory = process.env.TOONFLOW_DATA_DIR ?? resolve(import.meta.dirname, "../../../../../data");
+  const dataDirectory = process.env.TOONFLOW_DATA_DIR ?? resolve(resolveAppDirectory(), "data");
   return resolve(dataDirectory, "workflows");
 }
 

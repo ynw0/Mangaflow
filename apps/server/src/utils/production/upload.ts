@@ -1,13 +1,13 @@
 // 上传 Comfy API JSON：用设置里的语言模型对照现有 bindings 生成新 yaml，校验通过才落盘到 data/workflows。
 import { mkdir, readFile, readdir, stat, unlink, writeAtomic } from "@toonflow/file";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { getConfiguredModel, listAiModels, streamAi } from "@/utils/ai";
 import {
   parseWorkflowBindings,
   serializeWorkflowBindings,
   type WorkflowBindings,
 } from "@/utils/production/bindings";
-import { customWorkflowRoot, listWorkflowCatalog } from "@/utils/production/catalog";
+import { customWorkflowRoot, listWorkflowCatalog, resolveBuiltinWorkflowsRoot } from "@/utils/production/catalog";
 import { fail } from "@/utils/production/config";
 
 const slugPattern = /^[a-z][a-z0-9_]{0,63}$/;
@@ -20,17 +20,11 @@ const allowedSources = new Set([
 ]);
 
 async function builtinWorkflowRoot() {
-  const here = import.meta.dirname;
-  for (const candidate of [
-    resolve(here, "../../../../../workflows"),
-    resolve(here, "../../../../workflows"),
-    resolve(process.cwd(), "workflows"),
-  ]) {
-    try {
-      if ((await stat(candidate)).isDirectory()) return candidate;
-    } catch {
-      // 继续试下一个候选路径
-    }
+  const candidate = resolveBuiltinWorkflowsRoot();
+  try {
+    if ((await stat(candidate)).isDirectory()) return candidate;
+  } catch {
+    // 目录不存在则报错
   }
   fail("找不到内置 workflows 目录");
 }

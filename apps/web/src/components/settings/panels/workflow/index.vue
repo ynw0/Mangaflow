@@ -67,7 +67,7 @@
     <section v-if="videoProviderId === 'comfyui'" class="settingSection" aria-labelledby="catalogTitle">
       <div class="settingInfo">
         <h3 id="catalogTitle">额外工作流</h3>
-        <p class="description">内置视频工作流保留。额外目录只追加新的 video 工作流，同名不覆盖。</p>
+        <p class="description">内置工作流保留。额外目录追加 image/video 工作流，同名不覆盖。</p>
       </div>
       <el-input v-model="workflowRoot" aria-label="额外工作流目录" placeholder="可选，例如 E:\Manga\pipeline\workflows" />
     </section>

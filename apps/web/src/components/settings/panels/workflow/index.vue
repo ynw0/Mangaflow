@@ -71,6 +71,19 @@
       </div>
       <el-input v-model="workflowRoot" aria-label="额外工作流目录" placeholder="可选，例如 E:\Manga\pipeline\workflows" />
     </section>
+    <section v-if="videoProviderId === 'comfyui'" class="settingSection" aria-labelledby="uploadTitle">
+      <div class="settingInfo">
+        <h3 id="uploadTitle">上传 API 工作流</h3>
+        <p class="description">上传 ComfyUI 导出的 API JSON。服务端用设置里的语言模型对照内置 bindings 模板生成新绑定；校验失败不写盘。落在用户数据 workflows，不覆盖同名（含内置）。</p>
+      </div>
+      <el-input v-model="uploadId" aria-label="工作流 id" placeholder="例如 my_h3 或 video/my_h3" />
+      <el-input v-model="uploadLabel" aria-label="显示名称" placeholder="可选显示名" />
+      <div class="row">
+        <input ref="uploadInput" class="uploadInput" type="file" accept="application/json,.json" aria-label="选择 API 工作流 JSON" @change="onUploadFile" />
+        <el-button type="primary" :loading="uploading" :disabled="!uploadId.trim()" @click="pickUpload">选择并上传</el-button>
+      </div>
+      <el-text v-if="uploadMessage" :type="uploadOk ? 'success' : 'danger'" role="status">{{ uploadMessage }}</el-text>
+    </section>
 
     <section v-if="videoProviderId === 'comfyui' && videoHost === 'autodl'" class="settingSection" aria-labelledby="autodlTitle">
       <div class="settingHeader">
@@ -105,7 +118,7 @@
 import axios from "axios";
 import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { saveSettings, settings } from "@/stores/settings";
+import { modelChoices, saveSettings, settings } from "@/stores/settings";
 
 type WorkflowItem = { id: string; label: string };
 type InstanceItem = { uuid: string; name: string; status: string };
@@ -138,6 +151,12 @@ const powering = ref(false);
 const checking = ref(false);
 const statusMessage = ref("");
 const saving = ref(false);
+const uploadId = ref("");
+const uploadLabel = ref("");
+const uploading = ref(false);
+const uploadOk = ref(false);
+const uploadMessage = ref("");
+const uploadInput = ref<HTMLInputElement>();
 const imageModelKey = computed({
   get: () => imageProviderId.value && imageModelId.value ? JSON.stringify([imageProviderId.value, imageModelId.value]) : "",
   set: (value: string) => {
@@ -212,6 +231,54 @@ async function save() {
     ElMessage.error(error instanceof Error ? error.message : "保存失败");
   } finally {
     saving.value = false;
+  }
+}
+
+function pickUpload() {
+  uploadInput.value?.click();
+}
+
+async function onUploadFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  const id = uploadId.value.trim();
+  if (!id) {
+    ElMessage.error("请先填写工作流 id");
+    return;
+  }
+  uploading.value = true;
+  uploadMessage.value = "";
+  uploadOk.value = false;
+  try {
+    if (!file.size || file.size > 20 * 1024 * 1024) throw new Error("请选择非空且不超过 20 MB 的 JSON 文件");
+    const apiJson = JSON.parse((await file.text()).replace(/^\uFEFF/, "")) as unknown;
+    const model = modelChoices.value[0];
+    const { data } = await axios.post<{ code: number; data?: { id: string; label: string }; message?: string }>(
+      "/api/production/workflows/upload",
+      {
+        id,
+        label: uploadLabel.value.trim() || undefined,
+        apiJson,
+        ...(model ? { providerId: model.providerId, modelId: model.modelId } : {}),
+      },
+      { headers, timeout: 5 * 60_000 },
+    );
+    if (data.code !== 200 || !data.data) throw new Error(data.message || "上传失败");
+    await loadWorkflows();
+    videoWorkflow.value = data.data.id;
+    uploadOk.value = true;
+    uploadMessage.value = `已上传 ${data.data.label}（${data.data.id}），可设为默认视频工作流`;
+    ElMessage.success(uploadMessage.value);
+  } catch (error) {
+    uploadOk.value = false;
+    uploadMessage.value = axios.isAxiosError(error)
+      ? error.response?.data?.message || error.message || "上传失败"
+      : error instanceof Error ? error.message : "上传失败";
+    ElMessage.error(uploadMessage.value);
+  } finally {
+    uploading.value = false;
   }
 }
 
@@ -343,6 +410,14 @@ onMounted(() => {
     .el-input, .el-select {
       flex: 1;
     }
+  }
+
+  .uploadInput {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
   }
 
   ul {

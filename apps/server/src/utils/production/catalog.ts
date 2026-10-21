@@ -1,4 +1,4 @@
-// 工作流目录：内置工作流保留，额外目录里的新工作流追加进来，同名不覆盖。
+// 扫描内置目录、用户数据自定义目录、额外工作流目录；同名只保留先扫到的。
 import { readdir, readFile, stat } from "@toonflow/file";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseWorkflowBindings, type WorkflowBindings } from "@/utils/production/bindings";
@@ -19,7 +19,7 @@ const labels: Record<string, string> = {
   "image/character_image": "角色设定图",
   "image/scene_image": "场景图",
   "image/prop_image": "道具原画",
-  "video/h3_ref2va_1080p": "H3 全能参考",
+  "video/h3_ref2va_1080p": "H3 全参参考",
   "video/h3_erca": "二采 MiniMax H3",
   "video/h3_flf_repair": "H3 首尾帧",
 };
@@ -31,6 +31,12 @@ function builtinRoots() {
     resolve(here, "../../../../workflows"),
     resolve(process.cwd(), "workflows"),
   ];
+}
+
+/** 用户数据下的自定义工作流目录（上传落盘处，不写仓库 workflows/）。 */
+export function customWorkflowRoot() {
+  const dataDirectory = process.env.TOONFLOW_DATA_DIR ?? resolve(import.meta.dirname, "../../../../../data");
+  return resolve(dataDirectory, "workflows");
 }
 
 async function isDirectory(path: string) {
@@ -68,12 +74,12 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
   const bindingsPath = join(root, `${id}.bindings.yaml`);
   const parsed = parseWorkflowBindings(await readFile(bindingsPath, "utf8"));
   const workflowPath = resolve(dirname(bindingsPath), parsed.workflow);
-  if (!insideRoot(root, workflowPath)) fail(`工作流文件超出目录: ${id}`);
+  if (!insideRoot(root, workflowPath)) fail(`工作流文件越出目录: ${id}`);
   const info = await stat(workflowPath).catch(() => undefined);
   if (!info?.isFile()) fail(`工作流 JSON 不存在: ${id}`);
   return {
     id,
-    label: labels[id] ?? id.split("/").at(-1) ?? id,
+    label: parsed.label?.trim() || labels[id] || id.split("/").at(-1) || id,
     kind,
     root,
     bindings: parsed,
@@ -89,6 +95,8 @@ export async function listWorkflowCatalog(): Promise<WorkflowEntry[]> {
       break;
     }
   }
+  const custom = customWorkflowRoot();
+  if (await isDirectory(custom) && !roots.some(root => resolve(root) === resolve(custom))) roots.push(custom);
   const extra = readProduction().workflowRoot;
   if (extra && await isDirectory(extra) && !roots.some(root => resolve(root) === resolve(extra))) roots.push(extra);
 
@@ -106,7 +114,7 @@ export async function listWorkflowCatalog(): Promise<WorkflowEntry[]> {
 
 export async function findWorkflow(id: string) {
   const entry = (await listWorkflowCatalog()).find(item => item.id === id);
-  if (!entry) fail(`工作流不存在: ${id}`);
+  if (!entry) fail(`找不到工作流: ${id}`);
   return entry;
 }
 

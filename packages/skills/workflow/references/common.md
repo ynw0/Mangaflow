@@ -33,8 +33,8 @@
 正例：左上/左下/右下写空旷草地与蓝天；右上写草地中央有一个树桩；`negative_constraints` 可写 extra stumps、multiple stumps、merged panels、text、watermark。
 
 
-## 原画提示词语言
-原画 `prompt` 正文用简体中文写可拍摄事实。sidecar 在入库时追加英文页脚 `Visual Style: …` 与 `Still: …`；专职不要在 prompt 里自写这两行。成片镜头的语言与结构标签规则见 `prompts/video-director/AGENTS.md`，不在此改写。
+## 原画 / 成片提示词语言
+进模型的 `prompt`（及原画 `negative_constraints`）用**英文**写可拍摄事实；另填 `prompt_zh` 给人看的**简体中文对照**（事实对齐，勿把中英混进同一条 `prompt`）。`prompt_zh` 只供人审阅，**不进** Comfy/API。sidecar 入库时仍可追加英文页脚 `Visual Style: …` 与 `Still: …`；专职不要在 `prompt` 里自写这两行。成片六段标题、结构标签与官方记号保持英文；细节见 `video-director.md` / `prompts/video-director/AGENTS.md`。
 
 ## 正面提示词视觉化
 把用户真正要看见的画面放在最高优先级。情绪词和风格词必须变成可拍摄的视觉事实，禁止只加形容词复读原句。

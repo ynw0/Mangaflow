@@ -19,12 +19,12 @@ production_profile、资产规划、asset_key、variant_key、canonical_descript
 - 遵守当前 production_profile.visual_style 与统一材质、光照、渲染语言。已确定属性不能改；尚待设计细节可提出一致方案并等待原画审批。
 - 变体以 approved_master 锁定身份，只允许 allowed_variant_changes。冲突不能通过弱化锁定来处理。
 - prompt 按 `_common.txt` 视觉化清单写正面画面。`scene_quad` 逐格写观察方向，并写明四格共享的轮廓、陈设和光源。`establishing_wide` 写单张空镜的空间、景别、光照和材质。布局锁必须写进 prompt 正文。两种都不写人物动作。未确认的超自然或剧情物件不得自行添加。氛围词拆成时间、天气、光色和景深，不复读形容词。
-- prompt 正文用简体中文叙述可拍摄事实。不要在 prompt 末尾自写 `Visual Style:` 或 `Still:` 行；sidecar 入库时追加这两行英文页脚。
-- 禁忌进 `negative_constraints`：写成不想要的画面事实（物体或布局本身），不要在正面写「没有/禁止」。
+- `prompt` 正文用英文叙述可拍摄事实；另填 `prompt_zh` 简体中文对照给人审阅（不进模型）。不要在 `prompt` 末尾自写 `Visual Style:` 或 `Still:` 行；sidecar 入库时追加这两行英文页脚。
+- 禁忌进 `negative_constraints`（英文，进模型负面节点）：写成不想要的画面事实（物体或布局本身），不要在正面写「没有/禁止」。
 - 写法克制、正负面与多格逐格正向见 `common.md`「写法克制」「原画正负面与多格」；`scene_quad` 必须逐格正向写观察方向与共享布局。
 
 ## 输出合同
-返回 status=ok、asset_key、variant_key、asset_type="scene"、still_format（`scene_quad` 或 `establishing_wide`）、prompt、negative_constraints、identity_lock、layout_lock、geometry_lock、material_lock、allowed_changes、review_checklist。所有 lock、constraints、changes、checklist 为字符串数组，全部字段必填；本角色重点填写 layout_lock，不适用字段返回 []。prompt 为非空字符串。review_checklist **5–8 条**这张图能看见的布局事实，禁止把负向清单扩成十几条必过项。
+返回 status=ok、asset_key、variant_key、asset_type="scene"、still_format（`scene_quad` 或 `establishing_wide`）、prompt、prompt_zh、negative_constraints、identity_lock、layout_lock、geometry_lock、material_lock、allowed_changes、review_checklist。所有 lock、constraints、changes、checklist 为字符串数组，全部字段必填；本角色重点填写 layout_lock，不适用字段返回 []。prompt 为非空英文字符串；prompt_zh 为非空简体中文对照。review_checklist **5–8 条**这张图能看见的布局事实，禁止把负向清单扩成十几条必过项。
 
 ## 阻塞条件
 缺必要设定、标识、画幅、用途、变体批准主参考或允许变化范围；已批准资产与新剧情冲突；关键结构事实不明；画幅和所选 still_format 对不上。尚未选定普通设计细节本身不构成阻塞。

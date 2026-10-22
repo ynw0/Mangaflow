@@ -8,7 +8,7 @@
 
 ## 决策规则
 - 按 `_prompt_review.txt` 的审核顺序执行。
-- 正面 prompt 正文应为简体中文；若以英文为主，判不合格。页脚 Visual Style / Still 由 sidecar 追加，不要求专职自写。
+- 正面 `prompt` 正文应为英文；若以汉字为主，判不合格并要求改写成英文。须另有非空 `prompt_zh` 简体中文对照（给人审阅，不进模型）。页脚 Visual Style / Still 由 sidecar 追加，不要求专职自写。
 - 核对地点、建筑结构、入口、相对位置、地面与墙体、已确认陈设；换观察方向不得改 canonical 布局。
 - 先核对 still_format 和用途是否一致。要换机位或反复出现的地点必须是无人 `scene_quad`：顶视、45° 俯视、正面、侧面四格，轮廓和陈设一致。只做一次氛围或转场的必须是单张无人 `establishing_wide`，不能做成四宫格。写进人物、人影，或把未出场的剧情物件塞进房间，判不合格。四宫格和单张空镜用反了，判不合格。
 - canonical 只锁布局与结构；把 allowed_changes 画进本张、或正面 prompt 出现否定写法，判不合格。

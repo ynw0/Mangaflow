@@ -15,14 +15,15 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 
 六段顺序固定：`subject_definitions:` → `summary:` → `retention_analysis:` → `detailed_description:` → `overall_soundscape:` → `non_diegetic_music:`。
 
-## 正文语言（Mangaflow 覆盖）
-官方指南要求六段正文用英文。本生产线覆盖为：
+## 正文语言
+对齐官方 H3（见 bundled `h3-prompt-writing` / `vendor/minimaxH3Skills`）：
 
-- 六段**标题**保持英文（上列字段名）。
-- 段内**叙述**用简体中文；细节量对齐官方「尽量详尽」要求，不要因为用中文就写短。
+- 六段**标题**与**段内叙述**均为英文；细节量对齐官方「尽量详尽」。
+- 另填合同字段 `prompt_zh`：六段内容的简体中文对照，给人审阅，**不进** Comfy/API；勿把中文塞进 `prompt`。
 - `<d>` 内对白/歌词与画面可见文字保留原文语言。
 - 语言标签用英文全称（Chinese、English、Korean、Japanese），不要 zh/en/ja/ko/zh-CN。
 - 任务类型括号、关系词、`[Shot N]`、`At MM:SS.mmm`、`fully_preserved` 等官方记号保持英文原文。
+- Mangaflow 槽位标签 `<Picture N>` / `<Subject N>` 仍按本文件约束保留。
 
 ## Mangaflow 特有约束
 
@@ -72,42 +73,44 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 - 只写当前画面内可见内容；角色视线中但摄像头看不到的不要写。
 - 不要在末尾追加 “No cuts / no subtitles” 这类英文否定句。
 
-## 精简格式示例（中文叙述）
+## 精简格式示例（英文进模型；另交 prompt_zh）
 槽号与登记名随本镜替换。身份经 Subject cite Picture；无首帧锚时不单独列 Picture 行；`retention_analysis` 覆盖已定义 Subject。
 
 ```
 subject_definitions:
-<Subject 1> 是 <Picture 1> 里的林渊。东亚青年男性，短黑发，深藏青色圆领针织套头衫、深灰长裤。
-<Subject 2> 是 <Picture 2> 里的灵石。六棱柱灰白半透明晶体，表面有细微裂痕。
-<Subject 3> 是 <Picture 3> 里的不锈钢托盘。拉丝金属，边沿翻起。
-<Subject 4> 是 <Picture 4> 里的地下实验室。冷白顶灯，浅灰台面，后方储物柜与防火门。
+<Subject 1> is Lin Yuan from <Picture 1>. East Asian young man, short black hair, deep indigo crew-neck knit sweater, dark grey trousers.
+<Subject 2> is the spirit stone from <Picture 2>. Hexagonal grey-white translucent crystal with fine surface cracks.
+<Subject 3> is the stainless tray from <Picture 3>. Brushed metal with a raised rim.
+<Subject 4> is the underground lab from <Picture 4>. Cool white overhead lights, pale grey bench, cabinets and a fire door behind.
 
 summary:
-[reference generation] 8秒成片。林渊盯着托盘里的灵石，并说出剧情对白。
+[reference generation] 8s film. Lin Yuan stares at the spirit stone on the tray and delivers the story dialogue.
 
 retention_analysis:
-<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - 短黑发、深藏青色针织套头衫、深灰长裤。
-<Subject 2> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - 六棱柱轮廓与裂痕。
-<Subject 3> (appears in [Shot 1], [Shot 2]): fully_preserved - 托盘轮廓与拉丝金属。
-<Subject 4> (appears in [Shot 1], [Shot 3]): fully_preserved - 实验室布局与冷白顶灯。
+<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - short black hair, deep indigo knit sweater, dark grey trousers.
+<Subject 2> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - hexagonal silhouette and cracks.
+<Subject 3> (appears in [Shot 1], [Shot 2]): fully_preserved - tray silhouette and brushed metal.
+<Subject 4> (appears in [Shot 1], [Shot 3]): fully_preserved - lab layout and cool white overhead lights.
 
 detailed_description:
-写实比例三维动画。冷白顶灯从正上方照下，金属翻边有细长高光。
-[Shot 1] 中景，略高于人眼。<Subject 4> 地下实验室被冷白顶灯照亮。<Subject 1> 林渊坐在实验椅上，视线落在台面 <Subject 3> 托盘里的 <Subject 2> 灵石上。风机低频。
-[Shot 2] At 00:03.000, 匀速前推至近景，焦点在林渊面部，目光仍锁在灵石上。风机低频仍在。
-[Shot 3] At 00:06.000, 近景保持。<Subject 1> (S1) 低声说，<d>[Chinese] 再来一次</d>。人声盖在风机上。
+Realistic-proportion 3D animation. Cool white overhead light from above; thin speculars on the metal rim.
+[Shot 1] Medium shot, slightly above eye level. <Subject 4> underground lab under cool white light. <Subject 1> Lin Yuan sits on the lab chair, eyes on <Subject 2> the spirit stone in <Subject 3> the tray. Low HVAC hum.
+[Shot 2] At 00:03.000, slow push-in to close-up on Lin Yuan's face; gaze still locked on the stone. HVAC hum continues.
+[Shot 3] At 00:06.000, close-up holds. <Subject 1> (S1) says quietly, <d>[Chinese] 再来一次</d>. Voice sits over the HVAC.
 
 overall_soundscape:
-风机低频持续运转。
+Low HVAC hum running throughout.
 
 non_diegetic_music:
 N/A
 ```
 
+`prompt_zh` 示例（给人对照，不进模型）：用简体中文复述同上六段事实，结构可对齐六段标题，勿塞回 `prompt`。
+
 有 `video1`/`audio1` 时按官方在定义段与 `retention_analysis` 补 `<Video 1>`/`<Audio 1>` 及关系词；对白仍只在 `<d>` 里。
 
 ## 输出合同
-只返回 status、shot_id、duration_seconds、ref_bindings、prompt、director_requirements。每个 binding 包含 slot、role、asset_key、asset_type、name、variant_key、image_path，与准备结果完全一致。director_requirements 为 {text,evidence_type} 数组。不返回 must_have、must_not_have 或另立 qc_expectations。
+只返回 status、shot_id、duration_seconds、ref_bindings、prompt、prompt_zh、director_requirements。每个 binding 包含 slot、role、asset_key、asset_type、name、variant_key、image_path，与准备结果完全一致。director_requirements 为 {text,evidence_type} 数组。不返回 must_have、must_not_have 或另立 qc_expectations。
 
 ## 阻塞条件
 缺完整准备上下文、参考未批准、Picture 映射冲突、剧情或连续性冲突、给定时长无法执行、`media_refs.instruction` 为空。返回公共 blocked 合同，不替换素材或删剧情。

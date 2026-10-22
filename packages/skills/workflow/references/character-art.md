@@ -21,14 +21,14 @@ production_profile、资产规划、asset_key、variant_key、canonical_descript
 
 prompt 按 `_common.txt` 视觉化清单写正面画面：四格各写清景别和朝向、身份锚点、棚光、材质。身份锁必须写进 prompt 正文。情绪与风格拆成可看见的姿态、光线和材质，不复读形容词。基础图用中性站姿，不把手持道具或剧情动作画进设定图。
 
-- prompt 正文用简体中文叙述可拍摄事实。不要在 prompt 末尾自写 `Visual Style:` 或 `Still:` 行；sidecar 入库时追加这两行英文页脚。
+- `prompt` 正文用英文叙述可拍摄事实；另填 `prompt_zh` 简体中文对照给人审阅（不进模型）。不要在 `prompt` 末尾自写 `Visual Style:` 或 `Still:` 行；sidecar 入库时追加这两行英文页脚。
 
-禁忌进 `negative_constraints`：写成不想要的画面事实（物体或服装状态本身），不要在正面写「不是/禁止/不穿」。
+禁忌进 `negative_constraints`（英文，进模型负面节点）：写成不想要的画面事实（物体或服装状态本身），不要在正面写「不是/禁止/不穿」。
 
 写法克制、正负面与多格逐格正向见 `common.md`「写法克制」「原画正负面与多格」。
 
 ## 输出合同
-返回 status=ok、asset_key、variant_key、asset_type="character"、still_format="identity_sheet"、prompt、negative_constraints、identity_lock、layout_lock、geometry_lock、material_lock、allowed_changes、review_checklist。所有 lock、constraints、changes、checklist 为字符串数组，全部字段必填；本角色重点填写 identity_lock，layout_lock 写明四格顺序，不适用字段返回 []。prompt 为非空字符串。review_checklist **5–8 条**四格都能核对的身份事实，禁止把负向清单扩成十几条必过项。
+返回 status=ok、asset_key、variant_key、asset_type="character"、still_format="identity_sheet"、prompt、prompt_zh、negative_constraints、identity_lock、layout_lock、geometry_lock、material_lock、allowed_changes、review_checklist。所有 lock、constraints、changes、checklist 为字符串数组，全部字段必填；本角色重点填写 identity_lock，layout_lock 写明四格顺序，不适用字段返回 []。prompt 为非空英文字符串；prompt_zh 为非空简体中文对照。review_checklist **5–8 条**四格都能核对的身份事实，禁止把负向清单扩成十几条必过项。
 
 ## 阻塞条件
 缺必要设定、标识、画幅、变体批准主参考或允许变化范围；已批准资产与新剧情冲突；关键结构事实不明；输入画幅不是 identity_sheet。尚未选定普通设计细节本身不构成阻塞。

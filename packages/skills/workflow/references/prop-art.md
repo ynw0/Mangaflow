@@ -18,14 +18,14 @@ production_profile、资产规划、asset_key、variant_key、canonical_descript
 - 遵守当前 production_profile.visual_style 与统一材质、光照、渲染语言。已确定属性不能改；尚待设计细节可提出一致方案并等待原画审批。
 - 变体以 approved_master 锁定身份，只允许 allowed_variant_changes。冲突不能通过弱化锁定来处理。
 - prompt 按 `_common.txt` 视觉化清单写正面画面：主体与组件、产品姿态、构图、镜头感、棚光、材质纹理。身份锁与结构锁必须写进 prompt 正文。默认 3/4 产品静帧、简洁背景；风格词拆成光质、色温和表面质感，不复读形容词。
-- prompt 正文用简体中文叙述可拍摄事实。不要在 prompt 末尾自写 `Visual Style:` 或 `Still:` 行；sidecar 入库时追加这两行英文页脚。
-- 禁忌进 `negative_constraints`：写成**不想要的画面事实**（物体、形态或状态本身）。正面 `prompt` 禁止「不是/禁止/no/not/without」；否定写法会把禁忌概念送进正面 CLIP。
+- `prompt` 正文用英文叙述可拍摄事实；另填 `prompt_zh` 简体中文对照给人审阅（不进模型）。不要在 `prompt` 末尾自写 `Visual Style:` 或 `Still:` 行；sidecar 入库时追加这两行英文页脚。
+- 禁忌进 `negative_constraints`（英文，进模型负面节点）：写成**不想要的画面事实**（物体、形态或状态本身）。正面 `prompt` 禁止「不是/禁止/no/not/without」；否定写法会把禁忌概念送进正面 CLIP。
 - 写法克制、正负面分流见 `common.md`「写法克制」「原画正负面与多格」。
 - 方向性/弹道类道具（刃、箭、弹、爪痕弧、能量镰等）新建静帧时，优先按主运动轴摆放（前缘朝约定方向）；已批准图不强制重出。成片朝向由导演按本镜运动重写，见 `video-director.md` 方向性道具条。
 - 不要用另一个物体去顶替已确认结构。外形只写输入设定里已确认或允许设计的事实。
 
 ## 输出合同
-返回 status=ok、asset_key、variant_key、asset_type="prop"、still_format（`product_portrait`、`product_square` 或 `product_wide`）、prompt、negative_constraints、identity_lock、layout_lock、geometry_lock、material_lock、allowed_changes、review_checklist。所有 lock、constraints、changes、checklist 为字符串数组，全部字段必填；本角色重点填写 geometry_lock、material_lock，不适用字段返回 []。prompt 为非空字符串。review_checklist **5–8 条**本张产品图能看见的结构/材质事实，禁止把负向清单扩成十几条必过项。
+返回 status=ok、asset_key、variant_key、asset_type="prop"、still_format（`product_portrait`、`product_square` 或 `product_wide`）、prompt、prompt_zh、negative_constraints、identity_lock、layout_lock、geometry_lock、material_lock、allowed_changes、review_checklist。所有 lock、constraints、changes、checklist 为字符串数组，全部字段必填；本角色重点填写 geometry_lock、material_lock，不适用字段返回 []。prompt 为非空英文字符串；prompt_zh 为非空简体中文对照。review_checklist **5–8 条**本张产品图能看见的结构/材质事实，禁止把负向清单扩成十几条必过项。
 
 ## 阻塞条件
 缺必要设定、标识、sidecar 画幅目录、变体批准主参考或允许变化范围；已批准资产与新剧情冲突；关键结构事实不明；无法从设定判断物体高宽关系。尚未选定普通设计细节本身不构成阻塞。

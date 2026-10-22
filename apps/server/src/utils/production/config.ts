@@ -19,6 +19,10 @@ export type ProductionConfig = {
   autodlInstanceUuid: string;
   autodlStartCommand: string;
   autodlEnsureRunning: boolean;
+  /** 成片画面质检模型（语言模型供应商里的 model id） */
+  videoQcModelId: string;
+  /** 成片音轨质检模型 */
+  audioQcModelId: string;
 };
 
 const defaults: ProductionConfig = {
@@ -38,6 +42,8 @@ const defaults: ProductionConfig = {
   autodlInstanceUuid: "",
   autodlStartCommand: "",
   autodlEnsureRunning: true,
+  videoQcModelId: "qwen3.8-omni-flash",
+  audioQcModelId: "qwen3.8-omni-flash",
 };
 
 function text(value: unknown, fallback: string) {
@@ -64,6 +70,8 @@ export function readProduction(): ProductionConfig {
     autodlInstanceUuid: text(source.autodlInstanceUuid, ""),
     autodlStartCommand: text(source.autodlStartCommand, ""),
     autodlEnsureRunning: source.autodlEnsureRunning === undefined ? true : source.autodlEnsureRunning === true,
+    videoQcModelId: text(source.videoQcModelId, "") || defaults.videoQcModelId,
+    audioQcModelId: text(source.audioQcModelId, "") || defaults.audioQcModelId,
   };
 }
 

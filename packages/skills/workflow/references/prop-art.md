@@ -31,4 +31,4 @@ production_profile、资产规划、asset_key、variant_key、canonical_descript
 缺必要设定、标识、sidecar 画幅目录、变体批准主参考或允许变化范围；已批准资产与新剧情冲突；关键结构事实不明；无法从设定判断物体高宽关系。尚未选定普通设计细节本身不构成阻塞。
 
 ## 交接要求
-总控把合同交给道具文生图提示词工对照原文审核，不改 prompt 或 lock，不把道具画幅改回默认方图。rejected 时把 findings 原样退回本角色重写；status=ok 后总控将 art 与 review 一起 POST `/assets/prompt` 再生成。sidecar 用 qwen3.8-flash 视觉 QC 通过后才能用于视频。不能自行宣布批准，不用生成结果反过来改变 canonical 事实。
+总控把合同交给道具文生图提示词工对照原文审核，不改 prompt 或 lock，不把道具画幅改回默认方图。rejected 时把 findings 原样退回本角色重写；status=ok 后总控将 art 与 review 一并再生成。静帧/成片视觉验收走 Mangaflow 质检（设置中的视频质检模型，默认 qwen3.8-omni-flash），通过后才能用于视频。不能自行宣布批准，不用生成结果反过来改变 canonical 事实。

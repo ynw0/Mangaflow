@@ -53,6 +53,9 @@ const modelContextLimits: { id: string | RegExp; contextWindow: number; maxToken
   { id: "qwen3.5-35b-a3b", contextWindow: 262144, maxTokens: 65536 },
   { id: "qwen3.5-27b", contextWindow: 262144, maxTokens: 65536 },
 
+  // https://help.aliyun.com/zh/model-studio/qwen-omni
+  { id: "qwen3.8-omni-flash", contextWindow: 1000000, maxTokens: 65536 },
+
   // GLM：https://docs.z.ai/guides/llm/glm-5 、https://docs.z.ai/guides/llm/glm-4.7
   { id: "glm-5", contextWindow: 200000, maxTokens: 128000 },
   { id: "glm-4.7", contextWindow: 200000, maxTokens: 128000 },

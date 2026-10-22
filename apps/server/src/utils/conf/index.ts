@@ -175,6 +175,14 @@ if (production.videoHost === "local" && (typeof production.localComfyuiBaseUrl !
   production.localComfyuiBaseUrl = "http://127.0.0.1:8188";
   productionChanged = true;
 }
+if (typeof production.videoQcModelId !== "string" || !production.videoQcModelId.trim()) {
+  production.videoQcModelId = "qwen3.8-omni-flash";
+  productionChanged = true;
+}
+if (typeof production.audioQcModelId !== "string" || !production.audioQcModelId.trim()) {
+  production.audioQcModelId = "qwen3.8-omni-flash";
+  productionChanged = true;
+}
 if (productionChanged) {
   settings.production = production;
   config.set("settings", settings);

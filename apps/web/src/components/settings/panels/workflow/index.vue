@@ -110,6 +110,20 @@
       </div>
     </section>
 
+        <section class="settingSection" aria-labelledby="qcTitle">
+      <div class="settingInfo">
+        <h3 id="qcTitle">成片质检</h3>
+        <p class="description">成片画面与音轨质检模型，默认均为 qwen3.8-omni-flash。两者相同时一次视听同检；不同则分两次。模型需在「语言 → 语言模型」中已配置。</p>
+      </div>
+      <el-select v-model="videoQcModelId" filterable allow-create default-first-option aria-label="视频质检模型" placeholder="qwen3.8-omni-flash">
+        <el-option v-for="item in languageModels" :key="`v-${item.providerId}-${item.modelId}`" :label="`${item.label} · ${item.modelId}`" :value="item.modelId" />
+      </el-select>
+      <el-select v-model="audioQcModelId" filterable allow-create default-first-option aria-label="音频质检模型" placeholder="qwen3.8-omni-flash">
+        <el-option v-for="item in languageModels" :key="`a-${item.providerId}-${item.modelId}`" :label="`${item.label} · ${item.modelId}`" :value="item.modelId" />
+      </el-select>
+      <el-text v-if="!languageModels.length" type="warning" role="status">还没有语言模型。请先在「语言 → 语言模型」里添加（建议含 qwen3.8-omni-flash）。</el-text>
+    </section>
+
     <el-button type="primary" :loading="saving" @click="save">保存</el-button>
   </div>
 </template>
@@ -135,6 +149,8 @@ const videoProviderId = ref<"comfyui" | "videoModel">("comfyui");
 const videoHost = ref("autodl");
 const localComfyuiBaseUrl = ref("http://127.0.0.1:8188");
 const videoWorkflow = ref("video/h3_ref2va_1080p");
+const videoQcModelId = ref("qwen3.8-omni-flash");
+const audioQcModelId = ref("qwen3.8-omni-flash");
 const qwenModels = ref<QwenModel[]>([]);
 const autodlBaseUrl = ref("https://www.autodl.art");
 const autodlToken = ref("");
@@ -173,6 +189,7 @@ const imageModelKey = computed({
 });
 const mainVideoWorkflows = computed(() => videoWorkflows.value.filter(item => item.id !== "video/h3_flf_repair"));
 const repairWorkflow = computed(() => videoWorkflows.value.find(item => item.id === "video/h3_flf_repair"));
+const languageModels = computed(() => modelChoices.value);
 
 function text(value: unknown, fallback: string) {
   return typeof value === "string" ? value : fallback;
@@ -192,6 +209,8 @@ function readForm() {
   videoHost.value = source.videoHost === "local" ? "local" : "autodl";
   localComfyuiBaseUrl.value = text(source.localComfyuiBaseUrl, "") || "http://127.0.0.1:8188";
   videoWorkflow.value = text(source.videoWorkflow, "") || "video/h3_ref2va_1080p";
+  videoQcModelId.value = text(source.videoQcModelId, "") || "qwen3.8-omni-flash";
+  audioQcModelId.value = text(source.audioQcModelId, "") || "qwen3.8-omni-flash";
   autodlBaseUrl.value = text(source.autodlBaseUrl, "https://www.autodl.art");
   autodlToken.value = text(source.autodlToken, "");
   autodlInstanceUuid.value = text(source.autodlInstanceUuid, "");
@@ -212,6 +231,8 @@ function productionPatch() {
     videoHost: videoHost.value === "local" ? "local" : "autodl",
     localComfyuiBaseUrl: localComfyuiBaseUrl.value.trim() || "http://127.0.0.1:8188",
     videoWorkflow: videoWorkflow.value.trim() || "video/h3_ref2va_1080p",
+    videoQcModelId: videoQcModelId.value.trim() || "qwen3.8-omni-flash",
+    audioQcModelId: audioQcModelId.value.trim() || "qwen3.8-omni-flash",
     autodlBaseUrl: autodlBaseUrl.value.trim(),
     autodlToken: autodlToken.value.trim(),
     autodlInstanceUuid: autodlInstanceUuid.value.trim(),

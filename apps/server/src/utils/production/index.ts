@@ -5,3 +5,4 @@ export { probeComfy } from "@/utils/production/comfyui";
 export { autodlPower, autodlStatus, listAutodlInstances, resolveComfyBaseUrl } from "@/utils/production/autodl";
 export { runComfyWorkflow } from "@/utils/production/run";
 export { uploadVideoWorkflow } from "@/utils/production/upload";
+export { runProductionQc } from "@/utils/production/qc";

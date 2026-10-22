@@ -113,4 +113,4 @@ N/A
 缺完整准备上下文、参考未批准、Picture 映射冲突、剧情或连续性冲突、给定时长无法执行、`media_refs.instruction` 为空。返回公共 blocked 合同，不替换素材或删剧情。
 
 ## 交接要求
-总控把合同交给镜头文生视频提示词工对照原文与准备结果审核，不改 prompt 或 Picture 槽位。rejected 时把 findings 原样退回本角色重写；status=ok 后总控将 director 与 review 一起 POST `/shots/prompt`。开 GPU 仍由总控另行确认。QC 把成片画面交给 qwen3.8-flash，ffmpeg 抽出声轨并转写后把台词和时间轴一并验收；视听都过才算成片通过。时序缺证据标未验证。
+总控把合同交给镜头文生视频提示词工对照原文与准备结果审核，不改 prompt 或 Picture 槽位。rejected 时把 findings 原样退回本角色重写；status=ok 后总控将 director 与 review 一并进入出片。开 GPU 仍由总控另行确认。成片质检用 Mangaflow 设置里的视频/音频质检模型（默认 qwen3.8-omni-flash）抽帧+抽音轨验收；视听都过才算成片通过。时序或缺听感证据标未验证。

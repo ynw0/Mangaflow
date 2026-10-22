@@ -34,4 +34,4 @@ prompt 按 `_common.txt` 视觉化清单写正面画面：四格各写清景别�
 缺必要设定、标识、画幅、变体批准主参考或允许变化范围；已批准资产与新剧情冲突；关键结构事实不明；输入画幅不是 identity_sheet。尚未选定普通设计细节本身不构成阻塞。
 
 ## 交接要求
-总控把合同交给角色文生图提示词工对照原文审核，不改 prompt 或 lock。rejected 时把 findings 原样退回本角色重写；status=ok 后总控将 art 与 review 一起 POST `/assets/prompt` 再生成。sidecar 用 qwen3.8-flash 视觉 QC 通过后才能用于视频。不能自行宣布批准，不用生成结果反过来改变 canonical 事实。
+总控把合同交给角色文生图提示词工对照原文审核，不改 prompt 或 lock。rejected 时把 findings 原样退回本角色重写；status=ok 后总控将 art 与 review 一并再生成。静帧/成片视觉验收走 Mangaflow 质检（设置中的视频质检模型，默认 qwen3.8-omni-flash），通过后才能用于视频。不能自行宣布批准，不用生成结果反过来改变 canonical 事实。

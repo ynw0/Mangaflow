@@ -1,0 +1,25 @@
+workflow: ./h3_erca_9x16_autodl_api.json
+label: 成片 MiniMax H3 二采 AutoDL 9:16
+# AutoDL 专用：H3 Ref2VA + 二采（TaoMate-3step + latent upscaler）；仅 1 路参考图 + 可选覆盖合成音频
+capabilities:
+  duration_seconds:
+    min: 2
+    max: 15
+bindings:
+- source: prompt
+  target: 6.inputs.prompt
+  kind: value
+- source: seed
+  target: 12.inputs.seed
+  kind: value
+- source: duration
+  target: 17.inputs.value
+  kind: value
+- source: refs.slot1
+  target: 24.inputs.image
+  kind: image
+  required: false
+- source: media.audio1
+  target: 114.inputs.audio
+  kind: audio
+  required: false

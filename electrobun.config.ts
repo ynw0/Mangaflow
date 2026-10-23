@@ -32,6 +32,7 @@ export default {
       "build/ext": "ext",
       "packages/providers/src": "providers",
       "packages/skills": "skills",
+      "workflows": "workflows",
       "packages/startup/assets/startup.json": "startup/startup.json",
       "packages/startup/assets/license.txt": "startup/license.txt",
       [`packages/startup/assets/${startupTarget}`]: `startup/${startupTarget}`,

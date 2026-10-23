@@ -15,7 +15,8 @@ Generate one canvas text node named `<title> text storyboards` (one document for
 
 Document top matter (header block at the top of the document):
 
-- Project title, approved video model, approved resolution, storyboard mode, and self-check status (e.g. `shot-table self-check: passed at <timestamp>`).
+- Project title, storyboard mode, and self-check status (e.g. `shot-table self-check: passed at <timestamp>`).
+- The model and resolution are selected only after storyboards are approved in Step 7. Until then, label both `pending`; after the user confirms them, update the Project Brief and storyboard document before rendering. Never guess or imply prior approval.
 - A short table-of-contents listing every shot, its hook, and its section anchor (`S01`, `S02`, …) so the user can jump.
 
 Per-shot section structure (one `##` heading per shot, in shot order). Every section is mandatory to contain these fields, in this order — direct adaptation of the half-narrated-drama storyboard:

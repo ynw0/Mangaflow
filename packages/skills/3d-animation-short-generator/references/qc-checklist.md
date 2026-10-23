@@ -49,7 +49,6 @@ Group every production section on canvas:
 - Group scene cards as `<title> scene cards`.
 - Group the standardized shot table as `<title> shot table`.
 - Group the text storyboards document as `<title> text storyboards` (default mode, one document). Extracted standalone text storyboard nodes and pencil storyboards (visualization mode) are separate groups: `<title> extracted text storyboards` and `<title> multi-panel pencil storyboards`. Keep all storyboard groups separate from rendered clips because storyboards contain double-binding labels, shot numbers, camera icons, arrows, and sketch lines.
-- Keep storyboard groups separate from rendered clips because storyboards contain double-binding labels, shot numbers, camera icons, arrows, and sketch lines.
 - Group single-shot video clips as `<title> shot clips` (the label no longer hard-codes a specific model name, since projects can mix H3 and Seedance 2.0).
 - Group assembled main video, matched BGM, and final composited video as `<title> final delivery` when they exist.
 

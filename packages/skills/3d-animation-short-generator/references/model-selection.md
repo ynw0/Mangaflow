@@ -4,7 +4,7 @@
 
 ### Video-model choice card (mandatory before any clip render)
 
-Before any clip is rendered, show the video-model choice card. The choice is stored in the Project Brief and reused for every clip in this project unless the user later changes it.
+Before any clip is rendered, show the video-model choice card. The choice is stored in the Project Brief and reused for every clip in this project unless the user later changes it. Because the shot table and storyboards are produced before this gate, keep their motion/action content model-neutral and mark model/resolution as `pending` until confirmed. Add per-row `video_model` routing only after the user selects per-shot mixed mode; do not treat a recommendation as an approved selection.
 
 Video model card:
 

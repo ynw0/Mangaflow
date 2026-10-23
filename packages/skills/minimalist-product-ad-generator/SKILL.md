@@ -61,7 +61,7 @@ Start gate is mandatory. If the user has already uploaded product material, only
 
 2. **In-frame copy must appear as integrated video motion, not a subtitle fallback**
    - Text in the copy anchor photo is only a reference for font, position, single-line layout, and two-part color treatment. It does not mean the whole video can use only that one copy line.
-   - The precise beat storyboard may define multiple short English copy lines across shots. Each line must be 3-5 English words, single-line, readable, and follow the two-part color rule: in white-tech style the first half uses black or dark gray, in dark rim-light style the first half may use white, and the second half always uses the specific product color. Do not use isolated 1-2 word feature labels.
+   - The precise beat storyboard may define multiple short English copy lines across shots. Each line must contain 3–5 English words, remain readable on one line, and follow the global Typography Rules. Do not use isolated 1–2 word feature labels.
    - Video generation must include the storyboard copy inside the frame.
    - The copy does not need to appear in every shot. If the video model tends to make typography mistakes, reduce copy frequency proactively. For a 10-second film, usually keep only one mid-film copy moment plus one final copy moment; do not put text in every shot. The final shot must include one stable single-line copy.
    - By default, ask the video model to generate in-frame typography and its timing directly. Do not silently degrade text into post-production subtitles or reserve empty space for later overlay. Use post-production fallback only when the user explicitly asks for it or when integrated video typography fails and the user accepts a fallback.
@@ -89,7 +89,7 @@ Start gate is mandatory. If the user has already uploaded product material, only
 - Copy should feel like an Apple product film: sensory, benefit-led, material-led, or a light value proposition; avoid promotional slogans and ecommerce feature-tag wording.
 - Font reference: SF Pro Display / SF Pro Text. Prefer `SF Pro Display Semibold` in prompts.
 - Use no more than two text colors in a shot.
-- In white-tech style, the first half of the text must use black or dark gray; white text is forbidden on white backgrounds. In dark rim-light style, the first half may use white. The second half always uses the specific product color.
+- Color rule: in white-tech scenes, the first half uses black or dark gray; in dark rim-light scenes it may use white. For brand-color fields or lifestyle scenes, choose a high-contrast, readable first-half color. The second half always uses the confirmed product main color. State both colors explicitly.
 - Text must stay on one line. Do not wrap, stack, or split into multiple lines.
 - At any moment, only one single-line English copy line may appear in the frame. Do not show two rows of text, two-line titles, title + subtitle pairs, or multiple text blocks at the same time. Two-part typography must continue or replace within the same line, never split into upper and lower rows.
 - Do not place text in a lower subtitle position. Prefer the vertically centered visual zone, left-aligned or right-aligned as part of the composition. Text should be slightly larger and feel like a product-film visual element, not an explanatory subtitle.
@@ -202,7 +202,7 @@ Output one short “motion language” statement, for example:
 
 ## STEP 5: Generate or Confirm Apple-style English Copy
 
-Before generating the text anchor and storyboard, obtain a final English copy line for the frame.
+Before generating the text anchor and storyboard, confirm the primary English closing-copy line. The storyboard may add short mid-film lines, but each must follow the Typography Rules and be included verbatim in the approved storyboard.
 
 Rules:
 
@@ -233,10 +233,10 @@ Multi-variant handling:
 
 Final copy anchor typography rules:
 
-- Must include the Step 5 confirmed copy; do not use placeholder copy.
+- Must include the confirmed primary closing-copy line from Step 5; do not use placeholder copy.
 - Text must stay on one line.
 - Font: SF Pro Display Semibold.
-- Text color must be split explicitly into two parts: the first half of the copy uses black or white, and the second half uses the specific product main color. If the main color is purple, write “first half black / white, second half purple.” Do not write only “product color + black or white.”
+- Apply the global Typography Rules: in white-tech scenes, the first half is black or dark gray; in dark rim-light scenes it may be white. For brand-color fields or lifestyle scenes, choose a high-contrast first-half color that remains readable. The second half always uses the confirmed product main color. State the actual colors explicitly; do not write “product color + black or white.”
 - Photo 3 may contain only this format-reference copy line and no other text; however, later video copy is controlled by the precise beat storyboard and may include multiple short English copy lines.
 
 Show the three independent anchor photos and ask the user to approve, edit, or regenerate a specific photo before proceeding to the precise beat storyboard.
@@ -269,7 +269,7 @@ Table rules:
 - Keep one main action per beat; secondary layers appear with slight delay.
 - Clearly define when the main variant appears alone, when supporting variants enter, and when the full set closes.
 - Copy splitting may only be described in plain language as first half / second half. Do not write arrows, slashes, plus signs, or separators, because the model may render them as in-frame copy.
-- Text color must use the specific product color name and must be split by style: in white-tech style write “first half black or dark gray, second half the specific product color”; only in dark rim-light style may the first half be white. For example, in white-tech style with purple as the main color, write “first half black or dark gray, second half purple.” Do not write “product color + black or white.”
+- State the actual two colors in each storyboard row. Apply the global Typography Rules to the first half and use the confirmed product main color for the second half; do not write vague alternatives such as “product color + black or white.”
 - If typography is error-prone, reduce text beats first: for a 10-second film, usually use only one mid-film copy moment and one final copy moment, with all other beats marked as no text. Do not put text in every shot.
 - The final beat must be a stable single full-frame product closing + full single-line copy. Never end on four panels, split screens, storyboard boards, anchor-sheet layout, product windows, or framed grids. Text still belongs in the vertically centered composition zone, left-aligned or right-aligned as part of the frame, not in a lower subtitle position. Add a logo only when the user provides one.
 
@@ -277,15 +277,10 @@ Rhythm intent vocabulary: setup, establish, prepare, impact, brake, settle.
 
 ### Principles
 
-1. Keep core text on a single line.
-2. At any moment, only one single-line English copy line may appear; forbid two text rows, upper/lower line splits, title + subtitle pairs, or multiple text blocks at the same time.
-3. Use exactly two text colors: black or white + confirmed specific product color.
-4. The text must appear inside the video; do not rely only on post-production fallback.
-5. Shot continuity = element continuity + motion continuity + form continuity.
-6. Smoothness = easing + no awkward timing + seamless entrances and exits.
-7. Total pacing follows the user-selected duration.
-8. Text motion must be visible: the first half fades in or slides in subtly first, then the second half fades in or slides in subtly later. When the second half appears, the first half shifts subtly within the same line to make room. Do not make the text completely static, and do not split it into upper and lower rows.
-9. If the style is confirmed, the table must strictly follow that style.
+1. Apply the global Typography Rules consistently: one visible single-line English copy line at a time, style-appropriate two-part colors, and visible same-line text motion.
+2. Copy must appear inside the generated video; do not rely on post-production fallback unless the user requests or approves it.
+3. Preserve element, motion, and form continuity; use smooth easing and clean entrances/exits.
+4. Match pacing and all visual choices to the confirmed duration and style.
 
 After the user confirms the storyboard table, proceed to video generation.
 
@@ -342,9 +337,9 @@ Before final delivery, edit or assemble based on music analysis. Do not simply l
 Music analysis:
 
 - Detect rhythm, strong beats, energy sections, and clear single-note hits.
-- Find an 8-12 second segment with continuous sound and suitable energy for product display.
+- Select a continuous, audible music segment that covers the full confirmed video duration and has suitable energy for product display. For an 8–12-second video, an 8–12-second window is appropriate; for 5- or 15-second videos, use a window long enough to cover the selected duration.
 - Do not blindly use the first 10 seconds.
-- Prefer a segment with a clear entry point, no silence or collapse in the second half, and enough stable time for the closing frame.
+- Prefer a clear entry point, stable energy through the closing frame, and no silence or dropouts.
 
 Audio assembly rules:
 

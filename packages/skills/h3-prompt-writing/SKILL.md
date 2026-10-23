@@ -24,9 +24,7 @@ Use `integrated_multimodal_description`, `overall_soundscape`, and `non_diegetic
 
 ## Full-Reference Mode
 
-Ref2VA rewrites use `subject_definitions`, `summary`, `retention_analysis`, `detailed_description`, `overall_soundscape`, and `non_diegetic_music` in that order. Reference labels stay consistent across all sections.
-
-Read `references/ref-en.txt` for label rules, retention analysis, and complete examples.
+Ref2VA uses the full-reference label system. Follow `references/ref-en.txt` for the exact six-section structure, reference-label rules, retention analysis, and examples.
 
 ## Output Rules
 

@@ -2,23 +2,20 @@
 
 ### Failure fallback per video model
 
-H3 fallback ladder when a clip fails or drifts:
+After the initial H3 render fails or drifts, use this escalation order:
 
-1. First retry: regenerate the same clip with the H3 prompt prefix strengthened by quoting the exact `Reference Anchors` block from the table.
-2. Second retry: shorten the shot to ≤6s and split the dropped seconds into a new adjacent row in Step 5; re-run Step 5.5 self-check, then re-render.
-3. Third retry: switch the failing shot to Seedance 2.0 (this is exactly why the mixed mode exists — performance fallback is one click, not a re-architecture).
-4. After three failed attempts on the same shot: pause and ask the user with a choice card:
-   - Switch just this shot to Seedance 2.0.
-   - Loosen the request (drop a prop, simplify the action, reduce the hook).
-   - Skip the shot and add a `placeholder: missing clip` note for downstream review.
-   - Manually supply a reference video to bind instead of generating.
+1. **First retry (H3):** regenerate the same clip with the H3 prompt strengthened by quoting the exact `Reference Anchors` block from the table.
+2. **Second retry (H3):** if the shot exceeds 6s, split it into shots of ≤6s and preserve the total timeline by distributing the remaining action across adjacent rows in Step 5; rerun the Step 5.5 self-check before rendering the affected clips. If the shot is already ≤6s, keep its duration and simplify action density or prop interaction instead of shortening it again.
+3. **Model-switch gate:** if the second H3 retry also fails, switch that shot to Seedance 2.0 only if per-shot mixed mode is already approved. Mark the row `video_model: Seedance2` and continue with the Seedance ladder below. If mixed mode is not approved, pause and ask the user whether to enable per-shot mixed mode and switch this shot, loosen the request, skip the shot with a `placeholder: missing clip` note, or manually supply a reference video. Do not silently change a confirmed global model choice.
 
-Seedance 2.0 fallback ladder (used when the user has explicitly chosen Seedance as the global model, or after H3 already failed three times):
+Seedance 2.0 fallback ladder (used when the user selects Seedance globally or approves switching the failing shot to Seedance):
 
-1. First retry: regenerate with a strengthened prompt that quotes the `Reference Anchors` block.
-2. Second retry: drop reference images and use text-only generation.
-3. Third retry: shorten the shot to ≤6s and split the dropped seconds into a new row.
-4. After three failed attempts: ask the user — switch to H3 for this shot, loosen the request, skip the shot, or supply a reference video.
+After the initial Seedance render fails or drifts, apply up to three escalating retries in order:
+
+1. **First retry:** regenerate with a strengthened prompt that quotes the exact `Reference Anchors` block.
+2. **Second retry:** drop reference images and use text-only generation.
+3. **Third retry:** if the shot exceeds 6s, split it into shots of ≤6s and preserve the total timeline by distributing the remaining action across adjacent rows; rerun the Step 5.5 self-check before rendering the affected clips. If the shot is already ≤6s, keep its duration and simplify action density or camera complexity instead.
+4. **If the third retry also fails,** ask the user whether to switch this shot back to H3 (if mixed mode is not yet approved, first ask permission to enable it), loosen the request, skip the shot with a `placeholder: missing clip` note, or supply a reference video.
 
 ### After all clips are rendered
 
@@ -35,18 +32,5 @@ If a rendered clip drifts from the approved `Reference Anchors` (e.g. door-frame
 
 ## Storyboard Visualization Fallback
 
-### Storyboard generation failure fallback (visualization mode only)
-
-If a pencil image storyboard cannot be produced at the required quality (e.g. layout collapses, labels illegible, panels merged, character inconsistency), apply the following escalation before asking the user:
-
-1. **First retry**: regenerate the same shot storyboard with a tightened prompt that explicitly mentions the four-quadrant layout, the `[char:…] [scene:…] [shot:…]` labels, and the per-panel content rules.
-2. **Second retry**: drop the bottom-right audio/anchor quadrant text (keep it as a blank cell with a tiny `♪` mark) to reduce text load; this usually fixes illegible labels without losing the visual beat.
-3. **Third retry**: reduce panel count by one (e.g. 6 panels → 5 panels by merging the two least-actionable seconds) and simplify camera icons to single arrows.
-4. **After three failed attempts on the same shot**: pause and ask the user with a choice card:
-   - Switch to a block-color storyboard (gray boxes for poses, no pencil lines) for the failing shot only.
-   - Drop the pencil image for the failing shot and rely on the text storyboards document alone for that row.
-   - Split the failing shot into two shorter shots in Step 5 and re-run Step 5.5.
-   - Manually supply a reference image to bind instead of generating.
-
-In default text mode this whole fallback is unnecessary — text storyboards fail only when the model cannot produce coherent structured text, in which case return to Step 5 to revise the table row.
+Pencil-storyboard image failures are governed by the single escalation ladder in [storyboard-guidelines.md](storyboard-guidelines.md#storyboard-generation-failure-fallback-visualization-mode-only). Keep this file focused on video-model retries, clip failures, and reference-anchor drift. Text storyboards use the default path in `storyboard-guidelines.md`; do not apply the image fallback to them.
 

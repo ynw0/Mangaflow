@@ -71,8 +71,6 @@ Do not add titles, auxiliary headings such as 舞台设置 or 色味, or explana
 ## Step 4: Prompt writing rules
 
 - Keep the prompt executable as a video-generation prompt, not an essay.
-- Unless the user asks for explanation, the final answer should contain the prompt text in the dominant language of the user input first, followed by one short next-step recommendation in the same language.
-- The recommendation must invite the user, in the same language, to use MiniMax H3 to generate a 15-second 16:9 video from this prompt. Chinese example: `下一步建议：如果你确认这个 prompt，我可以继续用 H3 模型生成 15 秒 16:9 视频。`
 - Do not generate a video, image, audio, storyboard, or intermediate asset until the user explicitly confirms the H3 generation step.
 - Mention Seedance only as a target usage context when the user asks; do not add model parameters inside the creative prompt unless requested.
 - The first 0-3 seconds must make real/hand-drawn fusion obvious through contact.

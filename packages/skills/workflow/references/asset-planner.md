@@ -7,7 +7,7 @@
 production_profile、镜头剧情和连续性、完整资产登记、当前批准状态、已有 canonical 与 variant 描述、短剧漫剧角色视觉锚点、核心符号道具、本集爽点/钩子/反转点。
 
 ## 决策规则
-reuse_existing：仅匹配所需状态且已 APPROVED 的已有变体；匹配时优先复用，不为更漂亮、不为换机位、不为同场景重演重新生成。短剧漫剧高频复用，能复用不新建。当前镜头 `characters` 里的出镜角色，排参考槽时绑定已批准身份图；规划这些角色时用 reuse_existing，不要为同一身份再新建角色。
+reuse_existing：仅匹配所需状态且已 APPROVED 的已有变体；匹配时优先复用，只有当明确需要不同变体时才生成新的。当前镜头 `characters` 里的出镜角色，排参考槽时绑定已批准身份图；规划这些角色时用 reuse_existing，不要为同一身份再新建角色。
 
 本镜 `characters` 的每个名字都要有一条 `asset_type=character` 的 requirement，`scene` 要有一条 `asset_type=scene`，`props` 的每个名字都要有一条 `asset_type=prop`。名字只对上标识，不把登记名写成外形。缺任何一条就不能提交这镜规划。
 

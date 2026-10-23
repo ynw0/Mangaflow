@@ -31,7 +31,7 @@ Do not use it for ordinary subtitle burn-in, generic video editing, non-music pr
 4. Do not mechanically add performance, typography, transitions, camera moves, or character actions just because a preset includes them.
 5. On-screen text is a designed visual layer, not ordinary subtitles, unless the user explicitly requests subtitles.
 6. If the user uploads a real song or beat, it is the master music bed unless they request replacement.
-7. **Natural multi-shot stitching for >15s videos**: when duration exceeds the model single-generation limit, use “multi-shot storyboard breakdown + tail/head frame continuation + beat hard cuts + global master-audio alignment”. Every segment must preserve the same groove, tempo feel, aspect ratio, character logic, visual preset, lighting language, and typography motion rules.
+7. **Natural multi-shot stitching for >15s videos**: when duration exceeds the model single-generation limit, use “multi-shot storyboard breakdown + tail/head frame continuation + beat-synced edit points/transitions + global master-audio alignment”. Use hard cuts when required by the selected visual preset; otherwise follow the confirmed transition plan. Every segment must preserve the same groove, tempo feel, aspect ratio, character logic, visual preset, lighting language, and typography motion rules.
 8. If the user wants a finished music-aesthetic MV without lyrics, generate and lock original lyrics first. The final MV must reference character, typography packaging, and scene cards together. The typography packaging card controls only text packaging style, font texture, graphic design, layout ratio, and motion language.
 
 ## STEP 1: Pre-flight lock
@@ -60,7 +60,7 @@ Offer a compact duration card:
 
 1. **10-second test**: one or two shots to verify character, scene, typography, and audio style.
 2. **15-second hook**: 2–4 short shots for a more complete chorus / hook / performance phrase.
-3. **30-second or longer complete MV (multi-shot stitching)**: because many models have a 15-second single-generation ceiling, automatically use a Multi-Shot stitching workflow. First generate or lock one continuous song / BGM, split 30 seconds into 4–8 dynamic 2–5 second shots, then stitch via beat sync and head/tail frame continuity.
+3. **30-second or longer complete MV (multi-shot stitching)**: for any target longer than 15 seconds, or any target that exceeds the selected model’s single-generation ceiling, use the Multi-Shot workflow. Lock one continuous song / BGM first. For a 30-second example, use 6–8 shots of 2–5 seconds each; their durations must sum exactly to 30 seconds before beat-sync and head/tail continuity are applied.
 4. **Custom duration**: user provides duration; plan shot count and stitching based on the selected model’s single-clip limit.
 
 If uploaded music exists, the confirmed duration is the music window length.
@@ -88,10 +88,10 @@ Before final video prompts or generation, determine lyric ownership:
 
 ### 1.3.1 Default multi-shot stitching for >15s videos
 
-For >15s MVs such as 30 seconds, the global multi-shot prompt script is the authoritative source:
+For MVs longer than 15 seconds, or whenever the target exceeds the selected model’s single-generation ceiling, the global multi-shot prompt script is the authoritative source:
 
 1. **Lock complete Master Audio**: lock one continuous song / BGM track with the full vocal and groove as the only audio baseline.
-2. **Build a Shotlist Timeline**: split 30 seconds into 4–8 short shots of 2–5 seconds, mapped precisely to lyric timestamps and beats such as snare, 808, and drop.
+2. **Build a Shotlist Timeline**: for a 30-second video, use 6–8 shots of 2–5 seconds each. The shot durations must sum exactly to the target duration and align with lyric timestamps and beats such as snare, 808, and drop.
 3. **Head/tail frame and scene continuity**: if Shot B continues the same scene, use Shot A’s tail frame as Shot B’s head frame. If it is a hard cut, preserve the same character card, wardrobe, lighting prompt, and use same-direction camera motion or match-cut visual elements.
 4. **Generation and edit assembly**: the video agent generates each shot from the Shotlist. The editing agent aligns all clips to the global Master Audio beat grid, trimming, speed-ramping, and stitching for natural lip-sync, beat sync, and transitions.
 
@@ -128,7 +128,7 @@ For Trap, Dark-pop, Cyber-grunge, and other fast-paced MVs, switch quickly among
 
 - Realistic high-fashion texture and film-magazine texture, referencing late-90s / early-00s indie magazines, photocopy paper, film scans, and zine collage.
 - Heavy grain, slight film jitter, halftone dots, rough print edges, scan offsets.
-- **Editing must use hard cuts only**. No fades, dissolves, or soft transitions.
+- For the Dark-pop / Cyber-grunge / Trap preset described here, use hard cuts only—no fades, dissolves, or soft transitions. For other styles, follow the user-confirmed transition plan.
 - Image and typography strongly respond to beat cues: hi-hat roll creates micro-shake / frame skips, snare triggers scale-up / hard cut / shoulder drop, 808 bass hit creates low-frequency compression / stretch / offset.
 
 ### Typography packaging rules
@@ -187,7 +187,7 @@ Silently verify before delivery:
 - [ ] Is one global Master Audio locked, and are cut points beat-aligned?
 - [ ] Do cuts avoid mid-lyric vocal breaks, with natural lip and breath continuity?
 - [ ] Do adjacent shots have clear stitching logic such as tail/head continuation, same-direction motion, match cut, or beat hard cut?
-- [ ] Is the edit style strictly hard-cut, with no fades or soft transitions?
+- [ ] If using the Dark-pop / Cyber-grunge / Trap preset, is the edit strictly hard-cut? For other styles, does it follow the confirmed transition plan?
 - [ ] Are character / scene / typography cards isolated without cross-contamination?
 - [ ] Is typography a spatial layer that never blocks eyes or main facial expression?
 - [ ] Are image quality, grain, color, and lighting consistent globally?

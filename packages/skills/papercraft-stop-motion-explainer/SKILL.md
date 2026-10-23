@@ -40,17 +40,17 @@ Required papercraft stop-motion emphasis:
 
 ## Lightweight Request Bypass
 
-If the user explicitly asks for only one production asset, do not force the full 18-step package workflow. Route directly to the relevant step while preserving the papercraft style rules.
+If the user requests only one production asset, bypass the full 19-step workflow and go directly to the relevant steps while preserving the papercraft style rules. Run STEP 17 (voiceover generation/cleanup) only when the requested deliverable includes voiceover audio; otherwise mark it not applicable. 
 
 Use these shortcuts:
 
-- Single-image prompt only: run STEP 1, STEP 2, STEP 9, and STEP 17.
-- Image-series prompts only: run STEP 1, STEP 2, STEP 10, and STEP 17.
-- 5-second image-to-video prompt only: run STEP 1, STEP 2, STEP 11, and STEP 17.
+- Single-image prompt only: run STEP 1, STEP 2, and STEP 9. Add STEP 17 only if voiceover audio is part of the requested deliverable.
+- Image-series prompts only: run STEP 1, STEP 2, and STEP 10. Add STEP 17 only if voiceover audio is part of the requested deliverable.
+- 5-second image-to-video prompt only: run STEP 1, STEP 2, and STEP 11. Add STEP 17 only if voiceover audio is part of the requested deliverable.
 - Storyboard only: run STEP 1, STEP 2, STEP 12, STEP 13, STEP 14, STEP 15, and STEP 16.
 - Creative directions only: run STEP 1, STEP 2, and STEP 3.
 
-Use the full phased confirmation workflow only when the user asks for a complete video package, a full production plan, or does not specify a narrower deliverable.
+Use the full phased confirmation workflow only for a complete video package, a full production plan, or an unspecified scope. For a narrower request, use its shortcut path; do not run unrelated audio generation.
 
 ## Interaction Rule: Confirmation Cards Between Phases
 

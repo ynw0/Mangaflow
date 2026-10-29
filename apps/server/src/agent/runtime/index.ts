@@ -3,7 +3,11 @@ import { basename } from "node:path";
 import { readFile, stat, unlink } from "@toonflow/file";
 import {
   createAgentSession,
+  estimateTokens,
   SessionManager,
+  SettingsManager,
+  type AgentSession,
+  type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import type { CanvasContext, QuestionContext } from "@toonflow/tools-scaffold/runtime";
 import type { AgentEvent, AgentMention, AgentToolCall } from "@/agent/runtime/types";
@@ -20,13 +24,36 @@ import { createReportTool } from "@/agent/tools/report";
 import { runDelegatedAgent } from "@/agent/runtime/delegation";
 import {
   agentAttachmentsSchema, getActiveAgentSession, getAgentStats, getParentSessionFile, getSubAgentInfo,
-  getToolResultText, hasPendingAgentQuestion, registerAgentSession, updateSubAgent,
+  getToolResultText, goalContinueMark, hasPendingAgentQuestion, registerAgentSession, updateSubAgent,
   type ActiveAgentSession,
 } from "@/agent/runtime/sessions";
 import { isMemoryEnabled } from "@/utils/personalization";
 import { lockWorkspaceFiles, resolveWorkspacePath } from "@/utils/workspace/files";
 import { t } from "@/lib/i18n";
 import { decodeTextFile } from "@/lib/documentFormats";
+
+const goalContinuePrompt = `${goalContinueMark}
+目标还没完成。不要提问，也不要停在汇报、排队或等别人安排下一步。按已有信息自己决定，继续做这条目标里还没做完的事，包括目标写明要生成的成片。全部做完，或只剩同一处连续两次仍失败的部分，再调用 completeGoal。`;
+const goalRoundLimit = 8;
+// 摘要预算仍用 16384。近期只留约 6000 估算 token，避免切点落在开头、摘要写上但原文全部保留。
+const compactionSettings = { enabled: true, reserveTokens: 16384, keepRecentTokens: 6000 };
+
+function createCompleteGoalTool(markDone: (summary: string) => void): ToolDefinition {
+  const parameters = z.strictObject({ summary: z.string().trim().min(1).max(2000).describe("完成了什么；没做成的部分也写明") });
+  return {
+    name: "completeGoal",
+    label: "完成目标",
+    description: "目标全部做完，或只剩同一处连续两次仍失败的部分时调用。汇报进度、放进队列、等别人安排，都不要调用。",
+    parameters: z.toJSONSchema(parameters),
+    executionMode: "sequential",
+    async execute(_id, params, signal) {
+      signal?.throwIfAborted();
+      const { summary } = parameters.parse(params);
+      markDone(summary);
+      return { content: [{ type: "text", text: "已结束这一轮目标。" }], details: { summary } };
+    },
+  };
+}
 
 type AgentOptions = {
   prompt: string;
@@ -42,7 +69,31 @@ type AgentOptions = {
   question?: QuestionContext;
   signal?: AbortSignal;
   onCancel?: () => void;
+  goal?: boolean;
+  delivery?: "restart";
 };
+
+async function compactHistory(session: AgentSession, history: SessionManager, send: (event: AgentEvent) => void) {
+  const contextWindow = session.model?.contextWindow ?? 0;
+  if (contextWindow <= 0 || session.isCompacting) return;
+  const reported = session.getContextUsage()?.tokens ?? 0;
+  const estimated = session.messages.reduce((total, message) => total + estimateTokens(message), 0);
+  const reportedTrigger = Math.min(contextWindow - compactionSettings.reserveTokens, Math.floor(contextWindow * 0.5));
+  if (reported <= reportedTrigger && estimated <= 20000) return;
+  try {
+    const result = await session.compact();
+    const tokens = result.estimatedTokensAfter ?? estimated;
+    send({
+      type: "stats",
+      stats: getAgentStats(history),
+      contextUsage: { tokens, contextWindow, percent: (tokens / contextWindow) * 100 },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (/Nothing to compact|Already compacted|Compaction cancelled/.test(message)) return;
+    throw error;
+  }
+}
 
 export async function run(
   {
@@ -58,8 +109,10 @@ export async function run(
     canvas,
     question,
     signal,
-    onCancel,
-  }: AgentOptions,
+  onCancel,
+  goal = false,
+  delivery,
+}: AgentOptions,
   send: (event: AgentEvent) => void
 ) {
   attachments = agentAttachmentsSchema.parse(attachments);
@@ -86,18 +139,15 @@ export async function run(
   const { path: sessionsDir } = await resolveWorkspacePath(cwd, ".agent/sessions", true);
   const sessionPath = sessionFile ? (await resolveWorkspacePath(sessionsDir, sessionFile)).path : undefined;
   const active = sessionPath ? getActiveAgentSession(sessionPath) : undefined;
-  if (active && hasPendingAgentQuestion(active)) {
+  if (active && delivery === "restart") {
+    await active.abort();
+    signal?.throwIfAborted();
+  } else if (active && hasPendingAgentQuestion(active)) {
     // ACT: 新消息结束旧提问，必须等旧执行释放文件锁后再继续，避免并发写入同一会话。
     await active.abort();
     signal?.throwIfAborted();
   } else if (active) {
-    if (!getParentSessionFile(active.history)) throw Object.assign(new Error("对话正在运行，请等待回复完成"), { status: 409 });
-    if (resendFrom) throw Object.assign(new Error("子 Agent 运行时不能重发历史消息"), { status: 409 });
-    if (!active.session?.isStreaming) throw Object.assign(new Error("子 Agent 正在准备或结束回复，请稍后发送"), { status: 409 });
-    if (attachments.length || mentions.length) throw Object.assign(new Error("请等子 Agent 当前回复结束后发送附件或提及"), { status: 400 });
-    await active.session.prompt(prompt.trim(), { streamingBehavior: "steer", expandPromptTemplates: false });
-    send({ type: "accepted" });
-    return;
+    throw Object.assign(new Error("对话正在运行，请等待回复完成"), { status: 409 });
   }
   const { provider, runtime } = await createAgentModel(providerId, modelId, thinkingLevel);
   if (sessionPath) {
@@ -147,15 +197,21 @@ export async function run(
       if (tools.some(tool => tool.name === "report")) throw new Error("工具名称 report 已被内置上报工具占用");
       tools.push(createReportTool(cwd, parentFile, file, child.name, send));
     }
+    if (goal) {
+      const askUserIndex = tools.findIndex(tool => tool.name === "askUser");
+      if (askUserIndex >= 0) tools.splice(askUserIndex, 1);
+    }
     tools.push(await createSubAgentTool({
       cwd, tools, canvas, modelRuntime: runtime, model: runtime.getModel(providerId, modelId), thinkingLevel,
       runTask: (name, task, taskSignal, onProgress) => runDelegatedAgent({
-        cwd, parentFile: file, name, task, providerId, modelId, thinkingLevel, canvas, signal: taskSignal, send, onProgress,
+        cwd, parentFile: file, name, task, providerId, modelId, thinkingLevel, canvas, signal: taskSignal, send, onProgress, goal,
       }),
     }));
-    const resources = await createAgentResources(cwd, tools, undefined, child
-      ? `## 子 Agent 职责\n你正在执行委派任务：${JSON.stringify({ name: child.name, task: child.task })}。遵守当前工作区规则与授权，用户可以进入此子会话补充要求。重要进展与最终结论使用 report 上报父 Agent。`
-      : "");
+    let goalDone = false;
+    if (goal && !child) tools.push(createCompleteGoalTool(() => { goalDone = true; }));
+    const resources = await createAgentResources(cwd, tools, SettingsManager.inMemory({ compaction: compactionSettings }), child
+      ? `## 子 Agent 职责\n你正在执行委派任务：${JSON.stringify({ name: child.name, task: child.task })}。遵守当前工作区规则与授权，用户可以进入此子会话补充要求。重要进展与最终结论使用 report 上报父 Agent。${goal ? "当前是目标模式的子任务：不要提问，按已有信息自己决定并做完。" : ""}`
+      : "", goal && !child);
     const resendEntry = resendFrom ? history.getBranch().find((item) => item.id === resendFrom) : undefined;
     if (resendFrom && (resendEntry?.type !== "message" || resendEntry.message.role !== "user")) {
       throw Object.assign(new Error("重发消息不在当前对话中，请重新打开对话"), { status: 400 });
@@ -181,12 +237,17 @@ export async function run(
     });
     configureAgentRequests(session);
     active.session = session;
+    async function promptSession(text: string, expandPromptTemplates = true) {
+      await compactHistory(session, history, send);
+      await session.prompt(text, { expandPromptTemplates });
+    }
 
     const streamFunction = session.agent.streamFunction;
-    session.agent.streamFunction = async (...args) => {
+    session.agent.streamFunction = async (model, context, options) => {
       const compacting = session.isCompacting;
-      const stream = await streamFunction(...args);
-      // ACT: 摘要落盘前拒绝空正文，压缩、重试和普通回复仍由 SDK 处理。
+      const requestOptions = compacting && options ? { ...options, reasoning: undefined } : options;
+      const stream = await streamFunction(model, context, requestOptions);
+      // ACT: 摘要落盘前拒绝空正文。压缩时关掉思考，避免摘要只写在思考里、正文为空导致不替换历史。
       if (compacting) {
         const response = await stream.result();
         if (response.stopReason === "stop" && !response.content.some(part => part.type === "text" && part.text.trim())) {
@@ -266,7 +327,13 @@ export async function run(
     let userMessageId = history.getBranch().findLast((entry) => entry.type === "message" && entry.message.role === "user")?.id;
     function sendUserMessage() {
       const entry = history.getBranch().findLast((item) => item.type === "message" && item.message.role === "user");
-      if (!entry || entry.id === userMessageId) return;
+      if (!entry || entry.type !== "message" || entry.message.role !== "user" || entry.id === userMessageId) return;
+      const raw = entry.message.content;
+      const text = typeof raw === "string" ? raw : getToolResultText(raw);
+      if (text.includes(goalContinueMark)) {
+        userMessageId = entry.id;
+        return;
+      }
       userMessageId = entry.id;
       const firstMessage = !messageAccepted;
       messageAccepted = true;
@@ -294,7 +361,7 @@ export async function run(
     session.subscribe((event) => {
       if (event.type === "compaction_start" || event.type === "compaction_end") {
         send({ type: "compaction", active: event.type === "compaction_start" });
-        if (event.type === "compaction_end" && event.errorMessage) {
+        if (event.type === "compaction_end" && event.errorMessage && !/Nothing to compact|Already compacted/.test(event.errorMessage)) {
           compactionError = t`上下文压缩失败：${event.errorMessage}`;
         }
       }
@@ -403,7 +470,19 @@ export async function run(
           )}`.trim()
         : mentionPrompt(prompt, mentions);
       // SDK 仅以空格分隔技能名；兼容换行输入与追加的附件说明。
-      await session.prompt(content.replace(/^(\/skill:\S+)\s+/, "$1 "));
+      await promptSession(content.replace(/^(\/skill:\S+)\s+/, "$1 "));
+      // ACT: 目标模式最多再续跑 8 轮。模型停笔但没调用 completeGoal 就继续；上限到了停下来说明。
+      if (goal && !child && !modelError && !compactionError) {
+        for (let round = 0; round < goalRoundLimit && !goalDone; round += 1) {
+          signal?.throwIfAborted();
+          if (goalDone || signal?.aborted || modelError || compactionError) break;
+          await promptSession(goalContinuePrompt, false);
+          if (modelError || compactionError) break;
+        }
+        if (!goalDone && !signal?.aborted && !modelError && !compactionError) {
+          send({ type: "text", blockId: "goal-limit", content: "目标还没完成，这一轮续跑已到上限。可以再发一次目标继续。", done: true });
+        }
+      }
       if (compactionError) throw new Error(compactionError);
       if (modelError) throw Object.assign(new Error(modelError), limited ? { code: "AGENT_LENGTH" } : {});
     } catch (error) {

@@ -90,7 +90,7 @@ const props = withDefaults(defineProps<{
 const visible = defineModel<boolean>({ default: false });
 const msgList = defineModel<AgentMessage[]>("msgList", { default: () => [] });
 const selectedModel = defineModel<string>("model", { default: "" });
-const thinkingLevel = defineModel<"off" | "low" | "medium" | "high">("thinkingLevel", { default: "off" });
+const thinkingLevel = defineModel<"" | "off" | "low" | "medium" | "high">("thinkingLevel", { default: "off" });
 const emit = defineEmits<{
   complete: [result: SingleAgentDialogResult];
   error: [error: Error];
@@ -106,7 +106,10 @@ const status = ref<"idle" | "running" | "pausing" | "paused">("idle");
 const busy = ref(false);
 const messageList = ref<HTMLElement>();
 const tools = computed<ToolCall[]>(() => msgList.value.flatMap(message => message.parts?.flatMap(part => part.type === "tool" ? [part.tool] : []) ?? []));
-const reasoningEffort = computed({ get: () => thinkingLevel.value === "off" ? "" : thinkingLevel.value, set: value => { thinkingLevel.value = value as typeof thinkingLevel.value || "off"; } });
+const reasoningEffort = computed({
+  get: () => thinkingLevel.value,
+  set: (value: "" | "off" | "low" | "medium" | "high") => { thinkingLevel.value = value; },
+});
 const statusLabels = { idle: "", running: "执行中", pausing: "等待当前操作结束…", paused: "已暂停，可人工操作" };
 const requestHeaders = { "x-toonflow-workspace": "1" };
 let lifecycle = new AbortController();
@@ -221,7 +224,7 @@ async function send(content = draft.value) {
     accepted = true;
     const response = await fetch("/api/singleAgent/run", {
       method: "POST", headers: { ...requestHeaders, "Content-Type": "application/json" }, signal,
-      body: JSON.stringify({ sessionId: id, runId: reply.id, prompt, providerId: model.providerId, modelId: model.modelId, thinkingLevel: thinkingLevel.value }),
+      body: JSON.stringify({ sessionId: id, runId: reply.id, prompt, providerId: model.providerId, modelId: model.modelId, thinkingLevel: thinkingLevel.value || "off" }),
     });
     for await (const event of readAgentEvents<SingleAgentEvent>(response, signal)) {
       if (lifecycle !== owner) break;

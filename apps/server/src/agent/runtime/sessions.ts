@@ -10,6 +10,8 @@ import { providerSchema, getModelLimits } from "@/utils/ai";
 import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { getReadableFileMimeType } from "@/lib/documentFormats";
 
+export const goalContinueMark = "[[goal-continue]]";
+
 export const agentAttachmentsSchema = z
   .array(
     z.strictObject({
@@ -297,7 +299,11 @@ export async function getAgentSession(cwd: string, path: string) {
     }
     if (entry.type !== "message" || (entry.message.role !== "user" && entry.message.role !== "assistant")) return [];
     const message = entry.message;
-    if (message.role === "user") replyTo = entry.id;
+    if (message.role === "user") {
+      const text = typeof message.content === "string" ? message.content : message.content.filter(part => part.type === "text").map(part => part.text).join("");
+      if (text.includes(goalContinueMark)) return [];
+      replyTo = entry.id;
+    }
     const attachmentMessage = message.role === "user" ? attachmentMessages.get(entry.id) : undefined;
     const attachments = attachmentMessage?.attachments;
     const parts =

@@ -1,5 +1,10 @@
 <template>
   <div class="providerList">
+    <section class="thinkingLevel" aria-labelledby="thinkingLevelTitle">
+      <h3 id="thinkingLevelTitle">思考等级</h3>
+      <p>新对话默认使用这里的档位，和输入框里的推理等级相同。关闭思考后不再输出思考过程。</p>
+      <el-segmented v-model="thinkingLevel" :options="thinkingLevelOptions" block aria-label="思考等级" />
+    </section>
     <div class="itemList">
       <el-card v-for="item in sortedProviders" :key="item.id" class="providerItem" shadow="never">
         <div class="providerHeader">
@@ -13,7 +18,7 @@
             <el-text class="providerId" size="small" type="info" :title="item.id">{{ item.id }}</el-text>
           </div>
         </div>
-        <tfAccount v-if="isTfRouterProvider(item)" :apiKey="typeof item.apiKey === 'string' ? item.apiKey : ''" :visible="visible" :saveApiKey="(key) => saveProviderApiKey(item.id, key)" />
+        <tfAccount v-if="isTfRouterProvider(item)" :apiKey="typeof item.apiKey === 'string' ? item.apiKey : ''" :saveApiKey="(key) => saveProviderApiKey(item.id, key)" />
         <div class="providerFooter">
           <div class="providerMeta">
             <el-tag v-if="getProviderVersion(item)" size="small" type="info" effect="plain">v{{ getProviderVersion(item) }}</el-tag>
@@ -42,14 +47,14 @@
 import { computed, defineAsyncComponent, ref, shallowRef, type Component } from "vue";
 import axios from "axios";
 import { ElMessage } from "element-plus";
-import { customProviders, saveSettings, type CustomProvider } from "@/stores/settings";
+import { customProviders, saveSettings, thinkingLevelOptions, thinkingLevelSetting, type CustomProvider, type ThinkingLevelChoice } from "@/stores/settings";
 import { IconPlus, IconSettings, IconEdit, IconTrash, IconRefresh } from "@tabler/icons-vue";
 import { languageProviders } from "@toonflow/providers";
 import logoUrl from "@toonflow/assets/logo.svg";
 import tfAccount from "../../tfAccount.vue";
 import { isTfRouterProvider } from "@/lib/tf";
 
-const { visible = true } = defineProps<{ visible?: boolean }>();
+defineProps<{ visible?: boolean }>();
 const addProviderDialog = shallowRef<Component>();
 const addCustomProviderDialog = shallowRef<Component>();
 const providerDialogVisible = ref(false);
@@ -58,6 +63,12 @@ const editingProvider = ref<CustomProvider>();
 const deletingId = ref("");
 const fetchingId = ref("");
 const sortedProviders = computed(() => [...customProviders.value].sort((a, b) => Number(isTfRouterProvider(b)) - Number(isTfRouterProvider(a))));
+const thinkingLevel = computed({
+  get: () => thinkingLevelSetting.value,
+  set: (value: ThinkingLevelChoice) => {
+    void saveSettings(() => ({ thinkingLevel: value })).catch(() => ElMessage.error("保存思考等级失败，请重试"));
+  },
+});
 
 function getProviderVersion(provider: CustomProvider) {
   const version = languageProviders.find(item => item.id.toLowerCase() === provider.id.toLowerCase())?.version ?? provider.version;
@@ -120,7 +131,12 @@ async function fetchProviderModels(provider: CustomProvider) {
       if (latest.apiUrl !== apiUrl || latest.protocol !== protocol || latest.apiKey !== apiKey) {
         throw new Error("供应商配置已变更，请重试");
       }
-      return { customProviders: current.map(item => item?.id === id ? { ...item, models: data.data } : item) };
+      const previous = new Map(provider.models.map(model => [model.id, model.inputs]));
+      const models = data.data.map((model: { id?: string }) => {
+        const inputs = typeof model.id === "string" ? previous.get(model.id) : undefined;
+        return inputs ? { ...model, inputs } : model;
+      });
+      return { customProviders: current.map(item => item?.id === id ? { ...item, models } : item) };
     });
   } catch (error) {
     ElMessage.error(axios.isAxiosError(error) ? error.response?.data?.message || "获取模型列表失败，请重试" : error instanceof Error ? error.message : "获取模型列表失败，请重试");
@@ -130,3 +146,19 @@ async function fetchProviderModels(provider: CustomProvider) {
 </script>
 
 <style lang="scss" scoped src="../../providerList.scss"></style>
+<style lang="scss" scoped>
+.thinkingLevel {
+  margin-bottom: 16px;
+
+  h3 {
+    margin: 0 0 6px;
+    font-size: 14px;
+  }
+
+  p {
+    margin: 0 0 10px;
+    color: var(--el-text-color-secondary);
+    font-size: 13px;
+  }
+}
+</style>

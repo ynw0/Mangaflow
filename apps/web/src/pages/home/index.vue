@@ -103,6 +103,7 @@ import { createPastedTextFile, readTextAttachment } from "@/components/agent/tex
 import type { AgentAttachment } from "@/components/agent/types";
 import logoUrl from "@toonflow/assets/logo.svg";
 import { useWorkspaceStore, type Project } from "@/stores/workspace";
+import { thinkingLevelSetting } from "@/stores/settings";
 import { deviceHubEnabled, mobileConnection, mobileConnectionLabel } from "@/lib/mobile";
 import useWorkspaceFiles from "@/lib/workspaceFiles";
 import settings from "@/components/settings/index.vue";
@@ -191,7 +192,7 @@ watch([creating, opening], ([creating, opening]) => {
 }, { flush: "sync" });
 
 const selectedModel = ref("");
-const reasoningEffort = ref("");
+const reasoningEffort = ref(thinkingLevelSetting.value);
 const sortDescending = ref(true);
 const viewMode = ref("grid");
 const sortedProjects = computed(() => [...projectList.value].sort((left, right) =>

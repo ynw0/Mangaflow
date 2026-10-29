@@ -87,7 +87,26 @@ export const privacySettings = computed(() => {
   };
 });
 
-export type CustomProviderModel = { id: string; label: string; contextWindow?: number; maxOutputTokens?: number };
+export const thinkingLevelOptions = [
+  { label: "关闭思考", value: "off" },
+  { label: "默认", value: "" },
+  { label: "低", value: "low" },
+  { label: "中", value: "medium" },
+  { label: "高", value: "high" },
+] as const;
+export type ThinkingLevelChoice = (typeof thinkingLevelOptions)[number]["value"];
+export const thinkingLevelSetting = computed((): ThinkingLevelChoice => {
+  const value = settings.value.thinkingLevel;
+  return value === "off" || value === "low" || value === "medium" || value === "high" ? value : "";
+});
+
+export type ModelInputs = { image: boolean; video: boolean; audio: boolean };
+export type CustomProviderModel = { id: string; label: string; contextWindow?: number; maxOutputTokens?: number; inputs?: ModelInputs };
+
+export function modelInputs(value: unknown): ModelInputs {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return { image: source.image === true, video: source.video === true, audio: source.audio === true };
+}
 export type CustomProvider = { id: string; label: string; icon?: string; version?: string; apiUrl: string; apiKey: string; protocol: string; models: CustomProviderModel[] };
 export const customProviders = computed<CustomProvider[]>(() => Array.isArray(settings.value.customProviders)
   ? settings.value.customProviders.filter((item): item is CustomProvider => !!item && typeof item.id === "string" && typeof item.label === "string" && Array.isArray(item.models)
@@ -96,6 +115,7 @@ export const customProviders = computed<CustomProvider[]>(() => Array.isArray(se
 
 export const modelChoices = computed(() => customProviders.value.flatMap(provider => provider.models.map(model => ({
   value: JSON.stringify([provider.id, model.id]), providerId: provider.id, modelId: model.id, label: model.label, contextWindow: model.contextWindow,
+  inputs: modelInputs(model.inputs),
 }))));
 
 export async function loadSettings() {

@@ -108,16 +108,27 @@
         @lostpointercapture="stopSenderResize"
         @keydown.up.prevent="setSenderHeight((sender?.chatElement.rollBox.clientHeight ?? 44) + 16)"
         @keydown.down.prevent="setSenderHeight((sender?.chatElement.rollBox.clientHeight ?? 44) - 16)" />
-      <attachmentList v-if="draftAttachments.length" class="draftAttachments" :attachments="draftAttachments" :directory="directory" removable restorable :disabled="locked" @remove="draftAttachments.splice($event, 1)" @restore="restoreTextAttachment" />
+      <attachmentList v-if="draftAttachments.length" class="draftAttachments" :attachments="draftAttachments" :directory="directory" removable restorable :disabled="composerLocked" @remove="draftAttachments.splice($event, 1)" @restore="restoreTextAttachment" />
       <div ref="senderElement" class="senderEditor" @keydown.capture="handleSenderKeydown"></div>
       <teleport v-for="target in draftMentionTargets" :key="target.key" :to="target.element"><mentionThumbnail v-bind="mentionThumbnailProps(target.mention)" :directory="directory"><icon-photo :size="14" /></mentionThumbnail></teleport>
       <mentionContent ref="draftMentionPreview" :mentions="draftMentions" :directory="directory" removable @remove="removeDraftMention" />
       <div class="senderActions">
         <modelPopover v-model="selectedModel" v-model:reasoningEffort="reasoningEffort" :active="active" :disabled="disabled" />
-        <input ref="attachmentInput" type="file" :accept="attachmentAccept" multiple hidden :disabled="locked" @change="selectAttachments" />
-        <el-button text circle :disabled="locked" aria-label="添加附件" title="添加附件" @click="attachmentInput?.click()"><icon-paperclip :size="16" /></el-button>
-        <mentionMenu ref="mentionMenuRef" :directory="directory" :active="active" :disabled="locked || !directory" :query="mentionQuery" :editor="senderElement" :currentCanvasId="createCanvasContext?.()?.id" @open="captureMentionPosition" @select="insertMentions" @dismiss="mentionQuery = undefined" />
-        <skillMenu ref="skillMenuRef" :directory="directory" :active="active" :disabled="locked || !directory" :query="skillQuery" :editor="senderElement" @select="selectSkill" @dismiss="skillQuery = undefined" />
+        <el-select v-model="composerDrive" class="advanceMode" aria-label="推进方式" :disabled="disabled" placement="top-start" popperClass="advanceModePopper">
+          <el-option value="semi" label="半自动">
+            <span class="advanceOption"><strong>半自动</strong><small>出图有问题就询问</small></span>
+          </el-option>
+          <el-option value="auto" label="自动">
+            <span class="advanceOption"><strong>自动</strong><small>只自动出图，对话做完一轮会停</small></span>
+          </el-option>
+          <el-option value="goal" label="目标">
+            <span class="advanceOption"><strong>目标</strong><small>一直做到完，中途不问</small></span>
+          </el-option>
+        </el-select>
+        <input ref="attachmentInput" type="file" :accept="attachmentAccept" multiple hidden :disabled="composerLocked" @change="selectAttachments" />
+        <el-button text circle :disabled="composerLocked" aria-label="添加附件" title="添加附件" @click="attachmentInput?.click()"><icon-paperclip :size="16" /></el-button>
+        <mentionMenu ref="mentionMenuRef" :directory="directory" :active="active" :disabled="composerLocked || !directory" :query="mentionQuery" :editor="senderElement" :currentCanvasId="createCanvasContext?.()?.id" @open="captureMentionPosition" @select="insertMentions" @dismiss="mentionQuery = undefined" />
+        <skillMenu ref="skillMenuRef" :directory="directory" :active="active" :disabled="composerLocked || !directory" :query="skillQuery" :editor="senderElement" @select="selectSkill" @dismiss="skillQuery = undefined" />
         <el-popover
           v-model:visible="contextMenuVisible"
           trigger="click"
@@ -150,9 +161,11 @@
             </div>
           </div>
         </el-popover>
-        <el-button class="sendButton" type="primary" circle :disabled="!busy && locked" :aria-label="busy ? '停止生成' : editingId ? '重发消息' : '发送消息'" :title="busy ? '停止生成' : editingId ? '重发消息' : '发送消息'" @click="busy ? stopMessage() : submitMessage()">
-          <icon-player-stop-filled v-if="busy" :size="14" />
-          <icon-arrow-up v-else :size="16" />
+        <el-button v-show="!busy || draftReady" class="sendButton" type="primary" circle :disabled="!runningDraft && locked" :aria-label="runningDraft ? '停止当前任务并发送' : editingId ? '重发消息' : '发送消息'" :title="runningDraft ? '停止当前任务并发送' : editingId ? '重发消息' : '发送消息'" @click="onSendClick">
+          <icon-arrow-up :size="16" />
+        </el-button>
+        <el-button v-if="busy" class="sendButton" type="primary" circle aria-label="停止生成" title="停止生成" @click="stopMessage">
+          <icon-player-stop-filled :size="14" />
         </el-button>
       </div>
     </div>
@@ -161,7 +174,7 @@
 
 <script setup lang="ts">
 import { locale, t, translate } from "@toonflow/i18n/vue";
-import { computed, inject, nextTick, reactive, ref, shallowRef, watch, type ComponentPublicInstance } from "vue";
+import { computed, inject, nextTick, onBeforeUnmount, reactive, ref, shallowRef, watch, type ComponentPublicInstance } from "vue";
 import { defaultRangeExtractor, measureElement, observeElementRect, useVirtualizer } from "@tanstack/vue-virtual";
 import axios from "axios";
 import {
@@ -184,7 +197,7 @@ import { createPastedTextFile, readTextAttachment } from "./textAttachments";
 import useWorkspaceFiles from "@/lib/workspaceFiles";
 import { writeClipboardText } from "@/lib/clipboard";
 import anonymousData from "@/lib/anonymousData";
-import { modelChoices } from "@/stores/settings";
+import { modelChoices, saveSettings, settings, thinkingLevelSetting } from "@/stores/settings";
 import { useWorkspaceStore } from "@/stores/workspace";
 import type { AgentAttachment, AgentConversation, AgentMessage } from "./types";
 import type { AgentEvent, AgentMention, AgentToolCall } from "@toonflow/server/agent/types";
@@ -247,7 +260,18 @@ const compacting = ref(false);
 const deletingId = ref<string>();
 const restoringAttachment = ref(false);
 const locked = computed(() => props.disabled || busy.value || deletingId.value !== undefined || restoringAttachment.value);
+const composerLocked = computed(() => props.disabled || deletingId.value !== undefined || restoringAttachment.value);
 const editingId = ref<string>();
+const draftReady = ref(false);
+const runningDraft = computed(() => !editingId.value && (busy.value || remoteRunning.value) && draftReady.value);
+let conversationAlive = true;
+let restarting = false;
+const readyWaiters: (() => void)[] = [];
+onBeforeUnmount(() => {
+  conversationAlive = false;
+  readyWaiters.splice(0).forEach(resolve => resolve());
+});
+watch(busy, value => { if (!value) readyWaiters.splice(0).forEach(resolve => resolve()); });
 const draftMentions = ref<AgentMention[]>([]);
 const draftMentionTargets = shallowRef<{ key: symbol; element: HTMLElement; mention: AgentMention }[]>([]);
 const draftMentionPreview = ref<InstanceType<typeof mentionContent>>();
@@ -361,7 +385,7 @@ watch([() => props.active, messageList], async ([active, element]) => {
 let sender: xSender | undefined;
 watch(locale, () => {
   if (!sender) return;
-  sender.updateConfig({ placeholder: translate("输入消息，@ 提及节点输出或全局素材…") });
+  sender.updateConfig({ placeholder: composerPlaceholder() });
   sender.chatElement.richText.setAttribute("aria-label", translate("消息"));
   for (const line of sender.chatEditor.NODES) for (const tag of line.children) {
     if (tag.type === "Mention") tag.$el.setAttribute("aria-label", t`预览 ${tag.name}`);
@@ -382,8 +406,42 @@ const pendingMessage = props.initialSession?.parentFile ? undefined : workspaceS
 const selectedModel = ref(pendingMessage?.model ?? (props.initialSession?.providerId && props.initialSession.modelId
   ? JSON.stringify([props.initialSession.providerId, props.initialSession.modelId]) : ""));
 const contextMenuVisible = ref(false);
-const reasoningEffort = ref(pendingMessage?.reasoningEffort ?? (props.initialSession?.thinkingLevel === "off" ? "" : props.initialSession?.thinkingLevel ?? ""));
+const sessionThinkingLevel = props.initialSession?.thinkingLevel;
+const reasoningEffort = ref(pendingMessage?.reasoningEffort ?? (
+  sessionThinkingLevel === "off" || sessionThinkingLevel === "low" || sessionThinkingLevel === "medium" || sessionThinkingLevel === "high"
+    ? sessionThinkingLevel
+    : thinkingLevelSetting.value
+));
 const selectedModelChoice = computed(() => modelChoices.value.find(item => item.value === selectedModel.value));
+const imageAdvanceMode = computed(() => {
+  const current = settings.value.production;
+  const source = current && typeof current === "object" && !Array.isArray(current) ? current as Record<string, unknown> : {};
+  return source.imageAdvanceMode === "auto" ? "auto" : "semi";
+});
+const composerDrive = computed({
+  get(): "semi" | "auto" | "goal" {
+    return settings.value.goalMode === true ? "goal" : imageAdvanceMode.value;
+  },
+  set(value: "semi" | "auto" | "goal") {
+    const save = value === "goal"
+      ? saveSettings(() => ({ goalMode: true }))
+      : saveSettings(current => {
+        const production = current.production && typeof current.production === "object" && !Array.isArray(current.production)
+          ? current.production as Record<string, unknown>
+          : {};
+        return { goalMode: false, production: { ...production, imageAdvanceMode: value } };
+      });
+    void save.catch(error => ElMessage.error(error instanceof Error ? error.message : "保存推进方式失败"));
+  },
+});
+function composerPlaceholder() {
+  return composerDrive.value === "goal"
+    ? translate("输入要完成的目标，会一直做到完，可随时停止")
+    : translate("输入消息，@ 提及节点输出或全局素材…");
+}
+watch(composerDrive, () => {
+  sender?.updateConfig({ placeholder: composerPlaceholder() });
+});
 const contextWindow = computed(() => contextUsage.value?.contextWindow ?? selectedModelChoice.value?.contextWindow ?? 262144);
 const contextPercent = computed(() => (contextUsage.value?.tokens ?? 0) / contextWindow.value * 100);
 const inputTokens = computed(() => stats.value ? stats.value.tokens.input + stats.value.tokens.cacheRead + stats.value.tokens.cacheWrite : 0);
@@ -392,9 +450,9 @@ const welcomeSuggestions = [
   { label: "梳理故事分镜", description: "拆解故事，安排画面与镜头", icon: IconMovie, prompt: "帮我把故事整理成分镜，先和我确认故事内容、时长和画面风格。" },
   { label: "生成图片素材", description: "为角色和场景寻找视觉方向", icon: IconPhoto, prompt: "帮我生成图片素材，先和我确认画面内容、风格和使用的模型。" },
 ];
-watch([locked, () => props.active], ([locked, active]) => {
-  if (!active || locked) resetAttachmentDrag();
-  if (!active || locked) sender?.disable();
+watch([composerLocked, () => props.active], ([composerLocked, active]) => {
+  if (!active || composerLocked) resetAttachmentDrag();
+  if (!active || composerLocked) sender?.disable();
   else sender?.enable();
 });
 watch(() => props.active, active => {
@@ -469,7 +527,7 @@ function handleSenderKeydown(event: KeyboardEvent) {
 
 async function insertMentions(mentions: AgentMention[]) {
   const instance = sender;
-  if (!instance || locked.value || !props.active) return;
+  if (!instance || composerLocked.value || !props.active) return;
   const currentIds = new Set(instance.getTagData().mention.map(item => item.id));
   if (currentIds.size + mentions.length > 20) return ElMessage.warning("每条消息最多提及 20 个输出或素材");
   insertingMentions = true;
@@ -492,16 +550,56 @@ async function insertMentions(mentions: AgentMention[]) {
 }
 
 async function removeDraftMention(id: string) {
-  if (!locked.value) await sender?.removeMention([id]);
+  if (!composerLocked.value) await sender?.removeMention([id]);
+}
+
+function syncDraftReady(instance = sender) {
+  draftReady.value = !!instance && (!instance.isEmpty(false) || draftAttachments.value.length > 0);
+}
+watch(draftAttachments, () => syncDraftReady(), { deep: true });
+
+function waitUntilReady() {
+  if (!busy.value) return Promise.resolve();
+  return new Promise<void>(resolve => readyWaiters.push(resolve));
+}
+
+function onSendClick() {
+  void submitMessage();
 }
 
 function submitMessage() {
+  if (runningDraft.value) {
+    void restartMessage();
+    return;
+  }
+  if ((busy.value || remoteRunning.value) && !editingId.value) return;
   return sendMessage(editingId.value ? messages.value.find(item => item.id === editingId.value) : undefined);
+}
+
+async function restartMessage() {
+  if (restarting) return;
+  restarting = true;
+  try {
+    if (busy.value) {
+      stopMessage();
+      await waitUntilReady();
+      if (!conversationAlive || !sender) return;
+      remoteRunning.value = false;
+      await sendMessage();
+      return;
+    }
+    if (remoteRunning.value) {
+      remoteRunning.value = false;
+      await sendMessage(undefined, "restart");
+    }
+  } finally {
+    restarting = false;
+  }
 }
 
 async function selectSkill(name: string) {
   const instance = sender;
-  if (!instance || locked.value) return;
+  if (!instance || composerLocked.value) return;
   const model = instance.getModel();
   const first = model[0]?.[0];
   if (first?.type === "Write") first.text = `/skill:${name} ${first.text.replace(skillQuery.value !== undefined ? /^\/\S*/ : /^\s*\/skill:\S+(?:\s+|$)/, "")}`;
@@ -659,7 +757,7 @@ async function sendCanvasResult(event: Extract<AgentEvent, { type: "canvasCall" 
   }
 }
 
-async function sendMessage(source?: AgentMessage) {
+async function sendMessage(source?: AgentMessage, delivery?: "restart") {
   const instance = sender;
   const editing = source && editingId.value === source.id;
   const prompt = (source && !editing ? source.content : getDraftContent()).trim();
@@ -680,10 +778,10 @@ async function sendMessage(source?: AgentMessage) {
 
   const requestController = new AbortController();
   const canvasContext = createCanvasContext?.();
+  const canvasId = canvasContext?.id.trim();
   controller = requestController;
   busy.value = true;
   compacting.value = false;
-  instance.disable();
   const reply = reactive<AgentMessage>({ id: crypto.randomUUID(), role: "assistant", content: "", parts: [], streaming: true });
   const userMessage = reactive<AgentMessage>({ id: crypto.randomUUID(), role: "user", content: prompt, attachments, mentions });
   let ownsStream = !remoteRunning.value;
@@ -707,7 +805,7 @@ async function sendMessage(source?: AgentMessage) {
     const response = await fetch("/api/agent", {
       method: "POST",
       headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
-      body: JSON.stringify({ prompt, mentions, attachments: attachments.map(({ name, path, mimeType }) => ({ name, path, mimeType })), directory, providerId: model.providerId, modelId: model.modelId, thinkingLevel: reasoningEffort.value || undefined, sessionFile: props.sessionFile, resendFrom, canvas: canvasContext ? { id: canvasContext.id, tools: canvasContext.tools } : undefined }),
+      body: JSON.stringify({ prompt, mentions, attachments: attachments.map(({ name, path, mimeType }) => ({ name, path, mimeType })), directory, providerId: model.providerId, modelId: model.modelId, thinkingLevel: reasoningEffort.value === "off" ? "off" : reasoningEffort.value || undefined, sessionFile: props.sessionFile, resendFrom, delivery, goal: composerDrive.value === "goal", canvas: canvasContext && canvasId ? { id: canvasId, tools: canvasContext.tools } : undefined }),
       signal: requestController.signal,
     });
     for await (const event of readAgentEvents(response, requestController.signal)) {
@@ -784,14 +882,14 @@ async function sendMessage(source?: AgentMessage) {
     if (ownsStream && !forwarded) stream.finish();
     compacting.value = false;
     busy.value = false;
-    controller = undefined;
+    if (controller === requestController) controller = undefined;
   }
 }
 
 async function restoreTextAttachment(index: number) {
   const instance = sender;
   const attachment = draftAttachments.value[index];
-  if (!instance || locked.value || !props.active || attachment?.mimeType !== "text/plain") return;
+  if (!instance || composerLocked.value || !props.active || attachment?.mimeType !== "text/plain") return;
   restoringAttachment.value = true;
   try {
     const text = await readTextAttachment(attachment, directory);
@@ -846,7 +944,7 @@ function dragOverAttachments(event: DragEvent) {
   if (!event.dataTransfer?.types.includes("Files")) return;
   event.preventDefault();
   event.stopPropagation();
-  draggingAttachments.value = !locked.value && props.active;
+  draggingAttachments.value = !composerLocked.value && props.active;
   if (draggingAttachments.value) attachmentDragDepth = Math.max(1, attachmentDragDepth);
   event.dataTransfer.dropEffect = draggingAttachments.value ? "copy" : "none";
 }
@@ -867,7 +965,7 @@ function dropAttachments(event: DragEvent) {
 }
 
 function addAttachments(files: File[]) {
-  if (locked.value) return;
+  if (composerLocked.value) return;
   for (const file of files) {
     const readableMimeType = getReadableFileMimeType(file.name, file.type);
     const mimeType = readableMimeType ?? file.type.split(";")[0]!.trim().toLowerCase();
@@ -895,15 +993,16 @@ watch(senderElement, (element, _previous, onCleanup) => {
   if (!element) return;
   const instance = new xSender(element, {
     autoFocus: props.active,
-    placeholder: translate("输入消息，@ 提及节点输出或全局素材…"),
+    placeholder: composerPlaceholder(),
     chatStyle: { minHeight: "44px", maxHeight: "50vh", fontSize: "14px", lineHeight: "24px" },
     keyboardSendFun: event => event.key === "Enter" && !event.shiftKey && !event.isComposing,
     keyboardWrapFun: event => event.key === "Enter" && event.shiftKey && !event.isComposing,
   });
   sender = instance;
-  if (!props.active || locked.value) instance.disable();
+  if (!props.active || composerLocked.value) instance.disable();
   instance.bus.on("agentConversation", xSender.EventSet.EVENT_COMMON_SEND, () => void submitMessage());
   instance.bus.on("agentConversation", xSender.EventSet.EVENT_COMMON_CHANGE, () => {
+    syncDraftReady(instance);
     skillQuery.value = /^\/([^\s/]*)$/.exec(instance.getText())?.[1];
     const targets: typeof draftMentionTargets.value = [];
     for (const line of instance.chatEditor.NODES) for (const tag of line.children) {
@@ -1349,8 +1448,35 @@ watch(() => !props.initialSession?.parentFile && !!workspaceStore.pendingAgentMe
       }
 
       .modelPopover {
-        flex: 1;
+        flex: 1 1 auto;
+        min-width: 0;
         margin-right: auto;
+        overflow: hidden;
+      }
+
+      .advanceMode {
+        flex: 0 0 auto;
+        width: 78px;
+        max-width: 78px;
+        --el-select-width: 78px;
+
+        .el-select__wrapper {
+          min-height: 28px;
+          padding: 0 4px 0 8px;
+          background: transparent;
+          box-shadow: none;
+        }
+
+        .el-select__selection {
+          flex-wrap: nowrap;
+        }
+
+        .el-select__placeholder,
+        .el-select__selected-item {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
       }
 
       .contextButton {
@@ -1403,6 +1529,27 @@ watch(() => !props.initialSession?.parentFile && !!workspaceStore.pendingAgentMe
     }
 
     .contextHint {
+      color: var(--el-text-color-secondary);
+      font-size: 12px;
+    }
+  }
+}
+
+.advanceModePopper {
+  .el-select-dropdown__item {
+    height: auto;
+    line-height: 1.3;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .advanceOption {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    white-space: normal;
+
+    small {
       color: var(--el-text-color-secondary);
       font-size: 12px;
     }

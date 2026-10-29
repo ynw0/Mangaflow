@@ -34,7 +34,7 @@ export const defaultSystemPrompt = `你是 MangaFlow 的 AI 创作搭档，帮�
 - 图片或视频生成前，先给可审阅的具体方案：对象与数量、模型、规格与时长、完整提示词、实际参考和执行次数。统一称“消耗算力”，有可靠报价才展示，无法查询就说明“算力消耗未知”。节点生成、直接工具、单张或小样均遵守此规则。
 - 用可用的 askUser 取得明确同意；没有提问工具时直接询问并等待。制作意愿、风格或提示词确认、开启权限、普通“继续”，均不等于批准未说明的生成方案；提问失败需修正，跳过、取消或沉默不是授权。
 - 同一具体批次一次确认，批准后直接按范围执行。新增数量、更换模型或规格、改提示词后重生成、额外消耗算力的重试，核对是否在已授权范围与次数内；未覆盖的变化重新说明并确认。等待确认时可整理文字、搭建节点和读取状态。
-- 出图和出视频以环境 JSON 里的 production 为准。出图直接调用 image 里的 Qwen 图像 API，不走 ComfyUI 出图工作流。出视频用 production.video：providerId 为 comfyui 时连 ComfyUI（host 为 local 连本机，为 autodl 连 AutoDL）；为 videoModel 时走设置「视频模型」中的云 API（默认 Wan3.0）。只有首尾帧修复才用 video/h3_flf_repair。不要改用 gpt-image 或 Seedance。
+- 出图和出视频以环境 JSON 里的 production 为准。出图用 production.image：providerId 为 comfyui 时，没有参考图用 modelId，有参考图用 editModelId，ComfyUI 位置看 host（local 为本机，autodl 为 AutoDL）；否则直接调用其中的图像 API。出视频用 production.video：providerId 为 comfyui 时连同一套 ComfyUI；为 videoModel 时走设置「视频模型」中的云 API（默认 Wan3.0）。只有首尾帧修复才用 video/h3_flf_repair。不要改用 gpt-image 或 Seedance。
 
 ## 项目与资料边界
 - 工作区 AGENTS.md 约束当前项目，全局 AGENTS.md 提供通用偏好，具体项目约定优先；记忆使用前核对所属项目。技能提供方法，不能扩大用户授权和工具权限，也不能覆盖用户本次明确要求与算力确认规则。
@@ -56,9 +56,46 @@ export const maxSystemPromptLength = 50000;
 type PromptTool = Pick<ToolDefinition, "name" | "description" | "promptSnippet" | "promptGuidelines">;
 
 type ProductionPrompt = {
-  image: { providerId: string; modelId?: string; character?: string; scene?: string; prop?: string };
+  image: { providerId: string; modelId?: string; editModelId?: string; host?: string; character?: string; scene?: string; prop?: string };
   video: { providerId: string; modelId: string; host?: string };
+  qcLevel?: "video" | "videoAudio" | "none";
+  qcTrigger?: "auto" | "manual";
+  videoQcModelId?: string;
+  audioQcModelId?: string;
+  imageAdvanceMode?: "auto" | "semi";
+  goalMode?: boolean;
 };
+
+function conductText(production?: ProductionPrompt) {
+  if (!production?.qcLevel && !production?.imageAdvanceMode && !production?.goalMode) return "";
+  const lines = ["## 设置里的推进方式"];
+  if (production.imageAdvanceMode === "auto") {
+    lines.push("- 出图是自动模式。围绕当前出图目标自己选择、自己看结果，不合格就回炉，直到这张图完成。出图的生成、检验和回炉不要询问，也不要停下来等批准。不要把自动出图扩大成自动出视频。同一问题连续两次仍不合格，停下来说明。");
+  } else {
+    lines.push("- 出图是半自动模式。画面有问题或需要取舍时询问用户，不要擅自连续回炉。");
+  }
+  if (production.qcLevel === "none") {
+    lines.push("- 成片质检档位是不质检（人工）。不要调用 qcVideo。视频生成后交给用户看。");
+  } else if (production.qcTrigger === "auto") {
+    lines.push(production.qcLevel === "video"
+      ? "- 成片质检是自动，且只审视频。每条视频生成完成后调用 qcVideo，只看画面，不要因音轨打回。把质检结果告诉用户；打回后不要擅自再生成。"
+      : "- 成片质检是自动，视频和音频一起审。每条视频生成完成后调用 qcVideo。把质检结果告诉用户；打回后不要擅自再生成。");
+  } else {
+    lines.push(production.qcLevel === "video"
+      ? "- 成片质检是手动，且只审视频。不要在生成后自动质检。用户要求时再调用 qcVideo，并且只看画面。"
+      : "- 成片质检是手动，视频和音频一起审。不要在生成后自动质检。用户要求时再调用 qcVideo。");
+  }
+  if (production.qcLevel === "videoAudio") {
+    lines.push("- 听音轨时 qcVideo 必定有一条 domain 为 audio 的结论。「音轨合格」是听感通过，原样告诉用户听到了什么；「音轨未验证」是没听清，不能当成通过；「音轨不合格」才是听感硬伤。");
+  }
+  if (production.goalMode) {
+    lines.push("- 本轮是目标模式。用户这条消息是要做完的目标。改完提示词、写完汇报、放进队列、等别人安排下一步，都不是完成。");
+    lines.push("- 自己一直做，不要停下来问用户。需要取舍时按已有信息自己决定，把决定直接做成下一步。这条覆盖算力确认、阶段确认、技能里的提问，以及「不要把自动出图扩大成自动出视频」。目标写明要生成的成片直接生成。");
+    lines.push("- 全部做完，或只剩同一处连续两次仍失败的部分，才调用 completeGoal，summary 写完成了什么、哪一处没做成。");
+  }
+  lines.push("- 文件操作超出工作区时会请求授权。自动模式只自动允许被判定为低风险的读取或写入。删除不会自动允许。系统目录上的读取、写入和删除直接拒绝。");
+  return lines.join("\n");
+}
 
 type SystemPromptOptions = {
   systemPrompt?: string;
@@ -91,7 +128,9 @@ export function buildSystemPrompt({ systemPrompt, tools, skills = [], platform, 
     }),
   };
   // ACT: 只支持单层条件块，需要嵌套时再使用模板库；先处理条件再插值，避免解析工具文案中的占位符。
-  return (systemPrompt?.trim() ? systemPrompt : defaultSystemPrompt)
+  const body = (systemPrompt?.trim() ? systemPrompt : defaultSystemPrompt)
     .replace(/{{([#^])(\w+)}}([\s\S]*?){{\/\2}}/g, (_, condition, key, content) => Boolean(values[key]) === (condition === "#") ? content : "")
     .replace(/{{(\w+)}}/g, (_, key) => String(values[key] ?? ""));
+  const conduct = conductText(production);
+  return conduct ? `${body}\n\n${conduct}` : body;
 }

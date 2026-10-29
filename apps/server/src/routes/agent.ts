@@ -14,6 +14,8 @@ const inputSchema = z.object({
   thinkingLevel: z.enum(["off", "low", "medium", "high"]).optional(),
   sessionFile: z.string().regex(/^[\w-]+\.jsonl$/).optional(),
   resendFrom: z.string().min(1).max(128).optional(),
+  goal: z.boolean().optional(),
+  delivery: z.literal("restart").optional(),
   canvas: z.strictObject({
     id: z.string().min(1).max(256),
     tools: z.array(z.strictObject({

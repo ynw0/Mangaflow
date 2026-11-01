@@ -14,7 +14,14 @@ const outputNames = new Set(["output", "addOutput", "save", "saveToFile", "conca
 
 function serializeError(error: unknown) {
   return error instanceof Error
-    ? { name: error.name, message: error.message, ...("code" in error ? { code: error.code } : {}), ...("i18nMessage" in error ? { i18nMessage: error.i18nMessage } : {}) }
+    ? {
+      name: error.name,
+      message: error.message,
+      ...("code" in error ? { code: error.code } : {}),
+      ...("i18nMessage" in error ? { i18nMessage: error.i18nMessage } : {}),
+      ...("boundaryPath" in error ? { boundaryPath: error.boundaryPath } : {}),
+      ...("boundaryAction" in error ? { boundaryAction: error.boundaryAction } : {}),
+    }
     : { name: "Error", message: String(error) };
 }
 

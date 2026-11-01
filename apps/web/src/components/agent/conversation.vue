@@ -113,7 +113,7 @@
       <teleport v-for="target in draftMentionTargets" :key="target.key" :to="target.element"><mentionThumbnail v-bind="mentionThumbnailProps(target.mention)" :directory="directory"><icon-photo :size="14" /></mentionThumbnail></teleport>
       <mentionContent ref="draftMentionPreview" :mentions="draftMentions" :directory="directory" removable @remove="removeDraftMention" />
       <div class="senderActions">
-        <modelPopover v-model="selectedModel" v-model:reasoningEffort="reasoningEffort" :active="active" :disabled="disabled" />
+        <modelPopover v-model="selectedModel" :active="active" :disabled="disabled" />
         <el-select v-model="composerDrive" class="advanceMode" aria-label="推进方式" :disabled="disabled" placement="top-start" popperClass="advanceModePopper">
           <el-option value="semi" label="半自动">
             <span class="advanceOption"><strong>半自动</strong><small>出图有问题就询问</small></span>
@@ -406,12 +406,6 @@ const pendingMessage = props.initialSession?.parentFile ? undefined : workspaceS
 const selectedModel = ref(pendingMessage?.model ?? (props.initialSession?.providerId && props.initialSession.modelId
   ? JSON.stringify([props.initialSession.providerId, props.initialSession.modelId]) : ""));
 const contextMenuVisible = ref(false);
-const sessionThinkingLevel = props.initialSession?.thinkingLevel;
-const reasoningEffort = ref(pendingMessage?.reasoningEffort ?? (
-  sessionThinkingLevel === "off" || sessionThinkingLevel === "low" || sessionThinkingLevel === "medium" || sessionThinkingLevel === "high"
-    ? sessionThinkingLevel
-    : thinkingLevelSetting.value
-));
 const selectedModelChoice = computed(() => modelChoices.value.find(item => item.value === selectedModel.value));
 const imageAdvanceMode = computed(() => {
   const current = settings.value.production;
@@ -805,7 +799,7 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
     const response = await fetch("/api/agent", {
       method: "POST",
       headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
-      body: JSON.stringify({ prompt, mentions, attachments: attachments.map(({ name, path, mimeType }) => ({ name, path, mimeType })), directory, providerId: model.providerId, modelId: model.modelId, thinkingLevel: reasoningEffort.value === "off" ? "off" : reasoningEffort.value || undefined, sessionFile: props.sessionFile, resendFrom, delivery, goal: composerDrive.value === "goal", canvas: canvasContext && canvasId ? { id: canvasId, tools: canvasContext.tools } : undefined }),
+      body: JSON.stringify({ prompt, mentions, attachments: attachments.map(({ name, path, mimeType }) => ({ name, path, mimeType })), directory, providerId: model.providerId, modelId: model.modelId, thinkingLevel: thinkingLevelSetting.value || undefined, sessionFile: props.sessionFile, resendFrom, delivery, goal: composerDrive.value === "goal", canvas: canvasContext && canvasId ? { id: canvasId, tools: canvasContext.tools } : undefined }),
       signal: requestController.signal,
     });
     for await (const event of readAgentEvents(response, requestController.signal)) {

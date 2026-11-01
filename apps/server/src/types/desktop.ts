@@ -36,6 +36,7 @@ export type updateSnapshot = {
 export interface DesktopRuntime {
   openUrl(url: string): void;
   showItemInFolder(path: string): void;
+  openPath(path: string): boolean;
   readClipboardText(): string | null;
   readClipboardImage(): Uint8Array | null;
   writeClipboardImage(image: Uint8Array): void;

@@ -45,7 +45,15 @@ export const directorPlanSchema = z.strictObject({
 });
 export type DirectorPlan = z.infer<typeof directorPlanSchema>;
 export type DirectorPlanItem = DirectorPlan & { id: string; instruction?: string };
-export type DirectorGeneration = { id: string; instruction: string; error?: string };
+export type DirectorGeneration = { id: string; instruction: string; status: string; startedAt: number; error?: string };
+
+export function formatGenerationElapsed(startedAt: number, now: number) {
+  const seconds = Math.max(0, Math.floor((now - startedAt) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  if (!minutes) return `${seconds} 秒`;
+  return `${minutes} 分 ${String(rest).padStart(2, "0")} 秒`;
+}
 
 export function prepareSceneAnimation(runtime: SceneRuntime, value: DirectorPlan) {
   const { name, duration, tracks: sourceTracks, cameraFrames } = value;

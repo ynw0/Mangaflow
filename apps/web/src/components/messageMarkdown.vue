@@ -43,7 +43,29 @@ const isDefinition = (block: string) => /^ {0,3}\[(?!\^)[^\]\n]+\]:/.test(block)
   && definitionParser.markdownToAst(block).children.every(node => node.type === "definition");
 const definitions = computed(() => blocks.value.length > 1 ? blocks.value.filter(isDefinition).join("\n\n") : "");
 
+function workspaceLinkPath(url: string) {
+  let path = url.trim();
+  if (!path || /^(?:[a-z][a-z\d+.-]*:|\/|#)/i.test(path)) return;
+  try { path = decodeURIComponent(path); } catch { return; }
+  path = path.split(/[?#]/, 1)[0]!.replaceAll("\\", "/").replace(/^\.\//, "");
+  if (!path || path.split("/").some(part => !part || part === "." || part === "..")) return;
+  return path;
+}
+
+function linkText(nodes: readonly { type: string; value?: string; children?: readonly { type: string; value?: string }[] }[]): string {
+  return nodes.map(node => node.type === "text" ? node.value ?? "" : node.children ? linkText(node.children) : "").join("");
+}
+
 function renderLink(link: LinkNodeRendererProps) {
+  const path = workspaceLinkPath(link.node.url);
+  if (path && directory) {
+    return h("button", {
+      type: "button",
+      class: "workspaceLink",
+      title: path,
+      onClick: () => window.dispatchEvent(new CustomEvent("toonflow:open-workspace-file", { detail: { directory, path } })),
+    }, linkText(link.node.children) || path.split("/").at(-1));
+  }
   const renderedLink = h(COMPONENT_RENDERERS.link, link);
   let url: URL;
   try { url = new URL(link.node.url.startsWith("//") ? `https:${link.node.url}` : link.node.url); }
@@ -115,6 +137,18 @@ const chunks = computed(() => {
 
     & + .markdownChunk {
       margin-top: 12px;
+    }
+
+    :deep(.workspaceLink) {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--el-color-primary);
+      font: inherit;
+      text-align: inherit;
+      text-decoration: underline;
+      cursor: pointer;
+      overflow-wrap: anywhere;
     }
   }
 }

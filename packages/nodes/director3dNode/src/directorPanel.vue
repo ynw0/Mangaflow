@@ -20,13 +20,23 @@
         </button>
         <div v-for="task in tasks" :key="task.id" class="planItem taskItem" :aria-busy="!task.error">
           <icon-alert-circle v-if="task.error" :size="18" aria-hidden="true" /><icon-loader-2 v-else class="loadingIcon" :size="18" aria-hidden="true" />
-          <div class="itemContent"><strong>{{ task.instruction }}</strong><span v-if="task.error" class="generationError" role="alert">{{ task.error }}</span><span v-else role="status">后台生成中…</span></div>
+          <div class="itemContent">
+            <strong>{{ task.instruction }}</strong>
+            <span v-if="task.error" class="generationError" role="alert">{{ task.error }}</span>
+            <span v-else class="taskProgress"><span role="status">{{ task.status }}</span><span>已进行 {{ formatGenerationElapsed(task.startedAt, now) }}</span></span>
+          </div>
           <el-button v-if="task.error" text :icon="IconArrowBackUp" aria-label="重新编辑指令" @click="emit('editInstruction', task.instruction)" />
         </div>
       </div>
       <template v-else>
         <p>描述模型动作和运镜要求</p>
       </template>
+    </div>
+    <div v-if="runningTasks.length" class="generationLive" aria-label="生成进展">
+      <p v-for="task in runningTasks" :key="task.id">
+        <icon-loader-2 class="loadingIcon" :size="14" />
+        <span><span role="status">{{ task.status }}</span><span>已进行 {{ formatGenerationElapsed(task.startedAt, now) }}</span></span>
+      </p>
     </div>
     <p class="instructionHint">{{ referenceCount ? `使用 ${referenceCount} 个关键帧生成运镜` : result ? `参考：${result.name}` : '模型动画与运镜同步生成' }}</p>
     <footer class="chatFooter">
@@ -37,7 +47,7 @@
             <el-option v-for="item in provider.models" :key="item.modelId" :label="item.label" :value="JSON.stringify([item.providerId, item.modelId])" />
           </el-option-group>
         </el-select>
-        <el-button class="sendButton" type="primary" round :disabled="initializing || !prompt.trim() || !model" aria-label="生成动画" @click="sendInstruction">
+        <el-button class="sendButton" type="primary" round :loading="runningTasks.length > 0" :disabled="initializing || !prompt.trim() || !model" aria-label="生成动画" @click="sendInstruction">
           <icon-sparkles :size="14" /><span>生成方案</span>
         </el-button>
       </div>
@@ -52,9 +62,10 @@ import { IconLoader2, IconSparkles, IconMovie, IconCheck, IconAlertCircle, IconA
 import type { NodeAiModel } from "@toonflow/nodes-scaffold/runtime";
 import { groupNodeModels } from "@toonflow/node-shared/groupNodeModels";
 
-import type { DirectorPlan, DirectorPlanItem, DirectorGeneration } from "./sceneAnimation";
+import { formatGenerationElapsed, type DirectorPlan, type DirectorPlanItem, type DirectorGeneration } from "./sceneAnimation";
 
-const props = defineProps<{ result?: DirectorPlan; referenceCount: number; initializing: boolean; plans: DirectorPlanItem[]; selectedPlanId: string; tasks: DirectorGeneration[]; models: NodeAiModel[]; modelsLoading: boolean }>();
+const props = defineProps<{ result?: DirectorPlan; referenceCount: number; initializing: boolean; now: number; plans: DirectorPlanItem[]; selectedPlanId: string; tasks: DirectorGeneration[]; models: NodeAiModel[]; modelsLoading: boolean }>();
+const runningTasks = computed(() => props.tasks.filter(task => !task.error));
 const emit = defineEmits<{ editInstruction: [value: string]; selectPlan: [id: string]; send: []; loadModels: [] }>();
 const prompt = defineModel<string>("prompt", { default: "" });
 const model = defineModel<string>("model", { default: "" });
@@ -111,12 +122,35 @@ function sendInstruction() {
           span { display: block; margin-top: 3px; color: var(--el-text-color-secondary); font-size: 11px; }
           .planInstruction { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; user-select: text; }
           .generationError { color: var(--el-color-danger); overflow-wrap: anywhere; }
+          .taskProgress span { display: block; }
         }
       }
     }
     h3 { margin: 8px 0; color: var(--el-text-color-primary); font-size: 16px; font-weight: 500; overflow-wrap: anywhere; }
     p { margin: 16px 0; }
     .loadingIcon { animation: directorLoading 1.2s linear infinite; }
+  }
+
+  .generationLive {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 12px;
+
+    p {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      margin: 0;
+      color: var(--el-text-color-regular);
+      font-size: 12px;
+      line-height: 1.5;
+
+      span span { display: block; overflow-wrap: anywhere; }
+    }
+
+    .loadingIcon { flex-shrink: 0; margin-top: 2px; animation: directorLoading 1.2s linear infinite; }
   }
 
   .instructionHint { flex-shrink: 0; margin: 12px; font-size: 11px; line-height: 1.5; color: var(--el-text-color-secondary); overflow-wrap: anywhere; }
@@ -173,6 +207,7 @@ function sendInstruction() {
 
 @keyframes directorLoading { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .directorPanel .planContent .loadingIcon { animation: none; }
+  .directorPanel .planContent .loadingIcon,
+  .directorPanel .generationLive .loadingIcon { animation: none; }
 }
 </style>

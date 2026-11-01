@@ -151,8 +151,16 @@ if (videoModelChanged) {
 
 const production = record(settings.production);
 let productionChanged = false;
-if (production.imageSource !== "qwen") {
+if (production.imageSource !== "qwen" && production.imageSource !== "comfyui") {
   production.imageSource = "qwen";
+  productionChanged = true;
+}
+if (typeof production.imageT2iWorkflow !== "string" || !production.imageT2iWorkflow.trim()) {
+  production.imageT2iWorkflow = "image/flux3KleinT2i";
+  productionChanged = true;
+}
+if (typeof production.imageEditWorkflow !== "string" || !production.imageEditWorkflow.trim()) {
+  production.imageEditWorkflow = "image/flux3KleinDistilledEdit";
   productionChanged = true;
 }
 if (typeof production.imageProviderId !== "string" || !production.imageProviderId.trim()) {
@@ -181,6 +189,18 @@ if (typeof production.videoQcModelId !== "string" || !production.videoQcModelId.
 }
 if (typeof production.audioQcModelId !== "string" || !production.audioQcModelId.trim()) {
   production.audioQcModelId = "qwen3.8-omni-flash";
+  productionChanged = true;
+}
+if (production.qcLevel !== "video" && production.qcLevel !== "videoAudio" && production.qcLevel !== "none") {
+  production.qcLevel = "videoAudio";
+  productionChanged = true;
+}
+if (production.qcTrigger !== "auto" && production.qcTrigger !== "manual") {
+  production.qcTrigger = "manual";
+  productionChanged = true;
+}
+if (production.imageAdvanceMode !== "auto" && production.imageAdvanceMode !== "semi") {
+  production.imageAdvanceMode = "semi";
   productionChanged = true;
 }
 if (productionChanged) {

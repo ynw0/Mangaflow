@@ -12,6 +12,7 @@
 - 核对地点、建筑结构、入口、相对位置、地面与墙体、已确认陈设；换观察方向不得改 canonical 布局。
 - 先核对 still_format 和用途是否一致。要换机位或反复出现的地点必须是无人 `scene_quad`：顶视、45° 俯视、正面、侧面四格，轮廓和陈设一致。只做一次氛围或转场的必须是单张无人 `establishing_wide`，不能做成四宫格。写进人物、人影，或把未出场的剧情物件塞进房间，判不合格。四宫格和单张空镜用反了，判不合格。
 - canonical 只锁布局与结构；把 allowed_changes 画进本张、或正面 prompt 出现否定写法，判不合格。
+- Qwen 和带负面节点的其他 Comfy 原画工作流：不希望出现的东西进负面提示词，只写名词。Flux.3 Klein 工作流按 `common.md`「Flux.3 Klein 出图」：`negative_constraints` 必须为 []，禁忌改写成正面可见事实；非空负面判不合格。
 
 ## 输出合同
 返回 `art_prompt_review`：status=ok 且 findings=[]，或 status=rejected 且 findings 含整改意见。asset_key、variant_key、asset_type 必须与被审合同一致。

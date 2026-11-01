@@ -15,6 +15,18 @@ bindings:
 - source: duration
   target: 17.inputs.value
   kind: value
+- source: aspect_ratio
+  target: 8.inputs.aspect_ratio
+  kind: value
+  required: false
+- source: megapixels
+  target: 8.inputs.megapixels
+  kind: value
+  required: false
+- source: upscale
+  target: 151.inputs.value
+  kind: value
+  required: false
 - source: refs.slot1
   target: 24.inputs.image
   kind: image

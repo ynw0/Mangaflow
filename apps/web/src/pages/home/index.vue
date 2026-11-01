@@ -34,7 +34,7 @@
                 <workspacePicker ref="promptWorkspacePicker" v-model="workspaceDirectory" :disabled="creating || opening" />
                 <el-space class="sendActions" wrap :size="12">
                   <el-button text circle :icon="IconPaperclip" :disabled="creating || opening" aria-label="添加附件" title="添加附件" @click="attachmentInput?.click()" />
-                  <modelPopover v-model="selectedModel" v-model:reasoningEffort="reasoningEffort" class="modelSelect" :disabled="creating || opening" />
+                  <modelPopover v-model="selectedModel" class="modelSelect" :disabled="creating || opening" />
                   <el-button class="sendButton" type="primary" :circle="!!workspaceDirectory" :icon="workspaceDirectory ? IconArrowUp : IconFolder" :loading="creating" :disabled="creating || opening" :aria-label="workspaceDirectory ? '发送' : '选择工作目录'" @click="workspaceDirectory ? createProject() : promptWorkspacePicker?.chooseDirectory()">
                     <template v-if="!workspaceDirectory" #default>选择工作目录</template>
                   </el-button>
@@ -103,7 +103,6 @@ import { createPastedTextFile, readTextAttachment } from "@/components/agent/tex
 import type { AgentAttachment } from "@/components/agent/types";
 import logoUrl from "@toonflow/assets/logo.svg";
 import { useWorkspaceStore, type Project } from "@/stores/workspace";
-import { thinkingLevelSetting } from "@/stores/settings";
 import { deviceHubEnabled, mobileConnection, mobileConnectionLabel } from "@/lib/mobile";
 import useWorkspaceFiles from "@/lib/workspaceFiles";
 import settings from "@/components/settings/index.vue";
@@ -192,7 +191,6 @@ watch([creating, opening], ([creating, opening]) => {
 }, { flush: "sync" });
 
 const selectedModel = ref("");
-const reasoningEffort = ref(thinkingLevelSetting.value);
 const sortDescending = ref(true);
 const viewMode = ref("grid");
 const sortedProjects = computed(() => [...projectList.value].sort((left, right) =>
@@ -356,7 +354,7 @@ async function createProject(fromPrompt = true) {
     await useWorkspaceFiles(directory).writeJson("画布1.json", { toonflowCanvas: true, nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } }, true);
     await workspaceStore.openProject(directory);
     if (fromPrompt && (prompt.value.trim() || promptAttachments.value.length)) {
-      workspaceStore.pendingAgentMessage = { directory: workspaceStore.project!.directory, prompt: prompt.value, attachments: [...promptAttachments.value], model: selectedModel.value, reasoningEffort: reasoningEffort.value };
+      workspaceStore.pendingAgentMessage = { directory: workspaceStore.project!.directory, prompt: prompt.value, attachments: [...promptAttachments.value], model: selectedModel.value };
     }
     await router.push("/workspace");
   } catch (err) {

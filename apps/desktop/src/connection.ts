@@ -96,6 +96,9 @@ export default async function createDesktopConnection(app: express.Express, dire
       res.status(500).json({ message: error instanceof Error ? translateError(error) : translateMessage("设备连接失败") });
     });
     const server = gateway.listen(0, "127.0.0.1");
+    // 视频生成会占着这条连接几十分钟，空闲超时会把还在跑的任务掐掉。
+    server.timeout = 0;
+    server.requestTimeout = 0;
     const sockets = new Set<Socket>();
     server.on("connection", socket => { sockets.add(socket); socket.once("close", () => sockets.delete(socket)); });
     await once(server, "listening");

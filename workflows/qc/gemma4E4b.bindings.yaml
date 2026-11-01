@@ -1,0 +1,9 @@
+workflow: ./gemma4E2bApi.json
+label: Gemma 4 E4B 质检
+bindings:
+- source: prompt
+  target: 5.inputs.system_prompt
+  kind: value
+- source: media.video1
+  target: 1.inputs.file
+  kind: video

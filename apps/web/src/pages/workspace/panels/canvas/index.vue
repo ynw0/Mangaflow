@@ -5,6 +5,7 @@
     :class="{ edgesHidden: !showEdges, handMode, multiSelectionMode: flow.multiSelectionActive.value, compositingEnabled: generalSettings.canvasCompositingEnabled }"
     :style="{ '--canvasEdgeColor': generalSettings.canvasEdgeColorMode === 'custom' ? generalSettings.canvasEdgeColor : 'var(--el-color-primary)' }"
     @dblclick="openNodeMenu"
+    @mousedown.capture="pressWheelButton"
     @wheel.capture="zoomCanvas"
     @gesturestart.capture="zoomCanvas"
     @gesturechange.capture="zoomCanvas"
@@ -38,10 +39,8 @@
       :zoom-on-double-click="false"
       :zoomOnScroll="false"
       :zoomOnPinch="active && !settingsVisible"
-      :panOnScroll="active && !settingsVisible && !defaultWheelZoom"
-      :panOnScrollSpeed="1"
+      :panOnScroll="false"
       :panOnDrag="handMode || isMobile ? true : defaultDragPan ? [0, 1] : [1]"
-      :panOnScrollMode="PanOnScrollMode.Free"
       :delete-key-code="null"
       :selectionKeyCode="active && !settingsVisible && !handMode && !isMobile && selectionKeyPressed"
       :selectionMode="SelectionMode.Partial"
@@ -137,7 +136,6 @@ import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import "element-plus/dist/index.css";
 import {
   VueFlow,
-  PanOnScrollMode,
   ConnectionMode,
   SelectionMode,
   useVueFlow,
@@ -217,7 +215,7 @@ const snapEnabled = ref(false);
 const zoomKeyPressed = ref(false);
 const panKeyPressed = ref(false);
 const selectionKeyPressed = ref(false);
-const defaultWheelZoom = computed(() => getShortcutBindings(generalSettings.value.canvasShortcuts.zoom).includes("None"));
+// 按下滚轮拖动平移。1 是中键；平移快捷键设为无需按键时，左键也能拖动画布。
 const defaultDragPan = computed(() => getShortcutBindings(generalSettings.value.canvasShortcuts.pan).includes("None"));
 const selectedTool = defineModel<"move" | "hand">("selectedTool", { default: "move" });
 const handMode = computed(() => props.active && !props.settingsVisible && (selectedTool.value === "hand" || panKeyPressed.value));
@@ -898,6 +896,13 @@ async function pasteClipboardNode(position: { x: number; y: number }, command?: 
     return false;
   }
 }
+function pressWheelButton(event: MouseEvent) {
+  if (event.button !== 1 || !props.active || props.settingsVisible) return;
+  if (!(event.target instanceof Element) || !event.target.closest(".vue-flow__pane, .vue-flow__node, .vue-flow__edge, .vue-flow__nodesselection")) return;
+  if (event.target.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
+  event.preventDefault();
+}
+
 function zoomCanvas(event: WheelEvent | (Event & { scale: number })) {
   if (event.type === "gestureend") gestureScale = undefined;
   if (!props.active || props.settingsVisible || document.fullscreenElement || flow.userSelectionActive.value) return;
@@ -909,18 +914,10 @@ function zoomCanvas(event: WheelEvent | (Event & { scale: number })) {
     factor = event.type === "gesturechange" && gestureScale !== undefined ? event.scale / gestureScale : 1;
     gestureScale = event.type === "gestureend" ? undefined : event.scale;
   } else {
-    // ACT: Chromium 捏合发送 Ctrl+wheel，但不发送 Control 按键；WebKit 使用上方原生 gesture 事件。
+    // 触控板捏合带 Ctrl 且没有实体 Ctrl 键。普通滚轮直接缩放：往上放大，往下缩小。
     const pinching = event.ctrlKey && !pressedCodes.has("ControlLeft") && !pressedCodes.has("ControlRight");
-    // 无需按键的滚轮缩放让节点控件保留自己的滚动；显式缩放快捷键及捏合仍沿用原行为。
-    if (defaultWheelZoom.value && !pinching && !zoomKeyPressed.value
-      && event.target.closest(".nowheel, input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='slider']")) return;
-    if (!pinching && !shortcutPressed(event, generalSettings.value.canvasShortcuts.zoom, pressedCodes)) {
-      if (!event.ctrlKey) return;
-      // 实体 Ctrl 未绑定缩放时，阻止 Vue Flow 和节点骨架将它误判为捏合。
-      factor = 1;
-    } else {
-      factor = pinching && gestureScale !== undefined ? 1 : 2 ** (pinching ? -event.deltaY * 0.02 : wheelDelta(event));
-    }
+    if (!pinching && event.target.closest(".nowheel, input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='slider']")) return;
+    factor = pinching && gestureScale !== undefined ? 1 : 2 ** (pinching ? -event.deltaY * 0.02 : wheelDelta(event));
     point = { x: event.clientX, y: event.clientY };
   }
   const zoom = flow.d3Zoom.value;

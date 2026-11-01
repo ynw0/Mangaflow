@@ -8,8 +8,8 @@
     <el-popover trigger="click" placement="top" :width="220" :disabled="busy || !selectedModel" :showArrow="false">
       <template #reference><el-button class="sizeButton" text :disabled="busy || !selectedModel" :aria-label="`${label}输出设置`">{{ settings.ratio || '比例' }} · {{ settings.size || '分辨率' }}</el-button></template>
       <div class="variationSettings nodrag nopan nowheel" @pointerdown.stop @mousedown.stop @wheel.stop @keydown.stop>
-        <label>分辨率<el-select v-model="settings.size" :disabled="busy" :aria-label="`${label}分辨率`"><el-option v-for="size in sizeOptions" :key="size" :label="size" :value="size" /></el-select></label>
-        <label>比例<el-select v-model="settings.ratio" :disabled="busy" :aria-label="`${label}比例`" @change="ratioFromSource = false"><el-option v-for="ratio in ratioOptions" :key="ratio" :label="ratio" :value="ratio" /></el-select></label>
+        <label>分辨率<el-select v-model="settings.size" :disabled="busy" :aria-label="`${label}分辨率`" @change="pickSize"><el-option v-for="size in sizeOptions" :key="size" :label="size" :value="size" /></el-select></label>
+        <label>比例<el-select v-model="settings.ratio" :disabled="busy" :aria-label="`${label}比例`" @change="pickRatio"><el-option v-for="ratio in ratioOptions" :key="ratio" :label="ratio" :value="ratio" /></el-select></label>
       </div>
     </el-popover>
     <el-button type="primary" :icon="IconSparkles" :loading="generating" :disabled="busy || modelsLoading || !source || !selectedModel || !prompt.trim()" @click="generate">{{ buttonLabel ?? '生成图片' }}</el-button>
@@ -53,6 +53,37 @@ let generationController: AbortController | undefined;
 let disposed = false;
 let inheritModelConfig = true;
 let ratioFromSource = !props.settings.ratio;
+
+function sizeForRatio(value: string) {
+  const [width, height] = value.split(":").map(Number);
+  if (!width || !height) return;
+  const target = width / height;
+  return sizeOptions.value.find(item => {
+    const pair = /^(\d+)x(\d+)$/i.exec(item);
+    if (!pair) return false;
+    return Math.abs(Number(pair[1]) / Number(pair[2]) - target) / target < 0.03;
+  });
+}
+
+function pickRatio(value: string) {
+  ratioFromSource = false;
+  const next = sizeForRatio(value);
+  if (next) props.settings.size = next;
+}
+
+function pickSize(value: string) {
+  const pair = /^(\d+)x(\d+)$/i.exec(value);
+  if (!pair) return;
+  const actual = Number(pair[1]) / Number(pair[2]);
+  let best: { ratio: string; delta: number } | undefined;
+  for (const item of ratioOptions.value) {
+    const [width, height] = item.split(":").map(Number);
+    if (!width || !height) continue;
+    const delta = Math.abs(actual - width / height);
+    if (!best || delta < best.delta) best = { ratio: item, delta };
+  }
+  if (best && best.delta / actual < 0.03) props.settings.ratio = best.ratio;
+}
 
 function nearestRatio() {
   const numeric = ratioOptions.value.map(value => ({ value, number: value.split(":").map(Number).reduce((width, height) => width / height) })).filter(item => Number.isFinite(item.number) && item.number > 0);

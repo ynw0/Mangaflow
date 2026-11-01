@@ -210,15 +210,15 @@ function parseProvider(source: string) {
   const rules = z.array(z.record(z.string(), z.json())).safeParse(value("rules") ?? []);
   if (!rules.success) invalid("供应商 rules 必须为表单配置对象数组");
   return { object, modelProperty: entries.get("models"), id: id as string, label, icon, version: version?.trim(), readme, modelsUrl: modelsUrl as string | undefined, rules: rules.data, models: models.data,
-    supportsPrice: entries.has("getPrice") || id === tfRouter.id, supportsBalance: entries.has("getBalance") || id === tfRouter.id };
+    supportsPrice: entries.has("getPrice") || id === tfRouter.id };
 }
 
 function metadata(fileName: string, source: string) {
-  const { id, label, icon, version, readme, modelsUrl, rules, models, supportsPrice, supportsBalance } = parseProvider(source);
+  const { id, label, icon, version, readme, modelsUrl, rules, models, supportsPrice } = parseProvider(source);
   if (fileName !== `${id}.ts`) invalid("供应商 ID 与文件名不一致");
   // ACT: 兼容旧 TF-Router 文件，缺少列表地址时使用内置定义。
   return { fileName, id, label, icon, version, readme, modelsUrl: modelsUrl ?? (id === tfRouter.id ? tfRouter.modelsUrl : undefined), rules, models,
-    supportsPrice, supportsBalance, revision: createHash("sha256").update(source).digest("hex"), loadError: "" };
+    supportsPrice, revision: createHash("sha256").update(source).digest("hex"), loadError: "" };
 }
 
 export function validateMediaProviderSource(source: string) {
@@ -401,7 +401,6 @@ export async function loadMediaProviderSource(source: string, config: Record<str
   // ACT: 已安装 TF-Router 仅补齐缺省查询能力，保留用户适配代码与模型列表。
   if (id === tfRouter.id) {
     definition.getPrice ??= tfRouter.getPrice;
-    definition.getBalance ??= tfRouter.getBalance;
   }
   const rules = Array.isArray(definition.rules) ? definition.rules : [];
   const providerConfig = { ...Object.fromEntries(rules.map(rule => [rule.field, rule.value])), ...structuredClone(config) };

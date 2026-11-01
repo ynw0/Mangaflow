@@ -14,24 +14,29 @@ type FfmpegInternals = ffmpeg.FfmpegCommand & {
 const require = createRequire(import.meta.url);
 const native = ffmpeg.prototype as FfmpegInternals;
 
-/** 原生 fluent 工厂；文件路径相对工作区解析，不修改库的全局原型。 */
-export function createFfmpeg(directory: string): typeof ffmpeg {
+type BoundaryAction = "read" | "write";
+
+/** 原生 fluent 工厂；文件路径相对工作区解析，不修改库的全局原型。已授权的工作区外路径由 allowed 放行。 */
+export function createFfmpeg(directory: string, allowed?: (path: string, action: BoundaryAction) => boolean): typeof ffmpeg {
   const root = realpathSync(directory);
   if (!statSync(root).isDirectory()) throw new Error("FFmpeg 工作区必须是目录");
 
-  function assertWithin(path: string) {
+  function assertWithin(path: string, action: BoundaryAction | "strict") {
     const offset = relative(root, path);
     if (offset === ".." || offset.startsWith(`..${sep}`) || isAbsolute(offset)) {
-      throw Object.assign(new Error("FFmpeg 只能操作当前工作区内的文件"), { status: 403 });
+      if (action !== "strict" && allowed?.(path, action)) return;
+      const error = Object.assign(new Error("FFmpeg 只能操作当前工作区内的文件"), { status: 403 });
+      if (action !== "strict") Object.assign(error, { code: "WORKSPACE_BOUNDARY", boundaryPath: path, boundaryAction: action });
+      throw error;
     }
   }
 
-  function resolvePath(path: string, folder = false): string {
+  function resolvePath(path: string, folder = false, action: BoundaryAction | "strict" = "read"): string {
     if (!path || /[\x00-\x1f]/.test(path) || (/^[a-z][a-z\d+.-]*:/i.test(path) && !/^[a-z]:[\\/]/i.test(path))) {
       throw new Error("FFmpeg 文件路径无效，不能使用协议或设备路径");
     }
     const target = resolve(root, path);
-    assertWithin(target);
+    assertWithin(target, action);
     if (process.platform === "win32" && target.slice(parse(target).root.length).split(/[\\/]/).some(part =>
       /[:<>"|?*]|[. ]$/.test(part) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part))) {
       throw new Error("FFmpeg 文件路径无效");
@@ -40,7 +45,7 @@ export function createFfmpeg(directory: string): typeof ffmpeg {
     while (true) {
       try {
         const actual = resolve(realpathSync(parent), relative(parent, target));
-        assertWithin(actual);
+        assertWithin(actual, action);
         if (!folder && actual === root) throw new Error("FFmpeg 文件路径不能是工作区根目录");
         return actual;
       } catch (error) {
@@ -54,28 +59,28 @@ export function createFfmpeg(directory: string): typeof ffmpeg {
     }
   }
 
-  function fileArgument<T>(value: T): T {
-    if (typeof value === "string") return resolvePath(value) as T;
+  function fileArgument<T>(value: T, action: BoundaryAction): T {
+    if (typeof value === "string") return resolvePath(value, false, action) as T;
     if (value && typeof value === "object" && "path" in value) {
       const path = value.path;
-      if (typeof path === "string" || Buffer.isBuffer(path)) resolvePath(resolve(String(path)));
+      if (typeof path === "string" || Buffer.isBuffer(path)) resolvePath(resolve(String(path)), false, action);
     }
     return value;
   }
 
   function checkFiles(command: FfmpegInternals) {
-    command.options.cwd = resolvePath(command.options.cwd ?? root, true);
-    for (const input of command._inputs) fileArgument(input.source);
-    for (const output of command._outputs) fileArgument(output.target);
+    command.options.cwd = resolvePath(command.options.cwd ?? root, true, "strict");
+    for (const input of command._inputs) fileArgument(input.source, "read");
+    for (const output of command._outputs) fileArgument(output.target, "write");
   }
 
   // ACT: 只保护显式文件入口；原始参数、滤镜、清单内的间接 I/O 仍是可信代码，不是进程沙箱。
   const proto = Object.create(native) as FfmpegInternals;
   proto.input = proto.addInput = proto.mergeAdd = function(source) {
-    return native.input.call(this, fileArgument(source));
+    return native.input.call(this, fileArgument(source, "read"));
   };
   proto.output = proto.addOutput = function(target, options) {
-    return native.output.call(this, fileArgument(target), options);
+    return native.output.call(this, fileArgument(target, "write"), options);
   };
   proto.clone = function() {
     // ACT: fluent 2.3.3 已设置输出时 clone.output() 会抛错；用空输出保留原生“不复制输出”的语义。
@@ -103,18 +108,18 @@ export function createFfmpeg(directory: string): typeof ffmpeg {
   };
   proto.screenshots = proto.screenshot = proto.takeScreenshots = proto.thumbnail = proto.thumbnails = function(config, folder) {
     const settings = typeof config === "number" ? { count: config } : { ...config };
-    settings.folder = resolvePath(settings.folder ?? folder ?? root, true);
-    resolvePath(join(settings.folder, settings.filename || "tn.png"));
+    settings.folder = resolvePath(settings.folder ?? folder ?? root, true, "write");
+    resolvePath(join(settings.folder, settings.filename || "tn.png"), false, "write");
     return native.screenshots.call(this, settings);
   };
   proto.concat = proto.concatenate = proto.mergeToFile = function(target, options?: string | { end?: boolean }) {
-    return Reflect.apply(native.concat, this, [fileArgument(target), options]);
+    return Reflect.apply(native.concat, this, [fileArgument(target, "write"), options]);
   };
   proto.preset = proto.usingPreset = function(preset) {
     if (typeof preset === "string") {
-      this.options.presets = resolvePath(this.options.presets ?? this.options.preset ?? root, true);
-      const path = resolvePath(join(this.options.presets, preset));
-      resolvePath(require.resolve(path));
+      this.options.presets = resolvePath(this.options.presets ?? this.options.preset ?? root, true, "read");
+      const path = resolvePath(join(this.options.presets, preset), false, "read");
+      resolvePath(require.resolve(path), false, "read");
     }
     return native.preset.call(this, preset);
   };
@@ -122,7 +127,7 @@ export function createFfmpeg(directory: string): typeof ffmpeg {
   const factory = function(input?: string | Readable | ffmpeg.FfmpegCommandOptions, options?: ffmpeg.FfmpegCommandOptions) {
     const settings = typeof input === "object" && input && !("readable" in input)
       ? { ...input } : { ...options, source: input as string | Readable | undefined };
-    settings.cwd = resolvePath(settings.cwd ?? root, true);
+    settings.cwd = resolvePath(settings.cwd ?? root, true, "strict");
     return Reflect.construct(ffmpeg, [settings], factory);
   } as typeof ffmpeg;
   Object.setPrototypeOf(factory, ffmpeg);

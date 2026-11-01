@@ -26,20 +26,6 @@
       "title": "加载图像"
     }
   },
-  "122": {
-    "inputs": {
-      "预设分辨率": "自定义",
-      "横竖对调": false,
-      "批量大小": 1,
-      "自定义宽": 768,
-      "自定义高": 1344,
-      "缩放倍数": "32"
-    },
-    "class_type": "WJILatentPreset",
-    "_meta": {
-      "title": "📐 Latent预设 (Empty Latent Preset)"
-    }
-  },
   "128": {
     "inputs": {
       "image": "zhcnsuggestion_Real_3D_anime_character_Rinoa_Heartilly_from_Fin_9e18b254-2e7a-44b8-a0e9-067bb5225dac.png"
@@ -165,32 +151,6 @@
       "title": "🎈RAM-Cleanup"
     }
   },
-  "148": {
-    "inputs": {
-      "extra_steps": 2,
-      "start_at_sigma": 0.65,
-      "end_at_sigma": 0,
-      "spacing": "cosine",
-      "sigmas": [
-        "105:9",
-        0
-      ]
-    },
-    "class_type": "H3SigmaRefiner",
-    "_meta": {
-      "title": "H3 Sigma Refiner"
-    }
-  },
-  "149": {
-    "inputs": {
-      "offload_model": true,
-      "offload_cache": true
-    },
-    "class_type": "VRAMCleanup",
-    "_meta": {
-      "title": "🎈VRAM-Cleanup"
-    }
-  },
   "105:11": {
     "inputs": {
       "vae_name": "minimax_h3_video_vae_fp16.safetensors"
@@ -211,7 +171,7 @@
   },
   "105:13": {
     "inputs": {
-      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
       "type": "minimax",
       "device": "default"
     },
@@ -231,7 +191,7 @@
   },
   "105:6": {
     "inputs": {
-      "unet_name": "minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "unet_name": "h3\\DasiwaMinimaxH3_dasiwaHybridV2_int8.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
@@ -259,7 +219,7 @@
   },
   "105:129": {
     "inputs": {
-      "lora_name": "minimax/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+      "lora_name": "minimax h3\\加速\\TaoMate-H3-3step.safetensors",
       "strength_model": 1,
       "model": [
         "105:6",
@@ -290,14 +250,8 @@
         "136",
         0
       ],
-      "width": [
-        "122",
-        1
-      ],
-      "height": [
-        "122",
-        2
-      ],
+      "width": 768,
+      "height": 1344,
       "length": [
         "105:107",
         1
@@ -326,8 +280,8 @@
   },
   "105:9": {
     "inputs": {
-      "scheduler": "beta",
-      "steps": 10,
+      "scheduler": "simple",
+      "steps": 3,
       "denoise": 1,
       "model": [
         "129",
@@ -370,7 +324,7 @@
         0
       ],
       "sigmas": [
-        "148",
+        "105:9",
         0
       ],
       "latent_image": [

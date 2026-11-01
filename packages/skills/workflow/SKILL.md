@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: 按小说或用户query制作漫剧。先编剧，再资产规划，再角色、场景、道具原画与对应审核，再视频导演、视频提示词审核与成片审核。出图直接调用 Qwen 图像 API。出视频用 AutoDL 或本机的 ComfyUI。用户要做短剧、漫剧、分镜、资产或镜头时使用。
+description: 按小说或用户query制作漫剧。先编剧，再资产规划，再角色、场景、道具原画与对应审核，再视频导演、视频提示词审核与成片审核。出图按系统设置走 Qwen 图像 API 或 ComfyUI 工作流。出视频用 AutoDL 或本机的 ComfyUI。用户要做短剧、漫剧、分镜、资产或镜头时使用。
 metadata:
   version: "1.2.0"
   displayName: 漫剧制作
@@ -9,7 +9,7 @@ metadata:
 
 # 漫剧制作
 
-把小说或用户query做成可出图、可出视频的镜头。判断规则用本技能的 references，不要用聊天印象代替。出图直接调用 Qwen 图像 API。出视频的 ComfyUI 按系统设置走 AutoDL 实例，或走本机已经启动的 ComfyUI。
+把小说或用户query做成可出图、可出视频的镜头。判断规则用本技能的 references，不要用聊天印象代替。出图以系统提示里的 production.image 为准。出视频的 ComfyUI 按系统设置走 AutoDL 实例，或走本机已经启动的 ComfyUI。
 
 references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前画布的文本节点；审核通过后才生成。审核不通过时，只把 findings 退回原来的专职重写，总控不改 prompt、不改槽位。
 
@@ -19,9 +19,9 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 
 | 阶段 | 先读 | 完成后 |
 | --- | --- | --- |
-| 文本改编 | [adaptationStrategy.md](references/adaptationStrategy.md) | 剧本画布上的改编原则与取舍 |
+| 文本改编 | [adaptationStrategy.md](references/adaptationStrategy.md)，题材对得上时再读 [genreCraft.md](references/genreCraft.md) | 剧本画布上的改编原则与取舍 |
 | 逐集剧本（可选） | [episodeScript.md](references/episodeScript.md) | 剧本画布上的场次正文；需完整对白时用 |
-| 剧本与镜头 | [story-planner.md](references/story-planner.md) | 剧本画布上的集与镜头合同 |
+| 剧本与镜头 | [story-planner.md](references/story-planner.md)，场次与钩子另见 [shortDramaCraft.md](references/shortDramaCraft.md) | 剧本画布上的集与镜头合同 |
 | 资产规划 | [asset-planner.md](references/asset-planner.md) | 资产画布上的复用、新建与变体 |
 | 角色原画 | [character-art.md](references/character-art.md) 然后 [character-prompt-review.md](references/character-prompt-review.md) | 审核通过的设定图；面部特写加正侧背 |
 | 场景原画 | [scene-art.md](references/scene-art.md) 然后 [scene-prompt-review.md](references/scene-prompt-review.md) | 要换机位或反复出现时做四方向拼版；只做氛围或转场时做无人空镜 |
@@ -31,6 +31,6 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 
 官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing → video-director → video-prompt-review → Comfy H3 Ref2VA）。
 
-出图用系统设置里的 Qwen 图像模型，默认 `qwen-image-3.0-pro`，`providerId` 为 `qwenImage`，直接调模型 API。出视频只用 ComfyUI 工作流，`providerId` 为 `comfyui`；`production.video.host` 为 `local` 时用本机地址，为 `autodl` 时用 AutoDL 实例。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片 16:9。
+出图以 production.image 为准。providerId 为 comfyui 时，没有参考图用 modelId，有参考图用 editModelId，ComfyUI 与出视频共用 host。modelId 或 editModelId 为 `image/flux3KleinT2i`、`image/flux3KleinDistilledT2i`、`image/flux3KleinEdit` 或 `image/flux3KleinDistilledEdit` 时，原画按 [common.md](references/common.md)「Flux.3 Klein 出图」写：只要正面场景描述，不写负面提示词，不加提示词扩写器。否则用其中的 providerId 与 modelId 调图像 API。出视频只用 ComfyUI 工作流，`providerId` 为 `comfyui`；`production.video.host` 为 `local` 时用本机地址，为 `autodl` 时用 AutoDL 实例。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片 16:9。
 
 生成前把方案里的提示词、参考图和所选工作流给用户看。用户同意后才生成。出视频失败先看当前选中的 ComfyUI 是否连通，不换工作流重试。

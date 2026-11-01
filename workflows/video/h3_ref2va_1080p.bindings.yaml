@@ -14,6 +14,18 @@ bindings:
 - source: duration
   target: 6.inputs.value
   kind: value
+- source: aspect_ratio
+  target: 5.inputs.aspect_ratio
+  kind: value
+  required: false
+- source: delivery.width
+  target: 52.inputs.width
+  kind: value
+  required: false
+- source: delivery.height
+  target: 52.inputs.height
+  kind: value
+  required: false
 - source: refs.slot1
   target: 20.inputs.image
   kind: image

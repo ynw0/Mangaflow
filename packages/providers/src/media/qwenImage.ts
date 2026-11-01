@@ -40,9 +40,12 @@ function pixelSize(size: string | undefined, ratio: string | undefined) {
     "8:3": "2048*768",
     "1:1": "1024*1024",
     "16:9": "1344*768",
-    "3:4": "768*1024",
-    "4:3": "1024*768",
     "9:16": "768*1344",
+    "4:3": "1024*768",
+    "3:4": "768*1024",
+    "3:2": "1248*832",
+    "2:3": "832*1248",
+    "21:9": "1568*672",
   };
   return mapped[ratio?.trim() ?? ""] ?? "1024*1024";
 }
@@ -69,8 +72,8 @@ export default {
       label: "Qwen Image 3.0 Pro",
       type: "image",
       mode: ["text", "multiReference"],
-      imageSizes: ["2048x768", "1024x1024", "1344x768", "768x1024"],
-      imageRatios: ["8:3", "1:1", "16:9", "3:4"],
+      imageSizes: ["2048x768", "1024x1024", "1344x768", "768x1024", "768x1344", "1024x768", "1248x832", "832x1248", "1568x672"],
+      imageRatios: ["8:3", "1:1", "16:9", "3:4", "9:16", "4:3", "3:2", "2:3", "21:9"],
     },
   ],
   async generateImage(this: Context, request: ImageRequest): Promise<MediaAsset[]> {

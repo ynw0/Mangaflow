@@ -82,6 +82,15 @@ export interface MediaModel {
   imageSizes?: string[];
   imageRatios?: string[];
   durationResolutionMap?: { duration: number[]; resolution: string[] }[];
+  /** 二采：节点 8 的百万像素档，以及节点 151 的放大倍率。有此字段时界面不使用分辨率。 */
+  sampling?: {
+    megapixels: number[];
+    multiple: number;
+    upscaleMin: number;
+    upscaleMax: number;
+    upscaleStep: number;
+    upscaleDefault: number;
+  };
   audio?: boolean | "optional";
   voices?: { title: string; voice: string }[];
 }
@@ -107,6 +116,10 @@ export interface MediaGenerationRequest {
   duration?: number;
   /** ComfyUI 工作流种子；云视频可忽略 */
   seed?: number;
+  /** 二采节点 8 的百万像素；云视频可忽略 */
+  megapixels?: number;
+  /** 二采节点 151 的放大倍率；云视频可忽略 */
+  upscale?: number;
   generateAudio?: boolean;
   voice?: string;
   speed?: number;
@@ -125,11 +138,27 @@ export interface GeneratedMedia {
   mediaType: "image" | "video" | "audio";
 }
 
+/** 成片质检入参。模型与档位由设置决定，调用方只提供工作区视频。 */
+export interface QcVideoRequest {
+  videoPath: string;
+  checklist?: string;
+}
+
+export interface QcVideoResult {
+  status: "ok" | "rejected" | "unverified";
+  findings: { domain: "video" | "audio" | "general"; text: string }[];
+  videoModelId: string;
+  audioModelId: string;
+  merged: boolean;
+}
+
 export interface MediaContext {
   listModels(): Promise<MediaModel[]>;
   generateImage(request: MediaGenerationRequest, signal?: AbortSignal): Promise<GeneratedMedia[]>;
   generateVideo(request: MediaGenerationRequest, signal?: AbortSignal): Promise<GeneratedMedia[]>;
   generateAudio(request: MediaGenerationRequest, signal?: AbortSignal): Promise<GeneratedMedia[]>;
+  /** 按设置里的质检模型和档位验收一条工作区视频。 */
+  qcVideo(request: QcVideoRequest, signal?: AbortSignal): Promise<QcVideoResult>;
 }
 
 export interface QuestionField {

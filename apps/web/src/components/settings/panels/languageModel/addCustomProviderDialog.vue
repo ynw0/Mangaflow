@@ -47,6 +47,12 @@
                 aria-label="删除模型"
                 @click="models = models.filter((model) => model.key !== item.key)" />
             </div>
+            <div class="inputCaps">
+              <span>可输入</span>
+              <el-checkbox v-model="item.inputs.image">图像</el-checkbox>
+              <el-checkbox v-model="item.inputs.video">视频</el-checkbox>
+              <el-checkbox v-model="item.inputs.audio">音频</el-checkbox>
+            </div>
             <div v-if="expandedModels.has(item.key)" class="formGrid tokenSettings">
               <el-form-item label="上下文窗口">
                 <el-input-number
@@ -119,7 +125,7 @@ import {
   IconChevronUp,
   IconSearch,
 } from "@tabler/icons-vue";
-import { saveSettings, type CustomProvider, type CustomProviderModel } from "@/stores/settings";
+import { modelInputs, saveSettings, type CustomProvider, type CustomProviderModel } from "@/stores/settings";
 import { languageProviders } from "@toonflow/providers";
 import { isTfRouterProvider } from "@/lib/tf";
 
@@ -189,7 +195,7 @@ watch(visible, (value) => {
     if (props.provider) {
       const { models: providerModels, id, label, apiUrl, protocol, apiKey } = props.provider;
       Object.assign(form, { id, label, apiUrl, protocol, apiKey });
-      models.value = providerModels.map((item) => ({ ...item, key: crypto.randomUUID() }));
+      models.value = providerModels.map((item) => ({ ...item, key: crypto.randomUUID(), inputs: modelInputs(item.inputs) }));
     }
   } else {
     request?.abort();
@@ -249,7 +255,7 @@ function addSelectedModels() {
   const added = new Set(addedIds.value);
   for (const item of fetchedModels.value) {
     if (selectedIds.value.has(item.id) && !added.has(item.id)) {
-      models.value.push({ ...item, key: crypto.randomUUID() });
+      models.value.push({ ...item, key: crypto.randomUUID(), inputs: modelInputs(item.inputs) });
       added.add(item.id);
     }
   }
@@ -258,7 +264,7 @@ function addSelectedModels() {
 
 function addManualModel() {
   const key = crypto.randomUUID();
-  models.value.push({ key, id: "", label: "" });
+  models.value.push({ key, id: "", label: "", inputs: modelInputs(undefined) });
 }
 
 async function addProvider() {
@@ -292,6 +298,7 @@ async function addProvider() {
         label: item.label.trim() || item.id.trim(),
         contextWindow: item.contextWindow ?? undefined,
         maxOutputTokens: item.maxOutputTokens ?? undefined,
+        inputs: modelInputs(item.inputs),
       })),
     };
     await saveSettings(settings => {
@@ -351,6 +358,15 @@ async function addProvider() {
           margin: 0;
           padding: 4px;
         }
+      }
+
+      .inputCaps {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-top: 8px;
+        color: var(--el-text-color-secondary);
+        font-size: 13px;
       }
 
       .tokenSettings {

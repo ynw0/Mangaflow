@@ -248,20 +248,6 @@ export default {
     if (amount < 0 || typeof price.unit !== "string" || !price.unit.trim()) throw new Error("TF-router 价格响应格式错误");
     return { price: `${amount} ${price.unit.trim()}`, tips: "以实际扣费为准" };
   },
-  async getBalance(): Promise<ProviderBalance> {
-    const result = await fetchJson(this, "balance");
-    if (result.code !== 200) throw new Error(this.tool.errorMessage(result) || "TF-router 余额查询失败");
-    const balance = object(result.data);
-    // ACT: 旧版余额接口以元计价且没有 unit；升级接口返回单位后直接沿用，不换算数值。
-    const unit = balance.unit === undefined ? "元" : balance.unit;
-    if (typeof unit !== "string" || !unit.trim()) throw new Error("TF-router 余额单位格式错误");
-    return {
-      balance: balanceAmount(balance.balance), unit: unit.trim(),
-      ...(balance.keyBalance === undefined ? {} : { keyBalance: balance.keyBalance === null ? null : balanceAmount(balance.keyBalance) }),
-      ...(balance.totalConsumption === undefined ? {} : { totalConsumption: balanceAmount(balance.totalConsumption) }),
-      ...(balance.totalRecharge === undefined ? {} : { totalRecharge: balanceAmount(balance.totalRecharge) }),
-    };
-  },
   async generateImage(request: ImageRequest): Promise<MediaAsset[]> {
     const model = request.model.toLowerCase();
     const images = (request.images ?? []).map(mediaUrl);

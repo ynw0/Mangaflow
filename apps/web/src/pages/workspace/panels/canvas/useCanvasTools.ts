@@ -3,7 +3,10 @@ import { useVueFlow, type XYPosition } from "@vue-flow/core";
 import { useNodeEvent, useNodeToolsContext, validateConnection } from "@toonflow/nodes-scaffold/runtime";
 import { canvasSchemas, type CanvasContext, type CanvasToolCall } from "@toonflow/tool-canvas/runtime";
 import { arrangeCanvas } from "./arrangeCanvas";
-import { canvasEdgeSummary, canvasNodeSummary, createCanvasQueries, isCanvasRead } from "./canvasQueries";
+import { canvasEdgeSummary, canvasNodeSummary, canvasSwitchedMessage, createCanvasQueries, isCanvasRead, type CanvasTurn } from "./canvasQueries";
+
+// 各画布实例各自创建工具上下文。本轮画布记在上下文对象上，换画布后两边读同一份。
+const turnScopes = new WeakMap<CanvasContext, CanvasTurn>();
 
 export function useCanvasTools(options: {
   availableNodes: Ref<{ type: string; label: string }[]>;
@@ -38,14 +41,14 @@ export function useCanvasTools(options: {
     nodeTools: getNodeTools,
   });
 
-  function findNode(nodeId: string) {
+  function findNode(nodeId: string, turn: CanvasTurn) {
     const node = flow.findNode(nodeId);
-    if (!node) throw new Error(`节点不存在：${nodeId}`);
+    if (!node) throw new Error(turn.changed ? canvasSwitchedMessage(turn.id) : `节点不存在：${nodeId}`);
     return node;
   }
 
-  function nodeInfo(nodeId: string) {
-    const node = findNode(nodeId);
+  function nodeInfo(nodeId: string, turn: CanvasTurn) {
+    const node = findNode(nodeId, turn);
     return { node: { ...canvasNodeSummary(node), position: { x: node.position.x, y: node.position.y } } };
   }
 
@@ -57,7 +60,7 @@ export function useCanvasTools(options: {
 
   return (id: string, canvasSignal: AbortSignal, workspaceSignal: AbortSignal): CanvasContext => {
     let redirected: CanvasContext | undefined;
-    return {
+    const context: CanvasContext = {
       get id() { return redirected?.id ?? options.getCanvasBinding().id; },
       // 函数定义通过 getNodeTools 按需发现，初始化消息不携带节点清单。
       tools: [],
@@ -68,10 +71,15 @@ export function useCanvasTools(options: {
         return typeof label === "string" && label.trim() ? label : undefined;
       },
       async call(request, signal) {
-        if (redirected) return redirected.call(request, signal);
+        const turn = turnScopes.get(context)!;
+        if (redirected) {
+          turnScopes.set(redirected, turn);
+          return redirected.call(request, signal);
+        }
         canvasSignal.throwIfAborted();
         id = options.getCanvasBinding().id;
         const changesCanvas = request.name === "addCanvas" || request.name === "switchCanvas" || request.name === "renameCanvas";
+        if (!isCanvasRead(request.name) && !changesCanvas && id !== turn.id) throw new Error(canvasSwitchedMessage(turn.id));
         const callSignal = AbortSignal.any([workspaceSignal, ...(changesCanvas ? [] : [canvasSignal]), AbortSignal.timeout(120000), ...(signal ? [signal] : [])]);
         callSignal.throwIfAborted();
         let cancel = () => {};
@@ -79,20 +87,27 @@ export function useCanvasTools(options: {
           return await Promise.race([
             Promise.resolve().then(async () => {
               canvasSignal.throwIfAborted();
-              let result = await execute(request, callSignal, id);
+              let result = await execute(request, callSignal, id, turn);
               callSignal.throwIfAborted();
               if (changesCanvas) {
-                const nextContext = options.resolveCanvasContext?.(String(result));
+                const nextId = String(result);
+                const nextContext = options.resolveCanvasContext?.(nextId);
                 if (nextContext) {
+                  const resolvedId = nextContext.id;
+                  if (request.name !== "renameCanvas" && resolvedId !== turn.id) turn.changed = true;
+                  turn.id = resolvedId;
                   redirected = nextContext;
+                  turnScopes.set(nextContext, turn);
                   return nextContext.call({ name: "getCanvas", args: {} }, callSignal);
                 }
+                if (request.name !== "renameCanvas" && nextId !== turn.id) turn.changed = true;
+                turn.id = nextId;
                 const binding = options.getCanvasBinding();
-                if (binding.id !== result) throw new Error("画布已再次切换，请重新发送消息");
+                if (binding.id !== nextId) throw new Error(canvasSwitchedMessage(turn.id));
                 binding.signal.throwIfAborted();
                 id = binding.id;
                 canvasSignal = binding.signal;
-                result = await execute({ name: "getCanvas", args: {} }, callSignal, id);
+                result = await execute({ name: "getCanvas", args: {} }, callSignal, id, turn);
               }
               if (!isCanvasRead(request.name) && request.name !== "selectNodes") await options.flushSave();
               callSignal.throwIfAborted();
@@ -108,16 +123,18 @@ export function useCanvasTools(options: {
           callSignal.removeEventListener("abort", cancel);
         }
       },
-      };
+    };
+    turnScopes.set(context, { id, changed: false });
+    return context;
   };
 
-  async function execute(request: CanvasToolCall, signal: AbortSignal, canvasId: string): Promise<unknown> {
+  async function execute(request: CanvasToolCall, signal: AbortSignal, canvasId: string, turn: CanvasTurn): Promise<unknown> {
     signal.throwIfAborted();
     if (!canvasId && !["getCanvas", "addCanvas", "switchCanvas"].includes(request.name)) throw new Error("请先选择画布");
     if (isCanvasRead(request.name)) {
       await nextTick();
       signal.throwIfAborted();
-      return readCanvas(request, canvasId, signal);
+      return readCanvas(request, canvasId, signal, turn);
     }
     switch (request.name) {
       case "addCanvas": {
@@ -145,12 +162,12 @@ export function useCanvasTools(options: {
         flow.addNodes({ id, type: type.type, position: nodePosition(args.position), data: { label: args.label ?? type.label } });
         await nextTick();
         signal.throwIfAborted();
-        return nodeInfo(id);
+        return nodeInfo(id, turn);
       }
       case "deleteNodes": {
         const { nodeIds } = canvasSchemas.deleteNodes.parse(request.args);
         const idSet = new Set(nodeIds);
-        const nodes = nodeIds.map(findNode);
+        const nodes = nodeIds.map(nodeId => findNode(nodeId, turn));
         nodes.forEach(node => {
           if (node.deletable === false) throw new Error(`节点不允许删除：${node.id}`);
           if (flow.getNodes.value.some(item => item.parentNode === node.id && !idSet.has(item.id))) {
@@ -170,24 +187,24 @@ export function useCanvasTools(options: {
       }
       case "moveNodes": {
         const { moves } = canvasSchemas.moveNodes.parse(request.args);
-        moves.forEach(move => { if (findNode(move.nodeId).draggable === false) throw new Error(`节点不允许移动：${move.nodeId}`); });
+        moves.forEach(move => { if (findNode(move.nodeId, turn).draggable === false) throw new Error(`节点不允许移动：${move.nodeId}`); });
         moves.forEach(move => flow.updateNode(move.nodeId, { position: nodePosition(move.position) }));
         await nextTick();
-        return { nodes: moves.map(move => nodeInfo(move.nodeId)) };
+        return { nodes: moves.map(move => nodeInfo(move.nodeId, turn)) };
       }
       case "renameNodes": {
         const { renames } = canvasSchemas.renameNodes.parse(request.args);
-        renames.forEach(rename => findNode(rename.nodeId));
+        renames.forEach(rename => findNode(rename.nodeId, turn));
         renames.forEach(rename => flow.updateNodeData(rename.nodeId, { label: rename.label }));
         await nextTick();
-        return { nodes: renames.map(rename => nodeInfo(rename.nodeId)) };
+        return { nodes: renames.map(rename => nodeInfo(rename.nodeId, turn)) };
       }
       case "connectNodes": {
         const { connections } = canvasSchemas.connectNodes.parse(request.args);
         const edges = [...flow.getEdges.value];
         const entries = connections.map(connection => {
-          const sourceNode = findNode(connection.source);
-          const targetNode = findNode(connection.target);
+          const sourceNode = findNode(connection.source, turn);
+          const targetNode = findNode(connection.target, turn);
           if (!flow.nodesConnectable.value || sourceNode.connectable === false || targetNode.connectable === false) {
             throw new Error(`节点不允许连接：${connection.source} -> ${connection.target}`);
           }
@@ -214,7 +231,7 @@ export function useCanvasTools(options: {
         const { edgeIds } = canvasSchemas.deleteEdges.parse(request.args);
         edgeIds.forEach(edgeId => {
           const edge = flow.findEdge(edgeId);
-          if (!edge) throw new Error(`连线不存在：${edgeId}`);
+          if (!edge) throw new Error(turn.changed ? canvasSwitchedMessage(turn.id) : `连线不存在：${edgeId}`);
           if (edge.deletable === false) throw new Error(`连线不允许删除：${edgeId}`);
         });
         const nodeIds = [...new Set(edgeIds.flatMap(id => {
@@ -223,11 +240,11 @@ export function useCanvasTools(options: {
         }))];
         flow.removeEdges(edgeIds);
         await nextTick();
-        return { edgeIds, nodes: nodeIds.map(id => nodeInfo(id)) };
+        return { edgeIds, nodes: nodeIds.map(nodeId => nodeInfo(nodeId, turn)) };
       }
       case "selectNodes": {
         const { nodeIds } = canvasSchemas.selectNodes.parse(request.args);
-        const nodes = nodeIds.map(findNode);
+        const nodes = nodeIds.map(nodeId => findNode(nodeId, turn));
         if (nodes.some(node => node.selectable === false)) throw new Error("节点不允许选择");
         flow.removeSelectedElements();
         flow.addSelectedNodes(nodes);
@@ -242,7 +259,7 @@ export function useCanvasTools(options: {
       }
       case "fitCanvas": {
         const { nodeIds } = canvasSchemas.fitCanvas.parse(request.args);
-        nodeIds?.forEach(findNode);
+        nodeIds?.forEach(nodeId => findNode(nodeId, turn));
         await nextTick();
         signal.throwIfAborted();
         flow.updateNodeInternals(nodeIds ?? flow.getNodes.value.map(node => node.id));
@@ -252,6 +269,7 @@ export function useCanvasTools(options: {
       }
       case "nodeTools": {
         const args = canvasSchemas.nodeTools.parse(request.args);
+        findNode(args.nodeId, turn);
         return getNodeTools().call(args, signal);
       }
       default: throw new Error(`未知画布操作：${request.name}`);

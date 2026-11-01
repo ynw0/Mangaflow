@@ -34,7 +34,7 @@
           <div class="messageComposer">
             <el-input v-model="draft" type="textarea" :rows="3" resize="none" :placeholder="placeholder" :disabled="busy" aria-label="对话消息输入" @keydown="handleInputKeydown" />
             <div class="composerActions">
-              <modelPopover v-model="selectedModel" v-model:reasoningEffort="reasoningEffort" :active="visible" :disabled="busy" />
+              <modelPopover v-model="selectedModel" :active="visible" :disabled="busy" />
               <span v-if="status !== 'idle'" class="executionStatus" :class="{ pausedStatus: status === 'paused' }" role="status" aria-live="polite">{{ statusLabels[status] }}</span>
               <div class="executionActions">
                 <el-button v-if="status === 'running'" text :icon="IconPlayerPause" @click="pause">暂停</el-button>
@@ -76,7 +76,7 @@ import modelPopover from "@/components/modelPopover.vue";
 import messageMarkdown from "@/components/messageMarkdown.vue";
 import toolMessage from "./agent/toolMessage.vue";
 import { createReplyStream, readAgentEvents } from "./agent/replyStream";
-import { modelChoices } from "@/stores/settings";
+import { modelChoices, thinkingLevelSetting } from "@/stores/settings";
 import { writeClipboardText } from "@/lib/clipboard";
 
 const props = withDefaults(defineProps<{
@@ -90,7 +90,6 @@ const props = withDefaults(defineProps<{
 const visible = defineModel<boolean>({ default: false });
 const msgList = defineModel<AgentMessage[]>("msgList", { default: () => [] });
 const selectedModel = defineModel<string>("model", { default: "" });
-const thinkingLevel = defineModel<"" | "off" | "low" | "medium" | "high">("thinkingLevel", { default: "off" });
 const emit = defineEmits<{
   complete: [result: SingleAgentDialogResult];
   error: [error: Error];
@@ -106,10 +105,6 @@ const status = ref<"idle" | "running" | "pausing" | "paused">("idle");
 const busy = ref(false);
 const messageList = ref<HTMLElement>();
 const tools = computed<ToolCall[]>(() => msgList.value.flatMap(message => message.parts?.flatMap(part => part.type === "tool" ? [part.tool] : []) ?? []));
-const reasoningEffort = computed({
-  get: () => thinkingLevel.value,
-  set: (value: "" | "off" | "low" | "medium" | "high") => { thinkingLevel.value = value; },
-});
 const statusLabels = { idle: "", running: "执行中", pausing: "等待当前操作结束…", paused: "已暂停，可人工操作" };
 const requestHeaders = { "x-toonflow-workspace": "1" };
 let lifecycle = new AbortController();
@@ -224,7 +219,7 @@ async function send(content = draft.value) {
     accepted = true;
     const response = await fetch("/api/singleAgent/run", {
       method: "POST", headers: { ...requestHeaders, "Content-Type": "application/json" }, signal,
-      body: JSON.stringify({ sessionId: id, runId: reply.id, prompt, providerId: model.providerId, modelId: model.modelId, thinkingLevel: thinkingLevel.value || "off" }),
+      body: JSON.stringify({ sessionId: id, runId: reply.id, prompt, providerId: model.providerId, modelId: model.modelId, thinkingLevel: thinkingLevelSetting.value || "off" }),
     });
     for await (const event of readAgentEvents<SingleAgentEvent>(response, signal)) {
       if (lifecycle !== owner) break;

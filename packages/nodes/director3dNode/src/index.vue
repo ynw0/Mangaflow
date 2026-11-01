@@ -1,15 +1,19 @@
 <template>
   <nodeSkeleton v-bind="nodeProps" style="width: 320px">
-    <button v-loading="modelLoading" type="button" class="directorContent nopan" :disabled="modelLoading" :title="modelError || undefined" aria-label="打开导演台" @dblclick.stop @click.stop="openEditor">
+    <button v-loading="modelLoading" type="button" class="directorContent nopan" :disabled="modelLoading" :title="modelError || runningGeneration?.status" aria-label="打开导演台" @dblclick.stop @click.stop="openEditor">
       <img v-if="preview" class="scenePreview" :src="preview" alt="最后镜头" draggable="false" />
       <div v-else class="emptyPreview">
         <icon-cube3d-sphere :size="38" stroke="1.2" />
+      </div>
+      <div v-if="runningGeneration" class="generationStatus">
+        <span role="status">{{ runningGeneration.status }}</span>
+        <small>已进行 {{ formatGenerationElapsed(runningGeneration.startedAt, now) }}</small>
       </div>
     </button>
   </nodeSkeleton>
   <sceneEditor v-if="editing" v-model:anchors="anchors" v-model:prompt="prompt" v-model:model="model" v-model:lighting="lighting" v-model:sceneSettings="sceneSettings"
     :scene="scene" :result="selectedPlan" :models="models" :modelsLoading="modelsLoading" :addingMannequin="addingMannequin"
-    :plans="plans" :selectedPlanId="data.selectedPlanId ?? ''" :tasks="tasks"
+    :plans="plans" :selectedPlanId="data.selectedPlanId ?? ''" :tasks="tasks" :now="now"
     :exportingVideo="exportingVideo" :exportingImage="exportingImage" :exportProgress="exportProgress"
     @exportVideo="exportVideo" @exportImage="exportImage" @addMannequin="addMannequin"
     @selectPlan="data.selectedPlanId = $event" @loadModels="loadModels" @generate="generate" @editInstruction="setPrompt" @close="editing = false">
@@ -34,7 +38,7 @@ import { capturePreview, sceneSchema, createEmptyScene, createMannequinObject, c
 import { createDirectorDraft } from "./agentTools";
 import { directorPrompt } from "./agentPrompt";
 import { anchorSchema, prepareMotion, sampleMotion, type CameraAnchor } from "./motion";
-import { directorPlanSchema, prepareSceneAnimation, type DirectorPlan, type DirectorGeneration } from "./sceneAnimation";
+import { directorPlanSchema, formatGenerationElapsed, prepareSceneAnimation, type DirectorPlan, type DirectorGeneration } from "./sceneAnimation";
 import { renderImage, renderVideo } from "./renderMedia";
 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
@@ -83,6 +87,19 @@ const lighting = computed({ get: () => ({ ...getSceneLighting(scene.value), ...d
 const sceneSettings = computed({ get: () => ({ gridVisible: true, skyVisible: true, ...data.value.sceneSettings }), set: (value: SceneSettings) => { data.value.sceneSettings = value; } });
 const editing = ref(false);
 const tasks = ref<DirectorGeneration[]>([]);
+const now = ref(Date.now());
+const runningGeneration = computed(() => tasks.value.findLast(task => !task.error));
+let generationClock: ReturnType<typeof setInterval> | undefined;
+watch(() => tasks.value.some(task => !task.error), running => {
+  if (!running) {
+    clearInterval(generationClock);
+    generationClock = undefined;
+    return;
+  }
+  if (generationClock) return;
+  now.value = Date.now();
+  generationClock = setInterval(() => { now.value = Date.now(); }, 1000);
+}, { immediate: true });
 const modelsLoading = ref(false);
 const models = ref<NodeAiModel[]>([]);
 const selectedModel = computed(() => models.value.find(item => JSON.stringify([item.providerId, item.modelId]) === model.value));
@@ -93,7 +110,11 @@ const modelError = ref("");
 const addingMannequin = ref(false);
 let modelSaving = Promise.resolve();
 let disposed = false;
-onBeforeUnmount(() => { disposed = true; exportController.abort(new Error("导演节点已关闭，导出已停止")); });
+onBeforeUnmount(() => {
+  disposed = true;
+  clearInterval(generationClock);
+  exportController.abort(new Error("导演节点已关闭，导出已停止"));
+});
 
 function getModelPath() {
   if (!node.id || /[\\/]/.test(node.id) || node.id === "." || node.id === "..") throw new Error("节点 ID 不能作为文件夹名称");
@@ -335,6 +356,22 @@ function setPrompt(value: string) {
   promptModel.value = value ? value.split("\n").map(text => [{ type: "Write", text }]) : [];
 }
 
+function updateTask(id: string, status: string) {
+  tasks.value = tasks.value.map(item => item.id === id ? { ...item, status } : item);
+}
+
+function generationStep(name: string, result: unknown, isError: boolean) {
+  if (isError) return typeof result === "string" && result.trim() ? result.trim().slice(0, 60) : "这一步没有成功";
+  const value = result && typeof result === "object" ? result as { valid?: boolean; issues?: unknown[] } : {};
+  if (name === "editDocument" && value.valid === false) {
+    const count = Array.isArray(value.issues) ? value.issues.length : 0;
+    return count ? `已写入，还差 ${count} 处校验` : "已写入，草稿还不完整";
+  }
+  if (name === "editDocument") return "草稿已通过校验，等模型收尾";
+  if (name === "readDocument") return "已读完草稿，等模型继续";
+  return "这一步完成，等模型继续";
+}
+
 async function generate() {
   if (modelLoading.value || modelError.value || addingMannequin.value) return;
   const choice = selectedModel.value;
@@ -344,9 +381,19 @@ async function generate() {
   if (!scene.value.objectList.length && tasks.value.some(task => !task.error)) return;
   const baseScene = scene.value;
   const basePlanId = data.value.selectedPlanId ?? "";
-  const task = { id: crypto.randomUUID(), instruction: requirement };
+  const hasVideo = refList.value.some(item => item.dataType === "VIDEO" && item.value !== undefined);
+  const task: DirectorGeneration = {
+    id: crypto.randomUUID(),
+    instruction: requirement,
+    startedAt: Date.now(),
+    status: hasVideo ? "已开始，正在把视频和动作要求发给模型" : "已开始，正在把动作要求发给模型",
+  };
   tasks.value = [...tasks.value, task];
   setPrompt("");
+  let step = 0;
+  let round = 0;
+  let replyChars = 0;
+  let replyAt = 0;
   try {
     const workspaceFiles = files.getWorkspaceFiles();
     if (refList.value.some(item => item.value === undefined)) throw new Error("引用节点暂无内容，请先补充引用内容");
@@ -373,9 +420,37 @@ async function generate() {
       prompt: JSON.stringify({ instruction: requirement, references, selectedPlanId: basePlanId, document: draft.summary() }),
       directory,
       tools: draft.tools,
+      onEvent(event) {
+        if (event.type === "request") {
+          if (event.stage === "sent") {
+            round += 1;
+            replyChars = 0;
+            replyAt = 0;
+            updateTask(task.id, `第 ${round} 次请求已发出，等待服务端响应`);
+          } else updateTask(task.id, `第 ${round} 次请求已接通，等待模型第一个字`);
+          return;
+        }
+        if (event.type === "text" || event.type === "reasoning") {
+          replyChars += event.delta.length;
+          const at = Date.now();
+          if (replyAt && at - replyAt < 300) return;
+          replyAt = at;
+          const action = event.type === "reasoning" ? "模型正在思考" : "模型正在回复";
+          updateTask(task.id, `第 ${Math.max(round, 1)} 次请求，${action}，已收到 ${replyChars} 字`);
+          return;
+        }
+        if (event.type === "toolStart") {
+          step += 1;
+          const action = event.name === "editDocument" ? "正在写入场景和动作" : event.name === "readDocument" ? "正在读取草稿" : "正在处理这一步";
+          updateTask(task.id, `第 ${step} 步，${action}`);
+          return;
+        }
+        updateTask(task.id, `第 ${Math.max(step, 1)} 步，${generationStep(event.name, event.result, event.isError)}`);
+      },
     });
     if (disposed) return;
     if (!draft.edited) throw new Error("Agent 未修改方案，原方案未修改，请重试。");
+    updateTask(task.id, "模型已写完，正在渲染预览");
     const result = draft.read();
     const nextScene = draft.sceneChanged ? result.scene : baseScene;
     const plan = { ...result.plan, id: task.id, instruction: requirement };
@@ -384,6 +459,7 @@ async function generate() {
     const previewSettings = sceneSettings.value;
     const image = await renderPreview(nextScene, plan, previewLighting, previewSettings);
     if (disposed) return;
+    updateTask(task.id, "预览已完成，正在保存方案");
     // 动画请求可以并行生成，同一模型文件顺序保存，写入成功后才替换当前场景。
     const saving = modelSaving.then(async () => {
       if (disposed) return;
@@ -421,7 +497,26 @@ async function generate() {
   color: var(--el-text-color-regular);
   background: var(--el-fill-color-light);
   border-radius: var(--el-border-radius-base);
+  position: relative;
   &:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+
+  .generationStatus {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 8px;
+    border-radius: var(--el-border-radius-base);
+    background: color-mix(in srgb, var(--el-bg-color) 88%, transparent);
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.4;
+
+    small { color: var(--el-text-color-secondary); }
+  }
 
   .scenePreview {
     display: block;

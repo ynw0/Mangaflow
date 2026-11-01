@@ -8,7 +8,7 @@ import { getMediaProvider, listMediaProviders, loadMediaProviderSource } from "@
 import { runComfyWorkflow, toMediaModel, listWorkflowCatalog, readProduction } from "@/utils/production";
 import { loadVideoModelProvider, readVideoModel, requireVideoModel, videoModelAsMediaModel } from "@/utils/videoModel";
 import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
-import { beginGeneration, getProviderPrice } from "@/utils/media/billing";
+import { getProviderPrice } from "@/utils/media/billing";
 import { detectMimeType, readPriceReference } from "@/utils/media/priceReference";
 
 const maxMediaSize = 100 * 1024 * 1024;
@@ -32,9 +32,36 @@ function imageOptions(value: unknown, pattern: RegExp) {
   return Array.isArray(value) ? [...new Set(value.filter((item): item is string => typeof item === "string" && item.length <= 64 && item === item.trim() && pattern.test(item)))] : undefined;
 }
 
+// 有参考图而当前工作流不接收图片时，改用设置里的图像编辑工作流。没点名出图工作流时，按有没有参考图选择。
+async function resolveImageWorkflow(request: MediaGenerationRequest) {
+  const production = readProduction();
+  const hasImages = (request.images?.length ?? 0) > 0;
+  const chosen = (await listWorkflowCatalog()).find(item => item.kind === "image" && item.id === request.modelId);
+  const acceptsImages = chosen?.bindings.bindings.some(item => item.kind === "image") ?? false;
+  if (chosen && (!hasImages || acceptsImages)) return chosen.id;
+  return hasImages ? production.imageEditWorkflow : production.imageT2iWorkflow;
+}
+
+async function applyImageSource(request: MediaGenerationRequest) {
+  const production = readProduction();
+  if (production.imageSource === "comfyui") {
+    return { ...request, providerId: "comfyui", modelId: await resolveImageWorkflow(request) };
+  }
+  if (request.providerId === "comfyui") {
+    return { ...request, providerId: production.imageProviderId, modelId: production.imageModelId };
+  }
+  return request;
+}
+
 export async function listMediaModels(): Promise<MediaModel[]> {
   const installedProviders = await listMediaProviders();
-  const workflows = (await listWorkflowCatalog()).filter(item => item.kind === "video").map(item => toMediaModel(item) as MediaModel);
+  const production = readProduction();
+  // 设置里关掉的工作流不进入画布模型列表。
+  const disabled = new Set(production.disabledWorkflowIds);
+  const workflows = (await listWorkflowCatalog())
+    .filter(item => !disabled.has(item.id))
+    .filter(item => item.kind === "video" || (item.kind === "image" && production.imageSource === "comfyui"))
+    .map(item => toMediaModel(item) as MediaModel);
   const installed = installedProviders.flatMap(provider => provider.models.flatMap(model => {
     if (model.type !== "image" && model.type !== "video" && model.type !== "audio") return [];
     const builtIn = (mediaProviders as readonly Provider[]).find(item => item.id === provider.id)?.models.find(item => item.id === model.id);
@@ -52,8 +79,15 @@ export async function listMediaModels(): Promise<MediaModel[]> {
   // ACT: 云视频走独立 videoModel，不把 apiMart 整包塞进媒体列表。
   const cloudVideo = videoModelAsMediaModel(readVideoModel());
   const models = [...installed, ...workflows, cloudVideo];
-  const production = readProduction();
-  const ordered = preferModel(models, "image", production.imageProviderId, production.imageModelId);
+  const visible = production.imageSource === "comfyui"
+    ? models.filter(item => item.type !== "image" || item.providerId === "comfyui")
+    : models;
+  const ordered = preferModel(
+    visible,
+    "image",
+    production.imageSource === "comfyui" ? "comfyui" : production.imageProviderId,
+    production.imageSource === "comfyui" ? production.imageT2iWorkflow : production.imageModelId,
+  );
   if (production.videoProviderId === "videoModel") {
     return preferModel(ordered, "video", "videoModel", cloudVideo.modelId);
   }
@@ -215,11 +249,11 @@ export async function generateMedia(
 ): Promise<GeneratedMedia[]> {
   signal?.throwIfAborted();
   if (!request.prompt.trim()) invalid("请输入生成提示词");
+  if (mediaType === "image") request = await applyImageSource(request);
   const directory = await realpath(cwd);
   const outputDirectory = request.outputDirectory ?? "assets/generated";
   await resolveWorkspacePath(directory, outputDirectory, true);
   if (request.providerId === "comfyui") {
-    if (mediaType === "image") invalid("出图直接调用 Qwen 图像 API，不走 ComfyUI 工作流");
     if (mediaType === "audio") invalid("ComfyUI 工作流用于出视频");
     const output = await runComfyWorkflow({ directory, mediaType, request, signal });
     return writeGenerated(directory, outputDirectory, mediaType, output.bytes, output.mimeType, signal);
@@ -232,7 +266,6 @@ export async function generateMedia(
     if (typeof provider.generateVideo !== "function") invalid("云视频适配器不支持视频生成");
     const prepared = await prepareRequest(directory, mediaType, request, readReference, signal);
     signal?.throwIfAborted();
-    const finish = beginGeneration(provider);
     const written: string[] = [];
     const result: GeneratedMedia[] = [];
     try {
@@ -262,7 +295,7 @@ export async function generateMedia(
     } catch (err) {
       await Promise.all(written.map(path => unlink(path).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; })));
       throw err;
-    } finally { finish(); }
+    }
   }
   const provider = await configuredProvider(request, mediaType, signal, directory);
   const generate = mediaType === "image" ? provider.generateImage : mediaType === "video" ? provider.generateVideo : provider.generateAudio;
@@ -271,7 +304,6 @@ export async function generateMedia(
   if (rules.some(rule => rule.field === "apiKey") && (typeof provider.config.apiKey !== "string" || !provider.config.apiKey.trim())) invalid("请先在媒体模型设置中配置供应商 API Key");
   const prepared = await prepareRequest(directory, mediaType, request, readReference, signal);
   signal?.throwIfAborted();
-  const finish = beginGeneration(provider);
   const written: string[] = [];
   const result: GeneratedMedia[] = [];
   try {
@@ -302,5 +334,5 @@ export async function generateMedia(
     // ACT: 只回滚本次创建的文件，保留目录中已有的节点资源。
     await Promise.all(written.map(path => unlink(path).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; })));
     throw err;
-  } finally { finish(); }
+  }
 }

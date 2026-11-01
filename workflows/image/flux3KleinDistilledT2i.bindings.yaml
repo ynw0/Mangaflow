@@ -1,0 +1,18 @@
+workflow: ./flux3KleinDistilledT2iApi.json
+label: Flux.3 Klein 蒸馏文生图
+bindings:
+- source: image_prompt
+  target: 4.inputs.text
+  kind: value
+- source: negative_prompt
+  target: 5.inputs.text
+  kind: value
+- source: seed
+  target: 7.inputs.seed
+  kind: value
+- source: params.width
+  target: 6.inputs.width
+  kind: value
+- source: params.height
+  target: 6.inputs.height
+  kind: value

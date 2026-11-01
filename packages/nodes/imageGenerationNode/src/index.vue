@@ -185,9 +185,18 @@ watch(
   (choice) => {
     if (!choice) return;
     // ACT: 现有分辨率使用 K 单位；出现其他单位时再统一换算，未知名称排在数值选项之后。
-    if (!sizeOptions.value.includes(data.value.size)) data.value.size = sizeOptions.value.toSorted((left, right) =>
-      (Number.parseFloat(left) || Infinity) - (Number.parseFloat(right) || Infinity)
-    )[0]!;
+    if (!sizeOptions.value.includes(data.value.size)) {
+      const [width, height] = data.value.ratio.split(":").map(Number);
+      const target = width && height ? width / height : 0;
+      const matched = target ? sizeOptions.value.find(item => {
+        const pair = /^(\d+)x(\d+)$/i.exec(item);
+        if (!pair) return false;
+        return Math.abs(Number(pair[1]) / Number(pair[2]) - target) / target < 0.03;
+      }) : undefined;
+      data.value.size = matched ?? sizeOptions.value.toSorted((left, right) =>
+        (Number.parseFloat(left) || Infinity) - (Number.parseFloat(right) || Infinity)
+      )[0]!;
+    }
     if (!ratioOptions.value.includes(data.value.ratio)) data.value.ratio = ratioOptions.value.includes("16:9") ? "16:9" : ratioOptions.value[0]!;
   },
   { flush: "sync" }
@@ -291,8 +300,9 @@ function loadModels() {
   modelsRequest = ai.getMediaModels().then((items) => {
     if (disposed || generating.value || deleting.value) return;
     models.value = items.filter((item) => item.type === "image");
-    // ACT: 只给空配置选默认模型，保留暂时不可用的旧选择及其参数。
-    if (!data.value.model) {
+    // 当前选择不在这次列表里时改用第一项，出图后端切换后已有节点跟着走。
+    const listed = data.value.model && models.value.some((item) => JSON.stringify([item.providerId, item.modelId]) === data.value.model);
+    if (!listed) {
       const first = models.value[0];
       data.value.model = first ? JSON.stringify([first.providerId, first.modelId]) : "";
     }

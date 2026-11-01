@@ -20,7 +20,7 @@
       </div>
       <div v-else class="welcomeContent">
         <h1 id="welcomeTitle">开始制作</h1>
-        <p class="description">出图直接调用 Qwen 图像 API。出视频可选 AutoDL 或本机的 ComfyUI，在设置的工作流里选。</p>
+        <p class="description">出图可选 Qwen 图像 API 或 ComfyUI 工作流。出视频可选 AutoDL 或本机的 ComfyUI，在设置的工作流里选。</p>
         <el-button class="loginButton" type="primary" :loading="saving" @click="completeSetup">进入工作台</el-button>
         <el-button class="mobileConnectButton" :type="deviceHubEnabled ? 'success' : undefined" :plain="deviceHubEnabled" :icon="deviceHubEnabled || mobileConnection.mode === 'remote' ? IconDeviceDesktop : IconQrcode" @click="mobileConnectVisible = true">{{ mobileConnectionLabel }}</el-button>
         <div class="secondaryActions">

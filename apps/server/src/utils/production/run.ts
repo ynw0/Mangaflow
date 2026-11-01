@@ -3,19 +3,64 @@ import { readFile } from "@toonflow/file";
 import type { MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import { resolveComfyBaseUrl } from "@/utils/production/autodl";
 import { downloadOutput, probeComfy, submitWorkflow, uploadInput, waitForOutput } from "@/utils/production/comfyui";
-import { fail } from "@/utils/production/config";
+import { fail, isWorkflowEnabled } from "@/utils/production/config";
 import { findWorkflow, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 
 type MediaRef = { path: string; mimeType?: string };
 
 const ratioPixels: Record<string, [number, number]> = {
+  "8:3": [2048, 768],
   "16:9": [1344, 768],
   "9:16": [768, 1344],
   "1:1": [1024, 1024],
-  "3:4": [768, 1024],
   "4:3": [1024, 768],
+  "3:4": [768, 1024],
+  "3:2": [1248, 832],
+  "2:3": [832, 1248],
+  "21:9": [1568, 672],
 };
+
+// ComfyUI ResolutionSelector 的选项原文。
+const videoAspect: Record<string, string> = {
+  "1:1": "1:1 (Square)",
+  "2:3": "2:3 (Portrait Photo)",
+  "3:2": "3:2 (Photo)",
+  "3:4": "3:4 (Portrait Standard)",
+  "4:3": "4:3 (Standard)",
+  "9:16": "9:16 (Portrait Widescreen)",
+  "16:9": "16:9 (Widescreen)",
+  "21:9": "21:9 (Ultrawide)",
+};
+
+// 直接采样的视频画幅，长边不超过 H3 的 1344。
+const videoNative: Record<string, [number, number]> = {
+  "16:9": [1344, 768],
+  "9:16": [768, 1344],
+  "1:1": [1024, 1024],
+  "4:3": [1024, 768],
+  "3:4": [768, 1024],
+  "3:2": [1248, 832],
+  "2:3": [832, 1248],
+  "21:9": [1344, 576],
+};
+
+// 全参参考在超分之后裁切的成片尺寸。
+const videoDelivery: Record<string, [number, number]> = {
+  "16:9": [1920, 1080],
+  "9:16": [1080, 1920],
+  "1:1": [1080, 1080],
+  "4:3": [1440, 1080],
+  "3:4": [1080, 1440],
+  "3:2": [1620, 1080],
+  "2:3": [1080, 1620],
+  "21:9": [2520, 1080],
+};
+
+function pair(table: Record<string, [number, number]>, ratio?: string) {
+  const hit = table[ratio?.trim() ?? ""];
+  return hit ? { width: hit[0], height: hit[1] } : {};
+}
 
 function pixels(size?: string, ratio?: string) {
   const pair = /^(\d{2,5})x(\d{2,5})$/i.exec(size ?? "");
@@ -94,6 +139,7 @@ export async function runComfyWorkflow(options: {
 }) {
   const { directory, mediaType, request, signal } = options;
   const entry = await findWorkflow(request.modelId);
+  if (!isWorkflowEnabled(entry.id)) fail(`${entry.label} 已在设置中关闭`);
   if (entry.kind !== mediaType) fail(`${entry.label} 不是${mediaType === "image" ? "出图" : "出视频"}工作流`);
   const limits = entry.bindings.capabilities.durationSeconds;
   if (mediaType === "video" && limits && request.duration != null && (request.duration < limits.min || request.duration > limits.max)) {
@@ -107,7 +153,7 @@ export async function runComfyWorkflow(options: {
   for (let index = 0; index < images.length && index < 9; index += 1) refs[`slot${index + 1}`] = await localFile(directory, images[index]);
   refs.first_frame = await localFile(directory, request.firstFrame) ?? refs.slot1;
   refs.last_frame = await localFile(directory, request.lastFrame) ?? (images.length > 1 ? await localFile(directory, images[1]) : undefined);
-  const size = pixels(request.size, request.ratio);
+  const ratio = request.ratio?.trim() ?? "";
   const context = {
     prompt: request.prompt,
     image_prompt: request.prompt,
@@ -115,7 +161,11 @@ export async function runComfyWorkflow(options: {
     // 画布传入则用；未传保持旧行为随机
     seed: request.seed ?? crypto.getRandomValues(new Uint32Array(1))[0],
     duration: request.duration,
-    params: size,
+    aspect_ratio: videoAspect[ratio],
+    megapixels: request.megapixels,
+    upscale: request.upscale,
+    params: mediaType === "video" ? pair(videoNative, ratio) : pixels(request.size, request.ratio),
+    delivery: pair(videoDelivery, ratio),
     refs,
     media: {
       video1: await localFile(directory, request.videos?.[0]),

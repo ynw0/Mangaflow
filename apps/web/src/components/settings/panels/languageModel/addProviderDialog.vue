@@ -30,10 +30,10 @@
             <el-button v-else-if="modelError" size="small" text :icon="IconRefresh" @click="modelRefresh++">重试</el-button>
           </div>
           <el-alert v-if="modelError" :title="modelError" type="error" :closable="false" showIcon />
-          <div v-else-if="models.length" class="modelList" :style="{ height: `${Math.min(280, models.length * 38 + 36)}px` }" aria-label="模型列表">
+          <div v-else-if="models.length" class="modelList" :style="{ height: `${Math.min(320, models.length * 42 + 36)}px` }" aria-label="模型列表">
             <el-auto-resizer>
               <template #default="{ height, width }">
-                <el-table-v2 :columns="modelColumns" :data="models" :width="width" :height="height" :rowHeight="38" :headerHeight="36" rowKey="id" fixed />
+                <el-table-v2 :columns="modelColumns" :data="models" :width="width" :height="height" :rowHeight="42" :headerHeight="36" rowKey="id" fixed />
               </template>
             </el-auto-resizer>
           </div>
@@ -50,15 +50,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from "vue";
+import { computed, h, ref, shallowRef, watch } from "vue";
 import axios from "axios";
+import { ElCheckbox, type Column } from "element-plus";
 import { IconRefresh } from "@tabler/icons-vue";
 import formCreate, { type Api, type Options } from "../../formCreate";
 import { languageProviders } from "@toonflow/providers";
 import { modelIcon } from "@toonflow/model-icons";
 import messageMarkdown from "@/components/messageMarkdown.vue";
-import type { Column } from "element-plus";
-import { saveSettings, type CustomProviderModel } from "@/stores/settings";
+import { modelInputs, saveSettings, type CustomProviderModel } from "@/stores/settings";
 import { isTfRouterProvider } from "@/lib/tf";
 
 const visible = defineModel<boolean>({ default: false });
@@ -69,9 +69,28 @@ const models = shallowRef<CustomProviderModel[]>([]);
 const fetching = ref(false);
 const modelError = ref("");
 const modelRefresh = ref(0);
+function setModelInput(row: CustomProviderModel, key: keyof NonNullable<CustomProviderModel["inputs"]>, value: boolean | string | number) {
+  const inputs = modelInputs(row.inputs);
+  inputs[key] = value === true;
+  row.inputs = inputs;
+  models.value = models.value.slice();
+}
+
 const modelColumns: Column[] = [
-  { key: "id", dataKey: "id", title: "模型 ID", width: 220, flexGrow: 1 },
-  { key: "label", dataKey: "label", title: "显示名称", width: 180, flexGrow: 1 },
+  { key: "id", dataKey: "id", title: "模型 ID", width: 180, flexGrow: 1 },
+  { key: "label", dataKey: "label", title: "显示名称", width: 140, flexGrow: 1 },
+  {
+    key: "inputs",
+    title: "可输入",
+    width: 250,
+    cellRenderer: ({ rowData }) => {
+      const inputs = modelInputs(rowData.inputs);
+      return h("div", { style: "display:flex;align-items:center;gap:8px;height:100%" }, (["image", "video", "audio"] as const).map(key => h(ElCheckbox, {
+        modelValue: inputs[key],
+        "onUpdate:modelValue": (value: boolean | string | number) => setModelInput(rowData, key, value),
+      }, () => ({ image: "图像", video: "视频", audio: "音频" })[key])));
+    },
+  },
 ];
 const saving = ref(false);
 const formError = ref("");
@@ -98,7 +117,7 @@ watch(
     if (!isVisible || !provider) return;
     if (isTfRouterProvider(provider)) return;
     if (provider.models.length) {
-      models.value = structuredClone(provider.models);
+      models.value = structuredClone(provider.models).map(model => ({ ...model, inputs: modelInputs(model.inputs) }));
       return;
     }
     const apiKey = typeof key === "string" ? key.trim() : "";
@@ -113,7 +132,7 @@ watch(
         }, { signal: controller.signal, timeout: 35000 });
         if (controller.signal.aborted) return;
         if (data.code !== 200 || !Array.isArray(data.data)) throw new Error(data.message || "获取模型列表失败");
-        models.value = data.data;
+        models.value = data.data.map((model: CustomProviderModel) => ({ ...model, inputs: modelInputs(model.inputs) }));
       } catch (error) {
         if (!controller.signal.aborted) modelError.value = axios.isAxiosError(error)
           ? error.response?.data?.message || "获取模型列表失败，请检查 API Key 后重试"
@@ -156,7 +175,7 @@ async function addProvider() {
       apiKey,
       apiUrl: "apiUrl" in provider ? provider.apiUrl : "",
       protocol: "protocol" in provider ? provider.protocol : "",
-      models: models.value.map(model => ({ ...model })),
+      models: models.value.map(model => ({ ...model, inputs: modelInputs(model.inputs) })),
     };
     await saveSettings(settings => {
       const existing = settings.customProviders;
@@ -264,6 +283,12 @@ async function addProvider() {
 
       .modelList {
         margin-bottom: 16px;
+
+        .inputCaps {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
       }
     }
   }

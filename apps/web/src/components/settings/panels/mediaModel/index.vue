@@ -15,7 +15,7 @@
           </div>
         </div>
         <el-alert v-if="item.loadError" :title="item.loadError" type="error" :closable="false" showIcon />
-        <tfAccount v-if="item.id.toLowerCase() === 'tfrouter'" :apiKey="getProviderApiKey(item.id)" :visible="visible" :saveApiKey="(key) => saveProviderApiKey(item.id, key)" />
+        <tfAccount v-if="item.id.toLowerCase() === 'tfrouter'" :apiKey="getProviderApiKey(item.id)" :saveApiKey="(key) => saveProviderApiKey(item.id, key)" />
         <div class="providerFooter">
           <div class="providerMeta">
             <el-tag v-if="item.version" size="small" type="info" effect="plain">v{{ item.version }}</el-tag>
@@ -51,7 +51,7 @@ import { settings, saveSettings } from "@/stores/settings";
 import { invalidateNodeModels } from "@toonflow/nodes-scaffold/nodeAi";
 import tfAccount from "../../tfAccount.vue";
 
-const { visible = true } = defineProps<{ visible?: boolean }>();
+defineProps<{ visible?: boolean }>();
 const mediaProviderDialog = shallowRef<Component>();
 const editProviderDialog = shallowRef<Component>();
 const providers = ref<MediaProvider[]>([]);

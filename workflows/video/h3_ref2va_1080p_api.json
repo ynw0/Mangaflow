@@ -1,7 +1,7 @@
 {
   "1": {
     "inputs": {
-      "unet_name": "minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
@@ -11,7 +11,7 @@
   },
   "2": {
     "inputs": {
-      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
       "type": "minimax",
       "device": "default"
     },
@@ -253,7 +253,7 @@
   },
   "50": {
     "inputs": {
-      "lora_name": "minimax/minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
+      "lora_name": "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
       "strength_model": 1,
       "model": [
         "1",
@@ -365,21 +365,6 @@
       "title": "【无需修改】原生音频解码"
     }
   },
-  "51": {
-    "inputs": {
-      "resize_type": "scale by multiplier",
-      "resize_type.scale": 2,
-      "quality": "ULTRA",
-      "images": [
-        "46",
-        0
-      ]
-    },
-    "class_type": "RTXVideoSuperResolution",
-    "_meta": {
-      "title": "【成片模式】RTX时序超分 2× ULTRA"
-    }
-  },
   "52": {
     "inputs": {
       "upscale_method": "lanczos",
@@ -387,7 +372,7 @@
       "height": 1080,
       "crop": "center",
       "image": [
-        "51",
+        "46",
         0
       ]
     },

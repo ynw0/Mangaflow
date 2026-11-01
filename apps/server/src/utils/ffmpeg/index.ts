@@ -1,6 +1,7 @@
 import { t, translateError, translateMessage } from "@/lib/i18n";
 import { dirname, join } from "node:path";
 import { build, createFfmpeg, downloadSources, getToolStatus, installFfmpeg, target } from "@toonflow/ffmpeg";
+import { boundaryGranted } from "@/utils/workspace/boundary";
 import type { DownloadState, FfmpegMode, SourceId } from "@toonflow/ffmpeg";
 import conf from "@/utils/conf";
 import { getRuntimePlatform } from "@/lib/platform";
@@ -29,7 +30,7 @@ export async function createWorkspaceFfmpeg(cwd: string, signal?: AbortSignal) {
       name: "FfmpegRequiredError", code: "FFMPEG_REQUIRED", status: 424,
     });
   }
-  const ffmpeg = createFfmpeg(cwd);
+  const ffmpeg = createFfmpeg(cwd, boundaryGranted);
   ffmpeg.setFfmpegPath(tools.ffmpeg.path);
   ffmpeg.setFfprobePath(tools.ffprobe.path);
   return ffmpeg;

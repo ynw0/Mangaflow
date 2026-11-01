@@ -15,7 +15,7 @@
     <!-- 等待态：流内只留占位，表单只在弹窗中 -->
     <template v-else-if="waiting">
       <p v-if="question" class="questionText">{{ question }}</p>
-      <p class="waitingHint">请在弹窗中回答提问</p>
+      <button class="waitingHint" type="button" @click="collapsed = !collapsed">{{ collapsed ? "提问已收起，点击展开" : "请在弹窗中回答提问" }}</button>
     </template>
     <template v-else>
       <p v-if="question" class="questionText">{{ question }}</p>
@@ -25,17 +25,22 @@
 
   <el-dialog
     class="questionDialog"
-    :modelValue="waiting"
-    :title="title"
+    :modelValue="waiting && !collapsed"
     width="min(560px, calc(100vw - 32px))"
     alignCenter
     appendToBody
     :showClose="false"
     :closeOnClickModal="false"
     :closeOnPressEscape="false"
-    :destroyOnClose="true"
+    :destroyOnClose="false"
     @keydown.stop
     @keyup.stop>
+    <template #header="{ titleId }">
+      <div class="questionDialogHeader">
+        <span :id="titleId">{{ title }}</span>
+        <el-button text @click="collapsed = true">收起</el-button>
+      </div>
+    </template>
     <p v-if="question" class="questionText">{{ question }}</p>
     <form-create v-if="formRules.length" v-model="formValues" v-model:api="formApi" :rule="formRules" :option="formOptions" />
     <template v-else>
@@ -60,10 +65,16 @@
       <el-button :disabled="(!toolSessionId && !directory) || submitting" @click="submitAnswer(true)">跳过</el-button>
     </div>
   </el-dialog>
+  <teleport to="body">
+    <button v-if="waiting && collapsed" class="questionDock" type="button" aria-label="展开提问" @click="collapsed = false">
+      <span>{{ title }}</span>
+      <span>展开</span>
+    </button>
+  </teleport>
 </template>
 
 <script lang="ts">
-import { computed, ref, shallowRef } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 import axios from "axios";
 import formCreate, { type Api, type Options, type Rule } from "@form-create/element-ui";
 import {
@@ -105,6 +116,7 @@ const title = computed(() => props.tool.question?.title || (typeof props.tool.ar
 const selected = ref("");
 const text = ref("");
 const submitting = ref(false);
+const collapsed = ref(false);
 const submittedAnswer = ref("");
 const submittedSkipped = ref(false);
 const formApi = shallowRef<Api>();
@@ -148,6 +160,12 @@ const answer = computed(() => {
   return typeof toolResult.value?.answer === "string" ? toolResult.value.answer : props.tool.result ?? "";
 });
 const waiting = computed(() => props.tool.status === "running" && !!props.tool.question?.callId && !answer.value);
+watch(() => props.tool.question?.callId, () => {
+  collapsed.value = false;
+  selected.value = "";
+  text.value = "";
+  formValues.value = {};
+});
 const draftAnswer = computed(() => [selected.value, text.value.trim()].filter(Boolean).join("\n"));
 const statusText = computed(() => {
   if (props.tool.status === "error") return "待重新生成";
@@ -209,8 +227,14 @@ async function submitAnswer(skip: boolean) {
 
   .waitingHint {
     margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
     color: var(--el-text-color-secondary);
+    font: inherit;
     font-size: 12px;
+    cursor: pointer;
+    text-align: left;
   }
 
   .errorDetails {
@@ -234,6 +258,25 @@ async function submitAnswer(skip: boolean) {
 <style lang="scss">
 /* 弹窗挂到 body，样式不能 scoped */
 .questionDialog.el-dialog {
+  .questionDialogHeader {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-size: var(--el-dialog-title-font-size);
+      font-weight: var(--el-dialog-title-font-weight, 600);
+      line-height: var(--el-dialog-font-line-height);
+    }
+
+    .el-button {
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+  }
+
   .questionText {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -268,6 +311,37 @@ async function submitAnswer(skip: boolean) {
     .el-button {
       margin: 0;
     }
+  }
+}
+
+.questionDock {
+  position: fixed;
+  z-index: 3000;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-round);
+  background: var(--el-bg-color);
+  color: var(--el-text-color-primary);
+  box-shadow: var(--el-box-shadow-light);
+  cursor: pointer;
+
+  span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span:last-child {
+    flex-shrink: 0;
+    color: var(--el-color-primary);
   }
 }
 </style>

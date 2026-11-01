@@ -2,6 +2,7 @@
   <el-dropdown ref="menu" trigger="contextmenu" virtualTriggering :virtualRef="menuAnchor" placement="bottom-start" :showArrow="false" :hideOnClick="false" popperClass="assetActionMenu" @command="handleCommand" @visibleChange="(opened: boolean) => { if (!opened) moveVisible = false; }">
     <template #dropdown>
       <el-dropdown-menu v-if="activeEntry">
+        <el-dropdown-item v-if="activeEntry.type === 'directory' && !isMobile && !isRemoteConnection" command="reveal" :disabled="busy">在文件资源管理器打开</el-dropdown-item>
         <el-dropdown-item command="move" :disabled="busy">
           <el-popover v-model:visible="moveVisible" trigger="hover" placement="right-start" :width="220" :offset="0" :showArrow="false" :showAfter="0" :hideAfter="150" appendTo=".assetActionMenu">
             <template #reference>
@@ -27,6 +28,7 @@
 import { translate } from "@toonflow/i18n/vue";
 import { computed, nextTick, ref, shallowRef } from "vue";
 import axios from "axios";
+import { isMobile, isRemoteConnection } from "@/lib/platform";
 import saveFile from "@/lib/saveFile";
 import { ElMessage, ElMessageBox, type DropdownInstance } from "element-plus";
 import { IconChevronRight, IconFolder, IconFolderPlus } from "@tabler/icons-vue";
@@ -126,6 +128,9 @@ async function handleCommand(command: string) {
   const parent = parentPath.value;
   closeMenu();
   try {
+    if (command === "reveal") {
+      await axios.post("/api/assets/reveal", { path: entry.path }, { headers: { "x-toonflow-workspace": "1" } });
+    }
     if (command === "download") {
       await saveFile(() => axios.get<Blob>("/api/assets/read", { params: { path: entry.path, download: true }, responseType: "blob" }).then(({ data }) => data), entry.name);
     }

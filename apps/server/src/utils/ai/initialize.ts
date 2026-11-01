@@ -21,8 +21,13 @@ async function refreshLanguageModels(previousSettings?: Record<string, unknown>)
   const provider = getLanguageProvider(conf.get("settings", {}));
   const apiKey = normalizeApiKey(provider?.apiKey);
   if (!apiKey || (previousSettings && apiKey === normalizeApiKey(getLanguageProvider(previousSettings)?.apiKey))) return;
-  const models = await fetchProviderModels({ apiUrl: provider.apiUrl, protocol: provider.protocol, apiKey });
-  if (!models.length) throw new Error("未获取到文本模型，保留原有列表");
+  const fetched = await fetchProviderModels({ apiUrl: provider.apiUrl, protocol: provider.protocol, apiKey });
+  if (!fetched.length) throw new Error("未获取到文本模型，保留原有列表");
+  const previousInputs = new Map((Array.isArray(provider.models) ? provider.models : []).flatMap(model => {
+    const id = typeof model?.id === "string" ? model.id : "";
+    return id && model.inputs ? [[id, model.inputs] as const] : [];
+  }));
+  const models = fetched.map(model => previousInputs.has(model.id) ? { ...model, inputs: previousInputs.get(model.id) } : model);
   const current = conf.get("settings.customProviders");
   if (!Array.isArray(current)) return;
   const index = current.findIndex(item => item?.id === provider.id && item.apiUrl === provider.apiUrl

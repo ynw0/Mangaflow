@@ -9,7 +9,7 @@
     </template>
     <div class="generationSettings nodrag nopan nowheel" @pointerdown.stop @mousedown.stop @dblclick.stop @keydown.stop @wheel.stop>
       <div class="sectionLabel">分辨率</div>
-      <el-radio-group v-model="size" class="sizeOptions" :disabled="disabled" aria-label="图片分辨率">
+      <el-radio-group v-model="size" class="sizeOptions" :disabled="disabled" aria-label="图片分辨率" @change="pickSize">
         <el-radio-button v-for="item in sizes" :key="item" :value="item">{{ item }}</el-radio-button>
       </el-radio-group>
       <div class="sectionLabel">比例</div>
@@ -21,7 +21,7 @@
           :disabled="disabled"
           :aria-label="`比例 ${item}`"
           :aria-pressed="ratio === item"
-          @click="ratio = item">
+          @click="pickRatio(item)">
           <span class="ratioContent">
             <span class="ratioShape" :style="ratioStyle(item)" aria-hidden="true" />
             <span>{{ item }}</span>
@@ -37,10 +37,47 @@ import { ref } from "vue";
 import { ElButton, ElPopover, ElRadioGroup, ElRadioButton } from "element-plus";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 
-defineProps<{ sizes: string[]; ratios: string[]; disabled?: boolean }>();
+const props = defineProps<{ sizes: string[]; ratios: string[]; disabled?: boolean }>();
 const settingsVisible = ref(false);
 const size = defineModel<string>("size", { required: true });
 const ratio = defineModel<string>("ratio", { required: true });
+
+function matchSize(value: string) {
+  const [width, height] = value.split(":").map(Number);
+  if (!width || !height) return;
+  const target = width / height;
+  return props.sizes.find(item => {
+    const pair = /^(\d+)x(\d+)$/i.exec(item);
+    if (!pair) return false;
+    const actual = Number(pair[1]) / Number(pair[2]);
+    return Math.abs(actual - target) / target < 0.03;
+  });
+}
+
+function matchRatio(value: string) {
+  const pair = /^(\d+)x(\d+)$/i.exec(value);
+  if (!pair) return;
+  const actual = Number(pair[1]) / Number(pair[2]);
+  let best: { ratio: string; delta: number } | undefined;
+  for (const item of props.ratios) {
+    const [width, height] = item.split(":").map(Number);
+    if (!width || !height) continue;
+    const delta = Math.abs(actual - width / height);
+    if (!best || delta < best.delta) best = { ratio: item, delta };
+  }
+  return best && best.delta / actual < 0.03 ? best.ratio : undefined;
+}
+
+function pickRatio(value: string) {
+  ratio.value = value;
+  const next = matchSize(value);
+  if (next) size.value = next;
+}
+
+function pickSize(value: string | number | boolean) {
+  const next = matchRatio(typeof value === "string" ? value : size.value);
+  if (next) ratio.value = next;
+}
 
 function ratioStyle(value: string) {
   const [width = 1, height = 1] = value.split(":").map(Number);
@@ -73,10 +110,11 @@ function ratioStyle(value: string) {
 
   .sizeOptions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 14px;
     .el-radio-button {
-      flex: 1;
+      flex: 1 1 calc(33.33% - 8px);
       --el-radio-button-checked-bg-color: var(--el-fill-color);
       --el-radio-button-checked-text-color: var(--el-text-color-primary);
       --el-radio-button-checked-border-color: var(--el-text-color-regular);

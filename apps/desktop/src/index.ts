@@ -13,6 +13,7 @@ import Electrobun, { ApplicationMenu, BrowserWindow, PATHS, Screen, Utils, Updat
 import { parseInstallUrl } from "./protocol";
 import saveFile, { selectSaveFile } from "./saveFile";
 import createWindowsUpdater, { confirmWindowsUpdateStartup } from "./update/windowsUpdater";
+import prepareWebviewRuntime from "./webviewRuntime";
 
 const execFileAsync = promisify(execFile);
 const pendingInstalls: PluginInstallRequest[] = [];
@@ -142,14 +143,19 @@ async function start() {
       pluginRevision: hash,
     });
     const { default: createDesktopConnection } = await import("./connection");
+    function getNavigationRules(port: number) {
+      return ["^http://*", "^https://*", `http://127.0.0.1:${port}/*`];
+    }
     const connection = desktopConnection = await createDesktopConnection(app, dataDirectory, resolve(PATHS.VIEWS_FOLDER, "../mcp/stdio.js"), (port, remote) => {
       deliverInstall = undefined;
       saveRuntime(port);
+      mainWindow.webview.setNavigationRules(getNavigationRules(port));
       mainWindow.webview.loadURL(`http://127.0.0.1:${port}/?desktop=1${remote ? "&remote=1" : ""}`);
     }, error => {
       console.error("设备连接切换失败：", error);
       void Utils.showMessageBox({ type: "error", title: t`设备连接失败`, message: error instanceof Error ? error.message : String(error) });
     });
+    await prepareWebviewRuntime(PATHS.RESOURCES_FOLDER);
     if (isClosing) { await connection.close(); return; }
     console.log(`桌面服务：http://127.0.0.1:${connection.port}`);
 
@@ -157,9 +163,34 @@ async function start() {
     // ACT: 宽高分别限制在屏幕可用区域内，预留标题栏和边距，不固定比例。
     const width = Math.min(1280, workArea.width - 64);
     const height = Math.min(960, workArea.height - 64);
+    let isControlHeld = () => false;
+    let navigationTimer: ReturnType<typeof setTimeout> | undefined;
     const mainWindow = new BrowserWindow({
       title: "MangaFlow",
       url: `http://127.0.0.1:${connection.port}/?desktop=1${connection.remote ? "&remote=1" : ""}`,
+      navigationRules: JSON.stringify(getNavigationRules(connection.port)),
+      // ACT: Windows SDK 未接管普通新窗口请求，在创建 WebView 弹窗前交给宿主。
+      preload: `
+        (() => {
+          function openExternal(url) {
+            const target = new URL(url, document.baseURI);
+            if (!["http:", "https:"].includes(target.protocol)) return false;
+            if (window === window.top && target.origin === window.location.origin) return false;
+            window.__electrobunSendToHost({ type: "openExternal", url: target.href });
+            return true;
+          }
+          const openWindow = window.open.bind(window);
+          window.open = (url, ...options) => url && openExternal(url) ? null : openWindow(url, ...options);
+          function openLink(event) {
+            if (event.button !== 0 && event.button !== 1) return;
+            const link = event.composedPath().find(element => element instanceof HTMLAnchorElement);
+            if (!link?.href || !openExternal(link.href)) return;
+            event.preventDefault();
+          }
+          window.addEventListener("click", openLink, true);
+          window.addEventListener("auxclick", openLink, true);
+        })();
+      `,
       hidden: Boolean(splash),
       frame: {
         width,
@@ -168,23 +199,53 @@ async function start() {
         y: workArea.y + Math.round((workArea.height - height) / 2),
       },
     });
-    // ACT: 两版 SDK 的全局事件不带 WebView ID，使用事件名后缀限定主窗口。
-    Electrobun.events.on(`new-window-open-${mainWindow.webview.id}`, (event: { data: { detail: unknown } }) => {
-      const detail = event.data.detail;
+    function openLink(detail: unknown) {
+      if (isClosing) return;
       const url = typeof detail === "string" ? detail : detail && typeof detail === "object" && "url" in detail ? detail.url : undefined;
       if (typeof url !== "string" || !URL.canParse(url)) return;
       const target = new URL(url);
       if (target.protocol !== "http:" && target.protocol !== "https:") return;
+      const current = new URL(mainWindow.webview.url!);
+      if (process.platform === "win32" && target.origin === current.origin && target.pathname === current.pathname && target.search === current.search) {
+        // ACT: SDK 把 Ctrl 刷新误判为新窗口；松开后恢复内部导航，避免再次触发误判。
+        clearTimeout(navigationTimer);
+        const navigate = () => {
+          if (isClosing) return;
+          if (isControlHeld()) { navigationTimer = setTimeout(navigate, 50); return; }
+          navigationTimer = undefined;
+          mainWindow.webview.loadURL(target.href);
+        };
+        navigate();
+        return;
+      }
       if (!Utils.openExternal(target.href)) {
         void Utils.showMessageBox({ type: "error", title: t`打开链接失败`, message: t`请检查默认浏览器设置后重试。` });
       }
+    }
+    // ACT: 两版 SDK 的全局事件不带 WebView ID，使用事件名后缀限定主窗口。
+    Electrobun.events.on(`new-window-open-${mainWindow.webview.id}`, (event: { data: { detail: unknown } }) => openLink(event.data.detail));
+    Electrobun.events.on(`host-message-${mainWindow.webview.id}`, (event: { data: { detail: unknown } }) => {
+      const detail = event.data.detail;
+      if (detail && typeof detail === "object" && "type" in detail && detail.type === "openExternal") openLink(detail);
     });
     // 页面重载时监听器随旧页面销毁，安装请求等新页面 ready 后再投递。
-    Electrobun.events.on(`will-navigate-${mainWindow.webview.id}`, () => { deliverInstall = undefined; });
+    Electrobun.events.on(`will-navigate-${mainWindow.webview.id}`, (event: { data: { detail: unknown } }) => {
+      let detail = event.data.detail;
+      if (typeof detail === "string") {
+        try { detail = JSON.parse(detail); }
+        catch { /* 兼容直接携带 URL 的导航通知。 */ }
+      }
+      if (detail && typeof detail === "object" && "allowed" in detail && detail.allowed === false) {
+        openLink(detail);
+        return;
+      }
+      deliverInstall = undefined;
+    });
     let isShowing = false;
     app.locals.desktop = {
       openUrl,
       showItemInFolder: Utils.showItemInFolder,
+      openPath: Utils.openPath,
       readClipboardText: Utils.clipboardReadText,
       readClipboardImage: Utils.clipboardReadImage,
       writeClipboardImage: Utils.clipboardWriteImage,
@@ -251,8 +312,10 @@ async function start() {
         GetDpiForWindow: { args: ["ptr"], returns: "u32" },
         GetSystemMetricsForDpi: { args: ["i32", "u32"], returns: "i32" },
         DestroyIcon: { args: ["ptr"], returns: "i32" },
+        GetAsyncKeyState: { args: ["i32"], returns: "i16" },
       });
       const native = user32.symbols;
+      isControlHeld = () => Boolean(native.GetAsyncKeyState(0x11) & 0x8000);
       const window = mainWindow.ptr;
       const dpi = native.GetDpiForWindow(window);
       const iconPath = Buffer.from(`${resolve(PATHS.RESOURCES_FOLDER, "app.ico")}\0`, "utf16le");
@@ -261,6 +324,7 @@ async function start() {
         null, ptr(iconPath), 1, native.GetSystemMetricsForDpi(metric, dpi), native.GetSystemMetricsForDpi(metric + 1, dpi), 0x10,
       ));
       const closeIcons = () => {
+        clearTimeout(navigationTimer);
         for (const icon of icons) if (icon) native.DestroyIcon(icon);
         user32.close();
       };

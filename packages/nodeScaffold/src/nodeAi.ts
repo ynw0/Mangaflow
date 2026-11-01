@@ -50,6 +50,7 @@ export type NodeAiResult = {
   reasoning?: string;
 };
 export type NodeAiEvent = { type: "text" | "reasoning"; delta: string }
+  | { type: "request"; stage: "sent" | "connected" }
   | { type: "toolStart"; id: string; name: string; args: unknown }
   | { type: "toolEnd"; id: string; name: string; result: unknown; isError: boolean };
 export type NodeAiTool = {
@@ -127,12 +128,14 @@ async function requestModel(input: NodeAiRequest, context: Context, model: Model
   const stream = createAssistantMessageEventStream();
   try {
     signal.throwIfAborted();
+    onEvent?.({ type: "request", stage: "sent" });
     const response = await fetch("/api/ai/generate", {
       method: "POST", headers: { "Content-Type": "application/json", "x-toonflow-workspace": "1" },
       body: JSON.stringify({ providerId, modelId, context, directory, references }), signal,
     });
     if (!response.ok) await readResult(response);
     if (!response.body || !response.headers.get("content-type")?.includes("text/event-stream")) throw new Error("AI 未返回 SSE 数据流");
+    onEvent?.({ type: "request", stage: "connected" });
     const reader = response.body.pipeThrough(new TextDecoderStream()).pipeThrough(new EventSourceParserStream()).getReader();
     try {
       while (true) {
@@ -165,6 +168,60 @@ async function requestModel(input: NodeAiRequest, context: Context, model: Model
     } });
   }
   return stream;
+}
+
+// ACT: 各节点 UMD 模块作用域互相隔离，闸门必须挂在全局。浏览器对同一主机的 HTTP/1.1 大约只有 6 条连接。
+// 生成请求会一直占到成片返回；Agent 流、画布保存和结果回传再抢不到连接时，页面 120 秒不回传，服务端就报画布超时。
+const mediaGenerationLimit = 2;
+const mediaGenerationGateKey = Symbol.for("toonflow.mediaGenerationGate");
+type MediaGenerationGate = { active: number; waiters: Array<() => void> };
+const mediaGenerationGateHost = globalThis as typeof globalThis & { [mediaGenerationGateKey]?: MediaGenerationGate };
+const mediaGenerationGate = mediaGenerationGateHost[mediaGenerationGateKey] ??= { active: 0, waiters: [] };
+
+function acquireMediaGeneration(signal: AbortSignal) {
+  signal.throwIfAborted();
+  if (mediaGenerationGate.active < mediaGenerationLimit) {
+    mediaGenerationGate.active++;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve, reject) => {
+    const grant = () => {
+      signal.removeEventListener("abort", cancel);
+      mediaGenerationGate.active++;
+      resolve();
+    };
+    const cancel = () => {
+      const index = mediaGenerationGate.waiters.indexOf(grant);
+      if (index >= 0) mediaGenerationGate.waiters.splice(index, 1);
+      reject(signal.reason ?? new DOMException("生成已取消", "AbortError"));
+    };
+    mediaGenerationGate.waiters.push(grant);
+    signal.addEventListener("abort", cancel, { once: true });
+  });
+}
+
+function releaseMediaGeneration() {
+  mediaGenerationGate.active = Math.max(0, mediaGenerationGate.active - 1);
+  mediaGenerationGate.waiters.shift()?.();
+}
+
+const toolLoopLimit = 60 * 60 * 1000;
+
+function createToolLoopSignal(parent: AbortSignal) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort(new DOMException("模型工具调用超过 60 分钟，已停止", "TimeoutError"));
+  }, toolLoopLimit);
+  const onParentAbort = () => { if (!controller.signal.aborted) controller.abort(parent.reason); };
+  if (parent.aborted) onParentAbort();
+  else parent.addEventListener("abort", onParentAbort, { once: true });
+  return {
+    signal: controller.signal,
+    stop() {
+      clearTimeout(timer);
+      parent.removeEventListener("abort", onParentAbort);
+    },
+  };
 }
 
 export function useNodeAi() {
@@ -248,12 +305,19 @@ export function useNodeAi() {
   }
 
   async function generateMedia<T extends "image" | "video" | "audio">(mediaType: T, input: NodeImageRequest | NodeVideoRequest | NodeAudioRequest, signal?: AbortSignal) {
-    return readResult<{ path: string; mimeType: string; mediaType: T }[]>(await fetch("/api/ai/media/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-toonflow-workspace": "1" },
-      body: JSON.stringify({ ...input, mediaType }),
-      signal: requestSignal(signal),
-    }));
+    const callSignal = requestSignal(signal);
+    // 生成接口要占住连接直到成片返回。先排队再发请求，避免把画布保存和结果回传挤出浏览器连接池。
+    await acquireMediaGeneration(callSignal);
+    try {
+      return await readResult<{ path: string; mimeType: string; mediaType: T }[]>(await fetch("/api/ai/media/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-toonflow-workspace": "1" },
+        body: JSON.stringify({ ...input, mediaType }),
+        signal: callSignal,
+      }));
+    } finally {
+      releaseMediaGeneration();
+    }
   }
 
   function generateImage(input: NodeImageRequest, signal?: AbortSignal) {
@@ -270,52 +334,58 @@ export function useNodeAi() {
 
   async function generate(input: NodeAiRequest): Promise<NodeAiResult> {
     const signal = requestSignal(input.signal);
-    const callSignal = input.tools?.length ? AbortSignal.any([signal, AbortSignal.timeout(600000)]) : signal;
-    const { providerId, modelId, prompt, systemPrompt, onEvent } = input;
-    if (!prompt.trim()) throw new Error("请输入提示词");
-    const definitions = input.tools ?? [];
-    if (new Set(definitions.map(tool => tool.name)).size !== definitions.length) throw new Error("工具名称不能重复");
-    const selected = (await getModels(callSignal)).find(model => model.providerId === providerId && model.modelId === modelId);
-    if (!selected) throw new Error("所选模型不存在，请重新选择");
-    const model: Model<NodeAiModel["protocol"]> = {
-      id: modelId, name: selected.label, provider: providerId, api: selected.protocol, baseUrl: "",
-      reasoning: false, input: ["text", "image"],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: selected.contextWindow ?? 262144, maxTokens: selected.maxOutputTokens ?? 32768,
-    };
-    const tools: AgentTool[] = definitions.map(tool => ({
-      name: tool.name, label: tool.name, description: tool.description, parameters: tool.parameters,
-      async execute(_id, args, toolSignal) {
+    // 导演台会带着视频参考连续改很多轮，整段不能在 10 分钟被掐掉。
+    const loop = input.tools?.length ? createToolLoopSignal(signal) : undefined;
+    const callSignal = loop?.signal ?? signal;
+    try {
+      const { providerId, modelId, prompt, systemPrompt, onEvent } = input;
+      if (!prompt.trim()) throw new Error("请输入提示词");
+      const definitions = input.tools ?? [];
+      if (new Set(definitions.map(tool => tool.name)).size !== definitions.length) throw new Error("工具名称不能重复");
+      const selected = (await getModels(callSignal)).find(model => model.providerId === providerId && model.modelId === modelId);
+      if (!selected) throw new Error("所选模型不存在，请重新选择");
+      const model: Model<NodeAiModel["protocol"]> = {
+        id: modelId, name: selected.label, provider: providerId, api: selected.protocol, baseUrl: "",
+        reasoning: false, input: ["text", "image"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: selected.contextWindow ?? 262144, maxTokens: selected.maxOutputTokens ?? 32768,
+      };
+      const tools: AgentTool[] = definitions.map(tool => ({
+        name: tool.name, label: tool.name, description: tool.description, parameters: tool.parameters,
+        async execute(_id, args, toolSignal) {
+          callSignal.throwIfAborted();
+          if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("工具参数必须是对象");
+          const result = await tool.execute(args as Record<string, unknown>, toolSignal) ?? null;
+          callSignal.throwIfAborted();
+          return { content: [{ type: "text", text: JSON.stringify(result) ?? "null" }], details: undefined };
+        },
+      }));
+      let turns = 0;
+      const messages = await runAgentLoop([{ role: "user", content: prompt, timestamp: Date.now() }], {
+        systemPrompt: systemPrompt ?? "", messages: [], tools,
+      }, {
+        model, convertToLlm: messages => messages as Message[], toolExecution: "sequential",
+        shouldStopAfterTurn: ({ message }) => ++turns >= 40 || message.stopReason === "length",
+      }, event => {
         callSignal.throwIfAborted();
-        if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("工具参数必须是对象");
-        const result = await tool.execute(args as Record<string, unknown>, toolSignal) ?? null;
-        callSignal.throwIfAborted();
-        return { content: [{ type: "text", text: JSON.stringify(result) ?? "null" }], details: undefined };
-      },
-    }));
-    let turns = 0;
-    const messages = await runAgentLoop([{ role: "user", content: prompt, timestamp: Date.now() }], {
-      systemPrompt: systemPrompt ?? "", messages: [], tools,
-    }, {
-      model, convertToLlm: messages => messages as Message[], toolExecution: "sequential",
-      shouldStopAfterTurn: ({ message }) => ++turns >= 40 || message.stopReason === "length",
-    }, event => {
+        if (event.type === "tool_execution_start") onEvent?.({ type: "toolStart", id: event.toolCallId, name: event.toolName, args: event.args });
+        if (event.type === "tool_execution_end" && onEvent) {
+          const text = (event.result as AgentToolResult<unknown>).content.filter(part => part.type === "text").map(part => part.text).join("\n");
+          onEvent({ type: "toolEnd", id: event.toolCallId, name: event.toolName, result: event.isError ? text : JSON.parse(text), isError: event.isError });
+        }
+      }, callSignal, (_model, context) => requestModel(input, context, model, callSignal));
       callSignal.throwIfAborted();
-      if (event.type === "tool_execution_start") onEvent?.({ type: "toolStart", id: event.toolCallId, name: event.toolName, args: event.args });
-      if (event.type === "tool_execution_end" && onEvent) {
-        const text = (event.result as AgentToolResult<unknown>).content.filter(part => part.type === "text").map(part => part.text).join("\n");
-        onEvent({ type: "toolEnd", id: event.toolCallId, name: event.toolName, result: event.isError ? text : JSON.parse(text), isError: event.isError });
-      }
-    }, callSignal, (_model, context) => requestModel(input, context, model, callSignal));
-    callSignal.throwIfAborted();
-    const message = messages.findLast((message): message is AssistantMessage => message.role === "assistant");
-    if (!message) throw new Error("AI 未返回结果");
-    if (message.stopReason === "error" || message.stopReason === "aborted") throw new Error(message.errorMessage || "AI 请求失败");
-    if (definitions.length && message.stopReason === "length") throw new Error("模型输出达到上限，请精简任务后重试");
-    if (message.content.some(part => part.type === "toolCall")) throw new Error("AI 已达到 40 轮调用上限，请缩小任务后重试");
-    const text = message.content.filter(part => part.type === "text").map(part => part.text).join("");
-    const reasoning = message.content.filter(part => part.type === "thinking").map(part => part.thinking).join("");
-    return { text, ...(reasoning ? { reasoning } : {}) };
+      const message = messages.findLast((message): message is AssistantMessage => message.role === "assistant");
+      if (!message) throw new Error("AI 未返回结果");
+      if (message.stopReason === "error" || message.stopReason === "aborted") throw new Error(message.errorMessage || "AI 请求失败");
+      if (definitions.length && message.stopReason === "length") throw new Error("模型输出达到上限，请精简任务后重试");
+      if (message.content.some(part => part.type === "toolCall")) throw new Error("AI 已达到 40 轮调用上限，请缩小任务后重试");
+      const text = message.content.filter(part => part.type === "text").map(part => part.text).join("");
+      const reasoning = message.content.filter(part => part.type === "thinking").map(part => part.thinking).join("");
+      return { text, ...(reasoning ? { reasoning } : {}) };
+    } finally {
+      loop?.stop();
+    }
   }
 
   return { getModels, getMediaModels, getMediaPrice, generateImage, generateVideo, generateAudio, generate };

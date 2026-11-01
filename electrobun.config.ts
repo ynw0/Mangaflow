@@ -6,7 +6,7 @@ export default {
   app: {
     name: "mangaflow",
     identifier: "local.mangaflow.desktop",
-    version: process.env.appVersion ?? "2.0.0",
+    version: process.env.appVersion ?? "2.0.7",
     urlSchemes: ["toonflow"],
   },
   build: {

@@ -26,7 +26,7 @@ export default Router().post("/", validateFields({
     res.set({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" });
     res.flushHeaders();
     // ACT: JSON 允许前导空白，保活时保留现有 response.json() 契约。
-    heartbeat = setInterval(() => { if (!res.destroyed && !res.writableEnded && !res.writableNeedDrain) res.write("\n"); }, 20000);
+    heartbeat = setInterval(() => { if (!res.destroyed && !res.writableEnded && !res.writableNeedDrain) res.write("\n"); }, 5000);
     const files = await u.mediaGeneration.generateMedia(cwd, mediaType, parsed.data, controller.signal);
     if (!res.destroyed) res.write(JSON.stringify(success(files)));
   } catch (err) {

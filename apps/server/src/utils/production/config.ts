@@ -1,4 +1,4 @@
-// 制作配置：出图直接调 Qwen 图像 API。出视频可选 AutoDL 上的 ComfyUI，或本机已启动的 ComfyUI。
+// 制作配置：出图可选 Qwen 图像 API 或 ComfyUI 工作流。出视频可选 AutoDL 上的 ComfyUI，或本机已启动的 ComfyUI。
 import conf from "@/utils/conf";
 
 export type ProductionConfig = {
@@ -8,9 +8,15 @@ export type ProductionConfig = {
   comfyuiServiceField: string;
   comfyuiScheme: string;
   workflowRoot: string;
-  imageSource: string;
+  imageSource: "qwen" | "comfyui";
   imageProviderId: string;
   imageModelId: string;
+  /** 无参考图时使用的出图工作流 */
+  imageT2iWorkflow: string;
+  /** 有参考图、且当前工作流不接收图片时使用的图像编辑工作流 */
+  imageEditWorkflow: string;
+  /** 设置里关掉的工作流。未列出的都开启 */
+  disabledWorkflowIds: string[];
   /** comfyui：本地/AutoDL 工作流；videoModel：设置「视频模型」云 API */
   videoProviderId: "comfyui" | "videoModel";
   videoWorkflow: string;
@@ -19,10 +25,16 @@ export type ProductionConfig = {
   autodlInstanceUuid: string;
   autodlStartCommand: string;
   autodlEnsureRunning: boolean;
-  /** 成片画面质检模型（语言模型供应商里的 model id） */
+  /** 成片画面质检模型（语言模型供应商里的 model id，或本机 Gemma 工作流 id） */
   videoQcModelId: string;
-  /** 成片音轨质检模型 */
+  /** 成片音轨质检模型（语言模型 id，或本机 Gemma 工作流 id） */
   audioQcModelId: string;
+  /** 质检档位：只视频、视频加音频、不质检（人工） */
+  qcLevel: "video" | "videoAudio" | "none";
+  /** 生成视频后是否自动质检 */
+  qcTrigger: "auto" | "manual";
+  /** 出图推进：自动自己看到完成，半自动有问题就问 */
+  imageAdvanceMode: "auto" | "semi";
 };
 
 const defaults: ProductionConfig = {
@@ -35,6 +47,9 @@ const defaults: ProductionConfig = {
   imageSource: "qwen",
   imageProviderId: "qwenImage",
   imageModelId: "qwen-image-3.0-pro",
+  imageT2iWorkflow: "image/flux3KleinT2i",
+  imageEditWorkflow: "image/flux3KleinDistilledEdit",
+  disabledWorkflowIds: [],
   videoProviderId: "comfyui",
   videoWorkflow: "video/h3_ref2va_1080p",
   autodlBaseUrl: "https://www.autodl.art",
@@ -44,10 +59,29 @@ const defaults: ProductionConfig = {
   autodlEnsureRunning: true,
   videoQcModelId: "qwen3.8-omni-flash",
   audioQcModelId: "qwen3.8-omni-flash",
+  qcLevel: "videoAudio",
+  qcTrigger: "manual",
+  imageAdvanceMode: "semi",
 };
 
 function text(value: unknown, fallback: string) {
   return typeof value === "string" ? value.trim() : fallback;
+}
+
+function workflowIdList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const ids: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const id = item.trim();
+    if (!/^(image|video|qc)\/[^/\\]{1,120}$/.test(id) || id.includes("..")) continue;
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids.slice(0, 200);
+}
+
+export function isWorkflowEnabled(id: string) {
+  return !readProduction().disabledWorkflowIds.includes(id);
 }
 
 export function readProduction(): ProductionConfig {
@@ -60,9 +94,12 @@ export function readProduction(): ProductionConfig {
     comfyuiServiceField: fieldName(source.comfyuiServiceField),
     comfyuiScheme: text(source.comfyuiScheme, defaults.comfyuiScheme) === "http" ? "http" : "https",
     workflowRoot: text(source.workflowRoot, ""),
-    imageSource: defaults.imageSource,
+    imageSource: source.imageSource === "comfyui" ? "comfyui" : "qwen",
     imageProviderId: text(source.imageProviderId, "") || defaults.imageProviderId,
     imageModelId: text(source.imageModelId, "") || defaults.imageModelId,
+    imageT2iWorkflow: text(source.imageT2iWorkflow, "") || defaults.imageT2iWorkflow,
+    imageEditWorkflow: text(source.imageEditWorkflow, "") || defaults.imageEditWorkflow,
+    disabledWorkflowIds: workflowIdList(source.disabledWorkflowIds),
     videoProviderId: source.videoProviderId === "videoModel" ? "videoModel" : "comfyui",
     videoWorkflow: text(source.videoWorkflow, "") || defaults.videoWorkflow,
     autodlBaseUrl: text(source.autodlBaseUrl, defaults.autodlBaseUrl) || defaults.autodlBaseUrl,
@@ -72,6 +109,9 @@ export function readProduction(): ProductionConfig {
     autodlEnsureRunning: source.autodlEnsureRunning === undefined ? true : source.autodlEnsureRunning === true,
     videoQcModelId: text(source.videoQcModelId, "") || defaults.videoQcModelId,
     audioQcModelId: text(source.audioQcModelId, "") || defaults.audioQcModelId,
+    qcLevel: source.qcLevel === "video" || source.qcLevel === "none" ? source.qcLevel : "videoAudio",
+    qcTrigger: source.qcTrigger === "auto" ? "auto" : "manual",
+    imageAdvanceMode: source.imageAdvanceMode === "auto" ? "auto" : "semi",
   };
 }
 

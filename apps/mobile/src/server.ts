@@ -125,6 +125,8 @@ app.use((error: Error & { status?: number }, _request: express.Request, response
 });
 
 const server = app.listen(0, "127.0.0.1");
+server.timeout = 0;
+server.requestTimeout = 0;
 await once(server, "listening");
 const address = server.address();
 if (!address || typeof address === "string") throw new Error("无法获取本地服务端口");

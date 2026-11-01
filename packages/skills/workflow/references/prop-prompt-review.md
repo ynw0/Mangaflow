@@ -13,6 +13,7 @@
 - 画幅必须按物体自然高宽在 `product_portrait` / `product_square` / `product_wide` 中选择；把成片 16:9 写进非宽构图道具，或默认方图导致明显留白诱发出多余物体，判不合格。
 - 有线类结构时，数量、两端接口、路径、弧度、遮挡必须写清；只写「有根线连接」判不合格。
 - 正面 prompt 禁止类比尺寸（如「约一拳高」）；数值必须是具体度量。canonical 只锁身份/结构；把 allowed_changes 画进本张、或正面出现否定写法，判不合格。
+- Qwen 和带负面节点的其他 Comfy 原画工作流：不希望出现的东西进负面提示词，只写名词。Flux.3 Klein 工作流按 `common.md`「Flux.3 Klein 出图」：`negative_constraints` 必须为 []，禁忌改写成正面可见事实；非空负面判不合格。
 
 ## 输出合同
 返回 `art_prompt_review`：status=ok 且 findings=[]，或 status=rejected 且 findings 含整改意见。asset_key、variant_key、asset_type 必须与被审合同一致。

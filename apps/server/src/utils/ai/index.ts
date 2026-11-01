@@ -2,7 +2,7 @@ import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completio
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
 import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
 import { getBuiltinModels, getBuiltinProviders } from "@earendil-works/pi-ai/providers/all";
-import type { Context, Model } from "@earendil-works/pi-ai";
+import type { Context, Model, ThinkingLevelMap } from "@earendil-works/pi-ai";
 import { z } from "zod";
 import conf from "@/utils/conf";
 import { readReference } from "@/utils/media/generation";
@@ -27,6 +27,11 @@ export const providerSchema = z.object({
     id: z.string(), label: z.string(),
     contextWindow: z.number().int().positive().optional(),
     maxOutputTokens: z.number().int().positive().optional(),
+    inputs: z.object({
+      image: z.boolean().optional(),
+      video: z.boolean().optional(),
+      audio: z.boolean().optional(),
+    }).optional(),
   })),
 });
 
@@ -49,6 +54,39 @@ export function getModelLimits(providerId: string, model: z.infer<typeof provide
     contextWindow: model.contextWindow ?? contextWindow ?? 262144,
     maxTokens: model.maxOutputTokens ?? maxTokens ?? 32768,
   };
+}
+
+const settingLevels = ["low", "medium", "high"] as const;
+const catalogLevels = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+
+function catalogEffort(map: ThinkingLevelMap, level: typeof catalogLevels[number]) {
+  if (!(level in map)) return level === "xhigh" || level === "max" ? undefined : level;
+  const mapped = map[level];
+  return typeof mapped === "string" ? mapped : undefined;
+}
+
+// 对话不再自选档位。设置里的低/中/高落到模型目录：不支持的档改成最近的可用值，关闭思考保持关闭。
+export function getModelThinkingProfile(modelId: string) {
+  const specified = builtinModels.filter(item => item.id === modelId && (item.compat || item.thinkingLevelMap));
+  const withFormat = specified.filter(item => typeof (item.compat as { thinkingFormat?: unknown } | undefined)?.thinkingFormat === "string");
+  const candidates = withFormat.length ? withFormat : specified;
+  const source = candidates[0];
+  if (!source) return;
+  const signature = (item: typeof source) => JSON.stringify([item.reasoning, item.compat ?? null, item.thinkingLevelMap ?? null]);
+  if (candidates.some(item => signature(item) !== signature(source))) return;
+  const sourceMap = source.thinkingLevelMap;
+  if (!sourceMap) return { reasoning: source.reasoning, compat: source.compat };
+  const thinkingLevelMap: ThinkingLevelMap = { ...sourceMap };
+  if (thinkingLevelMap.off === null) delete thinkingLevelMap.off;
+  for (const level of settingLevels) {
+    if (sourceMap[level] !== null) continue;
+    const index = catalogLevels.indexOf(level);
+    let replacement: string | undefined;
+    for (let cursor = index + 1; cursor < catalogLevels.length && !replacement; cursor++) replacement = catalogEffort(sourceMap, catalogLevels[cursor]!);
+    for (let cursor = index - 1; cursor >= 0 && !replacement; cursor--) replacement = catalogEffort(sourceMap, catalogLevels[cursor]!);
+    if (replacement) thinkingLevelMap[level] = replacement;
+  }
+  return { reasoning: source.reasoning, compat: source.compat, thinkingLevelMap };
 }
 
 export function getConfiguredModel(providerId: string, modelId: string) {
@@ -76,6 +114,11 @@ export function listAiModels() {
       return {
         providerId: provider.id, providerLabel: provider.label, protocol: provider.protocol, modelId: model.id, label: model.label,
         contextWindow: limits.contextWindow, maxOutputTokens: limits.maxTokens,
+        inputs: {
+          image: model.inputs?.image === true,
+          video: model.inputs?.video === true,
+          audio: model.inputs?.audio === true,
+        },
       };
     });
   });

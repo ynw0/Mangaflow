@@ -15,6 +15,12 @@ export function isCanvasRead(name: string) {
   return readNames.has(name);
 }
 
+export type CanvasTurn = { id: string; changed: boolean };
+
+export function canvasSwitchedMessage(canvasId: string) {
+  return `目标画布已切换，本轮画布是 ${canvasId}，其他画布的节点 ID 已失效`;
+}
+
 function jsonSize(value: unknown, limit = responseBytes) {
   let remaining = limit;
   const ancestors = new Set<object>();
@@ -144,17 +150,16 @@ export function createCanvasQueries(source: {
   nodeTools(): NodeToolsContext;
 }) {
   const sessionId = crypto.randomUUID();
-  function findNode(id: string) {
-    const node = source.findNode(id);
-    if (!node) throw new Error(`节点不存在：${id}`);
-    return node;
-  }
-
-  return async function read(request: CanvasToolCall, canvasId: string, signal: AbortSignal) {
+  return async function read(request: CanvasToolCall, canvasId: string, signal: AbortSignal, turn?: CanvasTurn) {
     if (!isCanvasRead(request.name)) throw new Error("未知画布查询");
     const name = request.name as "getCanvas" | "findCanvasNodes" | "getCanvasNodes" | "getCanvasEdges" | "getNodeTools";
     const args = canvasSchemas[name].parse(request.args);
-    if (args.canvasId !== undefined && args.canvasId !== canvasId) throw new Error("目标画布已切换，请重新查询画布");
+    if (args.canvasId !== undefined && args.canvasId !== canvasId) throw new Error(canvasSwitchedMessage(turn?.id || canvasId));
+    function findNode(id: string) {
+      const node = source.findNode(id);
+      if (!node) throw new Error(turn?.changed ? canvasSwitchedMessage(turn.id) : `节点不存在：${id}`);
+      return node;
+    }
     const { cursor, ...filters } = args;
     const metadata = name === "getCanvas" ? {
       canvases: (args as { include?: string[] }).include?.includes("canvases") ? await source.canvases(signal) : [],

@@ -146,6 +146,7 @@
         :plans="plans"
         :selectedPlanId="selectedPlanId"
         :tasks="tasks"
+        :now="now"
         :initializing="addingMannequin || !scene.objectList.length && tasks.some((task) => !task.error)"
         @selectPlan="selectPlan"
         :models="models"
@@ -182,6 +183,7 @@ const props = defineProps<{
   plans: DirectorPlanItem[];
   selectedPlanId: string;
   tasks: DirectorGeneration[];
+  now: number;
   models: NodeAiModel[];
   modelsLoading: boolean;
   addingMannequin: boolean;

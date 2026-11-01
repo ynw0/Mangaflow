@@ -3,7 +3,7 @@
     <template #reference>
       <el-button class="settingsButton" text size="small" :disabled="disabled" :aria-expanded="settingsVisible" aria-label="视频生成设置">
         <span class="ratioShape" :style="ratioStyle(ratio)" aria-hidden="true" />
-        <span>{{ [ratio, resolution, duration ? `${duration}秒` : ''].filter(Boolean).join(' · ') }}</span>
+        <span>{{ summary }}</span>
         <component :is="settingsVisible ? IconChevronDown : IconChevronUp" :size="14" aria-hidden="true" />
       </el-button>
     </template>
@@ -12,19 +12,39 @@
       <el-select v-if="modes.length" v-model="mode" :disabled="disabled" :teleported="false" aria-label="视频生成模式">
         <el-option v-for="item in modes" :key="item.value" :value="item.value" :label="item.label" />
       </el-select>
-      <div v-if="durations.length || resolutions.length" class="outputOptions">
+      <div v-if="durations.length || resolutions.length || sampling" class="outputOptions">
         <div v-if="durations.length" class="outputField">
           <div class="sectionLabel">时长</div>
           <el-select v-model="duration" :disabled="disabled" :teleported="false" aria-label="视频时长">
             <el-option v-for="item in durations" :key="item" :value="item" :label="`${item}秒`" />
           </el-select>
         </div>
-        <div v-if="resolutions.length" class="outputField">
+        <div v-if="sampling" class="outputField">
+          <div class="sectionLabel">百万像素</div>
+          <el-select v-model="megapixels" :disabled="disabled" :teleported="false" aria-label="采样百万像素">
+            <el-option v-for="item in megapixelOptions" :key="item.value" :value="item.value" :label="item.label" />
+          </el-select>
+        </div>
+        <div v-else-if="resolutions.length" class="outputField">
           <div class="sectionLabel">分辨率</div>
           <el-select v-model="resolution" :disabled="disabled" :teleported="false" aria-label="视频分辨率">
             <el-option v-for="item in resolutions" :key="item" :value="item" :label="item" />
           </el-select>
         </div>
+      </div>
+      <div v-if="sampling" class="upscaleOption">
+        <div class="sectionLabel">放大倍率</div>
+        <el-input-number
+          v-model="upscale"
+          class="upscaleInput"
+          :disabled="disabled"
+          :min="sampling.upscaleMin"
+          :max="sampling.upscaleMax"
+          :step="sampling.upscaleStep"
+          :precision="2"
+          controlsPosition="right"
+          aria-label="放大倍率" />
+        <div v-if="outputSize" class="sizeHint">成片 {{ outputSize.width }}×{{ outputSize.height }}</div>
       </div>
       <div class="sectionLabel">通用比例</div>
       <div class="ratioOptions" role="group" aria-label="视频比例">
@@ -71,6 +91,8 @@ const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: 
 const settingsVisible = ref(false);
 const duration = defineModel<number | undefined>("duration", { required: true });
 const resolution = defineModel<string>("resolution", { required: true });
+const megapixels = defineModel<number | undefined>("megapixels");
+const upscale = defineModel<number | undefined>("upscale");
 const ratio = defineModel<string>("ratio", { required: true });
 const mode = defineModel<string>("mode", { required: true });
 const generateAudio = defineModel<boolean>("generateAudio", { required: true });
@@ -90,6 +112,52 @@ const resolutions = computed(() => resolutionsFor(duration.value));
 function resolutionsFor(value: number | undefined) {
   return [...new Set(mappings.value.filter(item => value !== undefined && item.duration.includes(value)).flatMap(item => item.resolution))];
 }
+
+const sampling = computed(() => props.model?.sampling);
+// 与 ComfyUI ResolutionSelector 一致：总像素 = 百万像素 × 1024²，再按倍数取整。
+const aspectPairs: Record<string, [number, number]> = {
+  "1:1": [1, 1], "2:3": [2, 3], "3:2": [3, 2], "3:4": [3, 4], "4:3": [4, 3], "9:16": [9, 16], "16:9": [16, 9], "21:9": [21, 9],
+};
+
+function roundHalfEven(value: number) {
+  const floor = Math.floor(value);
+  const diff = value - floor;
+  if (diff > 0.5) return floor + 1;
+  if (diff < 0.5) return floor;
+  return floor % 2 === 0 ? floor : floor + 1;
+}
+
+function selectorPixels(ratioValue: string, megapixelValue: number, multiple: number) {
+  const pair = aspectPairs[ratioValue];
+  if (!pair) return;
+  const scale = Math.sqrt((megapixelValue * 1024 * 1024) / (pair[0] * pair[1]));
+  return {
+    width: roundHalfEven((pair[0] * scale) / multiple) * multiple,
+    height: roundHalfEven((pair[1] * scale) / multiple) * multiple,
+  };
+}
+
+function deliveredPixels(ratioValue: string, megapixelValue: number, scaleValue: number, multiple: number) {
+  const base = selectorPixels(ratioValue, megapixelValue, multiple);
+  if (!base) return;
+  const align = (value: number, step: number) => roundHalfEven(value / step) * step;
+  return {
+    width: align(align(base.width * scaleValue, 32), 16),
+    height: align(align(base.height * scaleValue, 32), 16),
+  };
+}
+
+const megapixelOptions = computed(() => (sampling.value?.megapixels ?? []).map(value => {
+  const size = sampling.value ? selectorPixels(ratio.value, value, sampling.value.multiple) : undefined;
+  return { value, label: size ? `${value} · ${size.width}×${size.height}` : String(value) };
+}));
+const outputSize = computed(() => sampling.value && megapixels.value != null && upscale.value != null
+  ? deliveredPixels(ratio.value, megapixels.value, upscale.value, sampling.value.multiple)
+  : undefined);
+const summary = computed(() => {
+  const sizeText = sampling.value ? (outputSize.value ? `${outputSize.value.width}×${outputSize.value.height}` : "") : resolution.value;
+  return [ratio.value, sizeText, duration.value ? `${duration.value}秒` : ""].filter(Boolean).join(" · ");
+});
 
 function ratioStyle(value: string) {
   const [width = 1, height = 1] = value.split(":").map(Number);
@@ -128,6 +196,18 @@ function ratioStyle(value: string) {
     gap: 12px;
     margin-bottom: 14px;
     .outputField { flex: 1; min-width: 0; }
+  }
+
+  .upscaleOption {
+    margin-bottom: 14px;
+
+    .upscaleInput { width: 100%; }
+
+    .sizeHint {
+      margin-top: 6px;
+      color: var(--el-text-color-secondary);
+      font-size: 12px;
+    }
   }
 
   .ratioOptions {

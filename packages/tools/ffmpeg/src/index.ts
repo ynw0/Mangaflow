@@ -73,7 +73,7 @@ const plugin: ToolPlugin = {
       promptGuidelines: [
         '截帧示例：{"steps":[{"method":"input","args":["assets/input.mp4"]},{"method":"seekInput","args":[1]},{"method":"frames","args":[1]},{"method":"output","args":["assets/frame.png"]}]}。',
         'inputOptions/outputOptions 按 fluent 原生语法传参，不额外拆分空格。含空格的元数据使用 args:["-metadata","title=a b"]，不要再嵌套数组。先用 operation={"method":"availableEncoders","args":[]} 等查询实际能力，不猜测本机编码器。',
-        "除非用户要求覆盖，否则使用新文件名；所有显式路径及参数、滤镜和媒体清单中引用的文件都应位于当前工作区。",
+        "除非用户要求覆盖，否则使用新文件名。显式路径超出当前工作区时，宿主会请求授权；系统目录不会被授权，删除盘符根目录也不会。",
       ],
       parameters: z.toJSONSchema(processSchema, { io: "input", target: "draft-07" }),
       executionMode: "sequential",

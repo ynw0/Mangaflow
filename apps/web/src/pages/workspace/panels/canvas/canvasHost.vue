@@ -203,7 +203,8 @@ function resolveCanvasContext(fileName: string): CanvasContext | undefined {
 }
 
 function getCanvasContext() {
-  return props.active ? activeInstance.value?.getCanvasContext() : undefined;
+  // 切到文档面板时画布仍挂着。对话要继续拿到这块画布，否则整组画布工具不会注册。
+  return activeInstance.value?.getCanvasContext();
 }
 
 async function flushSave(action?: () => Promise<void>) {

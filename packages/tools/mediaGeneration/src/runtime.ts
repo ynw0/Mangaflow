@@ -21,6 +21,10 @@ const referenceMode = z.templateLiteral([z.enum(["image", "video", "audio"]), "R
   .refine(value => /Reference:(?:[1-9]\d?|1\d{2}|2[0-4]\d|25[0-6])$/.test(value), "参考数量必须在 1 到 256 之间");
 
 export const listMediaModelsSchema = z.strictObject({});
+export const qcVideoSchema = z.strictObject({
+  videoPath: relativePath,
+  checklist: z.string().max(8000).optional(),
+});
 export const imageGenerationSchema = z.strictObject({
   ...sharedFields,
   size: z.string().trim().min(1).max(64).optional(),
@@ -33,6 +37,11 @@ export const videoGenerationSchema = z.strictObject({
   lastFrame: imageReference.optional(),
   resolution: z.string().trim().min(1).max(64).optional(),
   duration: z.number().finite().positive().max(3600).optional(),
+  // 交给 ComfyUI 的种子；云视频组装参数时不用这个字段。
+  seed: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+  // 二采节点 8 的百万像素、节点 151 的放大倍率；云视频组装参数时不用。
+  megapixels: z.number().finite().min(0.1).max(16).optional(),
+  upscale: z.number().finite().min(1).max(4).optional(),
   generateAudio: z.boolean().optional(),
   mode: z.union([
     z.enum(["singleImage", "startEndRequired", "endFrameOptional", "startFrameOptional", "text"]),

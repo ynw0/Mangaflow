@@ -221,8 +221,6 @@ interface ProviderDefinition<TRules extends readonly ProviderFormRule[] = readon
    * 返回 { price, tips }，由供应商自由提供价格展示文本与提示；null 表示当前参数无法估价，节点保留占位。
    */
   getPrice?: (this: ProviderContext<ProviderConfig<TRules>>, request: ProviderPriceRequest) => Promise<ProviderPrice | null>;
-  /** 查询当前配置账户的余额；计价单位由供应商返回。 */
-  getBalance?: (this: ProviderContext<ProviderConfig<TRules>>) => Promise<ProviderBalance>;
   /** 未实现的方法保持缺省，调用方据此判断能力是否可用。 */
   generateImage?: GenerateMedia<ImageRequest, ProviderConfig<TRules>>;
   generateVideo?: GenerateMedia<VideoRequest, ProviderConfig<TRules>>;
@@ -231,7 +229,7 @@ interface ProviderDefinition<TRules extends readonly ProviderFormRule[] = readon
   processMedia?: (this: ProviderContext<ProviderConfig<TRules>>, request: ImageRequest | VideoRequest | AudioRequest) => Promise<ImageRequest | VideoRequest | AudioRequest>;
 }
 
-/** 仅用于展示，不参与余额计算；没有额外提示时 tips 返回空字符串。 */
+/** 仅用于展示；没有额外提示时 tips 返回空字符串。 */
 interface ProviderPrice {
   price: string;
   tips: string;
@@ -253,12 +251,3 @@ type ProviderPriceRequest =
   | ({ type: "image"; images?: ProviderPriceReference[]; mask?: ProviderPriceReference } & Omit<ImageRequest, "images" | "mask">)
   | ({ type: "video"; images?: ProviderPriceReference[]; videos?: ProviderPriceReference[]; audios?: ProviderPriceReference[]; firstFrame?: ProviderPriceReference; lastFrame?: ProviderPriceReference } & Omit<VideoRequest, "images" | "videos" | "audios" | "firstFrame" | "lastFrame">)
   | ({ type: "audio"; images?: ProviderPriceReference[]; audios?: (ProviderPriceReference & { text?: string })[] } & Omit<AudioRequest, "images" | "audios">);
-
-interface ProviderBalance {
-  balance: number;
-  unit: string;
-  /** null 表示密钥额度无限制；缺省表示供应商不提供独立密钥额度。 */
-  keyBalance?: number | null;
-  totalConsumption?: number;
-  totalRecharge?: number;
-}

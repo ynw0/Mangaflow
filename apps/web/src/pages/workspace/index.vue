@@ -82,7 +82,6 @@ import settings from "@/components/settings/index.vue";
 import { useWorkspaceStore } from "@/stores/workspace";
 import { registerWorkspaceControl, waitForControlValue } from "@/lib/mcpControl";
 import anonymousData from "@/lib/anonymousData";
-import { useProviderBalances } from "@/lib/providerBilling";
 import canvasPanel from "./panels/canvas/canvasHost.vue";
 import type { DocumentNodeOptions } from "./panels/canvas/canvasFiles";
 import workspaceMenu from "./components/workspaceMenu.vue";
@@ -92,9 +91,16 @@ const documentPanel = defineAsyncComponent(() => import("./panels/document/index
 
 const activePanel = ref<"canvas" | "document">("canvas");
 const selectedTool = ref<"move" | "hand">("move");
-onMounted(() => anonymousData.track("workspace.canvas"));
+const sideButtonEvents = ["mousedown", "mouseup", "auxclick"] as const;
+function preventSideButtonNavigation(event: MouseEvent) {
+  if (event.button === 3 || event.button === 4) event.preventDefault();
+}
+onMounted(() => {
+  anonymousData.track("workspace.canvas");
+  for (const eventName of sideButtonEvents) window.addEventListener(eventName, preventSideButtonNavigation, true);
+  window.addEventListener("toonflow:open-workspace-file", openWorkspaceFile);
+});
 const workspaceStore = useWorkspaceStore();
-useProviderBalances();
 const panelOptions = [
   { label: "画布", value: "canvas", icon: IconVector },
   { label: "文档", value: "document", icon: IconFileText },
@@ -118,7 +124,11 @@ provide("performWorkspaceFileAction", (directory: string, action: "copy" | "rena
   documentPanelRef.value ? documentPanelRef.value.performFileAction(directory, action, path, target, entryType) : performFileAction(directory, action, path, target));
 
 const controlLifetime = new AbortController();
-onScopeDispose(() => controlLifetime.abort(new Error("工作区已关闭")));
+onScopeDispose(() => {
+  controlLifetime.abort(new Error("工作区已关闭"));
+  for (const eventName of sideButtonEvents) window.removeEventListener(eventName, preventSideButtonNavigation, true);
+  window.removeEventListener("toonflow:open-workspace-file", openWorkspaceFile);
+});
 registerWorkspaceControl({
   getState: () => ({
     directory: workspaceStore.project?.directory ?? null,
@@ -145,7 +155,7 @@ registerWorkspaceControl({
     }
     if (["getDocument", "openDocument", "writeDocument"].includes(request.name)) {
       if (!(await switchPanel("document"))) throw new Error("文档面板无法打开");
-      const panel = await waitForControlValue(() => documentPanelRef.value, callSignal);
+      const panel = await waitForControlValue(() => documentPanelRef.value?.ready ? documentPanelRef.value : undefined, callSignal);
       checkDirectory();
       if (request.name === "openDocument") await panel.openDocument(request.args, callSignal);
       if (request.name === "writeDocument") await panel.writeDocument(request.args, callSignal);
@@ -197,6 +207,20 @@ onBeforeRouteLeave(async () => {
     return leave;
   }
 });
+
+async function openWorkspaceFile(event: Event) {
+  const detail = (event as CustomEvent<{ directory?: unknown; path?: unknown }>).detail;
+  const directory = workspaceStore.project?.directory;
+  if (!directory || detail?.directory !== directory || typeof detail.path !== "string") return;
+  if (!(await switchPanel("document"))) return;
+  try {
+    const panel = await waitForControlValue(() => documentPanelRef.value?.ready ? documentPanelRef.value : undefined, AbortSignal.timeout(15000));
+    if (workspaceStore.project?.directory !== directory) return;
+    await panel.openDocument({ path: detail.path }, AbortSignal.timeout(15000));
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "无法打开文件");
+  }
+}
 
 async function switchPanel(value: string | number | boolean) {
   if (value !== "canvas" && value !== "document") return false;

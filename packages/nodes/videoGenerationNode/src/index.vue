@@ -50,7 +50,11 @@
         <div v-if="frameMode" class="referenceHint">
           {{ selectedMode === "startFrameOptional" ? "仅一张图片时作为尾帧；两张图片按顺序作为首帧、尾帧" : "图片引用按顺序作为首帧、尾帧" }}
         </div>
-        <promptInput v-model="data.promptModel" v-model:text="data.prompt" :references="referenceMentions" expandable />
+        <promptInput v-model="data.promptModel" v-model:text="editorText" :references="referenceMentions" expandable :placeholder="data.promptZh.trim() ? '中文对照，不进入视频生成' : undefined" />
+        <details v-if="data.promptZh.trim()" class="generationEnglish">
+          <summary>送去生成的英文</summary>
+          <textarea v-model="data.prompt" class="generationEnglishText" aria-label="送去生成的英文" />
+        </details>
         <div class="promptFooter">
           <el-select
             v-model="data.model"
@@ -75,6 +79,8 @@
           <generationSettings
             v-model:duration="data.duration"
             v-model:resolution="data.resolution"
+            v-model:megapixels="data.megapixels"
+            v-model:upscale="data.upscale"
             v-model:ratio="data.ratio"
             v-model:mode="data.mode"
             v-model:generateAudio="data.generateAudio"
@@ -132,9 +138,18 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number });
+const data = computed(() => node.data as { prompt: string; promptZh: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number });
 data.value.prompt ??= "";
+data.value.promptZh ??= "";
 data.value.promptModel ??= [];
+// 有中文对照时，输入框编辑中文；送去生成的仍是英文 prompt。
+const editorText = computed({
+  get: () => data.value.promptZh.trim() ? data.value.promptZh : data.value.prompt,
+  set: (value: string) => {
+    if (data.value.promptZh.trim()) data.value.promptZh = value;
+    else data.value.prompt = value;
+  },
+});
 data.value.model ??= "";
 data.value.resolution ??= "";
 data.value.mode ??= "";
@@ -158,7 +173,7 @@ const { generating } = generationState;
 let generation: Promise<void> | undefined;
 let modelsRequest: Promise<void> | undefined;
 // ACT: 供应商未声明视频比例范围，沿用界面的通用比例，具体支持范围由供应商校验。
-const ratioOptions = ["16:9", "9:16", "1:1", "4:3", "3:4"];
+const ratioOptions = ["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"];
 const selectedModel = computed(() => models.value.find((item) => JSON.stringify([item.providerId, item.modelId]) === data.value.model));
 const selectedMode = computed(() => selectedModel.value?.mode?.find((item) => JSON.stringify(item) === data.value.mode) as NodeVideoRequest["mode"]);
 const frameMode = computed(() => ["startEndRequired", "endFrameOptional", "startFrameOptional"].includes(String(selectedMode.value)));
@@ -208,6 +223,12 @@ watch([selectedModel, () => data.value.duration], ([choice]) => {
   if (!durations.includes(data.value.duration!)) data.value.duration = durations[0];
   const resolutions = getResolutions(choice, data.value.duration);
   if (!resolutions.includes(data.value.resolution)) data.value.resolution = resolutions[0] ?? "";
+  const spec = choice.sampling;
+  if (spec) {
+    if (!spec.megapixels.includes(data.value.megapixels ?? Number.NaN)) data.value.megapixels = spec.megapixels[0];
+    const scale = data.value.upscale;
+    if (scale == null || scale < spec.upscaleMin || scale > spec.upscaleMax) data.value.upscale = spec.upscaleDefault;
+  }
   if (!ratioOptions.includes(data.value.ratio)) data.value.ratio = "9:16";
   if (choice.audio !== "optional") data.value.generateAudio = choice.audio === true;
 }, { flush: "sync" });
@@ -230,7 +251,9 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     prompt: generationPrompt.value,
     mode: selectedMode.value,
     duration: data.value.duration,
-    resolution: data.value.resolution || undefined,
+    resolution: choice.sampling ? undefined : data.value.resolution || undefined,
+    megapixels: choice.sampling && typeof data.value.megapixels === "number" ? data.value.megapixels : undefined,
+    upscale: choice.sampling && typeof data.value.upscale === "number" ? data.value.upscale : undefined,
     ratio: data.value.ratio,
     generateAudio: choice.audio === "optional" ? data.value.generateAudio : choice.audio,
     outputDirectory: `assets/${id}`,
@@ -392,6 +415,8 @@ function getConfig() {
       modelId: selectedModel.value?.modelId ?? "",
       duration: data.value.duration,
       resolution: data.value.resolution,
+      megapixels: data.value.megapixels,
+      upscale: data.value.upscale,
       ratio: data.value.ratio,
       mode: selectedMode.value,
       generateAudio: data.value.generateAudio,
@@ -407,7 +432,7 @@ function getConfig() {
 
 nodeTools.register({
   name: "getConfig",
-  description: "读取此视频生成节点的当前配置（含种子与种子模式）、可选视频模型能力、通用比例及适合当前引用的模式，不含密钥；时长与分辨率须符合 durationResolutionMap",
+  description: "读取此视频生成节点的当前配置（含种子与种子模式）、可选视频模型能力、通用比例及适合当前引用的模式，不含密钥；时长与分辨率须符合 durationResolutionMap。二采模型看 sampling：用百万像素和放大倍率，不使用分辨率",
   parameters: z.strictObject({}),
   async execute(_args, { signal }) {
     signal?.throwIfAborted();
@@ -419,12 +444,14 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setConfig",
-  description: "修改此视频生成节点的模型、时长、分辨率、比例、模式、声音或种子；先用 getConfig 查询能力，providerId 与 modelId 必须同时提供；mode 使用返回的原始字符串或数组，须匹配当前引用；不修改提示词、不启动生成",
+  description: "修改此视频生成节点的模型、时长、分辨率、比例、模式、声音或种子；二采改为百万像素和放大倍率；先用 getConfig 查询能力，providerId 与 modelId 必须同时提供；mode 使用返回的原始字符串或数组，须匹配当前引用；不修改提示词、不启动生成",
   parameters: z.strictObject({
     providerId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),
     duration: z.number().positive().optional(),
     resolution: z.string().min(1).optional(),
+    megapixels: z.number().min(0.1).max(16).optional(),
+    upscale: z.number().min(1).max(4).optional(),
     ratio: z.enum(ratioOptions).optional(),
     mode: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     generateAudio: z.boolean().optional(),
@@ -444,13 +471,28 @@ nodeTools.register({
     if (args.duration !== undefined && !durations.includes(args.duration)) throw new Error(`当前模型不支持时长 ${args.duration}，可选：${durations.join("、")}`);
     const duration = args.duration ?? (durations.includes(data.value.duration!) ? data.value.duration : durations[0]);
     const resolutions = getResolutions(choice, duration);
-    if (args.resolution !== undefined && !resolutions.includes(args.resolution)) throw new Error(`当前时长不支持分辨率 ${args.resolution}，可选：${resolutions.join("、")}`);
+    const spec = choice.sampling;
+    if (spec) {
+      if (args.resolution !== undefined) throw new Error("二采由百万像素和放大倍率决定，不使用分辨率");
+      if (args.megapixels !== undefined && !spec.megapixels.includes(args.megapixels)) throw new Error(`采样百万像素须是 ${spec.megapixels.join("、")}`);
+      if (args.upscale !== undefined && (args.upscale < spec.upscaleMin || args.upscale > spec.upscaleMax)) throw new Error(`放大倍率需要在 ${spec.upscaleMin} 到 ${spec.upscaleMax}`);
+    } else if (args.megapixels !== undefined || args.upscale !== undefined) {
+      throw new Error("当前模型不使用采样百万像素或放大倍率");
+    } else if (args.resolution !== undefined && !resolutions.includes(args.resolution)) {
+      throw new Error(`当前时长不支持分辨率 ${args.resolution}，可选：${resolutions.join("、")}`);
+    }
     const resolution = args.resolution ?? (resolutions.includes(data.value.resolution) ? data.value.resolution : resolutions[0] ?? "");
     if (args.mode !== undefined && !getMatchingModes(choice).some((item) => JSON.stringify(item) === JSON.stringify(args.mode))) throw new Error("所选模式不受当前模型支持或不适用于当前引用，请根据模型能力及已连接素材选择");
     if (args.generateAudio !== undefined && choice.audio !== "optional" && args.generateAudio !== (choice.audio === true)) throw new Error("当前模型不支持切换声音，请查看 getConfig 返回的 audio 能力");
     data.value.model = JSON.stringify([choice.providerId, choice.modelId]);
     data.value.duration = duration;
     data.value.resolution = resolution;
+    if (spec) {
+      if (args.megapixels !== undefined) data.value.megapixels = args.megapixels;
+      else if (!spec.megapixels.includes(data.value.megapixels ?? Number.NaN)) data.value.megapixels = spec.megapixels[0];
+      if (args.upscale !== undefined) data.value.upscale = args.upscale;
+      else if (data.value.upscale == null) data.value.upscale = spec.upscaleDefault;
+    }
     if (args.ratio !== undefined) data.value.ratio = args.ratio;
     if (args.mode !== undefined) data.value.mode = JSON.stringify(args.mode);
     if (args.generateAudio !== undefined) data.value.generateAudio = args.generateAudio;
@@ -462,13 +504,15 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setPrompt",
-  description: "修改此节点的视频生成提示词，支持 {{ref 1}} 等参考标记；只修改提示词，不启动生成",
-  parameters: z.strictObject({ prompt: z.string() }),
-  execute({ prompt: value }) {
+  description: "修改此节点的视频提示词，支持 {{ref 1}} 等参考标记。prompt 是送去生成的英文；promptZh 是显示在节点上的简体中文对照，不进入生成。成片提示词两者都要传。只修改提示词，不启动生成",
+  parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional() }),
+  execute({ prompt: value, promptZh }) {
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");
     data.value.prompt = value;
-    data.value.promptModel = value.split("\n").map((text) => [{ type: "Write", text }]);
-    return { prompt: value };
+    data.value.promptZh = promptZh ?? "";
+    const shown = data.value.promptZh.trim() ? data.value.promptZh : value;
+    data.value.promptModel = shown.split("\n").map((text) => [{ type: "Write", text }]);
+    return { prompt: value, promptZh: data.value.promptZh };
   },
 });
 
@@ -510,6 +554,29 @@ nodeTools.register({
     margin: 8px 0;
     color: var(--el-text-color-secondary);
     font-size: 12px;
+  }
+
+  .generationEnglish {
+    margin-top: 8px;
+
+    summary {
+      cursor: pointer;
+      color: var(--el-text-color-secondary);
+    }
+  }
+
+  .generationEnglishText {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 96px;
+    margin-top: 6px;
+    padding: 8px;
+    resize: vertical;
+    border: 1px solid var(--el-border-color);
+    border-radius: var(--el-border-radius-base);
+    background: var(--el-fill-color-blank);
+    color: var(--el-text-color-regular);
+    font: inherit;
   }
 
   .promptFooter {

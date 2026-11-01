@@ -19,7 +19,7 @@ production_profile、资产规划、asset_key、variant_key、canonical_descript
 - 变体以 approved_master 锁定身份，只允许 allowed_variant_changes。冲突不能通过弱化锁定来处理。
 - prompt 按 `_common.txt` 视觉化清单写正面画面：主体与组件、产品姿态、构图、镜头感、棚光、材质纹理。身份锁与结构锁必须写进 prompt 正文。默认 3/4 产品静帧、简洁背景；风格词拆成光质、色温和表面质感，不复读形容词。
 - `prompt` 正文用英文叙述可拍摄事实；另填 `prompt_zh` 简体中文对照给人审阅（不进模型）。不要在 `prompt` 末尾自写 `Visual Style:` 或 `Still:` 行；sidecar 入库时追加这两行英文页脚。
-- 禁忌进 `negative_constraints`（英文，进模型负面节点）：写成**不想要的画面事实**（物体、形态或状态本身）。正面 `prompt` 禁止「不是/禁止/no/not/without」；否定写法会把禁忌概念送进正面 CLIP。
+- Qwen 和带负面节点的其他 Comfy 原画工作流：禁忌进 `negative_constraints`（英文，进模型负面节点），写成不想要的画面事实（物体、形态或状态本身）。正面 `prompt` 禁止「不是/禁止/no/not/without」；否定写法会把禁忌概念送进正面 CLIP。Flux.3 Klein 工作流按 `common.md`「Flux.3 Klein 出图」：`negative_constraints` 返回 []，禁忌改写成正面可见事实。
 - 写法克制、正负面分流见 `common.md`「写法克制」「原画正负面与多格」。
 - 方向性/弹道类道具（刃、箭、弹、爪痕弧、能量镰等）新建静帧时，优先按主运动轴摆放（前缘朝约定方向）；已批准图不强制重出。成片朝向由导演按本镜运动重写，见 `video-director.md` 方向性道具条。
 - 不要用另一个物体去顶替已确认结构。外形只写输入设定里已确认或允许设计的事实。

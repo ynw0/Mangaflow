@@ -5,7 +5,7 @@ import { parseWorkflowBindings, type WorkflowBindings } from "@/utils/production
 import { readProduction, fail } from "@/utils/production/config";
 import { resolveAppDirectory } from "@/resolveAppDirectory";
 
-export type WorkflowKind = "image" | "video";
+export type WorkflowKind = "image" | "video" | "qc";
 
 export type WorkflowEntry = {
   id: string;
@@ -20,10 +20,16 @@ const labels: Record<string, string> = {
   "image/character_image": "角色设定图",
   "image/scene_image": "场景图",
   "image/prop_image": "道具原画",
+  "image/flux3KleinT2i": "Flux.3 Klein 文生图",
+  "image/flux3KleinDistilledT2i": "Flux.3 Klein 蒸馏文生图",
+  "image/flux3KleinEdit": "Flux.3 Klein 图像编辑",
+  "image/flux3KleinDistilledEdit": "Flux.3 Klein 蒸馏图像编辑",
   "video/h3_ref2va_1080p": "H3 全参参考",
   "video/h3_erca_16x9": "二采 MiniMax H3 16:9",
   "video/h3_erca_9x16": "二采 MiniMax H3 9:16",
   "video/h3_flf_repair": "H3 首尾帧",
+  "qc/gemma4E2b": "Gemma 4 E2B 质检",
+  "qc/gemma4E4b": "Gemma 4 E4B 质检",
 };
 
 /** 内置 workflows 目录（与 upload 共用，按仓库根解析）。 */
@@ -71,8 +77,8 @@ function insideRoot(root: string, target: string) {
 }
 
 async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
-  const kind = id.startsWith("image/") ? "image" : id.startsWith("video/") ? "video" : undefined;
-  if (!kind) fail(`工作流 ${id} 必须放在 image 或 video 目录下`);
+  const kind = id.startsWith("image/") ? "image" : id.startsWith("video/") ? "video" : id.startsWith("qc/") ? "qc" : undefined;
+  if (!kind) fail(`工作流 ${id} 必须放在 image、video 或 qc 目录下`);
   const bindingsPath = join(root, `${id}.bindings.yaml`);
   const parsed = parseWorkflowBindings(await readFile(bindingsPath, "utf8"));
   const workflowPath = resolve(dirname(bindingsPath), parsed.workflow);
@@ -120,6 +126,20 @@ export async function findWorkflow(id: string) {
   return entry;
 }
 
+// 二采的分辨率是节点 8 百万像素（倍数 32）再乘节点 151 的放大倍率。
+function samplingFor(entry: WorkflowEntry) {
+  const sources = new Set(entry.bindings.bindings.map(item => item.source));
+  if (!sources.has("megapixels") || !sources.has("upscale")) return;
+  return {
+    megapixels: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.98, 1, 1.2, 1.5, 1.8, 2],
+    multiple: 32,
+    upscaleMin: 1,
+    upscaleMax: 4,
+    upscaleStep: 0.05,
+    upscaleDefault: 2,
+  };
+}
+
 export function toMediaModel(entry: WorkflowEntry) {
   const limits = entry.bindings.capabilities.durationSeconds;
   const durations = limits
@@ -139,10 +159,12 @@ export function toMediaModel(entry: WorkflowEntry) {
       type: "image" as const,
       supportsPrice: false,
       mode: ["text", "singleImage", "multiReference"],
-      imageSizes: ["2048x768", "1024x1024", "1344x768", "768x1024"],
-      imageRatios: ["8:3", "1:1", "16:9", "3:4"],
+      imageSizes: ["2048x768", "1024x1024", "1344x768", "768x1024", "768x1344", "1024x768", "1248x832", "832x1248", "1568x672"],
+      imageRatios: ["8:3", "1:1", "16:9", "3:4", "9:16", "4:3", "3:2", "2:3", "21:9"],
     };
   }
+  if (entry.kind !== "video") fail(`${entry.id} 不是出视频工作流`);
+  const sampling = samplingFor(entry);
   return {
     providerId: "comfyui",
     providerLabel: "ComfyUI",
@@ -155,7 +177,8 @@ export function toMediaModel(entry: WorkflowEntry) {
       : needsImage
         ? ["singleImage", ["imageReference:9", "videoReference:1", audioReference]]
         : ["text", "singleImage", ["imageReference:9", "videoReference:1", audioReference]],
-    durationResolutionMap: [{ duration: durations, resolution: ["1080P"] }],
+    durationResolutionMap: [{ duration: durations, resolution: sampling ? [] : ["1080P"] }],
+    sampling,
     audio: hasAudio ? "optional" as const : false,
   };
 }

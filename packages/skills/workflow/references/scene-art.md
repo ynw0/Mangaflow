@@ -20,7 +20,7 @@ production_profile、资产规划、asset_key、variant_key、canonical_descript
 - 变体以 approved_master 锁定身份，只允许 allowed_variant_changes。冲突不能通过弱化锁定来处理。
 - prompt 按 `_common.txt` 视觉化清单写正面画面。`scene_quad` 逐格写观察方向，并写明四格共享的轮廓、陈设和光源。`establishing_wide` 写单张空镜的空间、景别、光照和材质。布局锁必须写进 prompt 正文。两种都不写人物动作。未确认的超自然或剧情物件不得自行添加。氛围词拆成时间、天气、光色和景深，不复读形容词。
 - `prompt` 正文用英文叙述可拍摄事实；另填 `prompt_zh` 简体中文对照给人审阅（不进模型）。不要在 `prompt` 末尾自写 `Visual Style:` 或 `Still:` 行；sidecar 入库时追加这两行英文页脚。
-- 禁忌进 `negative_constraints`（英文，进模型负面节点）：写成不想要的画面事实（物体或布局本身），不要在正面写「没有/禁止」。
+- Qwen 和带负面节点的其他 Comfy 原画工作流：禁忌进 `negative_constraints`（英文，进模型负面节点），写成不想要的画面事实（物体或布局本身），不要在正面写「没有/禁止」。Flux.3 Klein 工作流按 `common.md`「Flux.3 Klein 出图」：`negative_constraints` 返回 []，禁忌改写成正面可见事实。
 - 写法克制、正负面与多格逐格正向见 `common.md`「写法克制」「原画正负面与多格」；`scene_quad` 必须逐格正向写观察方向与共享布局。
 
 ## 输出合同

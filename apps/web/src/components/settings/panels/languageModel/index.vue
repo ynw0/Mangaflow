@@ -2,7 +2,7 @@
   <div class="providerList">
     <section class="thinkingLevel" aria-labelledby="thinkingLevelTitle">
       <h3 id="thinkingLevelTitle">思考等级</h3>
-      <p>新对话默认使用这里的档位，和输入框里的推理等级相同。关闭思考后不再输出思考过程。</p>
+      <p>对话使用这里的思考等级。模型不支持所选档位时，按它实际支持的最近档位发送。关闭思考后不再输出思考过程。</p>
       <el-segmented v-model="thinkingLevel" :options="thinkingLevelOptions" block aria-label="思考等级" />
     </section>
     <div class="itemList">

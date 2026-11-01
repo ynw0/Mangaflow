@@ -100,7 +100,6 @@
     "apps/web/src/components/settings/panels/pluginMarket/index.vue",
     "apps/web/src/components/settings/panels/pluginMarket/pluginConfigDialog.vue",
     "apps/web/src/components/settings/panels/pluginMarket/skillEditorDialog.vue",
-    "apps/web/src/components/settings/tfRechargeDialog.vue",
     "apps/web/src/lib/desktopProtocol.ts",
     "apps/web/src/lib/i18n.ts",
     "apps/web/src/pages/home/index.vue",
@@ -349,8 +348,6 @@
     "apps/web/src/components/settings/panels/languageModel/addProviderDialog.vue",
     "apps/web/src/components/settings/panels/personalization.vue",
     "apps/web/src/components/settings/panels/pluginMarket/index.vue",
-    "apps/web/src/components/settings/tfAccount.vue",
-    "apps/web/src/components/settings/tfRechargeDialog.vue",
     "apps/web/src/main.ts",
     "apps/web/src/pages/workspace/panels/document/components/extView.vue",
     "apps/server/src/remoteConnection.ts"
@@ -553,7 +550,6 @@
     "apps/web/src/components/settings/panels/pluginMarket/agentEditorDialog.vue",
     "apps/web/src/components/settings/panels/pluginMarket/index.vue",
     "apps/web/src/components/settings/panels/pluginMarket/skillEditorDialog.vue",
-    "apps/web/src/components/settings/tfRechargeDialog.vue",
     "apps/web/src/pages/workspace/panels/document/components/editorTab.vue",
     "apps/web/src/pages/workspace/panels/document/components/workspaceSearch.vue"
   ],
@@ -3320,15 +3316,6 @@
   "松石绿": [
     "apps/web/src/components/settings/panels/ui.vue"
   ],
-  "账户余额": [
-    "apps/web/src/components/settings/tfAccount.vue"
-  ],
-  "刷新余额": [
-    "apps/web/src/components/settings/tfAccount.vue"
-  ],
-  "充值": [
-    "apps/web/src/components/settings/tfAccount.vue"
-  ],
   "填写API Key开始使用官方供应商": [
     "apps/web/src/components/settings/tfAccount.vue"
   ],
@@ -3337,84 +3324,6 @@
   ],
   "前往 TF-Router 官网 获取 API Key": [
     "apps/web/src/components/settings/tfAccount.vue"
-  ],
-  "密钥余额": [
-    "apps/web/src/components/settings/tfAccount.vue"
-  ],
-  "无限制": [
-    "apps/web/src/components/settings/tfAccount.vue"
-  ],
-  "累计消费": [
-    "apps/web/src/components/settings/tfAccount.vue"
-  ],
-  "累计充值": [
-    "apps/web/src/components/settings/tfAccount.vue"
-  ],
-  "余额查询失败，请重试": [
-    "apps/web/src/components/settings/tfAccount.vue"
-  ],
-  "TF-Router 充值": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "充值套餐": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "自定义金额": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "充值金额（元）": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "输入充值金额": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "支付方式": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "微信支付": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "支付宝": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "微信支付二维码": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "二维码图片加载失败": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "使用微信扫码支付": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "请在浏览器中完成支付宝支付": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "打开支付页面": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "订单已创建，但接口未返回有效的支付链接": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "订单号": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "完成支付后，关闭此充值弹窗以刷新账户余额。": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "获取支付二维码": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "前往支付宝支付": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "查看余额": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "读取充值套餐失败，请重试": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
-  ],
-  "创建充值订单失败，请重试": [
-    "apps/web/src/components/settings/tfRechargeDialog.vue"
   ],
   "我的消息": [
     "apps/web/src/components/singleAgentDialog.vue"
@@ -3854,31 +3763,7 @@
   "TF-Router 响应格式不正确": [
     "apps/web/src/lib/tf.ts"
   ],
-  "余额响应格式不正确": [
-    "apps/web/src/lib/tf.ts"
-  ],
   "赞助商响应格式不正确": [
-    "apps/web/src/lib/tf.ts"
-  ],
-  "订单号不能为空": [
-    "apps/web/src/lib/tf.ts"
-  ],
-  "订单查询响应格式不正确": [
-    "apps/web/src/lib/tf.ts"
-  ],
-  "充值套餐响应格式不正确": [
-    "apps/web/src/lib/tf.ts"
-  ],
-  "充值套餐 ID 必须为正整数或 -1": [
-    "apps/web/src/lib/tf.ts"
-  ],
-  "请选择微信或支付宝支付": [
-    "apps/web/src/lib/tf.ts"
-  ],
-  "自定义充值金额必须在 0.01 至 50000 之间": [
-    "apps/web/src/lib/tf.ts"
-  ],
-  "支付响应格式不正确": [
     "apps/web/src/lib/tf.ts"
   ],
   "页码必须为正整数": [

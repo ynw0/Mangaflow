@@ -10,7 +10,7 @@
 | 资产 | 角色、场景、道具的规划、原画提示词、审核结论、已选图片 |
 | 分集 | 本集导演注意事项、每个镜头的成片提示词、视频节点 |
 
-已有同名画布就接着写，不另建一套。节点内容用 `node:setText` 或 `node:setPrompt`，函数名以 `getNodeTools` 返回的为准。
+已有同名画布就接着写，不另建一套。节点内容用 `node:setText` 或 `node:setPrompt`，函数名以 `getNodeTools` 返回的为准。视频节点的 `setPrompt` 同时传英文 `prompt` 和中文 `promptZh`：节点显示中文，生成使用英文。
 
 ## 什么连到生成节点
 

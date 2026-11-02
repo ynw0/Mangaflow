@@ -14,6 +14,8 @@ export type WorkflowEntry = {
   root: string;
   bindings: WorkflowBindings;
   workflowPath: string;
+  /** 二采工作流 JSON 里现成的一采、二采步数，不在代码里另写默认值。 */
+  stepDefaults?: { firstPass: number; secondPass: number };
 };
 
 const labels: Record<string, string> = {
@@ -92,7 +94,29 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
     root,
     bindings: parsed,
     workflowPath,
+    stepDefaults: await readStepDefaults(workflowPath, parsed),
   };
+}
+
+// 只读 bindings 指向的整数。读不到就不上报步数，生成时保留 JSON 里的原值。
+function readBoundInteger(source: unknown, path: string) {
+  let current = source;
+  for (const part of path.split(".")) {
+    if (!current || typeof current !== "object" || Array.isArray(current) || !Object.hasOwn(current, part)) return;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return typeof current === "number" && Number.isInteger(current) && current >= 1 ? current : undefined;
+}
+
+async function readStepDefaults(workflowPath: string, bindings: WorkflowBindings) {
+  const firstTarget = bindings.bindings.find(item => item.source === "first_pass_steps")?.target;
+  const secondTarget = bindings.bindings.find(item => item.source === "second_pass_steps")?.target;
+  if (!firstTarget || !secondTarget) return;
+  const parsed = JSON.parse(await readFile(workflowPath, "utf8")) as unknown;
+  const firstPass = readBoundInteger(parsed, firstTarget);
+  const secondPass = readBoundInteger(parsed, secondTarget);
+  if (firstPass == null || secondPass == null) return;
+  return { firstPass, secondPass };
 }
 
 export async function listWorkflowCatalog(): Promise<WorkflowEntry[]> {
@@ -130,6 +154,7 @@ export async function findWorkflow(id: string) {
 function samplingFor(entry: WorkflowEntry) {
   const sources = new Set(entry.bindings.bindings.map(item => item.source));
   if (!sources.has("megapixels") || !sources.has("upscale")) return;
+  const steps = entry.stepDefaults;
   return {
     megapixels: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.98, 1, 1.2, 1.5, 1.8, 2],
     multiple: 32,
@@ -137,6 +162,15 @@ function samplingFor(entry: WorkflowEntry) {
     upscaleMax: 4,
     upscaleStep: 0.05,
     upscaleDefault: 2,
+    // 范围与生成请求校验一致。默认值来自工作流 JSON，16:9 一采是 10，9:16 一采是 8，二采都是 4。
+    ...(steps ? {
+      firstPassMin: 1,
+      firstPassMax: 64,
+      firstPassDefault: steps.firstPass,
+      secondPassMin: 1,
+      secondPassMax: 64,
+      secondPassDefault: steps.secondPass,
+    } : {}),
   };
 }
 

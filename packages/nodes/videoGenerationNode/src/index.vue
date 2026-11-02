@@ -81,6 +81,8 @@
             v-model:resolution="data.resolution"
             v-model:megapixels="data.megapixels"
             v-model:upscale="data.upscale"
+            v-model:firstPassSteps="data.firstPassSteps"
+            v-model:secondPassSteps="data.secondPassSteps"
             v-model:ratio="data.ratio"
             v-model:mode="data.mode"
             v-model:generateAudio="data.generateAudio"
@@ -138,7 +140,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number });
+const data = computed(() => node.data as { prompt: string; promptZh: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -202,6 +204,11 @@ function getDurations(choice: NodeMediaModel) {
   return [...new Set((choice.durationResolutionMap ?? []).flatMap((item) => item.duration))].sort((a, b) => a - b);
 }
 
+function clampInt(value: number | undefined, min: number, max: number, fallback: number) {
+  if (value == null || !Number.isInteger(value) || value < min || value > max) return fallback;
+  return value;
+}
+
 function getResolutions(choice: NodeMediaModel, duration?: number) {
   // ACT: 当前视频分辨率使用 p 单位；出现其他单位时再统一换算。
   return [...new Set((choice.durationResolutionMap ?? []).filter((item) => item.duration.includes(duration!)).flatMap((item) => item.resolution))]
@@ -228,6 +235,12 @@ watch([selectedModel, () => data.value.duration], ([choice]) => {
     if (!spec.megapixels.includes(data.value.megapixels ?? Number.NaN)) data.value.megapixels = spec.megapixels[0];
     const scale = data.value.upscale;
     if (scale == null || scale < spec.upscaleMin || scale > spec.upscaleMax) data.value.upscale = spec.upscaleDefault;
+    if (spec.firstPassDefault != null && spec.firstPassMin != null && spec.firstPassMax != null) {
+      data.value.firstPassSteps = clampInt(data.value.firstPassSteps, spec.firstPassMin, spec.firstPassMax, spec.firstPassDefault);
+    }
+    if (spec.secondPassDefault != null && spec.secondPassMin != null && spec.secondPassMax != null) {
+      data.value.secondPassSteps = clampInt(data.value.secondPassSteps, spec.secondPassMin, spec.secondPassMax, spec.secondPassDefault);
+    }
   }
   if (!ratioOptions.includes(data.value.ratio)) data.value.ratio = "9:16";
   if (choice.audio !== "optional") data.value.generateAudio = choice.audio === true;
@@ -254,6 +267,8 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     resolution: choice.sampling ? undefined : data.value.resolution || undefined,
     megapixels: choice.sampling && typeof data.value.megapixels === "number" ? data.value.megapixels : undefined,
     upscale: choice.sampling && typeof data.value.upscale === "number" ? data.value.upscale : undefined,
+    firstPassSteps: choice.sampling?.firstPassDefault != null ? data.value.firstPassSteps : undefined,
+    secondPassSteps: choice.sampling?.secondPassDefault != null ? data.value.secondPassSteps : undefined,
     ratio: data.value.ratio,
     generateAudio: choice.audio === "optional" ? data.value.generateAudio : choice.audio,
     outputDirectory: `assets/${id}`,
@@ -417,6 +432,8 @@ function getConfig() {
       resolution: data.value.resolution,
       megapixels: data.value.megapixels,
       upscale: data.value.upscale,
+      firstPassSteps: data.value.firstPassSteps,
+      secondPassSteps: data.value.secondPassSteps,
       ratio: data.value.ratio,
       mode: selectedMode.value,
       generateAudio: data.value.generateAudio,
@@ -432,7 +449,7 @@ function getConfig() {
 
 nodeTools.register({
   name: "getConfig",
-  description: "读取此视频生成节点的当前配置（含种子与种子模式）、可选视频模型能力、通用比例及适合当前引用的模式，不含密钥；时长与分辨率须符合 durationResolutionMap。二采模型看 sampling：用百万像素和放大倍率，不使用分辨率",
+  description: "读取此视频生成节点的当前配置（含种子与种子模式）、可选视频模型能力、通用比例及适合当前引用的模式，不含密钥；时长与分辨率须符合 durationResolutionMap。二采模型看 sampling：用百万像素、放大倍率和一采/二采步数，不使用分辨率",
   parameters: z.strictObject({}),
   async execute(_args, { signal }) {
     signal?.throwIfAborted();
@@ -444,7 +461,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setConfig",
-  description: "修改此视频生成节点的模型、时长、分辨率、比例、模式、声音或种子；二采改为百万像素和放大倍率；先用 getConfig 查询能力，providerId 与 modelId 必须同时提供；mode 使用返回的原始字符串或数组，须匹配当前引用；不修改提示词、不启动生成",
+  description: "修改此视频生成节点的模型、时长、分辨率、比例、模式、声音或种子；二采改为百万像素、放大倍率和一采/二采步数；先用 getConfig 查询能力，providerId 与 modelId 必须同时提供；mode 使用返回的原始字符串或数组，须匹配当前引用；不修改提示词、不启动生成",
   parameters: z.strictObject({
     providerId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),
@@ -452,6 +469,8 @@ nodeTools.register({
     resolution: z.string().min(1).optional(),
     megapixels: z.number().min(0.1).max(16).optional(),
     upscale: z.number().min(1).max(4).optional(),
+    firstPassSteps: z.number().int().min(1).max(64).optional(),
+    secondPassSteps: z.number().int().min(1).max(64).optional(),
     ratio: z.enum(ratioOptions).optional(),
     mode: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     generateAudio: z.boolean().optional(),
@@ -476,8 +495,14 @@ nodeTools.register({
       if (args.resolution !== undefined) throw new Error("二采由百万像素和放大倍率决定，不使用分辨率");
       if (args.megapixels !== undefined && !spec.megapixels.includes(args.megapixels)) throw new Error(`采样百万像素须是 ${spec.megapixels.join("、")}`);
       if (args.upscale !== undefined && (args.upscale < spec.upscaleMin || args.upscale > spec.upscaleMax)) throw new Error(`放大倍率需要在 ${spec.upscaleMin} 到 ${spec.upscaleMax}`);
-    } else if (args.megapixels !== undefined || args.upscale !== undefined) {
-      throw new Error("当前模型不使用采样百万像素或放大倍率");
+      if (spec.firstPassDefault != null && spec.firstPassMin != null && spec.firstPassMax != null && spec.secondPassDefault != null && spec.secondPassMin != null && spec.secondPassMax != null) {
+        if (args.firstPassSteps !== undefined && (args.firstPassSteps < spec.firstPassMin || args.firstPassSteps > spec.firstPassMax)) throw new Error(`一采步数需要在 ${spec.firstPassMin} 到 ${spec.firstPassMax}`);
+        if (args.secondPassSteps !== undefined && (args.secondPassSteps < spec.secondPassMin || args.secondPassSteps > spec.secondPassMax)) throw new Error(`二采步数需要在 ${spec.secondPassMin} 到 ${spec.secondPassMax}`);
+      } else if (args.firstPassSteps !== undefined || args.secondPassSteps !== undefined) {
+        throw new Error("当前模型不使用一采步数或二采步数");
+      }
+    } else if (args.megapixels !== undefined || args.upscale !== undefined || args.firstPassSteps !== undefined || args.secondPassSteps !== undefined) {
+      throw new Error("当前模型不使用采样百万像素、放大倍率或一二采步数");
     } else if (args.resolution !== undefined && !resolutions.includes(args.resolution)) {
       throw new Error(`当前时长不支持分辨率 ${args.resolution}，可选：${resolutions.join("、")}`);
     }
@@ -492,6 +517,12 @@ nodeTools.register({
       else if (!spec.megapixels.includes(data.value.megapixels ?? Number.NaN)) data.value.megapixels = spec.megapixels[0];
       if (args.upscale !== undefined) data.value.upscale = args.upscale;
       else if (data.value.upscale == null) data.value.upscale = spec.upscaleDefault;
+      if (spec.firstPassDefault != null && spec.firstPassMin != null && spec.firstPassMax != null) {
+        data.value.firstPassSteps = args.firstPassSteps ?? clampInt(data.value.firstPassSteps, spec.firstPassMin, spec.firstPassMax, spec.firstPassDefault);
+      }
+      if (spec.secondPassDefault != null && spec.secondPassMin != null && spec.secondPassMax != null) {
+        data.value.secondPassSteps = args.secondPassSteps ?? clampInt(data.value.secondPassSteps, spec.secondPassMin, spec.secondPassMax, spec.secondPassDefault);
+      }
     }
     if (args.ratio !== undefined) data.value.ratio = args.ratio;
     if (args.mode !== undefined) data.value.mode = JSON.stringify(args.mode);

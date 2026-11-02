@@ -12,12 +12,13 @@ import { fail } from "@/utils/production/config";
 
 const slugPattern = /^[a-z][a-z0-9_]{0,63}$/;
 const allowedSources = new Set([
-  "prompt", "seed", "duration",
+  "prompt", "seed", "duration", "first_pass_steps", "second_pass_steps",
   "refs.slot1", "refs.slot2", "refs.slot3", "refs.slot4", "refs.slot5",
   "refs.slot6", "refs.slot7", "refs.slot8", "refs.slot9",
   "refs.first_frame", "refs.last_frame",
   "media.video1", "media.audio1", "media.audio2", "media.audio3",
 ]);
+const valueSources = new Set(["prompt", "seed", "duration", "first_pass_steps", "second_pass_steps"]);
 
 async function builtinWorkflowRoot() {
   const candidate = resolveBuiltinWorkflowsRoot();
@@ -85,8 +86,8 @@ function validateBindings(parsed: WorkflowBindings, nodes: Record<string, unknow
     if (item.kind === "image" && !item.source.startsWith("refs.")) fail(`${item.source} 的 kind 应为 image 对应 refs.*`);
     if (item.kind === "video" && !item.source.startsWith("media.video")) fail(`${item.source} 的 kind 应为 video`);
     if (item.kind === "audio" && !item.source.startsWith("media.audio")) fail(`${item.source} 的 kind 应为 audio`);
-    if (item.kind === "value" && !["prompt", "seed", "duration"].includes(item.source)) {
-      fail(`${item.source} 的 kind 应为 value（prompt/seed/duration）`);
+    if (item.kind === "value" && !valueSources.has(item.source)) {
+      fail(`${item.source} 的 kind 应为 value（prompt/seed/duration/first_pass_steps/second_pass_steps）`);
     }
   }
 }
@@ -137,7 +138,7 @@ async function generateBindingsYaml(options: {
     "要求：",
     "1. 只输出 yaml 正文（可包在 yaml 代码围栏里），不要解释。",
     "2. 字段风格与模板一致：workflow、可选 capabilities.duration_seconds、bindings 列表。",
-    "3. source 只能使用：prompt、seed、duration、refs.slot1-9、refs.first_frame、refs.last_frame、media.video1、media.audio1-3。",
+    "3. source 只能使用：prompt、seed、duration、first_pass_steps、second_pass_steps、refs.slot1-9、refs.first_frame、refs.last_frame、media.video1、media.audio1-3。",
     "4. target 必须是「节点id.inputs.字段名」，且节点与字段必须出现在摘要中。",
     "5. kind 为 value|image|video|audio；可选参考槽 required: false。",
     "6. 必须包含 prompt；能识别到种子/时长/参考图/音视频就绑定。",

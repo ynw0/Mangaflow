@@ -82,7 +82,7 @@ export interface MediaModel {
   imageSizes?: string[];
   imageRatios?: string[];
   durationResolutionMap?: { duration: number[]; resolution: string[] }[];
-  /** 二采：节点 8 的百万像素档，以及节点 151 的放大倍率。有此字段时界面不使用分辨率。 */
+  /** 二采：节点 8 的百万像素档，以及节点 151 的放大倍率。有步数字段时还可改一采、二采步数。有此字段时界面不使用分辨率。 */
   sampling?: {
     megapixels: number[];
     multiple: number;
@@ -90,6 +90,12 @@ export interface MediaModel {
     upscaleMax: number;
     upscaleStep: number;
     upscaleDefault: number;
+    firstPassMin?: number;
+    firstPassMax?: number;
+    firstPassDefault?: number;
+    secondPassMin?: number;
+    secondPassMax?: number;
+    secondPassDefault?: number;
   };
   audio?: boolean | "optional";
   voices?: { title: string; voice: string }[];
@@ -120,6 +126,10 @@ export interface MediaGenerationRequest {
   megapixels?: number;
   /** 二采节点 151 的放大倍率；云视频可忽略 */
   upscale?: number;
+  /** 二采节点 150 的一采步数；云视频可忽略 */
+  firstPassSteps?: number;
+  /** 二采节点 148 的二采步数；总步数由工作流 a+b 计算。云视频可忽略 */
+  secondPassSteps?: number;
   generateAudio?: boolean;
   voice?: string;
   speed?: number;

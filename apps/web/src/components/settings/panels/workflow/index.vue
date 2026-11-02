@@ -71,7 +71,7 @@
     <section class="settingSection" aria-labelledby="qcTitle">
       <div class="settingInfo">
         <h3 id="qcTitle">质检</h3>
-        <p class="description">质检工作流单独一类。自动：视频生成后直接质检。手动：等你要求再质检。不质检则交给人工看。画面和音轨都可以选本机 Gemma 4。选中后整段视频送进本机 Comfy，档位含音频时这一条同时听对白。</p>
+        <p class="description">质检工作流单独一类。自动：视频生成后直接质检。手动：等你要求再质检。不质检则交给人工看。要用 Gemma，在下面选择「Gemma 4 E2B 质检」或「Gemma 4 E4B 质检」。选中后整段视频送进本机 Comfy，档位含音频时这一条同时听对白。执行只认这两条内置工作流。</p>
       </div>
       <el-select v-model="qcLevel" aria-label="质检档位">
         <el-option label="只视频" value="video" />
@@ -146,14 +146,20 @@
     <section v-if="usesComfy" class="settingSection" aria-labelledby="catalogTitle">
       <div class="settingInfo">
         <h3 id="catalogTitle">额外工作流</h3>
-        <p class="description">内置工作流保留。额外目录按 image、video、qc 分类追加，同名不覆盖。</p>
+        <p class="description">填写本机目录的绝对路径，保存后重新扫描。顺序是：内置 workflows，然后用户数据里的 workflows（上传落盘处），最后是这个目录。</p>
       </div>
+      <ul class="sizes">
+        <li>在该目录下建 image、video、qc。每个工作流是「名字.bindings.yaml」，yaml 的 workflow 字段指向同一目录里的 API JSON。id 是「子目录/文件名」，例如 video/my_h3。</li>
+        <li>同名指 id 完全相同。先扫到的保留，后面的同名文件不替换，所以这里不能改内置的二采或 Gemma。</li>
+        <li>出图、出视频会按 bindings 跑这里的新 id。下面的上传只接收视频 JSON，写到用户数据目录，不写这个目录，也不能用来加质检。</li>
+        <li>Gemma 质检直接选本页「质检」里的 Gemma 4 E2B（qc/gemma4E2b）或 E4B（qc/gemma4E4b），并在 ComfyUI 的 models/text_encoders 放入对应权重。若要再放一份，例如 E:\Manga\pipeline\workflows\qc\myGemma.bindings.yaml（workflow: ./myGemmaApi.json），保存后列表会出现 qc/myGemma，但当前质检不会改跑这份 JSON。</li>
+      </ul>
       <el-input v-model="workflowRoot" aria-label="额外工作流目录" placeholder="可选，例如 E:\Manga\pipeline\workflows" />
     </section>
     <section v-if="usesComfy" class="settingSection" aria-labelledby="uploadTitle">
       <div class="settingInfo">
         <h3 id="uploadTitle">上传 API 工作流</h3>
-        <p class="description">上传 ComfyUI 导出的 API JSON。服务端用设置里的语言模型对照内置 bindings 模板生成新绑定；校验失败不写盘。落在用户数据 workflows，不覆盖同名（含内置）。</p>
+        <p class="description">只上传出视频用的 ComfyUI API JSON，不能用来加质检。服务端用设置里的语言模型对照内置 bindings 模板生成新绑定；校验失败不写盘。落在用户数据 workflows，不写额外目录，不覆盖同名 id（含内置）。</p>
       </div>
       <el-input v-model="uploadId" aria-label="工作流 id" placeholder="例如 my_h3 或 video/my_h3" />
       <el-input v-model="uploadLabel" aria-label="显示名称" placeholder="可选显示名" />

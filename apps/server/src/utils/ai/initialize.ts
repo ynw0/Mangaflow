@@ -23,11 +23,20 @@ async function refreshLanguageModels(previousSettings?: Record<string, unknown>)
   if (!apiKey || (previousSettings && apiKey === normalizeApiKey(getLanguageProvider(previousSettings)?.apiKey))) return;
   const fetched = await fetchProviderModels({ apiUrl: provider.apiUrl, protocol: provider.protocol, apiKey });
   if (!fetched.length) throw new Error("未获取到文本模型，保留原有列表");
-  const previousInputs = new Map((Array.isArray(provider.models) ? provider.models : []).flatMap(model => {
+  type StoredModel = { id?: unknown; inputs?: unknown; thinkingLevels?: unknown };
+  const previousModels = new Map<string, StoredModel>((Array.isArray(provider.models) ? provider.models : []).flatMap((model: StoredModel) => {
     const id = typeof model?.id === "string" ? model.id : "";
-    return id && model.inputs ? [[id, model.inputs] as const] : [];
+    return id ? [[id, model] as const] : [];
   }));
-  const models = fetched.map(model => previousInputs.has(model.id) ? { ...model, inputs: previousInputs.get(model.id) } : model);
+  const models = fetched.map(model => {
+    const prior = previousModels.get(model.id);
+    if (!prior) return model;
+    return {
+      ...model,
+      ...(prior.inputs ? { inputs: prior.inputs } : {}),
+      ...(Array.isArray(prior.thinkingLevels) ? { thinkingLevels: prior.thinkingLevels } : {}),
+    };
+  });
   const current = conf.get("settings.customProviders");
   if (!Array.isArray(current)) return;
   const index = current.findIndex(item => item?.id === provider.id && item.apiUrl === provider.apiUrl

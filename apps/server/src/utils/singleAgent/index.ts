@@ -5,7 +5,7 @@ import { createAgentSession, DefaultResourceLoader, SessionManager, SettingsMana
 import type { AgentSession, CreateAgentSessionOptions, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { QuestionContext } from "@toonflow/tools-scaffold/runtime";
 import { createAgentToolContext } from "@/agent/tools";
-import { createAgentModel } from "@/agent/runtime/model";
+import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { configureAgentRequests } from "@/agent/runtime/requests";
 import { getToolResultText } from "@/agent/runtime/sessions";
 import { createQuestionContext, answerQuestion } from "@/agent/bridge/question";
@@ -164,7 +164,7 @@ export async function run(options: {
   prompt: string;
   providerId: string;
   modelId: string;
-  thinkingLevel?: CreateAgentSessionOptions["thinkingLevel"];
+  thinkingLevel?: string;
 }, send: (event: SingleAgentEvent) => void, signal?: AbortSignal, onStart?: () => void) {
   const state = getSession(options.sessionId);
   if (state.active) throw Object.assign(new Error("此对话正在运行，请等待当前回复完成"), { status: 409 });
@@ -218,7 +218,7 @@ export async function run(options: {
     active.controller.signal.throwIfAborted();
     const { session } = await createAgentSession({
       cwd: state.cwd, agentDir, modelRuntime: runtime, model: runtime.getModel(options.providerId, options.modelId),
-      thinkingLevel, sessionManager: state.history, settingsManager, resourceLoader,
+      thinkingLevel: toSdkThinkingLevel(thinkingLevel), sessionManager: state.history, settingsManager, resourceLoader,
       tools: tools.map(tool => tool.name), customTools: tools,
     });
     configureAgentRequests(session);

@@ -28,7 +28,7 @@ export type AgentSubAgent = {
   result?: string;
   providerId?: string;
   modelId?: string;
-  thinkingLevel?: "off" | "low" | "medium" | "high";
+  thinkingLevel?: string;
 };
 
 export type AgentEvent =

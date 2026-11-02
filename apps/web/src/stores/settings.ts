@@ -87,21 +87,44 @@ export const privacySettings = computed(() => {
   };
 });
 
-export const thinkingLevelOptions = [
-  { label: "关闭思考", value: "off" },
-  { label: "默认", value: "" },
-  { label: "低", value: "low" },
-  { label: "中", value: "medium" },
-  { label: "高", value: "high" },
-] as const;
-export type ThinkingLevelChoice = (typeof thinkingLevelOptions)[number]["value"];
+export const presetThinkingLevels = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export type PresetThinkingLevel = (typeof presetThinkingLevels)[number];
+export type ThinkingLevelChoice = "off" | string;
+
+export function normalizeThinkingLevels(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const levels: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const level = item.trim();
+    if (!level || level === "off" || seen.has(level)) continue;
+    seen.add(level);
+    levels.push(level);
+  }
+  return levels;
+}
+
+export function thinkingLevelOptionsFor(levels: string[]) {
+  return [{ label: "关闭思考", value: "off" }, ...levels.map(level => ({ label: level, value: level }))];
+}
+
+export function modelThinkingLevels(model: { thinkingLevels?: string[] } | undefined): string[] {
+  // 旧数据未写该字段时保留六档可选，显式空数组则只有关闭思考。
+  if (!model || model.thinkingLevels === undefined) return [...presetThinkingLevels];
+  return normalizeThinkingLevels(model.thinkingLevels);
+}
+
 export const thinkingLevelSetting = computed((): ThinkingLevelChoice => {
   const value = settings.value.thinkingLevel;
-  return value === "off" || value === "low" || value === "medium" || value === "high" ? value : "";
+  if (typeof value !== "string") return "off";
+  const level = value.trim();
+  if (!level || level === "default") return "off";
+  return level;
 });
 
 export type ModelInputs = { image: boolean; video: boolean; audio: boolean };
-export type CustomProviderModel = { id: string; label: string; contextWindow?: number; maxOutputTokens?: number; inputs?: ModelInputs };
+export type CustomProviderModel = { id: string; label: string; contextWindow?: number; maxOutputTokens?: number; inputs?: ModelInputs; thinkingLevels?: string[] };
 
 export function modelInputs(value: unknown): ModelInputs {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -115,8 +138,27 @@ export const customProviders = computed<CustomProvider[]>(() => Array.isArray(se
 
 export const modelChoices = computed(() => customProviders.value.flatMap(provider => provider.models.map(model => ({
   value: JSON.stringify([provider.id, model.id]), providerId: provider.id, modelId: model.id, label: model.label, contextWindow: model.contextWindow,
-  inputs: modelInputs(model.inputs),
+  inputs: modelInputs(model.inputs), thinkingLevels: modelThinkingLevels(model),
 }))));
+
+export const chatModelKeySetting = computed(() => {
+  const value = settings.value.chatModelKey;
+  return typeof value === "string" ? value : "";
+});
+
+export const activeChatModel = computed(() => {
+  const key = chatModelKeySetting.value;
+  const matched = key ? modelChoices.value.find(item => item.value === key) : undefined;
+  return matched ?? modelChoices.value[0];
+});
+
+export const thinkingLevelOptions = computed(() => thinkingLevelOptionsFor(activeChatModel.value?.thinkingLevels ?? []));
+
+export function resolveThinkingLevelForModel(level: ThinkingLevelChoice, model?: { thinkingLevels?: string[] }) {
+  if (level === "off") return "off";
+  const allowed = modelThinkingLevels(model);
+  return allowed.includes(level) ? level : "off";
+}
 
 export async function loadSettings() {
   if (settingsReady) return;

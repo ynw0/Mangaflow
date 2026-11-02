@@ -11,7 +11,7 @@ const inputSchema = z.object({
   attachments: u.agent.agentAttachmentsSchema.optional(),
   mentions: u.agent.agentMentionsSchema.optional(),
   providerId: z.string().min(1), modelId: z.string().min(1),
-  thinkingLevel: z.enum(["off", "low", "medium", "high"]).optional(),
+  thinkingLevel: z.string().trim().min(1).max(64).optional(),
   sessionFile: z.string().regex(/^[\w-]+\.jsonl$/).optional(),
   resendFrom: z.string().min(1).max(128).optional(),
   goal: z.boolean().optional(),

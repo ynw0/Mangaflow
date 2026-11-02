@@ -12,7 +12,7 @@ import { translateError, translateMessage } from "@/lib/i18n";
 
 export async function runDelegatedAgent(options: {
   cwd: string; parentFile: string; name: string; task: string;
-  providerId: string; modelId: string; thinkingLevel: "off" | "low" | "medium" | "high";
+  providerId: string; modelId: string; thinkingLevel: string;
   canvas?: CanvasContext; signal?: AbortSignal; send: (event: AgentEvent) => void; onProgress?: (text: string) => void;
   goal?: boolean;
 }) {

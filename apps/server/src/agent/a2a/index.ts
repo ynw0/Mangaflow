@@ -2,7 +2,7 @@ import { Router } from "express";
 import { Artifact, createTeamAgentCard, createTeamA2aRouter, type TeamA2aRequest } from "@toonflow/teams-scaffold/a2a";
 import { teamNameSchema } from "@toonflow/teams-scaffold/runtime";
 import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
-import { createAgentModel } from "@/agent/runtime/model";
+import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { createAgentTools } from "@/agent/tools";
 import { createTeamRunner } from "@/agent/teams";
 import { readTeam } from "@/utils/teams";
@@ -51,7 +51,7 @@ export function createA2aRouter() {
               const tools = await createAgentTools(cwd, canvas);
               current = { userId: request.userId, runner: await createTeamRunner({
                 name, cwd, tools, canvas, modelRuntime: runtime,
-                model: runtime.getModel(settings.providerId, settings.modelId), thinkingLevel: settings.thinkingLevel,
+                model: runtime.getModel(settings.providerId, settings.modelId), thinkingLevel: toSdkThinkingLevel(settings.thinkingLevel),
               }) };
               pending.set(request.taskId, current);
             }

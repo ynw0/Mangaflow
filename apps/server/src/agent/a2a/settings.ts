@@ -13,7 +13,7 @@ export type A2aSettings = {
   token: string;
   providerId: string;
   modelId: string;
-  thinkingLevel: "off" | "low" | "medium" | "high";
+  thinkingLevel: string;
 };
 
 let controller = new AbortController();
@@ -26,7 +26,7 @@ export function getA2aSettings(): A2aSettings {
     token: typeof value?.token === "string" ? value.token : "",
     providerId: typeof value?.providerId === "string" ? value.providerId : "",
     modelId: typeof value?.modelId === "string" ? value.modelId : "",
-    thinkingLevel: value?.thinkingLevel === "low" || value?.thinkingLevel === "medium" || value?.thinkingLevel === "high" ? value.thinkingLevel : "off",
+    thinkingLevel: typeof value?.thinkingLevel === "string" && value.thinkingLevel.trim() && value.thinkingLevel !== "default" ? value.thinkingLevel.trim() : "off",
   };
 }
 

@@ -1,6 +1,12 @@
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
-import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { ModelRuntime, type CreateAgentSessionOptions } from "@earendil-works/pi-coding-agent";
 import { getConfiguredModel, getModelThinkingProfile } from "@/utils/ai";
+
+export type SdkThinkingLevel = NonNullable<CreateAgentSessionOptions["thinkingLevel"]>;
+
+export function toSdkThinkingLevel(level: string): SdkThinkingLevel {
+  return level as SdkThinkingLevel;
+}
 
 export async function createAgentModel(providerId: string, modelId: string, thinkingLevel = "off") {
   const configured = getConfiguredModel(providerId, modelId);

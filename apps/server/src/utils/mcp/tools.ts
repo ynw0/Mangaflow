@@ -212,7 +212,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
   }));
   const runAgentSchema = z.strictObject({
     prompt: z.string().trim().min(1), providerId: z.string().min(1), modelId: z.string().min(1),
-    sessionFile: z.string().regex(/^[\w-]+\.jsonl$/).optional(), thinkingLevel: z.enum(["off", "low", "medium", "high"]).optional(),
+    sessionFile: z.string().regex(/^[\w-]+\.jsonl$/).optional(), thinkingLevel: z.string().trim().min(1).max(64).optional(),
   });
   tools.push(wrapTool("runAgent", "按用户请求调用 Toonflow 内置 Agent，等待本轮完成并返回对话文件与回复；会使用配置的模型。外部 Agent 可直接操作其他工具，仅需要委托内置 Agent 时调用。支持 MCP 取消，历史保存到工作区。", z.toJSONSchema(runAgentSchema), async (input, target, signal) => {
     const args = runAgentSchema.parse(input);

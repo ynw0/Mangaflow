@@ -36,9 +36,16 @@ const defaultQcModelId = "qwen3.8-omni-flash";
 const gemmaQcVariants = {
   "qc/gemma4E2b": "e2b",
   "qc/gemma4E4b": "e4b",
+  "qc/gemma4_12B": "12b",
 } as const;
 
 type GemmaQcVariant = (typeof gemmaQcVariants)[keyof typeof gemmaQcVariants];
+
+const gemmaQcWorkflowIds: Record<GemmaQcVariant, string> = {
+  e2b: "qc/gemma4E2b",
+  e4b: "qc/gemma4E4b",
+  "12b": "qc/gemma4_12B",
+};
 
 function gemmaQcVariant(modelId: string) {
   return gemmaQcVariants[modelId.trim() as keyof typeof gemmaQcVariants];
@@ -67,6 +74,8 @@ const vramShortMessage = "显存不足，需要等待视频生成工作流释放
 // 文件体积再留出视频帧和激活。空闲不够就等视频工作流释放，不改到 CPU。
 function gemmaVramBudget(fileName: string) {
   const name = fileName.toLowerCase();
+  if (name.includes("12b") && name.includes("bf16")) return 28 * 1024 ** 3;
+  if (name.includes("12b")) return 16 * 1024 ** 3;
   if (name.includes("e4b") && name.includes("bf16")) return 18 * 1024 ** 3;
   if (name.includes("e4b")) return 12 * 1024 ** 3;
   if (name.includes("bf16")) return 14 * 1024 ** 3;
@@ -113,7 +122,11 @@ async function resolveGemmaClip(baseUrl: string, variant: GemmaQcVariant, signal
   }
   if (!model) model = files[0] ?? "";
   if (!model) {
-    const file = variant === "e2b" ? "gemma4_e2b_it_int8_convrot.safetensors" : "gemma4_e4b_it_fp8_scaled.safetensors";
+    const file = variant === "e2b"
+      ? "gemma4_e2b_it_int8_convrot.safetensors"
+      : variant === "e4b"
+        ? "gemma4_e4b_it_fp8_scaled.safetensors"
+        : "gemma4_12b_int8_convrot.safetensors";
     fail(`ComfyUI 的 models/text_encoders 里没有 Gemma 4 ${variant.toUpperCase()}。请放入 ${file} 后重启 ComfyUI。https://huggingface.co/Comfy-Org/gemma-4/tree/main/text_encoders`);
   }
   return model;
@@ -122,7 +135,7 @@ async function resolveGemmaClip(baseUrl: string, variant: GemmaQcVariant, signal
 async function runGemmaQc(absoluteVideo: string, prompt: string, variant: GemmaQcVariant, hearAudio: boolean, signal?: AbortSignal) {
   const baseUrl = readProduction().localComfyuiBaseUrl;
   await probeComfy(baseUrl, signal);
-  const entry = await findWorkflow(variant === "e4b" ? "qc/gemma4E4b" : "qc/gemma4E2b");
+  const entry = await findWorkflow(gemmaQcWorkflowIds[variant]);
   if (!isWorkflowEnabled(entry.id)) fail(`${entry.label} 已在设置中关闭`);
   const raw = JSON.parse(await readFile(entry.workflowPath, "utf8")) as Record<string, { inputs?: Record<string, unknown> }>;
   const workflow = structuredClone(raw);

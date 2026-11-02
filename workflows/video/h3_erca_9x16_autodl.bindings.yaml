@@ -27,6 +27,15 @@ bindings:
   target: 151.inputs.value
   kind: value
   required: false
+# 一采写入节点 150，二采写入节点 148。总步数仍由节点 149 的 a+b 计算。
+- source: first_pass_steps
+  target: 150.inputs.value
+  kind: value
+  required: false
+- source: second_pass_steps
+  target: 148.inputs.value
+  kind: value
+  required: false
 - source: refs.slot1
   target: 24.inputs.image
   kind: image

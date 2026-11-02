@@ -32,6 +32,7 @@ export const providerSchema = z.object({
       video: z.boolean().optional(),
       audio: z.boolean().optional(),
     }).optional(),
+    thinkingLevels: z.array(z.string().trim().min(1).max(64)).max(32).optional(),
   })),
 });
 
@@ -56,8 +57,8 @@ export function getModelLimits(providerId: string, model: z.infer<typeof provide
   };
 }
 
-const settingLevels = ["low", "medium", "high"] as const;
-const catalogLevels = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+const settingLevels = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+const catalogLevels = settingLevels;
 
 function catalogEffort(map: ThinkingLevelMap, level: typeof catalogLevels[number]) {
   if (!(level in map)) return level === "xhigh" || level === "max" ? undefined : level;
@@ -65,7 +66,7 @@ function catalogEffort(map: ThinkingLevelMap, level: typeof catalogLevels[number
   return typeof mapped === "string" ? mapped : undefined;
 }
 
-// 对话不再自选档位。设置里的低/中/高落到模型目录：不支持的档改成最近的可用值，关闭思考保持关闭。
+// 设置里勾选的档位落到模型目录：不支持的档改成最近的可用值，关闭思考保持关闭。
 export function getModelThinkingProfile(modelId: string) {
   const specified = builtinModels.filter(item => item.id === modelId && (item.compat || item.thinkingLevelMap));
   const withFormat = specified.filter(item => typeof (item.compat as { thinkingFormat?: unknown } | undefined)?.thinkingFormat === "string");

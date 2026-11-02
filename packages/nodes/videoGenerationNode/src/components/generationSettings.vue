@@ -46,6 +46,34 @@
           aria-label="放大倍率" />
         <div v-if="outputSize" class="sizeHint">成片 {{ outputSize.width }}×{{ outputSize.height }}</div>
       </div>
+      <div v-if="stepSpec" class="passSteps">
+        <div class="outputField">
+          <div class="sectionLabel">一采步数</div>
+          <el-input-number
+            v-model="firstPassSteps"
+            class="stepInput"
+            :disabled="disabled"
+            :min="stepSpec.firstPassMin"
+            :max="stepSpec.firstPassMax"
+            :step="1"
+            :precision="0"
+            controlsPosition="right"
+            aria-label="一采步数" />
+        </div>
+        <div class="outputField">
+          <div class="sectionLabel">二采步数</div>
+          <el-input-number
+            v-model="secondPassSteps"
+            class="stepInput"
+            :disabled="disabled"
+            :min="stepSpec.secondPassMin"
+            :max="stepSpec.secondPassMax"
+            :step="1"
+            :precision="0"
+            controlsPosition="right"
+            aria-label="二采步数" />
+        </div>
+      </div>
       <div class="sectionLabel">通用比例</div>
       <div class="ratioOptions" role="group" aria-label="视频比例">
         <el-button v-for="item in ratios" :key="item" class="ratioButton" :disabled="disabled" :aria-label="`比例 ${item}`" :aria-pressed="ratio === item" @click="ratio = item">
@@ -93,6 +121,8 @@ const duration = defineModel<number | undefined>("duration", { required: true })
 const resolution = defineModel<string>("resolution", { required: true });
 const megapixels = defineModel<number | undefined>("megapixels");
 const upscale = defineModel<number | undefined>("upscale");
+const firstPassSteps = defineModel<number | undefined>("firstPassSteps");
+const secondPassSteps = defineModel<number | undefined>("secondPassSteps");
 const ratio = defineModel<string>("ratio", { required: true });
 const mode = defineModel<string>("mode", { required: true });
 const generateAudio = defineModel<boolean>("generateAudio", { required: true });
@@ -114,6 +144,11 @@ function resolutionsFor(value: number | undefined) {
 }
 
 const sampling = computed(() => props.model?.sampling);
+const stepSpec = computed(() => {
+  const value = sampling.value;
+  if (!value || value.firstPassDefault == null || value.secondPassDefault == null || value.firstPassMin == null || value.firstPassMax == null || value.secondPassMin == null || value.secondPassMax == null) return;
+  return value;
+});
 // 与 ComfyUI ResolutionSelector 一致：总像素 = 百万像素 × 1024²，再按倍数取整。
 const aspectPairs: Record<string, [number, number]> = {
   "1:1": [1, 1], "2:3": [2, 3], "3:2": [3, 2], "3:4": [3, 4], "4:3": [4, 3], "9:16": [9, 16], "16:9": [16, 9], "21:9": [21, 9],
@@ -208,6 +243,15 @@ function ratioStyle(value: string) {
       color: var(--el-text-color-secondary);
       font-size: 12px;
     }
+  }
+
+  .passSteps {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+
+    .outputField { flex: 1; min-width: 0; }
+    .stepInput { width: 100%; }
   }
 
   .ratioOptions {

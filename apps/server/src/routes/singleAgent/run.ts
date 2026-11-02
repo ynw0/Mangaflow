@@ -7,7 +7,7 @@ import u from "@/utils";
 const inputSchema = z.strictObject({
   sessionId: z.uuid(), runId: z.uuid(), prompt: z.string().trim().min(1).max(100000),
   providerId: z.string().min(1).max(200), modelId: z.string().min(1).max(500),
-  thinkingLevel: z.enum(["off", "minimal", "low", "medium", "high", "xhigh"]).optional(),
+  thinkingLevel: z.string().trim().min(1).max(64).optional(),
 });
 
 export default Router().post("/", validateFields(inputSchema.shape), async (req, res) => {

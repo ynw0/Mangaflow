@@ -39,7 +39,7 @@
 import { computed, ref, watch } from "vue";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import { modelIcon } from "@toonflow/model-icons";
-import { customProviders, modelChoices } from "@/stores/settings";
+import { customProviders, modelChoices, settings } from "@/stores/settings";
 
 const selectedModel = defineModel<string>({ default: "" });
 const props = withDefaults(defineProps<{ active?: boolean; disabled?: boolean }>(), { active: true, disabled: false });
@@ -49,6 +49,10 @@ const selectedModelChoice = computed(() => modelChoices.value.find(item => item.
 watch(modelChoices, items => {
   if (!selectedModel.value) selectedModel.value = items[0]?.value ?? "";
 }, { immediate: true });
+watch(selectedModel, value => {
+  if (!value || settings.value.chatModelKey === value) return;
+  settings.value = { ...settings.value, chatModelKey: value };
+});
 watch(() => !props.active || props.disabled, close => { if (close) visible.value = false; });
 </script>
 

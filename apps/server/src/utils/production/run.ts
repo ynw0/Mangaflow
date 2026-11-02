@@ -164,6 +164,8 @@ export async function runComfyWorkflow(options: {
     aspect_ratio: videoAspect[ratio],
     megapixels: request.megapixels,
     upscale: request.upscale,
+    first_pass_steps: request.firstPassSteps,
+    second_pass_steps: request.secondPassSteps,
     params: mediaType === "video" ? pair(videoNative, ratio) : pixels(request.size, request.ratio),
     delivery: pair(videoDelivery, ratio),
     refs,

@@ -53,26 +53,43 @@
               <el-checkbox v-model="item.inputs.video">视频</el-checkbox>
               <el-checkbox v-model="item.inputs.audio">音频</el-checkbox>
             </div>
-            <div v-if="expandedModels.has(item.key)" class="formGrid tokenSettings">
-              <el-form-item label="上下文窗口">
-                <el-input-number
-                  v-model="item.contextWindow"
-                  :min="1"
-                  :max="Number.MAX_SAFE_INTEGER"
-                  :precision="0"
-                  controlsPosition="right"
-                  placeholder="未设置"
-                  aria-label="上下文窗口" />
-              </el-form-item>
-              <el-form-item label="最大输出 token">
-                <el-input-number
-                  v-model="item.maxOutputTokens"
-                  :min="1"
-                  :max="Number.MAX_SAFE_INTEGER"
-                  :precision="0"
-                  controlsPosition="right"
-                  placeholder="未设置"
-                  aria-label="最大输出 token" />
+            <div v-if="expandedModels.has(item.key)" class="tokenSettings">
+              <div class="formGrid">
+                <el-form-item label="上下文窗口">
+                  <el-input-number
+                    v-model="item.contextWindow"
+                    :min="1"
+                    :max="Number.MAX_SAFE_INTEGER"
+                    :precision="0"
+                    controlsPosition="right"
+                    placeholder="未设置"
+                    aria-label="上下文窗口" />
+                </el-form-item>
+                <el-form-item label="最大输出 token">
+                  <el-input-number
+                    v-model="item.maxOutputTokens"
+                    :min="1"
+                    :max="Number.MAX_SAFE_INTEGER"
+                    :precision="0"
+                    controlsPosition="right"
+                    placeholder="未设置"
+                    aria-label="最大输出 token" />
+                </el-form-item>
+              </div>
+              <el-form-item label="思考等级">
+                <el-select
+                  v-model="item.thinkingLevels"
+                  multiple
+                  filterable
+                  allowCreate
+                  defaultFirstOption
+                  collapseTags
+                  collapseTagsTooltip
+                  :maxCollapseTags="4"
+                  placeholder="选择或输入档位"
+                  aria-label="思考等级">
+                  <el-option v-for="level in presetThinkingLevels" :key="level" :label="level" :value="level" />
+                </el-select>
               </el-form-item>
             </div>
           </div>
@@ -125,7 +142,7 @@ import {
   IconChevronUp,
   IconSearch,
 } from "@tabler/icons-vue";
-import { modelInputs, saveSettings, type CustomProvider, type CustomProviderModel } from "@/stores/settings";
+import { modelInputs, modelThinkingLevels, normalizeThinkingLevels, presetThinkingLevels, saveSettings, type CustomProvider, type CustomProviderModel } from "@/stores/settings";
 import { languageProviders } from "@toonflow/providers";
 import { isTfRouterProvider } from "@/lib/tf";
 
@@ -195,7 +212,7 @@ watch(visible, (value) => {
     if (props.provider) {
       const { models: providerModels, id, label, apiUrl, protocol, apiKey } = props.provider;
       Object.assign(form, { id, label, apiUrl, protocol, apiKey });
-      models.value = providerModels.map((item) => ({ ...item, key: crypto.randomUUID(), inputs: modelInputs(item.inputs) }));
+      models.value = providerModels.map((item) => ({ ...item, key: crypto.randomUUID(), inputs: modelInputs(item.inputs), thinkingLevels: modelThinkingLevels(item) }));
     }
   } else {
     request?.abort();
@@ -231,7 +248,7 @@ async function fetchModels() {
     if (data.code !== 200 || !Array.isArray(data.data)) throw new Error(data.message || "获取模型列表失败");
     if (isTfRouterProvider(form)) {
       if (!data.data.length) throw new Error("未获取到可用模型，请检查 API Key 后重试");
-      models.value = data.data.map((item: CustomProviderModel) => ({ ...item, key: crypto.randomUUID() }));
+      models.value = data.data.map((item: CustomProviderModel) => ({ ...item, key: crypto.randomUUID(), inputs: modelInputs(item.inputs), thinkingLevels: modelThinkingLevels(item) }));
       return;
     }
     fetchedModels.value = data.data;
@@ -255,7 +272,7 @@ function addSelectedModels() {
   const added = new Set(addedIds.value);
   for (const item of fetchedModels.value) {
     if (selectedIds.value.has(item.id) && !added.has(item.id)) {
-      models.value.push({ ...item, key: crypto.randomUUID(), inputs: modelInputs(item.inputs) });
+      models.value.push({ ...item, key: crypto.randomUUID(), inputs: modelInputs(item.inputs), thinkingLevels: modelThinkingLevels(item) });
       added.add(item.id);
     }
   }
@@ -264,7 +281,7 @@ function addSelectedModels() {
 
 function addManualModel() {
   const key = crypto.randomUUID();
-  models.value.push({ key, id: "", label: "", inputs: modelInputs(undefined) });
+  models.value.push({ key, id: "", label: "", inputs: modelInputs(undefined), thinkingLevels: [...presetThinkingLevels] });
 }
 
 async function addProvider() {
@@ -299,6 +316,7 @@ async function addProvider() {
         contextWindow: item.contextWindow ?? undefined,
         maxOutputTokens: item.maxOutputTokens ?? undefined,
         inputs: modelInputs(item.inputs),
+        thinkingLevels: normalizeThinkingLevels(item.thinkingLevels),
       })),
     };
     await saveSettings(settings => {
@@ -374,6 +392,10 @@ async function addProvider() {
 
         .el-form-item {
           margin-bottom: 4px;
+        }
+
+        .el-select {
+          width: 100%;
         }
       }
     }

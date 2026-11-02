@@ -15,7 +15,7 @@ import { agentMentionsSchema, mentionPrompt, snapshotMentions, validateMentionTo
 import { readAiReferences, referenceContent } from "@/utils/ai";
 import { createAgentTools } from "@/agent/tools";
 import { createAgentResources } from "@/agent/runtime/resources";
-import { createAgentModel } from "@/agent/runtime/model";
+import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { configureAgentRequests } from "@/agent/runtime/requests";
 import { getAgentImageReference, getOffloadedImageText, readAgentImage } from "@/agent/runtime/imageAttachments";
 import { createSubAgentTool } from "@/agent/tools/subAgent";
@@ -62,7 +62,7 @@ type AgentOptions = {
   cwd: string;
   providerId: string;
   modelId: string;
-  thinkingLevel?: "off" | "low" | "medium" | "high";
+  thinkingLevel?: string;
   sessionFile?: string;
   resendFrom?: string;
   canvas?: CanvasContext;
@@ -202,7 +202,7 @@ export async function run(
       if (askUserIndex >= 0) tools.splice(askUserIndex, 1);
     }
     tools.push(await createSubAgentTool({
-      cwd, tools, canvas, modelRuntime: runtime, model: runtime.getModel(providerId, modelId), thinkingLevel,
+      cwd, tools, canvas, modelRuntime: runtime, model: runtime.getModel(providerId, modelId), thinkingLevel: toSdkThinkingLevel(thinkingLevel),
       runTask: (name, task, taskSignal, onProgress) => runDelegatedAgent({
         cwd, parentFile: file, name, task, providerId, modelId, thinkingLevel, canvas, signal: taskSignal, send, onProgress, goal,
       }),
@@ -230,7 +230,7 @@ export async function run(
       ...resources,
       modelRuntime: runtime,
       model: runtime.getModel(providerId, modelId),
-      thinkingLevel,
+      thinkingLevel: toSdkThinkingLevel(thinkingLevel),
       sessionManager: history,
       tools: tools.map((tool) => tool.name),
       customTools: tools,

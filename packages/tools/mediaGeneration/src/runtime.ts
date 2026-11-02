@@ -42,6 +42,9 @@ export const videoGenerationSchema = z.strictObject({
   // 二采节点 8 的百万像素、节点 151 的放大倍率；云视频组装参数时不用。
   megapixels: z.number().finite().min(0.1).max(16).optional(),
   upscale: z.number().finite().min(1).max(4).optional(),
+  // 二采节点 150 / 148 的步数，范围与目录里的 firstPassMin/Max 一致。云视频组装参数时不用。
+  firstPassSteps: z.number().int().min(1).max(64).optional(),
+  secondPassSteps: z.number().int().min(1).max(64).optional(),
   generateAudio: z.boolean().optional(),
   mode: z.union([
     z.enum(["singleImage", "startEndRequired", "endFrameOptional", "startFrameOptional", "text"]),

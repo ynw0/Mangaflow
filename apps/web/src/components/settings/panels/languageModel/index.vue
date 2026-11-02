@@ -2,7 +2,7 @@
   <div class="providerList">
     <section class="thinkingLevel" aria-labelledby="thinkingLevelTitle">
       <h3 id="thinkingLevelTitle">思考等级</h3>
-      <p>对话使用这里的思考等级。模型不支持所选档位时，按它实际支持的最近档位发送。关闭思考后不再输出思考过程。</p>
+      <p>对话使用这里的思考等级，选项来自当前对话所选模型在模型设置里勾选的档位。模型不支持所选档位时，按它实际支持的最近档位发送。关闭思考后不再输出思考过程。</p>
       <el-segmented v-model="thinkingLevel" :options="thinkingLevelOptions" block aria-label="思考等级" />
     </section>
     <div class="itemList">
@@ -47,7 +47,7 @@
 import { computed, defineAsyncComponent, ref, shallowRef, type Component } from "vue";
 import axios from "axios";
 import { ElMessage } from "element-plus";
-import { customProviders, saveSettings, thinkingLevelOptions, thinkingLevelSetting, type CustomProvider, type ThinkingLevelChoice } from "@/stores/settings";
+import { activeChatModel, customProviders, resolveThinkingLevelForModel, saveSettings, thinkingLevelOptions, thinkingLevelSetting, type CustomProvider, type ThinkingLevelChoice } from "@/stores/settings";
 import { IconPlus, IconSettings, IconEdit, IconTrash, IconRefresh } from "@tabler/icons-vue";
 import { languageProviders } from "@toonflow/providers";
 import logoUrl from "@toonflow/assets/logo.svg";
@@ -64,9 +64,9 @@ const deletingId = ref("");
 const fetchingId = ref("");
 const sortedProviders = computed(() => [...customProviders.value].sort((a, b) => Number(isTfRouterProvider(b)) - Number(isTfRouterProvider(a))));
 const thinkingLevel = computed({
-  get: () => thinkingLevelSetting.value,
+  get: () => resolveThinkingLevelForModel(thinkingLevelSetting.value, activeChatModel.value),
   set: (value: ThinkingLevelChoice) => {
-    void saveSettings(() => ({ thinkingLevel: value })).catch(() => ElMessage.error("保存思考等级失败，请重试"));
+    void saveSettings(() => ({ thinkingLevel: resolveThinkingLevelForModel(value, activeChatModel.value) })).catch(() => ElMessage.error("保存思考等级失败，请重试"));
   },
 });
 
@@ -131,10 +131,15 @@ async function fetchProviderModels(provider: CustomProvider) {
       if (latest.apiUrl !== apiUrl || latest.protocol !== protocol || latest.apiKey !== apiKey) {
         throw new Error("供应商配置已变更，请重试");
       }
-      const previous = new Map(provider.models.map(model => [model.id, model.inputs]));
+      const previous = new Map(provider.models.map(model => [model.id, model]));
       const models = data.data.map((model: { id?: string }) => {
-        const inputs = typeof model.id === "string" ? previous.get(model.id) : undefined;
-        return inputs ? { ...model, inputs } : model;
+        const prior = typeof model.id === "string" ? previous.get(model.id) : undefined;
+        if (!prior) return model;
+        return {
+          ...model,
+          inputs: prior.inputs,
+          ...(prior.thinkingLevels !== undefined ? { thinkingLevels: prior.thinkingLevels } : {}),
+        };
       });
       return { customProviders: current.map(item => item?.id === id ? { ...item, models } : item) };
     });

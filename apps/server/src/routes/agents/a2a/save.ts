@@ -10,7 +10,7 @@ export default Router().put("/", validateFields({
   directory: z.string().max(4096),
   providerId: z.string().max(256),
   modelId: z.string().max(256),
-  thinkingLevel: z.enum(["off", "low", "medium", "high"]).optional(),
+  thinkingLevel: z.string().trim().min(1).max(64).optional(),
 }), async (req, res) => {
   if (!u.workspace.isLocalWorkspaceRequest(req)) return res.status(403).json(error("请在桌面端或服务器本机管理 A2A 设置", null, 403));
   const { enabled, providerId, modelId, thinkingLevel = "off" } = req.body;

@@ -31,3 +31,8 @@ Thumbs.db
 *.keychain
 *.keychain-db
 .tmp/
+
+# Local logo backup (do not commit)
+packages/assets/_old_logo/
+*.bak
+

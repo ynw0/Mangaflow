@@ -46,6 +46,42 @@
       "ref_images.ref_image_0": [
         "24",
         0
+      ],
+      "ref_images.ref_image_1": [
+        "15",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "123",
+        0
+      ],
+      "ref_images.ref_image_3": [
+        "130",
+        0
+      ],
+      "ref_images.ref_image_4": [
+        "132",
+        0
+      ],
+      "ref_images.ref_image_5": [
+        "133",
+        0
+      ],
+      "ref_images.ref_image_6": [
+        "159",
+        0
+      ],
+      "ref_images.ref_image_7": [
+        "160",
+        0
+      ],
+      "ref_images.ref_image_8": [
+        "161",
+        0
+      ],
+      "ref_audios.ref_audio_0": [
+        "200",
+        0
       ]
     },
     "class_type": "MiniMaxH3ReferenceToVideo",
@@ -136,6 +172,15 @@
     "class_type": "BasicGuider",
     "_meta": {
       "title": "基本引导器"
+    }
+  },
+  "15": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
     }
   },
   "17": {
@@ -433,6 +478,15 @@
       "title": "基本调度器"
     }
   },
+  "123": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
   "125": {
     "inputs": {
       "attention": "comfy kitchen attention",
@@ -478,6 +532,33 @@
     "class_type": "ModelPreviewOverrideKJ",
     "_meta": {
       "title": "采样预览Model Preview Override"
+    }
+  },
+  "130": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "132": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "133": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
     }
   },
   "148": {
@@ -536,6 +617,42 @@
     "class_type": "MiniMaxH3SigmaShift",
     "_meta": {
       "title": "ModelSamplingMiniMaxH3"
+    }
+  },
+  "159": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "160": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "161": {
+    "inputs": {
+      "image": ""
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "200": {
+    "inputs": {
+      "audio": ""
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "可选覆盖音频（缺省则删除本节点，不影响保存）"
     }
   }
 }

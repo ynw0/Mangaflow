@@ -19,7 +19,7 @@ on:
         type: boolean
         default: false
       androidRelease:
-        description: Android 发布模式（R8 与资源裁剪，关闭调试，使用默认签名）
+        description: Android 发布模式（R8 与资源裁剪，关闭调试，使用正式签名 Secrets）
         type: boolean
         default: false
   workflow_call:
@@ -54,6 +54,18 @@ on:
         required: false
       MACOS_NOTARIZATION_KEY_BASE64:
         description: 对应 API 密钥的 P8 私钥文件 Base64
+        required: false
+      MOBILE_RELEASE_STORE_BASE64:
+        description: Android 正式签名密钥库的 Base64
+        required: false
+      MOBILE_RELEASE_STORE_PASSWORD:
+        description: Android 正式签名密钥库密码
+        required: false
+      MOBILE_RELEASE_KEY_ALIAS:
+        description: Android 正式签名密钥别名
+        required: false
+      MOBILE_RELEASE_KEY_PASSWORD:
+        description: Android 正式签名密钥密码
         required: false
     outputs:
       version:
@@ -193,7 +205,20 @@ jobs:
         shell: pwsh
         env:
           androidRelease: ${{ inputs.androidRelease && '1' || '0' }}
-        run: bun run --cwd apps/mobile build
+          MOBILE_RELEASE_STORE_BASE64: ${{ secrets.MOBILE_RELEASE_STORE_BASE64 }}
+          MOBILE_RELEASE_STORE_PASSWORD: ${{ secrets.MOBILE_RELEASE_STORE_PASSWORD }}
+          MOBILE_RELEASE_KEY_ALIAS: ${{ secrets.MOBILE_RELEASE_KEY_ALIAS }}
+          MOBILE_RELEASE_KEY_PASSWORD: ${{ secrets.MOBILE_RELEASE_KEY_PASSWORD }}
+        run: |
+          if ($env:androidRelease -eq '1') {
+            if (-not $env:MOBILE_RELEASE_STORE_BASE64 -or -not $env:MOBILE_RELEASE_STORE_PASSWORD -or -not $env:MOBILE_RELEASE_KEY_ALIAS -or -not $env:MOBILE_RELEASE_KEY_PASSWORD) {
+              throw '正式包不能使用公开调试签名，请配置 MOBILE_RELEASE_STORE_BASE64、MOBILE_RELEASE_STORE_PASSWORD、MOBILE_RELEASE_KEY_ALIAS、MOBILE_RELEASE_KEY_PASSWORD'
+            }
+            $path = Join-Path $env:RUNNER_TEMP 'mobileRelease.keystore'
+            [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:MOBILE_RELEASE_STORE_BASE64))
+            $env:MOBILE_RELEASE_STORE_FILE = $path
+          }
+          bun run --cwd apps/mobile build
       - name: 准备 ARM 签名与公证凭据
         if: matrix.target == 'macArm64'
         id: signing

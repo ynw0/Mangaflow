@@ -18,6 +18,7 @@ import { registerAnonymousData } from "@/lib/anonymousData";
 import { loadSettings, settingsStorage } from "@/stores/settings";
 import { registerLanguage } from "@/lib/i18n";
 import { locale, translate } from "@toonflow/i18n/vue";
+import accessGate from "@/components/accessGate.vue";
 
 const app = createApp(App);
 app.onUnmount(registerLanguage());
@@ -25,6 +26,15 @@ const requiresWebView2Update = isDesktop && /Windows/i.test(navigator.userAgent)
   && [Map.groupBy, URL.canParse, Promise.withResolvers].some(method => typeof method !== "function");
 const requiresMobileWebViewUpdate = isMobile && getMissingBrowserFeatures().length > 0;
 let isMounted = false;
+
+async function ensureAccess() {
+  const response = await fetch("/api/auth/status");
+  if (!response.ok) throw new Error("无法确认访问状态");
+  const body = await response.json() as { data?: { required?: boolean; authenticated?: boolean } };
+  if (!body.data?.required || body.data.authenticated) return;
+  createApp(accessGate).mount("#app");
+  return new Promise<void>(() => {});
+}
 
 async function notifyDesktopReady(failed = false) {
   if (!isDesktop) return;
@@ -41,7 +51,7 @@ async function notifyDesktopReady(failed = false) {
   ? Promise.reject(new Error("当前 Microsoft Edge WebView2 Runtime 版本过旧。请以管理员身份运行微软最新版安装器；若仍提示已安装，请修复 WebView2 或联系管理员检查更新服务。更新完成后，请完全退出 MangaFlow 再重新打开。"))
   : requiresMobileWebViewUpdate
   ? Promise.reject(new Error("当前移动端浏览器内核缺少 MangaFlow 所需能力。请更新系统浏览器内核；部分系统需要通过系统更新升级。更新完成后，请完全退出并重新打开 MangaFlow。"))
-  : loadSettings()).then(async () => {
+  : ensureAccess().then(() => loadSettings())).then(async () => {
   app.use(createPinia().use(createPersistedState({ storage: settingsStorage })));
   app.use(router);
   await router.isReady();

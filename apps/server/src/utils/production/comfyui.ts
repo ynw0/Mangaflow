@@ -212,6 +212,17 @@ function delay(ms: number, signal?: AbortSignal) {
   });
 }
 
+function formatPromptError(data: { error?: { type?: unknown; message?: unknown; details?: unknown }; node_errors?: Record<string, unknown> } | undefined, status: number) {
+  const error = data?.error;
+  const parts: string[] = [];
+  if (typeof error?.type === "string" && error.type) parts.push(error.type);
+  if (typeof error?.message === "string" && error.message) parts.push(error.message);
+  if (typeof error?.details === "string" && error.details) parts.push(error.details);
+  else if (error?.details && typeof error.details === "object") parts.push(JSON.stringify(error.details).slice(0, 500));
+  if (data?.node_errors && Object.keys(data.node_errors).length) parts.push(JSON.stringify(data.node_errors).slice(0, 500));
+  return parts.join("：") || `提交工作流失败：HTTP ${status}`;
+}
+
 export async function submitWorkflow(baseUrl: string, workflow: Record<string, unknown>, signal?: AbortSignal) {
   alignReferenceInputs(workflow);
   await alignModelNames(baseUrl, workflow, signal);
@@ -220,8 +231,12 @@ export async function submitWorkflow(baseUrl: string, workflow: Record<string, u
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt: workflow, client_id: crypto.randomUUID() }),
   }, signal);
-  const data = await response.json().catch(() => undefined) as { prompt_id?: string; error?: { message?: string }; node_errors?: Record<string, unknown> } | undefined;
-  if (!response.ok) fail(data?.error?.message || `提交工作流失败：HTTP ${response.status}`, 502);
+  const data = await response.json().catch(() => undefined) as {
+    prompt_id?: string;
+    error?: { type?: unknown; message?: unknown; details?: unknown };
+    node_errors?: Record<string, unknown>;
+  } | undefined;
+  if (!response.ok) fail(formatPromptError(data, response.status), 502);
   if (data?.node_errors && Object.keys(data.node_errors).length) fail(`工作流节点报错：${JSON.stringify(data.node_errors).slice(0, 500)}`, 502);
   if (!data?.prompt_id) fail("ComfyUI 未返回 prompt_id", 502);
   return data.prompt_id;

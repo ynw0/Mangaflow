@@ -1,4 +1,5 @@
-// 扫描内置目录、用户数据自定义目录、额外工作流目录；同名只保留先扫到的。
+// 扫描顺序是内置、数据目录、额外目录。同 id 使用先扫到的，后面的不覆盖；内容不同或版本更高时给出提示。
+import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "@toonflow/file";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseWorkflowBindings, type WorkflowBindings } from "@/utils/production/bindings";
@@ -14,6 +15,7 @@ export type WorkflowEntry = {
   root: string;
   bindings: WorkflowBindings;
   workflowPath: string;
+  version?: number;
   /** 二采工作流 JSON 里现成的一采、二采步数，不在代码里另写默认值。 */
   stepDefaults?: { firstPass: number; secondPass: number };
 };
@@ -95,6 +97,7 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
     root,
     bindings: parsed,
     workflowPath,
+    version: parsed.version,
     stepDefaults: await readStepDefaults(workflowPath, parsed),
   };
 }
@@ -120,7 +123,24 @@ async function readStepDefaults(workflowPath: string, bindings: WorkflowBindings
   return { firstPass, secondPass };
 }
 
-export async function listWorkflowCatalog(): Promise<WorkflowEntry[]> {
+const warnedNotices = new Set<string>();
+
+function rootLabel(root: string) {
+  const current = resolve(root);
+  if (current === resolve(resolveBuiltinWorkflowsRoot())) return "内置";
+  if (current === resolve(customWorkflowRoot())) return "数据目录";
+  return "额外目录";
+}
+
+async function fingerprint(entry: WorkflowEntry) {
+  const hash = createHash("sha256");
+  hash.update(await readFile(join(entry.root, `${entry.id}.bindings.yaml`)));
+  hash.update("\0");
+  hash.update(await readFile(entry.workflowPath));
+  return hash.digest("hex");
+}
+
+export async function loadWorkflowCatalog(): Promise<{ entries: WorkflowEntry[]; notices: string[] }> {
   const roots: string[] = [];
   for (const candidate of builtinRoots()) {
     if (await isDirectory(candidate)) {
@@ -133,16 +153,34 @@ export async function listWorkflowCatalog(): Promise<WorkflowEntry[]> {
   const extra = readProduction().workflowRoot;
   if (extra && await isDirectory(extra) && !roots.some(root => resolve(root) === resolve(extra))) roots.push(extra);
 
-  const entries: WorkflowEntry[] = [];
-  const seen = new Set<string>();
+  const chosen = new Map<string, WorkflowEntry>();
+  const notices: string[] = [];
   for (const root of roots) {
     for (const id of (await walkBindings(root)).sort((a, b) => a.localeCompare(b, "zh-CN"))) {
-      if (seen.has(id)) continue;
-      seen.add(id);
-      entries.push(await readEntry(root, id));
+      const entry = await readEntry(root, id);
+      const current = chosen.get(id);
+      if (!current) {
+        chosen.set(id, entry);
+        continue;
+      }
+      if (await fingerprint(current) === await fingerprint(entry)) continue;
+      const currentVersion = current.version ?? 0;
+      const laterVersion = entry.version ?? 0;
+      const message = laterVersion > currentVersion
+        ? `${rootLabel(root)}里的 ${id} 版本 ${laterVersion} 高于${rootLabel(current.root)}版本 ${currentVersion || "未标注"}，当前仍使用${rootLabel(current.root)}。`
+        : `${rootLabel(root)}里的 ${id} 与${rootLabel(current.root)}内容不同，当前使用${rootLabel(current.root)}。`;
+      notices.push(message);
+      if (!warnedNotices.has(message)) {
+        warnedNotices.add(message);
+        console.warn(message);
+      }
     }
   }
-  return entries;
+  return { entries: [...chosen.values()], notices };
+}
+
+export async function listWorkflowCatalog(): Promise<WorkflowEntry[]> {
+  return (await loadWorkflowCatalog()).entries;
 }
 
 export async function findWorkflow(id: string) {

@@ -1,0 +1,17 @@
+title = "Mangaflow"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "mangaflow-sk-sp"
+description = "sk-sp credential"
+regex = '''sk-sp-[A-Za-z0-9._~+/-]{16,}'''
+keywords = ["sk-sp-"]
+
+[allowlist]
+description = "Known leaked commits already removed from the tree. The credentials must still be revoked at the provider."
+commits = [
+  "44a2120e937a002c44a413cf474b4a10501f7e2b",
+  "097f01248b062d2b4ef906ecd4c2feb264e92bfc",
+]

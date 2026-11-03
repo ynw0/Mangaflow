@@ -9,8 +9,10 @@ import { errorFromCause } from "@/lib/responseFormat";
 import desktopRequest from "@/lib/desktop";
 import { getRuntimePlatform } from "@/lib/platform";
 import initializePlugins from "@/utils/plugins/initialize";
+import syncBuiltinSkills from "@/utils/skills/builtin";
 import { languageRequest, resolveRequestLocale, runWithLocale, setLocaleFallback, translateError, translateMessage } from "@/lib/i18n";
 import { detectLocale, normalizeLocale } from "@toonflow/i18n";
+import { requireAccessToken } from "@/lib/accessToken";
 
 const autoInstallProviders = ["qwenImage.ts"];
 
@@ -66,8 +68,12 @@ export async function createApp({
     }
     await initializePlugins(resolve(dataDirectory, "providers"), sourceDirectory, autoInstallProviders, providerRevision);
   }
-  // ACT: 技能和团队只补首次安装，保留用户修改。
-  if (dataDirectory && skillsRoot) await initializePlugins(resolve(dataDirectory, "skills"), skillsRoot);
+  // 技能首次安装后，未改动的内置副本随模板覆盖；改过的留下待合并标记。
+  if (dataDirectory && skillsRoot) {
+    const skillsDirectory = resolve(dataDirectory, "skills");
+    await initializePlugins(skillsDirectory, skillsRoot);
+    await syncBuiltinSkills(skillsDirectory, skillsRoot);
+  }
   if (dataDirectory && agentsRoot) await initializePlugins(resolve(dataDirectory, "agents"), agentsRoot);
   const app = express();
   app.locals.appVersion = appVersion;
@@ -101,10 +107,20 @@ export async function createApp({
     next();
   });
   app.use(languageRequest);
+  app.use(requireAccessToken);
   app.use("/a2a", express.json({ limit: "2mb" }));
   app.use(["/api/workspaces/files/write", "/api/assets/save"], express.raw({ type: "application/octet-stream", limit: "100mb" }));
-  app.use(express.json({ limit: "100mb" }));
-  app.use(express.urlencoded({ extended: true, limit: "100mb" }));
+  // 安装包、技能正文、带图片的生成上下文和设置快照单独放宽。其余 JSON 收紧到 2 MB。
+  const largeJsonPaths = [
+    "/api/settings/save", "/api/ai/generate", "/api/singleAgent/run", "/api/agent",
+    "/api/skills/install", "/api/skills/save", "/api/nodes/install", "/api/nodes/save",
+    "/api/tools/install", "/api/tools/save", "/api/ext/install", "/api/ext/save",
+    "/api/agents/install", "/api/agents/save", "/api/providers/debug/run", "/api/providers/debug/inspect",
+    "/api/desktop/clipboard/write", "/api/production/workflows/upload",
+  ];
+  app.use(largeJsonPaths, express.json({ limit: "40mb" }));
+  app.use(express.json({ limit: "2mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "2mb" }));
   app.use("/api/desktop", desktopRequest);
 
   const { default: initializeProviderModels } = await import("@/utils/ai/initialize");

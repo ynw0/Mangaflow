@@ -82,8 +82,25 @@ export function cleanNodeMenuSettings(settings: Record<string, unknown>) {
 }
 
 const qwenImageBaseUrl = "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
-// 曾写进源码的图像密钥。只保留摘要，用来清掉已经落到本机配置里的同一把密钥。
-const leakedQwenImageKeyHash = "aecad4dd9832e363cffa28165c27b1e66242ba742e5830ed905ba206c59d682c";
+// 已泄露凭据的摘要。命中后只清空本地副本；服务商侧的钥匙仍须作废。
+const leakedSecretHashes = new Set([
+  "aecad4dd9832e363cffa28165c27b1e66242ba742e5830ed905ba206c59d682c",
+  "fe3320cb7af5a15aae802dda63f5e2479b039d5717912e760166ff808cb1a8d4",
+  "553bfd1bb1c5fd235576c4deb8eed302fff3642616db1ebe34677b14cd3ca5b5",
+]);
+
+function scrubLeakedSecrets(value: unknown): boolean {
+  if (Array.isArray(value)) return value.reduce((changed, item) => scrubLeakedSecrets(item) || changed, false);
+  if (!value || typeof value !== "object") return false;
+  let changed = false;
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === "string" && item && leakedSecretHashes.has(createHash("sha256").update(item).digest("hex"))) {
+      (value as Record<string, unknown>)[key] = "";
+      changed = true;
+    } else if (scrubLeakedSecrets(item)) changed = true;
+  }
+  return changed;
+}
 
 function record(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -113,16 +130,11 @@ installQwenImageProvider();
 removeOfficialProviders();
 
 const settings = config.get("settings", {});
-if (removeLegacySettings(settings) || dropOfficialProviders(settings)) config.set("settings", settings);
+if (removeLegacySettings(settings) || dropOfficialProviders(settings) || scrubLeakedSecrets(settings)) config.set("settings", settings);
 
 const mediaProviderConfigs = record(settings.mediaProviderConfigs);
 const qwenImageConfig = record(mediaProviderConfigs.qwenImage);
 let qwenImageChanged = false;
-if (typeof qwenImageConfig.apiKey === "string" && qwenImageConfig.apiKey
-  && createHash("sha256").update(qwenImageConfig.apiKey).digest("hex") === leakedQwenImageKeyHash) {
-  qwenImageConfig.apiKey = "";
-  qwenImageChanged = true;
-}
 if (typeof qwenImageConfig.baseUrl !== "string" || !qwenImageConfig.baseUrl.trim()) {
   qwenImageConfig.baseUrl = qwenImageBaseUrl;
   qwenImageChanged = true;

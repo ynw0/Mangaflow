@@ -1,6 +1,8 @@
 workflow: ./h3_erca_9x16_autodl_api.json
 label: 成片 MiniMax H3 二采 AutoDL 9:16
-# AutoDL 专用：H3 Ref2VA + 二采（TaoMate-3step + latent upscaler）；仅 1 路参考图 + 可选覆盖合成音频
+# 9 路参考图：slot1–9 对应 LoadImage 24、15、123、130、132、133、159、160、161，接入节点 6 的 ref_image_0–8。缺图时删除对应 LoadImage，不删节点 6。
+# 可选音频绑 LoadAudio(200)。保存节点 114 固定接原生音轨 83。缺音频时删除的是 200，不是 114。
+version: 3
 capabilities:
   duration_seconds:
     min: 2
@@ -40,7 +42,39 @@ bindings:
   target: 24.inputs.image
   kind: image
   required: false
+- source: refs.slot2
+  target: 15.inputs.image
+  kind: image
+  required: false
+- source: refs.slot3
+  target: 123.inputs.image
+  kind: image
+  required: false
+- source: refs.slot4
+  target: 130.inputs.image
+  kind: image
+  required: false
+- source: refs.slot5
+  target: 132.inputs.image
+  kind: image
+  required: false
+- source: refs.slot6
+  target: 133.inputs.image
+  kind: image
+  required: false
+- source: refs.slot7
+  target: 159.inputs.image
+  kind: image
+  required: false
+- source: refs.slot8
+  target: 160.inputs.image
+  kind: image
+  required: false
+- source: refs.slot9
+  target: 161.inputs.image
+  kind: image
+  required: false
 - source: media.audio1
-  target: 114.inputs.audio
+  target: 200.inputs.audio
   kind: audio
   required: false

@@ -26,6 +26,10 @@ export default router.get("/", async (_req, res) => {
       author: typeof metadata.author === "string" ? metadata.author : "",
       github,
       enabled: u.skillFile.isEnabled(skill.name),
+      updateAvailable: (await readFile(resolve(dirname(skill.filePath), ".builtinPending"), "utf8").catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return "";
+        throw error;
+      })).trim(),
     };
   }));
   res.json(success(items.sort((left, right) => left.name.localeCompare(right.name))));

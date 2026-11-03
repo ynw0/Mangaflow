@@ -79,6 +79,7 @@
             <el-tag :type="pluginTypes[plugin.type].tagType" size="small">{{ pluginTypes[plugin.type].label }}</el-tag>
           </div>
           <p v-if="plugin.description" class="pluginDescription">{{ plugin.description }}</p>
+          <el-text v-if="plugin.updateAvailable" type="warning" size="small">本地已修改，内置 {{ plugin.updateAvailable }} 未覆盖，请打开编辑器对照合并</el-text>
           <el-text v-if="plugin.loadError" type="danger" size="small">{{ plugin.loadError }}</el-text>
           <div v-if="plugin.author || plugin.version" class="pluginMeta">
             <span v-if="plugin.author" class="pluginAuthor">{{ plugin.author }}</span>

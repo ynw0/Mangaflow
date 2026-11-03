@@ -6,6 +6,9 @@ services:
     ports:
       # 只把宿主机环回地址映射进容器。容器内进程通过 TOONFLOW_HOST 监听所有网卡。
       - "127.0.0.1:3000:3000"
+    environment:
+      # 容器内监听 0.0.0.0。宿主机端口只映射到环回地址，进程仍要求访问令牌。
+      TOONFLOW_TOKEN: ${TOONFLOW_TOKEN:?请设置至少 32 位的 TOONFLOW_TOKEN}
     volumes:
       - toonflowData:/app/data
 

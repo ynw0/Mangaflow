@@ -2,6 +2,7 @@ import u from "@/utils";
 import { Router } from "express";
 import { z } from "zod";
 import { validateFields } from "@/lib/middleware";
+import { restoreSettingsSecrets } from "@/lib/secrets";
 import { success } from "@/lib/responseFormat";
 import { maxSystemPromptLength } from "@/agent/runtime/prompt";
 import { t } from "@/lib/i18n";
@@ -19,10 +20,11 @@ export default router.put("/", validateFields({ settings: z.record(z.string(), z
 }) }), async (req, res) => {
   u.mcpControl.assertAppRequest(req);
   const { settings } = req.body;
+  const previousSettings = u.conf.get("settings", {});
   u.removeLegacySettings(settings);
   u.cleanNodeMenuSettings(settings);
-  const previousSettings = u.conf.get("settings", {});
-  u.conf.set("settings", settings);
+  const nextSettings = restoreSettingsSecrets(settings, previousSettings);
+  u.conf.set("settings", nextSettings);
   const [models] = await Promise.all([u.ai.refreshProviderModels(previousSettings), u.mcpRuntime.reloadMcpRuntime()]);
   res.json(success({ ...models, nodeMenu: u.conf.get("settings.general.nodeMenu") ?? null }, "设置已保存"));
 });

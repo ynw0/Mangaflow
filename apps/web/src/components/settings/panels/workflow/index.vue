@@ -1,5 +1,8 @@
 <template>
   <div class="workflow">
+    <div v-if="workflowNotices.length" class="workflowNotices" role="status">
+      <el-text v-for="notice in workflowNotices" :key="notice" type="warning">{{ notice }}</el-text>
+    </div>
     <section class="settingSection" aria-labelledby="imageTitle">
       <div class="settingInfo">
         <h3 id="imageTitle">出图</h3>
@@ -231,6 +234,7 @@ const autodlToken = ref("");
 const autodlInstanceUuid = ref("");
 const autodlStartCommand = ref("");
 const autodlEnsureRunning = ref(false);
+const workflowNotices = ref<string[]>([]);
 const imageWorkflows = ref<WorkflowItem[]>([]);
 const videoWorkflows = ref<WorkflowItem[]>([]);
 const qcWorkflows = ref<WorkflowItem[]>([]);
@@ -462,8 +466,9 @@ async function onUploadFile(event: Event) {
 }
 
 async function loadWorkflows() {
-  const { data } = await axios.get<{ code: number; data: { image: WorkflowItem[]; video: WorkflowItem[]; qc: WorkflowItem[] }; message?: string }>("/api/production/workflows", { headers });
+  const { data } = await axios.get<{ code: number; data: { image: WorkflowItem[]; video: WorkflowItem[]; qc: WorkflowItem[]; notices?: string[] }; message?: string }>("/api/production/workflows", { headers });
   if (data.code !== 200) throw new Error(data.message || "读取工作流失败");
+  workflowNotices.value = Array.isArray(data.data.notices) ? data.data.notices.filter(item => typeof item === "string") : [];
   imageWorkflows.value = data.data.image;
   videoWorkflows.value = data.data.video;
   qcWorkflows.value = data.data.qc;
@@ -579,6 +584,12 @@ watch(() => {
   display: flex;
   flex-direction: column;
   gap: 24px;
+
+  .workflowNotices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
   .settingSection {
     display: flex;

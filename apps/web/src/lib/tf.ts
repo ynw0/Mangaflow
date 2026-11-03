@@ -47,10 +47,13 @@ export function getTfApiKey() {
     .find(Boolean) ?? "";
 }
 
-function requestOptions({ apiKey, signal }: TfRequestOptions = {}) {
-  const key = (apiKey ?? getTfApiKey()).trim().replace(/^Bearer(?:\s+|$)/i, "").trim();
-  if (!key) throw new Error("请先配置 TF-Router API Key");
-  return { signal, timeout: 20000, headers: { Authorization: `Bearer ${key}` } };
+// 与服务端 lib/secrets.ts 的哨兵一致。已保存的密钥不发回浏览器，也不再由浏览器转发。
+const redactedSecret = "[REDACTED]";
+
+function oneTimeKey(apiKey?: string) {
+  const key = apiKey?.trim().replace(/^Bearer(?:\s+|$)/i, "").trim() ?? "";
+  if (!key || key === redactedSecret) return undefined;
+  return key;
 }
 
 function responseData<T>(response: TfResponse<T>, fallback = "TF-Router 请求失败"): T {
@@ -71,13 +74,19 @@ export default {
   async getPlugIn(params: TfPluginParams, options?: TfRequestOptions) {
     if (!Number.isSafeInteger(params.page) || params.page < 1) throw new Error("页码必须为正整数");
     if (!Number.isSafeInteger(params.limit) || params.limit < 1 || params.limit > 50) throw new Error("每页数量必须为 1 至 50 的整数");
-    const { data } = await client.post<TfResponse<{ list: TfPlugin[]; total: number }>>("/v1/plugin/getPlugin", params, requestOptions(options));
+    const key = oneTimeKey(options?.apiKey);
+    const { data } = await axios.post<TfResponse<{ list: TfPlugin[]; total: number }>>("/api/tf/plugins", { ...params, ...(key ? { apiKey: key } : {}) }, {
+      headers: { "x-toonflow-workspace": "1" }, signal: options?.signal, timeout: 25000,
+    });
     return responseData(data, "加载插件市场失败");
   },
 
   async toggleCollection(pluginId: number, options?: TfRequestOptions): Promise<{ collected: boolean }> {
     if (!Number.isSafeInteger(pluginId) || pluginId < 1) throw new Error("插件 ID 必须为正整数");
-    const { data } = await client.post<TfResponse<{ collected: boolean }>>("/v1/plugin/toggleCollection", { pluginId }, requestOptions(options));
+    const key = oneTimeKey(options?.apiKey);
+    const { data } = await axios.post<TfResponse<{ collected: boolean }>>("/api/tf/collection", { pluginId, ...(key ? { apiKey: key } : {}) }, {
+      headers: { "x-toonflow-workspace": "1" }, signal: options?.signal, timeout: 25000,
+    });
     const collection = responseData(data, "更新插件收藏失败");
     if (typeof collection?.collected !== "boolean") throw new Error("插件收藏响应格式不正确");
     return collection;

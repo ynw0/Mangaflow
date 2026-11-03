@@ -12,6 +12,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     About: typeof import('./../components/settings/panels/about.vue')['default']
+    AccessGate: typeof import('./../components/accessGate.vue')['default']
     Agent: typeof import('./../components/agent/index.vue')['default']
     AttachmentList: typeof import('./../components/agent/attachmentList.vue')['default']
     AttachmentPreview: typeof import('./../components/agent/attachmentPreview.vue')['default']

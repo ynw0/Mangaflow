@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDefinition, ToolPlugin } from "@toonflow/tools-scaffold/runtime";
+import type { MediaContext, ToolDefinition, ToolPlugin } from "@toonflow/tools-scaffold/runtime";
 import { audioGenerationSchema, imageGenerationSchema, listMediaModelsSchema, qcVideoSchema, videoGenerationSchema } from "./runtime";
 
 const configSchema = z.strictObject({
@@ -47,12 +47,13 @@ const plugin: ToolPlugin = {
       name: operation.name,
       label: operation.label,
       description: `${operation.description}providerId 和 modelId 必须来自 listMediaModels。引用素材的 path 及 outputDirectory 均为工作区相对路径；省略输出目录使用默认媒体目录。等待生成完成后返回已保存的文件路径，不返回 Base64。`,
-      promptSnippet: "生成媒体前先查询 listMediaModels，复用实际模型和工作区参考素材。",
+      promptSnippet: "生成媒体前先查询 listMediaModels。",
       parameters: z.toJSONSchema(operation.parameters, { io: "input", target: "draft-07" }),
-      executionMode: "sequential",
+      executionMode: "sequential" as const,
       async execute(_id, params, signal) {
         signal?.throwIfAborted();
-        const result = await media[operation.name](operation.parameters.parse(params), signal);
+        const request = operation.parameters.parse(params);
+        const result = await media[operation.name](request, signal);
         const text = result.map(asset => {
           const url = asset.path.replaceAll("\\", "/").split("/").map(encodeURIComponent).join("/");
           const preview = asset.mediaType === "image" ? `![生成图片](<${url}>)` : `[${asset.mediaType === "audio" ? "播放生成音频" : "查看生成视频"}](<${url}>)`;

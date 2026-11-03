@@ -3,6 +3,7 @@ import { copyFile, mkdtemp, readFile, rm } from "@toonflow/file";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 import { getConfiguredModel, listAiModels } from "@/utils/ai";
+import type { FfmpegCommand } from "@toonflow/ffmpeg/types";
 import { createWorkspaceFfmpeg } from "@/utils/ffmpeg";
 import { findWorkflow } from "@/utils/production/catalog";
 import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, submitWorkflow, uploadInput, waitForText } from "@/utils/production/comfyui";
@@ -172,12 +173,12 @@ function resolveQcModel(modelId: string) {
   return { configured: getConfiguredModel(match.providerId, match.modelId), modelId: match.modelId, inputs: readInputs(match) };
 }
 
-function runCommand(command: { on: (event: string, cb: (...args: unknown[]) => void) => unknown; run: () => void; kill: () => void }, signal?: AbortSignal) {
+function runCommand(command: FfmpegCommand, signal?: AbortSignal) {
   signal?.throwIfAborted();
-  const cancel = () => command.kill();
+  const cancel = () => command.kill("SIGKILL");
   signal?.addEventListener("abort", cancel, { once: true });
   return new Promise<void>((resolve, reject) => {
-    command.on("start", () => { if (signal?.aborted) command.kill(); });
+    command.on("start", () => { if (signal?.aborted) command.kill("SIGKILL"); });
     command.on("error", (error: unknown) => reject(signal?.aborted ? signal.reason : error));
     command.on("end", () => signal?.aborted ? reject(signal.reason) : resolve());
     command.run();
@@ -197,7 +198,7 @@ async function extractEvidence(absoluteVideo: string, workDir: string, signal?: 
 
   const probe = await new Promise<{ streams?: { codec_type?: string; disposition?: { attached_pic?: number }; nb_frames?: string | number; avg_frame_rate?: string; r_frame_rate?: string }[]; format?: { duration?: string | number } }>((resolve, reject) => {
     const command = ffmpeg(absoluteVideo);
-    const cancel = () => command.kill();
+    const cancel = () => command.kill("SIGKILL");
     signal?.addEventListener("abort", cancel, { once: true });
     command.ffprobe((error: unknown, data: unknown) => {
       signal?.removeEventListener("abort", cancel);

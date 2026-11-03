@@ -5,12 +5,12 @@
 ## 文生图（character / scene / prop-prompt-review）
 
 ### 文生图输入（缺一则 blocked）
-- `GET /projects/{project}/story?chapter=` 返回的本章原文（不要一次拉全书）
-- 当前 `production_profile`
+- 当前对话或剧本画布里的本章原文（不要一次读全书）
+- 系统提示中的 `production.image` 与 `production_profile`
 - 资产规划项：canonical_description、required_state、allowed_variant_changes、evidence
-- `GET /projects/{project}/assets` 中该资产登记与 sidecar `still_formats`
+- 资产画布上该资产的登记
 - 原画专职刚输出的完整 canonical_art 合同
-- `_common.txt` 与对应原画 AGENTS.md（character-art / scene-art / prop-art）
+- 本技能 references 里的 `common.md` 与对应原画说明（character-art / scene-art / prop-art）
 
 ### 文生图审核顺序
 1. 对照原文：身份、外形、空间、结构、数量、位置关系是否与小说已写明的事实一致；有无跑题或把别的实体写进本张。
@@ -20,15 +20,15 @@
 4. 尚待设计的普通细节允许原画提出方案，不因此退回。原文已确认的事实被改写、编造或删掉则退回。
 
 ### 文生图输出与交接
-只返回 `art_prompt_review`。合格：status=ok，findings 必须 []。不合格：status=rejected，findings 含整改意见。缺原文或关键设定：公共 blocked。总控把 rejected 退回对应原画专职；status=ok 后将 art 与 review 一起 POST `/assets/prompt`。提示词工不提交 sidecar。
+只返回 `art_prompt_review`。合格：status=ok，findings 必须 []。不合格：status=rejected，findings 含整改意见。缺原文或关键设定：公共 blocked。总控把 rejected 退回对应原画专职；status=ok 后把 art 与 review 写入当前画布的文本节点。不要调用 `/assets/prompt`、sidecar 或 SQLite。
 
 ## 文生视频（video-prompt-review）
 
 ### 文生视频输入（缺一则 blocked）
-- `GET /projects/{project}/story?chapter=` 返回的本章原文
-- `POST /shots/prepare` 完整结果：剧情、用途、时长、硬要求、相邻镜头、continuity、已批准资产、ref_slot_plan、工作流时长能力、production_profile
+- 当前对话或剧本画布里的本章原文
+- 当前画布与 video-director 合同里的分镜准备结果：剧情、用途、时长、硬要求、相邻镜头、continuity、已批准资产、ref_slot_plan、工作流时长能力、production_profile。不要调用 `/shots/prepare`
 - video-director 刚输出的完整合同
-- `_common.txt` 与 `prompts/video-director/AGENTS.md`
+- 本技能 references 里的 `common.md` 与 `video-director.md`
 
 ### 文生视频审核顺序
 1. 对照原文与镜头 story：动作、因果、对白文本、人物持物与入出镜是否一致；有无跑题或另写一场戏。动作被改成产品说明，判不合格。资产外形对照该槽 `approved_image_prompt`，由你判断棚拍和画幅不算成片外形。沿用与批准原画冲突的旧外形，判不合格。原文里的旧外形没有逐字出现，不作为退回理由。
@@ -41,4 +41,4 @@
 4. 不改写 prompt，不改槽位。不合格退回 video-director。
 
 ### 文生视频输出与交接
-只返回 `video_prompt_review`。合格：status=ok，findings 必须 []。不合格：status=rejected，findings 含整改意见。缺原文或准备结果：公共 blocked。总控把 rejected 退回 video-director；status=ok 后将 director 与 review 一起 POST `/shots/prompt`。提示词工不提交 sidecar。开 GPU 仍由总控另行确认。
+只返回 `video_prompt_review`。合格：status=ok，findings 必须 []。不合格：status=rejected，findings 含整改意见。缺原文或准备结果：公共 blocked。总控把 rejected 退回 video-director；status=ok 后把 director 与 review 写入当前画布的文本节点。不要调用 `/shots/prompt`、sidecar 或 SQLite。开 GPU 仍由总控另行确认。

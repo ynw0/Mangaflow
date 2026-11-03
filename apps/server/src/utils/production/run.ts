@@ -92,17 +92,48 @@ function writePath(target: Record<string, unknown>, path: string, value: unknown
   current[leaf] = value;
 }
 
-function dropNode(workflow: Record<string, unknown>, target: string) {
-  const nodeId = target.split(".")[0] ?? "";
-  delete workflow[nodeId];
-  for (const node of Object.values(workflow)) {
-    if (!node || typeof node !== "object") continue;
-    const inputs = (node as { inputs?: Record<string, unknown> }).inputs;
-    if (!inputs) continue;
-    for (const [key, value] of Object.entries(inputs)) {
-      if (Array.isArray(value) && String(value[0]) === nodeId) delete inputs[key];
-    }
+function nodeInputs(workflow: Record<string, unknown>, target: string) {
+  const parts = target.split(".");
+  const nodeId = parts[0] ?? "";
+  const node = workflow[nodeId];
+  const inputs = node && typeof node === "object" && !Array.isArray(node)
+    ? (node as { inputs?: Record<string, unknown> }).inputs
+    : undefined;
+  const field = parts[1] === "inputs" ? parts.slice(2).join(".") : "";
+  return { nodeId, field, inputs };
+}
+
+function linksTo(value: unknown, nodeId: string): boolean {
+  if (Array.isArray(value)) return String(value[0]) === nodeId || value.some(item => linksTo(item, nodeId));
+  if (!value || typeof value !== "object") return false;
+  return Object.values(value).some(item => linksTo(item, nodeId));
+}
+
+function hasConsumer(workflow: Record<string, unknown>, nodeId: string) {
+  return Object.entries(workflow).some(([id, node]) => id !== nodeId && linksTo(node, nodeId));
+}
+
+function removeLinks(value: unknown, nodeId: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  const record = value as Record<string, unknown>;
+  for (const [key, item] of Object.entries(record)) {
+    if (Array.isArray(item) && String(item[0]) === nodeId) delete record[key];
+    else removeLinks(item, nodeId);
   }
+}
+
+// 可选输入没传时：目标已是连线就保持原样；没有任何下游的节点是输出，不能删。
+function dropNode(workflow: Record<string, unknown>, target: string, source: string) {
+  const { nodeId, field, inputs } = nodeInputs(workflow, target);
+  if (!nodeId || !Object.hasOwn(workflow, nodeId)) return;
+  if (field && Array.isArray(inputs?.[field])) return;
+  if (!hasConsumer(workflow, nodeId)) fail(`可选输入 ${source} 的目标 ${nodeId} 是输出节点，不能删除`);
+  delete workflow[nodeId];
+  for (const node of Object.values(workflow)) removeLinks(node, nodeId);
+}
+
+function terminalNodeIds(workflow: Record<string, unknown>) {
+  return Object.keys(workflow).filter(nodeId => !hasConsumer(workflow, nodeId));
 }
 
 async function localFile(directory: string, ref?: MediaRef) {
@@ -115,19 +146,31 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
   const raw = JSON.parse(await readFile(entry.workflowPath, "utf8")) as unknown;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail(`工作流不是 API JSON: ${entry.id}`);
   const workflow = structuredClone(raw) as Record<string, unknown>;
+  const dropped: string[] = [];
   for (const binding of entry.bindings.bindings) {
     const value = readPath(context, binding.source);
     const missing = value == null || (binding.kind !== "value" && value === "");
     if (missing) {
       if (binding.required) fail(`工作流 ${entry.label} 缺少 ${binding.source}`);
-      if (binding.kind !== "value") dropNode(workflow, binding.target);
+      if (binding.kind !== "value") {
+        const nodeId = binding.target.split(".")[0] ?? "";
+        const existed = Object.hasOwn(workflow, nodeId);
+        dropNode(workflow, binding.target, binding.source);
+        if (existed && !Object.hasOwn(workflow, nodeId)) dropped.push(`${binding.source} 删除了节点 ${nodeId}`);
+      }
       continue;
+    }
+    const { inputs, field } = nodeInputs(workflow, binding.target);
+    if (binding.kind !== "value" && field && Array.isArray(inputs?.[field])) {
+      fail(`绑定 ${binding.source} 的目标 ${binding.target} 是连线，不能写入文件名`);
     }
     const next = binding.kind === "value"
       ? value
       : await uploadInput(baseUrl, String(value), "toonflow", signal);
     writePath(workflow, binding.target, next);
   }
+  const outputs = terminalNodeIds(workflow);
+  if (!outputs.length) fail(dropped.length ? `工作流 ${entry.label} 没有输出节点。${dropped.join("；")}` : `工作流 ${entry.label} 没有输出节点`);
   return workflow;
 }
 

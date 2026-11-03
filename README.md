@@ -329,9 +329,11 @@ sudo spctl --master-disable
 <details>
 <summary><strong>展开 Docker 安装步骤</strong></summary>
 
-克隆源码后，在仓库根目录执行：
+克隆源码后，先设置至少 32 位的访问令牌，再在仓库根目录执行：
 
 ```sh
+# 令牌只由字母、数字和 . _ ~ - 组成。打开页面后输入同一令牌。
+export TOONFLOW_TOKEN="$(openssl rand -hex 24)"
 git clone https://github.com/HBAI-Ltd/Toonflow-app.git
 cd Toonflow-app
 docker compose up -d --build
@@ -396,7 +398,7 @@ mkdir -p data/workspaces/myProject
 bun run start:server
 ```
 
-看到“服务启动成功”后，可在服务器本机访问 `http://127.0.0.1:3000`。上述命令以前台方式运行，按 `Ctrl+C` 停止；需要开机自启和进程托管时，可参考 [Bun 的 systemd 部署指南](https://bun.sh/guides/ecosystem/systemd)，将工作目录设为仓库目录，启动命令设为 Bun 的绝对路径加 `run start:server`，使用有权读写该目录的用户运行。
+看到“服务启动成功”后，可在服务器本机访问 `http://127.0.0.1:3000`。默认只监听本机。要监听局域网或所有网卡，启动前设置 `TOONFLOW_HOST=0.0.0.0`，并同时设置至少 32 位的 `TOONFLOW_TOKEN`（字母、数字或 `.` `_` `~` `-`）。打开页面后输入该令牌。若请求已经由带认证的反向代理拦住，可改设 `TOONFLOW_AUTH_PROXY=1`，本进程不再校验令牌。反向代理改写了来源地址时，只有设置 `TOONFLOW_TRUST_PROXY=1` 才采信转发头；未设置时转发请求不算本机请求。供应商调试接口默认只接受本机工作区请求，设置 `TOONFLOW_PROVIDER_DEBUG=1` 后才允许其他来源调用。上述命令以前台方式运行，按 `Ctrl+C` 停止；需要开机自启和进程托管时，可参考 [Bun 的 systemd 部署指南](https://bun.sh/guides/ecosystem/systemd)，将工作目录设为仓库目录，启动命令设为 Bun 的绝对路径加 `run start:server`，使用有权读写该目录的用户运行。
 
 </details>
 

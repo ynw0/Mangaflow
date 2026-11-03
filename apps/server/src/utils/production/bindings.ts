@@ -9,6 +9,7 @@ export type WorkflowBinding = {
 export type WorkflowBindings = {
   workflow: string;
   label?: string;
+  version?: number;
   capabilities: { durationSeconds?: { min: number; max: number } };
   bindings: WorkflowBinding[];
 };
@@ -45,6 +46,7 @@ function bindingField(current: { source?: string; target?: string; kind?: Workfl
 export function parseWorkflowBindings(text: string): WorkflowBindings {
   let workflow = "";
   let label: string | undefined;
+  let version: number | undefined;
   let durationMin: number | undefined;
   let durationMax: number | undefined;
   let sawDuration = false;
@@ -80,6 +82,10 @@ export function parseWorkflowBindings(text: string): WorkflowBindings {
       } else if (key === "label") {
         if (!value) failMessage("label 不能为空");
         label = value;
+      } else if (key === "version") {
+        if (version !== undefined) failMessage("绑定重复 version");
+        if (!/^[1-9]\d*$/.test(value)) failMessage("version 必须是正整数");
+        version = Number(value);
       } else if (key === "capabilities") {
         if (value) failMessage("capabilities 不能写成单行");
         inCapabilities = true;
@@ -129,12 +135,13 @@ export function parseWorkflowBindings(text: string): WorkflowBindings {
   }
   if (!bindings.length) failMessage("绑定文件没有 bindings");
   const capabilities = durationMin !== undefined && durationMax !== undefined ? { durationSeconds: { min: durationMin, max: durationMax } } : {};
-  return { workflow, label, capabilities, bindings };
+  return { workflow, label, version, capabilities, bindings };
 }
 
 /** 把内存里的 bindings 写成与内置文件同款的 yaml 文本。 */
 export function serializeWorkflowBindings(value: WorkflowBindings) {
   const lines = [`workflow: ${value.workflow}`];
+  if (value.version !== undefined) lines.push(`version: ${value.version}`);
   if (value.label?.trim()) lines.push(`label: ${value.label.trim()}`);
   const limits = value.capabilities.durationSeconds;
   if (limits) {

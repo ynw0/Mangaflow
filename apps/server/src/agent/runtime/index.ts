@@ -35,8 +35,19 @@ import { decodeTextFile } from "@/lib/documentFormats";
 const goalContinuePrompt = `${goalContinueMark}
 目标还没完成。不要提问，也不要停在汇报、排队或等别人安排下一步。按已有信息自己决定，继续做这条目标里还没做完的事，包括目标写明要生成的成片。全部做完，或只剩同一处连续两次仍失败的部分，再调用 completeGoal。`;
 const goalRoundLimit = 8;
-// 摘要预算仍用 16384。近期只留约 6000 估算 token，避免切点落在开头、摘要写上但原文全部保留。
-const compactionSettings = { enabled: true, reserveTokens: 16384, keepRecentTokens: 6000 };
+const compactionReserveTokens = 16384;
+const compactionKeepRecentTokens = 20000;
+
+function compactionTrigger(contextWindow: number) {
+  return Math.min(contextWindow - compactionReserveTokens, Math.floor(contextWindow * 0.5));
+}
+
+function compactionSettingsFor(contextWindow: number) {
+  const trigger = compactionTrigger(contextWindow);
+  // 保留量必须低于触发线，否则切点落在开头，摘要写上但原文全部保留。
+  const keepRecentTokens = trigger > compactionKeepRecentTokens ? compactionKeepRecentTokens : Math.max(1, Math.floor(Math.max(trigger, 0) / 2));
+  return { enabled: true, reserveTokens: compactionReserveTokens, keepRecentTokens };
+}
 
 function createCompleteGoalTool(markDone: (summary: string) => void): ToolDefinition {
   const parameters = z.strictObject({ summary: z.string().trim().min(1).max(2000).describe("完成了什么；没做成的部分也写明") });
@@ -78,8 +89,8 @@ async function compactHistory(session: AgentSession, history: SessionManager, se
   if (contextWindow <= 0 || session.isCompacting) return;
   const reported = session.getContextUsage()?.tokens ?? 0;
   const estimated = session.messages.reduce((total, message) => total + estimateTokens(message), 0);
-  const reportedTrigger = Math.min(contextWindow - compactionSettings.reserveTokens, Math.floor(contextWindow * 0.5));
-  if (reported <= reportedTrigger && estimated <= 20000) return;
+  const trigger = compactionTrigger(contextWindow);
+  if (trigger <= 0 || (reported <= trigger && estimated <= trigger)) return;
   try {
     const result = await session.compact();
     const tokens = result.estimatedTokensAfter ?? estimated;
@@ -209,7 +220,7 @@ export async function run(
     }));
     let goalDone = false;
     if (goal && !child) tools.push(createCompleteGoalTool(() => { goalDone = true; }));
-    const resources = await createAgentResources(cwd, tools, SettingsManager.inMemory({ compaction: compactionSettings }), child
+    const resources = await createAgentResources(cwd, tools, SettingsManager.inMemory({ compaction: compactionSettingsFor(runtime.getModel(providerId, modelId)?.contextWindow ?? 0) }), child
       ? `## 子 Agent 职责\n你正在执行委派任务：${JSON.stringify({ name: child.name, task: child.task })}。遵守当前工作区规则与授权，用户可以进入此子会话补充要求。重要进展与最终结论使用 report 上报父 Agent。${goal ? "当前是目标模式的子任务：不要提问，按已有信息自己决定并做完。" : ""}`
       : "", goal && !child);
     const resendEntry = resendFrom ? history.getBranch().find((item) => item.id === resendFrom) : undefined;

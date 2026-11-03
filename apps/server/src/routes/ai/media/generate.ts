@@ -9,6 +9,7 @@ import { translateMessage, validationOptions } from "@/lib/i18n";
 export default Router().post("/", validateFields({
   directory: z.string().min(1).max(4096), mediaType: z.enum(["image", "video", "audio"]),
 }), async (req, res) => {
+  u.mcpControl.assertAppRequest(req);
   const { directory, mediaType, ...request } = req.body;
   const parsed = (mediaType === "image" ? imageGenerationSchema : mediaType === "video" ? videoGenerationSchema : audioGenerationSchema).safeParse(request, validationOptions());
   if (!parsed.success) {

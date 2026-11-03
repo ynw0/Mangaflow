@@ -255,8 +255,15 @@ export async function generateMedia(
   await resolveWorkspacePath(directory, outputDirectory, true);
   if (request.providerId === "comfyui") {
     if (mediaType === "audio") invalid("ComfyUI 工作流用于出视频");
-    const output = await runComfyWorkflow({ directory, mediaType, request, signal });
-    return writeGenerated(directory, outputDirectory, mediaType, output.bytes, output.mimeType, signal);
+    const files = await runComfyWorkflow({ directory, mediaType, request, signal });
+    const result: GeneratedMedia[] = [];
+    try {
+      for (const file of files) result.push(...await writeGenerated(directory, outputDirectory, mediaType, file.bytes, file.mimeType, signal));
+      return result;
+    } catch (error) {
+      await Promise.all(result.map(item => unlink(join(directory, item.path)).catch((cause: NodeJS.ErrnoException) => { if (cause.code !== "ENOENT") throw cause; })));
+      throw error;
+    }
   }
   if (request.providerId === "videoModel") {
     if (mediaType !== "video") invalid("视频模型仅用于出视频");

@@ -22,11 +22,16 @@ const app = await createApp({
 });
 const { initializeMcpRuntime } = await import("./utils/mcp/runtime");
 const { startMobileLinkRuntime } = await import("./utils/mobileLink");
-const server = app.listen(realPort, async () => {
+// 默认只监听本机。容器内需要由端口映射转发，显式设置 TOONFLOW_HOST=0.0.0.0。
+const listenHost = process.env.TOONFLOW_HOST?.trim() || "127.0.0.1";
+if (!/^[A-Za-z0-9._:-]+$/.test(listenHost) || listenHost.length > 253) throw new Error("TOONFLOW_HOST 必须是主机名或 IP");
+const server = app.listen(realPort, listenHost, async () => {
   await initializeMcpRuntime(app, `http://127.0.0.1:${realPort}`, resolve(appDirectory, fromSource ? "packages/mcp/src/stdio.ts" : "build/mcp/stdio.js"));
   await startMobileLinkRuntime(app).catch(error => console.error("设备互联启动失败：", error));
-  console.log(`[服务启动成功]: http://localhost:${realPort}`);
+  console.log(`[服务启动成功]: http://${listenHost}:${realPort}`);
   console.log(`[启动耗时]: ${(Date.now() - startTime).toFixed(2)}ms`);
 });
+// ACT: 套接字不设空闲超时。出图、出视频和 SSE 会占住连接，中间只有保活写入；空闲超时会在远端仍在跑时断开。
 server.timeout = 0;
-server.requestTimeout = 0;
+server.headersTimeout = 60_000;
+server.requestTimeout = 5 * 60_000;

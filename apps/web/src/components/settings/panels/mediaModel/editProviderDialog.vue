@@ -146,7 +146,7 @@ async function saveModels() {
     });
     const { data } = await axios.put<{ code: number; data: MediaProvider; message?: string }>("/api/providers/media/save", {
       fileName, revision: revision.value, models: values,
-    });
+    }, { headers: { "x-toonflow-workspace": "1" } });
     if (data.code !== 200 || !data.data) throw new Error(data.message || "保存模型失败");
     revision.value = data.data.revision;
     modelsSaved = true;

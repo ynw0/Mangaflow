@@ -8,6 +8,7 @@ export default createRouter().delete("/", validateFields({
   fileName: u.mediaProvider.mediaProviderFileSchema,
   revision: z.string().regex(/^[a-f0-9]{64}$/),
 }), async (req, res) => {
+  u.mcpControl.assertAppRequest(req);
   await u.mediaProvider.deleteMediaProvider(req.body.fileName, req.body.revision);
   res.json(success());
 });

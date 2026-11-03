@@ -4,6 +4,7 @@ services:
     init: true
     restart: unless-stopped
     ports:
+      # 只把宿主机环回地址映射进容器。容器内进程通过 TOONFLOW_HOST 监听所有网卡。
       - "127.0.0.1:3000:3000"
     volumes:
       - toonflowData:/app/data

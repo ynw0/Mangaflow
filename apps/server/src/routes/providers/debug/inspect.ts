@@ -4,5 +4,6 @@ import { validateFields } from "@/lib/middleware";
 import { success } from "@/lib/responseFormat";
 
 export default Router().post("/", validateFields({ source: u.providerDebug.providerDebugSchema.source }), async (req, res) => {
+  u.providerDebug.assertProviderDebugRequest(req);
   res.json(success(await u.providerDebug.inspectProviderSource(req.body.source)));
 });

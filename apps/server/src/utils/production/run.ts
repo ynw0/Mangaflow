@@ -192,8 +192,10 @@ export async function runComfyWorkflow(options: {
   await probeComfy(baseUrl, signal);
 
   const images = request.images ?? [];
+  const referenceSlots = entry.bindings.bindings.filter(item => /^refs\.slot\d+$/.test(item.source)).length;
+  if (images.length > referenceSlots) fail(`参考图片数量超过参考槽：传入 ${images.length} 张，${entry.label} 只有 ${referenceSlots} 个参考槽`);
   const refs: Record<string, string | undefined> = {};
-  for (let index = 0; index < images.length && index < 9; index += 1) refs[`slot${index + 1}`] = await localFile(directory, images[index]);
+  for (let index = 0; index < images.length; index += 1) refs[`slot${index + 1}`] = await localFile(directory, images[index]);
   refs.first_frame = await localFile(directory, request.firstFrame) ?? refs.slot1;
   refs.last_frame = await localFile(directory, request.lastFrame) ?? (images.length > 1 ? await localFile(directory, images[1]) : undefined);
   const ratio = request.ratio?.trim() ?? "";

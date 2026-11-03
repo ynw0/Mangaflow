@@ -36,16 +36,17 @@ const goalContinuePrompt = `${goalContinueMark}
 目标还没完成。不要提问，也不要停在汇报、排队或等别人安排下一步。按已有信息自己决定，继续做这条目标里还没做完的事，包括目标写明要生成的成片。全部做完，或只剩同一处连续两次仍失败的部分，再调用 completeGoal。`;
 const goalRoundLimit = 8;
 const compactionReserveTokens = 16384;
-const compactionKeepRecentTokens = 20000;
 
 function compactionTrigger(contextWindow: number) {
-  return Math.min(contextWindow - compactionReserveTokens, Math.floor(contextWindow * 0.5));
+  // 用到窗口的 70% 就压缩，并且不超过窗口减去预留输出。
+  return Math.min(contextWindow - compactionReserveTokens, Math.floor(contextWindow * 0.7));
 }
 
 function compactionSettingsFor(contextWindow: number) {
   const trigger = compactionTrigger(contextWindow);
+  const keepCap = Math.floor(contextWindow * 0.1);
   // 保留量必须低于触发线，否则切点落在开头，摘要写上但原文全部保留。
-  const keepRecentTokens = trigger > compactionKeepRecentTokens ? compactionKeepRecentTokens : Math.max(1, Math.floor(Math.max(trigger, 0) / 2));
+  const keepRecentTokens = trigger > keepCap ? keepCap : Math.max(1, Math.floor(Math.max(trigger, 0) / 2));
   return { enabled: true, reserveTokens: compactionReserveTokens, keepRecentTokens };
 }
 

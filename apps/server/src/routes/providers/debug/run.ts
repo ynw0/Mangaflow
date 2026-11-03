@@ -7,6 +7,7 @@ export default Router().post("/", validateFields({
   ...u.providerDebug.providerDebugSchema,
   request: z.record(z.string(), z.json()),
 }), async (req, res) => {
+  u.providerDebug.assertProviderDebugRequest(req);
   res.set({ "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store, no-transform", "X-Accel-Buffering": "no" });
   res.flushHeaders();
   const controller = new AbortController();

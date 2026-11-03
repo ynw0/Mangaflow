@@ -27,8 +27,13 @@ function requireFile(path: string, help: string) {
   return path;
 }
 
-// ACT: 使用仓库内公开的默认签名，保证不同 CI 构建可覆盖安装；商店发布需改用专用签名。
-requireFile(join(mobileRoot, "native/defaultSigning.keystore"), "请使用包含默认签名文件的完整源码。");
+if (release) {
+  const names = ["MOBILE_RELEASE_STORE_FILE", "MOBILE_RELEASE_STORE_PASSWORD", "MOBILE_RELEASE_KEY_ALIAS", "MOBILE_RELEASE_KEY_PASSWORD"];
+  const missing = names.filter(name => !process.env[name]?.trim());
+  if (missing.length) throw new Error(`正式包不能使用公开调试签名，请设置 ${missing.join("、")}`);
+} else {
+  requireFile(join(mobileRoot, "native/defaultSigning.keystore"), "请使用包含默认签名文件的完整源码。");
+}
 requireFile(join(sdkRoot, "platforms/android-37.1/package.xml"), "请使用 SDK Manager 安装 Android SDK Platform 37.1。");
 requireFile(join(sdkRoot, "platforms/android-37.1/android.jar"), "请安装 Android SDK Platform 37.1。");
 const aapt = requireFile(join(sdkRoot, "build-tools/36.0.0/aapt2.exe"), "请安装 Android SDK Build Tools 36.0.0。");

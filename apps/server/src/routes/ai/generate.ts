@@ -59,6 +59,7 @@ const inputSchema = z.object({
 });
 
 export default Router().post("/", validateFields(inputSchema.shape), async (req, res) => {
+  u.mcpControl.assertAppRequest(req);
   const input = inputSchema.parse(req.body, validationOptions());
   const configured = u.ai.getConfiguredModel(input.providerId, input.modelId);
   const controller = new AbortController();

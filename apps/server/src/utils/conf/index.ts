@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import conf from "conf";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync } from "@toonflow/file";
 import { join, resolve } from "node:path";
@@ -81,7 +82,8 @@ export function cleanNodeMenuSettings(settings: Record<string, unknown>) {
 }
 
 const qwenImageBaseUrl = "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
-const qwenImageApiKey = "sk-sp-H.DEXPLX.Rmv4.MEYCIQDAOybJEvPg45QGqVFBLpQ7ZNinhk_xOP9igKI4-IfjPgIhANvsQYatHKFz5aO20EpF6-S9vt24KKYjFIn_kPa12oMy";
+// 曾写进源码的图像密钥。只保留摘要，用来清掉已经落到本机配置里的同一把密钥。
+const leakedQwenImageKeyHash = "aecad4dd9832e363cffa28165c27b1e66242ba742e5830ed905ba206c59d682c";
 
 function record(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -116,8 +118,9 @@ if (removeLegacySettings(settings) || dropOfficialProviders(settings)) config.se
 const mediaProviderConfigs = record(settings.mediaProviderConfigs);
 const qwenImageConfig = record(mediaProviderConfigs.qwenImage);
 let qwenImageChanged = false;
-if (typeof qwenImageConfig.apiKey !== "string" || !qwenImageConfig.apiKey.trim()) {
-  qwenImageConfig.apiKey = qwenImageApiKey;
+if (typeof qwenImageConfig.apiKey === "string" && qwenImageConfig.apiKey
+  && createHash("sha256").update(qwenImageConfig.apiKey).digest("hex") === leakedQwenImageKeyHash) {
+  qwenImageConfig.apiKey = "";
   qwenImageChanged = true;
 }
 if (typeof qwenImageConfig.baseUrl !== "string" || !qwenImageConfig.baseUrl.trim()) {

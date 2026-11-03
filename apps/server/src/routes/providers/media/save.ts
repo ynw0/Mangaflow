@@ -9,5 +9,6 @@ export default Router().put("/", validateFields({
   models: u.mediaProvider.mediaModelsSchema,
   revision: z.string().regex(/^[a-f0-9]{64}$/),
 }), async (req, res) => {
+  u.mcpControl.assertAppRequest(req);
   res.json(success(await u.mediaProvider.saveMediaProvider(req.body.fileName, req.body.models, req.body.revision)));
 });

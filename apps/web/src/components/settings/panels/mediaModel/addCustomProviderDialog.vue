@@ -228,7 +228,7 @@ async function addProvider() {
       }
     }
     if (!addedProvider.value) {
-      const { data } = await axios.post<{ data: MediaProvider }>("/api/providers/media/add", { source: source.value });
+      const { data } = await axios.post<{ data: MediaProvider }>("/api/providers/media/add", { source: source.value }, { headers: { "x-toonflow-workspace": "1" } });
       addedProvider.value = data.data;
       emit("added", data.data);
       invalidateNodeModels("media");

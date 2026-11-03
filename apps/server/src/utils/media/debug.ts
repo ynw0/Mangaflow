@@ -1,11 +1,20 @@
+import type { Request } from "express";
 import { z } from "zod";
-import { loadMediaProviderSource } from "@/utils/media/provider";
 import { t, translateError } from "@/lib/i18n";
+import { assertAppRequest } from "@/utils/mcp/control";
+import { loadMediaProviderSource } from "@/utils/media/provider";
+import { isLocalWorkspaceRequest } from "@/utils/workspace";
 
 export const providerDebugSchema = {
   source: z.string().min(1).max(2 * 1024 * 1024),
   config: z.record(z.string(), z.json()).default({}),
 };
+
+export function assertProviderDebugRequest(req: Request) {
+  assertAppRequest(req);
+  if (process.env.TOONFLOW_PROVIDER_DEBUG === "1" || isLocalWorkspaceRequest(req)) return;
+  throw Object.assign(new Error("供应商调试只允许本机页面使用"), { status: 403 });
+}
 
 export async function inspectProviderSource(source: string) {
   const provider = await loadMediaProviderSource(source);

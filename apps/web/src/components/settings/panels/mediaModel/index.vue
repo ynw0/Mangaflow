@@ -139,7 +139,7 @@ async function deleteProvider(provider: MediaProvider) {
   deletingFile.value = provider.fileName;
   let deleted = false;
   try {
-    await axios.delete("/api/providers/media/delete", { data: { fileName: provider.fileName, revision: provider.revision } });
+    await axios.delete("/api/providers/media/delete", { data: { fileName: provider.fileName, revision: provider.revision }, headers: { "x-toonflow-workspace": "1" } });
     deleted = true;
     loadRequest++;
     invalidateNodeModels("media");

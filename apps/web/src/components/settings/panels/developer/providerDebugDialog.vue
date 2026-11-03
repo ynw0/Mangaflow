@@ -196,7 +196,7 @@ async function refreshProvider() {
   source.value = "";
   const file = await readSource();
   controller?.signal.throwIfAborted();
-  const { data } = await axios.post<{ data: DebugProvider }>("/api/providers/debug/inspect", { source: file.source }, { signal: controller?.signal });
+  const { data } = await axios.post<{ data: DebugProvider }>("/api/providers/debug/inspect", { source: file.source }, { headers: { "x-toonflow-workspace": "1" }, signal: controller?.signal });
   controller?.signal.throwIfAborted();
   const next = data.data;
   const values = formApi.value?.formData() ?? config.value;
@@ -343,7 +343,7 @@ async function run() {
     if (formApi.value && !(await formApi.value.validate().catch(() => false))) throw new Error("请检查供应商配置");
     const request = await buildRequest();
     signal.throwIfAborted();
-    const response = await fetch("/api/providers/debug/run", { method: "POST", headers: { "Accept-Language": locale.value, "Content-Type": "application/json" }, body: JSON.stringify({ source: source.value, config: formApi.value?.formData() ?? config.value, request }), signal });
+    const response = await fetch("/api/providers/debug/run", { method: "POST", headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" }, body: JSON.stringify({ source: source.value, config: formApi.value?.formData() ?? config.value, request }), signal });
     if (!response.ok) throw new Error((await response.json()).message || "调试请求失败");
     if (!response.body) throw new Error("未收到运行结果");
     const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -378,7 +378,7 @@ async function install() {
   action.value = "install";
   errorMessage.value = "";
   try {
-    await axios.post("/api/providers/media/add", { source: source.value });
+    await axios.post("/api/providers/media/add", { source: source.value }, { headers: { "x-toonflow-workspace": "1" } });
     invalidateNodeModels("media");
     ElMessage.success("供应商已安装，可在媒体模型设置中配置使用");
   } catch (error) { showError(error); }

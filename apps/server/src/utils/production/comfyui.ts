@@ -178,6 +178,40 @@ export async function readNodeChoices(baseUrl: string, classType: string, inputN
   return [...comboOptions(input?.required?.[inputName]), ...comboOptions(input?.optional?.[inputName])];
 }
 
+export async function cancelPrompt(baseUrl: string, promptId: string) {
+  const headers = { "Content-Type": "application/json" };
+  await comfyFetch(baseUrl, "/queue", {
+    method: "POST", headers, body: JSON.stringify({ delete: [promptId] }),
+  }, AbortSignal.timeout(8000)).catch(() => undefined);
+  await comfyFetch(baseUrl, "/interrupt", {
+    method: "POST", headers, body: JSON.stringify({ prompt_id: promptId }),
+  }, AbortSignal.timeout(8000)).catch(() => undefined);
+}
+
+function trackPrompt(baseUrl: string, promptId: string, signal?: AbortSignal) {
+  if (!signal) return () => {};
+  const cancel = () => { void cancelPrompt(baseUrl, promptId); };
+  if (signal.aborted) cancel();
+  else signal.addEventListener("abort", cancel, { once: true });
+  return () => signal.removeEventListener("abort", cancel);
+}
+
+function delay(ms: number, signal?: AbortSignal) {
+  if (!signal) return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timer);
+      reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve(undefined);
+    }, ms);
+    if (signal.aborted) abort();
+    else signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
 export async function submitWorkflow(baseUrl: string, workflow: Record<string, unknown>, signal?: AbortSignal) {
   alignReferenceInputs(workflow);
   await alignModelNames(baseUrl, workflow, signal);
@@ -216,21 +250,26 @@ export async function waitForOutput(baseUrl: string, promptId: string, kind: "im
   // 本机 Comfy 视频含排队经常超过 10 分钟，轮询上限放到 60 分钟。
   const deadline = Date.now() + (kind === "video" ? 60 : 10) * 60_000;
   const extensions = kind === "video" ? videoExtensions : imageExtensions;
-  while (Date.now() < deadline) {
-    signal?.throwIfAborted();
-    const response = await comfyFetch(baseUrl, `/history/${promptId}`, { method: "GET" }, signal);
-    if (response.ok) {
-      const data = await response.json() as Record<string, { status?: { status_str?: string; messages?: unknown }; outputs?: unknown }>;
-      const item = data?.[promptId];
-      if (item) {
-        if (item.status?.status_str === "error") fail(`ComfyUI 生成失败：${JSON.stringify(item.status.messages ?? item.status).slice(0, 500)}`, 502);
-        const outputs: ComfyOutput[] = [];
-        collectOutputs(item.outputs ?? {}, extensions, outputs, new Set());
-        if (outputs.length) return outputs[0]!;
-        if (item.status?.status_str === "success") fail("ComfyUI 完成但没有图片或视频输出", 502);
+  const stop = trackPrompt(baseUrl, promptId, signal);
+  try {
+    while (Date.now() < deadline) {
+      signal?.throwIfAborted();
+      const response = await comfyFetch(baseUrl, `/history/${promptId}`, { method: "GET" }, signal);
+      if (response.ok) {
+        const data = await response.json() as Record<string, { status?: { status_str?: string; messages?: unknown }; outputs?: unknown }>;
+        const item = data?.[promptId];
+        if (item) {
+          if (item.status?.status_str === "error") fail(`ComfyUI 生成失败：${JSON.stringify(item.status.messages ?? item.status).slice(0, 500)}`, 502);
+          const outputs: ComfyOutput[] = [];
+          collectOutputs(item.outputs ?? {}, extensions, outputs, new Set());
+          if (outputs.length) return outputs;
+          if (item.status?.status_str === "success") fail("ComfyUI 完成但没有图片或视频输出", 502);
+        }
       }
+      await delay(2000, signal);
     }
-    await new Promise(resolveWait => setTimeout(resolveWait, 2000));
+  } finally {
+    stop();
   }
   fail(kind === "video" ? "视频生成超时" : "出图超时", 504);
 }
@@ -255,20 +294,25 @@ function textFromOutputs(outputs: unknown) {
 
 export async function waitForText(baseUrl: string, promptId: string, signal?: AbortSignal) {
   const deadline = Date.now() + 20 * 60_000;
-  while (Date.now() < deadline) {
-    signal?.throwIfAborted();
-    const response = await comfyFetch(baseUrl, `/history/${promptId}`, { method: "GET" }, signal);
-    if (response.ok) {
-      const data = await response.json() as Record<string, { status?: { status_str?: string; messages?: unknown }; outputs?: unknown }>;
-      const item = data?.[promptId];
-      if (item) {
-        if (item.status?.status_str === "error") fail(`ComfyUI 质检失败：${JSON.stringify(item.status.messages ?? item.status).slice(0, 500)}`, 502);
-        const text = textFromOutputs(item.outputs);
-        if (text) return text;
-        if (item.status?.status_str === "success") fail("质检工作流完成但没有文字输出", 502);
+  const stop = trackPrompt(baseUrl, promptId, signal);
+  try {
+    while (Date.now() < deadline) {
+      signal?.throwIfAborted();
+      const response = await comfyFetch(baseUrl, `/history/${promptId}`, { method: "GET" }, signal);
+      if (response.ok) {
+        const data = await response.json() as Record<string, { status?: { status_str?: string; messages?: unknown }; outputs?: unknown }>;
+        const item = data?.[promptId];
+        if (item) {
+          if (item.status?.status_str === "error") fail(`ComfyUI 质检失败：${JSON.stringify(item.status.messages ?? item.status).slice(0, 500)}`, 502);
+          const text = textFromOutputs(item.outputs);
+          if (text) return text;
+          if (item.status?.status_str === "success") fail("质检工作流完成但没有文字输出", 502);
+        }
       }
+      await delay(2000, signal);
     }
-    await new Promise(resolveWait => setTimeout(resolveWait, 2000));
+  } finally {
+    stop();
   }
   fail("质检工作流超时", 504);
 }

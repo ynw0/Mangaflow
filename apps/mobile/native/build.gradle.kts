@@ -20,6 +20,7 @@ android {
     ndk { abiFilters += "arm64-v8a" }
   }
 
+  val releaseStore = System.getenv("MOBILE_RELEASE_STORE_FILE")?.trim().orEmpty()
   signingConfigs {
     create("defaultSigning") {
       storeFile = file("defaultSigning.keystore")
@@ -27,11 +28,19 @@ android {
       keyAlias = "androiddebugkey"
       keyPassword = "android"
     }
+    if (releaseStore.isNotEmpty()) {
+      create("releaseSigning") {
+        storeFile = file(releaseStore)
+        storePassword = System.getenv("MOBILE_RELEASE_STORE_PASSWORD")
+        keyAlias = System.getenv("MOBILE_RELEASE_KEY_ALIAS")
+        keyPassword = System.getenv("MOBILE_RELEASE_KEY_PASSWORD")
+      }
+    }
   }
   buildTypes {
     debug { signingConfig = signingConfigs.getByName("defaultSigning") }
     release {
-      signingConfig = signingConfigs.getByName("defaultSigning")
+      if (releaseStore.isNotEmpty()) signingConfig = signingConfigs.getByName("releaseSigning")
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
@@ -65,6 +74,14 @@ dependencies {
 }
 
 tasks.withType<JavaCompile>().configureEach { options.encoding = "UTF-8" }
+
+tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+  doFirst {
+    val names = listOf("MOBILE_RELEASE_STORE_FILE", "MOBILE_RELEASE_STORE_PASSWORD", "MOBILE_RELEASE_KEY_ALIAS", "MOBILE_RELEASE_KEY_PASSWORD")
+    val missing = names.filter { System.getenv(it).isNullOrBlank() }
+    if (missing.isNotEmpty()) throw GradleException("正式包不能使用公开调试签名，请设置 ${missing.joinToString("、")}")
+  }
+}
 
 tasks.register("prepareDependencies") {
   doLast {

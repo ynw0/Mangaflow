@@ -90,14 +90,43 @@ export async function resolveComfyBaseUrl(signal?: AbortSignal) {
   return `${config.comfyuiScheme}://${host}`;
 }
 
-export async function ensureAutodlRunning(signal?: AbortSignal) {
+const boots = new Map<string, Promise<void>>();
+
+async function waitUntilRunning() {
   const deadline = Date.now() + 15 * 60_000;
+  let started = false;
   while (Date.now() < deadline) {
-    signal?.throwIfAborted();
-    const { status } = await autodlStatus(signal);
+    const { status } = await autodlStatus();
     if (status === "running") return;
-    if (offStates.has(status)) await autodlPower("on", signal);
+    if (!started && offStates.has(status)) {
+      await autodlPower("on");
+      started = true;
+    }
     await new Promise(resolveWait => setTimeout(resolveWait, 8000));
   }
   fail("AutoDL 在 15 分钟内没有进入 running", 504);
+}
+
+export function ensureAutodlRunning(signal?: AbortSignal) {
+  const id = readProduction().autodlInstanceUuid;
+  let boot = boots.get(id);
+  if (!boot) {
+    boot = waitUntilRunning().finally(() => {
+      if (boots.get(id) === boot) boots.delete(id);
+    });
+    boots.set(id, boot);
+  }
+  if (!signal) return boot;
+  if (signal.aborted) return Promise.reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason ?? new DOMException("The operation was aborted.", "AbortError"));
+    signal.addEventListener("abort", abort, { once: true });
+    boot!.then(value => {
+      signal.removeEventListener("abort", abort);
+      resolve(value);
+    }, error => {
+      signal.removeEventListener("abort", abort);
+      reject(error);
+    });
+  });
 }

@@ -17,6 +17,8 @@ RUN bun run build:server \
 
 ENV NODE_ENV=production
 ENV TOONFLOW_DATA_DIR=/app/data
+# 容器内监听所有网卡，宿主机端口由 compose 绑定 127.0.0.1。
+ENV TOONFLOW_HOST=0.0.0.0
 
 USER bun
 EXPOSE 3000

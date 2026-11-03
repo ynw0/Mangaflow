@@ -1,6 +1,5 @@
 import logger from "morgan";
 import express from "express";
-import cors from "cors";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { readFile } from "@toonflow/file";
@@ -77,7 +76,30 @@ export async function createApp({
     await buildRoute();
     app.use(logger("dev"));
   }
-  app.use(cors());
+  app.use((request, response, next) => {
+    const origin = request.get("origin");
+    if (origin) {
+      let allowed = false;
+      try {
+        const url = new URL(origin);
+        allowed = (url.protocol === "http:" || url.protocol === "https:") && url.host === request.get("host");
+      } catch {
+        allowed = false;
+      }
+      if (allowed) {
+        response.set("Access-Control-Allow-Origin", origin);
+        response.set("Vary", "Origin");
+        response.set("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,PATCH,DELETE");
+        const requested = request.get("access-control-request-headers");
+        if (requested) response.set("Access-Control-Allow-Headers", requested);
+      }
+    }
+    if (request.method === "OPTIONS") {
+      response.sendStatus(204);
+      return;
+    }
+    next();
+  });
   app.use(languageRequest);
   app.use("/a2a", express.json({ limit: "2mb" }));
   app.use(["/api/workspaces/files/write", "/api/assets/save"], express.raw({ type: "application/octet-stream", limit: "100mb" }));

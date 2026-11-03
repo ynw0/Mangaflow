@@ -178,6 +178,8 @@ export async function runComfyWorkflow(options: {
   };
   const workflow = await renderWorkflow(entry, context, baseUrl, signal);
   const promptId = await submitWorkflow(baseUrl, workflow, signal);
-  const output = await waitForOutput(baseUrl, promptId, mediaType, signal);
-  return downloadOutput(baseUrl, output, signal);
+  const outputs = await waitForOutput(baseUrl, promptId, mediaType, signal);
+  const files = [];
+  for (const output of outputs) files.push(await downloadOutput(baseUrl, output, signal));
+  return files;
 }

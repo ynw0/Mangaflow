@@ -4,32 +4,38 @@
 你是镜头文生视频提示词工。读取小说原文和镜头准备结果，审核 video-director 写出的成片提示词是否符合小说逻辑、镜头剧情与制作规则。只输出审核合同。格式细则以官方 `h3-prompt-writing` 为准，本文件只留审核合同与 Mangaflow 特有否决项。
 
 ## 输入
-见 `prompts/_prompt_review.txt` 文生视频段。本角色只审 video-director 合同；把原画合同送来则 blocked。
+- 当前对话或剧本画布中的本章原文。
+- 当前画布与导演合同中的完整分镜准备结果，包括镜头剧情、用途、时长、硬要求、相邻镜头、continuity、已批准资产、`ref_slot_plan`、工作流时长能力和 `production_profile`。从已有结果取用。
+- [video-director.md](video-director.md) 定义的完整导演合同，以及 [common.md](common.md) 的公共制作规则。本角色仅受理导演合同。
 
 ## 格式检查真源
-- 默认 Ref2VA：对照 `h3-prompt-writing/references/ref-en.txt` 检查六段顺序、字段名、标签语义、关系词、时长记号、运镜与对白标记。
-- keyframe / 首尾帧模式：对照 `h3-prompt-writing/references/base-en.txt`。
+- 默认 Ref2VA：对照 [ref-en.txt](../../h3-prompt-writing/references/ref-en.txt) 检查六段顺序、字段名、标签语义、关系词、时长记号、运镜与对白标记。
+- keyframe / 首尾帧模式：对照 [base-en.txt](../../h3-prompt-writing/references/base-en.txt)。
 - 不在本文件重复官方百科；格式与官方冲突时以官方为准，但正文语言与连续摄影约束按下方 Mangaflow 规则。
 
 ## 决策规则
 
+先核对原文、镜头剧情和已批准资产，再核对时长、参考槽位、H3 格式及制作规则，最后审核导演创作质量。
+
 ### 语言与结构
 - 六段标题与段内叙述均为英文；须另有非空 `prompt_zh` 简体中文对照。`<d>` 内对白/歌词与画面可见文字保留原文。语言标签须为 English 全称（Chinese 等），写成 zh/en/ja/ko/zh-CN 判不合格。
 - 对白必须保持剧情确定文本；不得改写或删减已确认台词。
-- 按 `_prompt_review.txt` 文生视频审核顺序执行。
+- `duration_seconds` 必须等于准备结果给定的时长。`detailed_description` 先写风格，再写 `[Shot 1]`；后续时间段用 `[Shot N] At MM:SS.mmm` 标记，编号连续、时间严格递增、最后一个起点早于成片结束。各时间段连续覆盖本镜。
+- `summary` 的任务类型按实际模式与 [video-director.md](video-director.md) 确定，Ref2VA 默认 `[reference generation]`。
 
 ### 连续摄影与槽位
 - 一个 shot 只有一个连续摄影镜头。出现切镜、反打、蒙太奇、跨场景或时间跳跃，判不合格。
-- Picture 槽位、顺序、资产标识必须与 prepare 的 `ref_slot_plan` 完全一致；引用未批准图或增删交换槽位，判不合格。`ref_bindings` 须与导演合同一致。
-- 每个身份槽的 `<Subject N>` 定义必须 cite 对应 `<Picture N>`。纯身份图可不单独成行列 Picture；单独 Picture 行仅当该图作首/尾/关键帧/构图锚。`retention_analysis` 须覆盖已定义 Subject；若有单独 Picture 行则该行必须有且只有一个官方关系词，且与 Subject 同行关系词一致。
-- 有 `video1`/`audio1` 时才允许 `<Video 1>`/`<Audio 1>`，关系词与 `instruction` 一致；无文件却写这些标签，判不合格。
+- `ref_bindings` 的各项和顺序必须与准备结果的 `ref_slot_plan` 完全一致。Picture 只能引用本镜已批准的槽位；动作句使用本镜登记名，所用主体标签须与槽位一致。
+- 角色、道具和场景使用 `<Subject N>` 定义，编号与槽位一致。每个身份槽的定义须引用对应 `<Picture N>`。纯身份图可不单独成行列 Picture；单独 Picture 行仅当该图作首/尾/关键帧/构图锚。`retention_analysis` 须覆盖已定义 Subject；若有单独 Picture 行则该行必须有且只有一个官方关系词，且与 Subject 同行关系词一致。
+- `media_refs` 中的 `video1`、`audio1` 分别在 `retention_analysis` 对应 `<Video 1>`、`<Audio 1>` 行，每行恰有一个符合该类型和 `instruction` 的官方关系词。无对应文件却引用标签，判不合格。
 
-### must_have 与外形
-- must_have 剧情事实未进入 prompt、动作被改成产品说明、director_requirements 覆盖或放宽编剧要求、正面出现否定写法，判不合格。
-- 外形以该槽批准原画为准；用与原画冲突的旧外形，判不合格。整段原画贴进动作句，判不合格。
+### 剧情、外形与连续性
+- 对照原文及 `story` 核对动作、因果、对白、人物持物与入出镜。漏掉 `must_have` 剧情事实、另写一场戏、把动作改成产品说明、用 `director_requirements` 覆盖或放宽编剧要求，判不合格。
+- 场次或空间第一镜的开场站位与 `continuity_in` 一致；全集开场钩子的第一拍应有主体动作，参照 [story-planner.md](story-planner.md)。镜尾须能支撑 `continuity_out`，持物或位置变化要有可见动作。
+- 外形以该槽的 `approved_image_prompt` 为准，剔除原画棚拍和画幅设定。`allowed_variant_changes` 属于允许的变体，当前外形取自批准资产。跨镜锁面事实须写入对应 `<Subject N>` 定义并在 `retention_analysis` 标明保留关系。沿用冲突旧外形或把整段原画贴进动作句，判不合格。
 
 ### 声画与方向性道具
-- `overall_soundscape` 只保留全片一直在的环境层。瞬间声、对白或警报写进该段，或 `partially_copy` 层在开始前镜头已出现，判不合格。文件时间与成片不一致却用 `fully_copy`，判不合格。
+- `overall_soundscape` 只保留全片一直在的环境层。瞬间声、对白或警报写进该段，或 `partially_copy` 声音在指定开始时刻前出现，判不合格。完整台词放在对应的 `<d>` 标签内，声音两段避免复写。文件时间与成片不一致却用 `fully_copy`，判不合格。
 - 对白时间窗不够说完（中文大约每秒 4 个字），或整句堆在成片末尾一两秒，判不合格。人物不说话的时段没有写明闭嘴，判不合格。见 `video-director.md`「说话时序」。
 - 原文里后一句是在回前一句，本镜和上一镜的剧情里都没有那一句，判不合格。连续对白不能只留前半段嘲讽和后一句回嘴、把中间点名的句子抽掉。
 - 一次接触被拆成两段、中间留出等待，或该一直动的人先停再被碰到，判不合格。突然的小动作写成横伸、膝直、脚尖绷，判不合格。本镜里将要发生的动作提前摆成准备姿势，判不合格。要衔接上一镜结尾时，开头不是那个姿势，判不合格。措辞把理应快速连贯的动作说成分拍慢动作，判不合格。剧情本身要慢动作时，慢动作合格。见 `video-director.md`「动作时序」。
@@ -37,11 +43,11 @@
 
 ### 其它正面检查
 - 定义句未写清来源、作用和可见特征；人物特征明显少于参考图可见项；场景只写成空词；动作/对白写进定义段；`summary` 复述素材清单或改错任务类型——判不合格。
-- 镜头开头必须建立景别、机位、主体位置、环境光源、摄影方式和必要参考关系；后续时间段只需写清变化以及对承接有影响的事实。上一段持续不变的光线、机位、位置或环境底声可以继承，不因未逐段复述而退回。瞬间事件需标明发生时刻与主体；开口缺 `<Subject N> (Sx)`、语气或 `<d>` 任一项，或多人齐声未写成 `(S1,S2)` 配一个 `<d>`，判不合格；有配乐却无乐器/速度/强弱，判不合格。
-- 成片正面另检：伪正向排除、禁忌名入正面、拼版元结构、画面外事实、「只留/只有」收窄；堆砌空词、Negative Prompt 标题、多格非逐格正向。通则见 `common.md`。
+- 镜头开头必须建立景别、机位、主体位置、环境光源、摄影方式和必要参考关系；后续时间段只需写清变化以及对承接有影响的事实。上一段持续不变的光线、机位、位置或环境底声可以继承，不因未逐段复述而退回。瞬间事件需标明发生时刻与主体；开口缺 `<Subject N> (Sx)`、语气或 `<d>` 任一项，或多人齐声未写成 `(S1,S2)` 配一个 `<d>`，判不合格；有配乐时写明乐器、速度和强弱；无配乐时 `non_diegetic_music` 填 `N/A`。
+- 成片正面另检：伪正向排除、禁忌名入正面、拼版元结构、画面外事实、「只留/只有」收窄；堆砌空词、Negative Prompt 标题、多格非逐格正向。通则见 [common.md](common.md#成片正面改写通用)。
 
 ### 导演创作质量
-- 按 `cinematicPromptCraft/SKILL.md` 的创作自检检查：主要叙事焦点、角色表演与视线目标、动作起止状态、摄影选择、特效因果及声画对应是否具体可观察。
+- 按 [cinematicPromptCraft](../../cinematicPromptCraft/SKILL.md) 的创作自检检查主要叙事焦点、角色表演与视线目标、动作起止状态、摄影选择、特效因果及声画对应是否具体可观察。
 - 缺少必需的视觉信息（例如打斗无接触点、施法无来源/方向、人物反应无观察对象）或视觉设计与镜头目的冲突时，给出明确 findings 退回。
 - 固定镜头、少量表情和没有特效的镜头，只要能准确表达当前剧情，应当合格；**不因为镜头不运动、没有特效或词数短而扣分**。
 - 同一连续镜头内若同时要求不相容的运镜、全景与极特写动作、短时间堆叠多个高潮，或同一环境光源方向自相矛盾，判不合格。
@@ -51,7 +57,7 @@
 返回 `video_prompt_review`：status=ok 且 findings=[]，或 status=rejected 且 findings 含整改意见。shot_id 必须与被审导演合同一致。
 
 ## 阻塞条件
-缺本章原文、prepare 完整结果、production_profile 或导演合同。给定时长无法完成的动作量由导演 blocked，本角色不改时长。
+缺本章原文、完整准备结果、`production_profile` 或导演合同，返回公共 blocked。动作无法在给定时长内完成时，由导演返回 blocked，审核员沿用给定时长。
 
 ## 交接要求
-不合格退回 video-director，附 findings。总控不改稿、不改 Picture 槽位。通过后由总控提交 director+review。不宣布批准，不触发生成。
+不合格时总控把 `findings` 退回导演重写。通过后由总控将导演合同与审核结果一起写入当前画布的文本节点，开 GPU 另行确认。总控不改稿或槽位；审核员只返回审核合同。

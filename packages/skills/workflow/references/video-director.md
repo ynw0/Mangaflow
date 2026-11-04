@@ -30,7 +30,7 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 
 - 六段**标题**与**段内叙述**均为英文；细节量对齐官方「尽量详尽」。
 - 另填合同字段 `prompt_zh`：六段内容的简体中文对照，给人审阅，**不进** Comfy/API；勿把中文塞进 `prompt`。
-- 写入视频节点时调用 `setPrompt`，`prompt` 传实际生成使用的英文，`promptZh` 传同一份简体中文对照供审阅。
+- 写入视频节点时按 [canvas-use.md](canvas-use.md) 交接英文正文和简体中文对照。
 - `<d>` 内对白/歌词与画面可见文字保留原文语言。
 - 语言标签用英文全称（Chinese、English、Korean、Japanese），不要 zh/en/ja/ko/zh-CN。
 - 任务类型括号、关系词、`[Shot N]`、`At MM:SS.mmm`、`fully_preserved` 等官方记号保持英文原文。

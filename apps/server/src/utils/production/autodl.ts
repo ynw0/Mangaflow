@@ -1,5 +1,5 @@
 // AutoDL 实例：查询状态、开关机。生成前开机由制作配置里的开关决定。
-import { fail, readProduction } from "@/utils/production/config";
+import { fail, readProduction, type ComfyHost } from "@/utils/production/config";
 
 const offStates = new Set(["shutdown", "stopped", "off", "", "shutdown_by_starting_error"]);
 
@@ -75,19 +75,19 @@ export async function autodlSnapshot(signal?: AbortSignal) {
   return data as Record<string, unknown>;
 }
 
-export async function resolveComfyBaseUrl(signal?: AbortSignal) {
+export async function resolveComfyBaseUrl(signal?: AbortSignal, host?: ComfyHost) {
   const config = readProduction();
-  if (config.videoHost === "local") return config.localComfyuiBaseUrl;
+  if ((host ?? config.videoHost) === "local") return config.localComfyuiBaseUrl;
   const override = config.comfyuiBaseUrl;
   const hasInstance = Boolean(config.autodlToken && config.autodlInstanceUuid);
   if (hasInstance && (config.autodlEnsureRunning || !override)) await ensureAutodlRunning(signal);
   if (override) return override;
-  if (!hasInstance) fail("出视频选了 AutoDL 上的 ComfyUI。请填写 Token 和实例 UUID，或改用本机 ComfyUI。");
+  if (!hasInstance) fail("请选择 AutoDL 实例并填写 Token，或填写该实例的 ComfyUI 地址。");
   const snapshot = await autodlSnapshot(signal);
   const domain = snapshot[config.comfyuiServiceField];
   if (typeof domain !== "string" || !domain.trim()) fail(`这台 AutoDL 实例没有 ${config.comfyuiServiceField}，远程 ComfyUI 还没暴露出来`, 502);
-  const host = domain.trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
-  return `${config.comfyuiScheme}://${host}`;
+  const serviceHost = domain.trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return `${config.comfyuiScheme}://${serviceHost}`;
 }
 
 const boots = new Map<string, Promise<void>>();

@@ -112,6 +112,7 @@ declare module 'vue' {
     UpdateBox: typeof import('./../components/updateBox.vue')['default']
     VideoModel: typeof import('./../components/settings/panels/videoModel/index.vue')['default']
     Workflow: typeof import('./../components/settings/panels/workflow/index.vue')['default']
+    WorkflowCatalog: typeof import('./../components/settings/panels/workflow/workflowCatalog.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

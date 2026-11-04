@@ -5,6 +5,7 @@ import { extname, join } from "node:path";
 import { getConfiguredModel, listAiModels } from "@/utils/ai";
 import type { FfmpegCommand } from "@toonflow/ffmpeg/types";
 import { createWorkspaceFfmpeg } from "@/utils/ffmpeg";
+import { resolveComfyBaseUrl } from "@/utils/production/autodl";
 import { findWorkflow } from "@/utils/production/catalog";
 import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, submitWorkflow, uploadInput, waitForText } from "@/utils/production/comfyui";
 import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
@@ -133,8 +134,7 @@ async function resolveGemmaClip(baseUrl: string, variant: GemmaQcVariant, signal
   return model;
 }
 
-async function runGemmaQc(absoluteVideo: string, prompt: string, variant: GemmaQcVariant, hearAudio: boolean, signal?: AbortSignal) {
-  const baseUrl = readProduction().localComfyuiBaseUrl;
+async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string, variant: GemmaQcVariant, hearAudio: boolean, signal?: AbortSignal) {
   await probeComfy(baseUrl, signal);
   const entry = await findWorkflow(gemmaQcWorkflowIds[variant]);
   if (!isWorkflowEnabled(entry.id)) fail(`${entry.label} 已在设置中关闭`);
@@ -485,7 +485,9 @@ export async function runProductionQc(input: {
           "本轮只审画面，不要因对白或音轨下结论。",
         ];
       if (hearAudio && !evidence.hasAudio) lines.push("本片没有音轨。对白无法核验，标 unverified。");
-      const text = await runGemmaQc(absoluteVideo, lines.join("\n"), gemmaVariant, hearAudio, input.signal);
+      // 固定本次质检选定的运行位置，生成和质检各自选择 ComfyUI。
+      const baseUrl = await resolveComfyBaseUrl(input.signal, production.gemmaQcHost);
+      const text = await runGemmaQc(baseUrl, absoluteVideo, lines.join("\n"), gemmaVariant, hearAudio, input.signal);
       const parsed = parseQcPayload(text, undefined, hearAudio ? { hasAudio: evidence.hasAudio } : undefined);
       return {
         ...parsed,

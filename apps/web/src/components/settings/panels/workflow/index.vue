@@ -1,198 +1,301 @@
 <template>
   <div class="workflow">
+    <header class="pageHeader">
+      <div>
+        <h3>制作配置</h3>
+        <p>配置从素材生成到成片验收的工作流与运行环境。</p>
+      </div>
+      <el-button type="primary" :loading="saving" @click="save">保存配置</el-button>
+    </header>
+
     <div v-if="workflowNotices.length" class="workflowNotices" role="status">
       <el-text v-for="notice in workflowNotices" :key="notice" type="warning">{{ notice }}</el-text>
     </div>
-    <section class="settingSection" aria-labelledby="imageTitle">
-      <div class="settingInfo">
-        <h3 id="imageTitle">出图</h3>
-        <p class="description">可选 Qwen 图像 API，或与出视频相同的 ComfyUI。ComfyUI 下，没有参考图用文生图工作流，有参考图用图像编辑工作流。</p>
+
+    <section class="settingGroup" aria-labelledby="generationTitle">
+      <header class="groupHeader">
+        <span class="groupNumber" aria-hidden="true">01</span>
+        <h3 id="generationTitle">素材与成片</h3>
+      </header>
+      <div class="generationGrid">
+        <section class="settingCard" aria-labelledby="imageTitle">
+          <header class="cardHeader">
+            <h4 id="imageTitle">出图</h4>
+            <p>设置出图方式、后端和默认模型。</p>
+          </header>
+          <div class="fieldGrid">
+            <div class="field">
+              <label for="workflowImageAdvance">出图方式</label>
+              <el-select id="workflowImageAdvance" v-model="imageAdvanceMode">
+                <el-option label="半自动" value="semi" />
+                <el-option label="自动" value="auto" />
+              </el-select>
+            </div>
+            <div class="field">
+              <label for="workflowImageSource">出图后端</label>
+              <el-select id="workflowImageSource" v-model="imageSource">
+                <el-option label="Qwen 图像 API" value="qwen" />
+                <el-option label="ComfyUI 工作流" value="comfyui" />
+              </el-select>
+            </div>
+          </div>
+          <p class="hint">半自动在出图遇到问题时询问。自动会检查并重试当前图片，视频生成另行确认。</p>
+          <div v-if="imageSource === 'qwen'" class="field">
+            <label for="workflowImageModel">图像模型</label>
+            <el-select id="workflowImageModel" v-model="imageModelKey" placeholder="选择 Qwen 图像模型">
+              <el-option v-for="item in qwenModels" :key="item.key" :label="`${item.label} · ${item.providerLabel}`" :value="item.key" />
+            </el-select>
+            <el-text v-if="!qwenModels.length" type="warning" role="status">媒体模型中暂无可用的 Qwen 图像模型。</el-text>
+          </div>
+          <template v-else>
+            <div class="fieldGrid">
+              <div class="field">
+                <label for="workflowImageT2i">无参考图</label>
+                <el-select id="workflowImageT2i" v-model="imageT2iWorkflow" placeholder="选择文生图工作流">
+                  <el-option v-for="item in enabledImageWorkflows" :key="item.id" :label="item.label" :value="item.id" />
+                </el-select>
+              </div>
+              <div class="field">
+                <label for="workflowImageEdit">有参考图</label>
+                <el-select id="workflowImageEdit" v-model="imageEditWorkflow" placeholder="选择图像编辑工作流">
+                  <el-option v-for="item in enabledImageWorkflows" :key="item.id" :label="item.label" :value="item.id" />
+                </el-select>
+              </div>
+            </div>
+            <workflowCatalog title="图像工作流" :items="imageWorkflows" :disabledIds="disabledWorkflowIds" :switchKey="workflowSwitchKey" @change="setWorkflowOn" />
+          </template>
+          <details class="assetSizes">
+            <summary>素材规格</summary>
+            <dl>
+              <dt>角色设定</dt><dd>2048×768，面部特写加正侧背</dd>
+              <dt>场景拼版</dt><dd>1024×1024，换机位或重复使用时用四方向</dd>
+              <dt>氛围空镜</dt><dd>1344×768，无人场景或转场</dd>
+              <dt>道具原画</dt><dd>768×1024、1024×1024 或 1344×768</dd>
+            </dl>
+          </details>
+        </section>
+
+        <section class="settingCard" aria-labelledby="videoTitle">
+          <header class="cardHeader">
+            <h4 id="videoTitle">出视频</h4>
+            <p>每个视频节点生成一个连续镜头。</p>
+          </header>
+          <div class="field">
+            <label for="workflowVideoSource">出视频后端</label>
+            <el-select id="workflowVideoSource" v-model="videoProviderId">
+              <el-option label="ComfyUI 工作流" value="comfyui" />
+              <el-option label="云视频 · Wan3.0" value="videoModel" />
+            </el-select>
+          </div>
+          <template v-if="videoProviderId === 'comfyui'">
+            <div class="field">
+              <label for="workflowVideoDefault">默认视频工作流</label>
+              <el-select id="workflowVideoDefault" v-model="videoWorkflow" placeholder="选择视频工作流">
+                <el-option v-for="item in enabledMainVideoWorkflows" :key="item.id" :label="item.label" :value="item.id" />
+              </el-select>
+            </div>
+            <workflowCatalog title="视频工作流" :items="videoWorkflows" :disabledIds="disabledWorkflowIds" :switchKey="workflowSwitchKey" @change="setWorkflowOn" />
+            <p v-if="repairWorkflow" class="hint">首尾帧修复使用 {{ repairWorkflow.label }}。</p>
+          </template>
+          <p v-else class="hint">在「模型 → 视频模型」配置云视频 API 地址与密钥。</p>
+        </section>
       </div>
-      <el-select v-model="imageAdvanceMode" aria-label="出图模式">
-        <el-option label="半自动：有问题就询问" value="semi" />
-        <el-option label="自动：出图自己做到完成" value="auto" />
-      </el-select>
-      <el-text type="info">自动只作用于出图：自己选择、检验、回炉，直到这张图完成，不会自动出视频。半自动是有问题就询问。对话框里的「目标」是另一档，输入要完成的事之后会一直做，直到完成或你停止。</el-text>
-      <el-select v-model="imageSource" aria-label="出图后端">
-        <el-option label="Qwen 图像 API" value="qwen" />
-        <el-option label="ComfyUI 工作流" value="comfyui" />
-      </el-select>
-      <template v-if="imageSource === 'qwen'">
-        <el-select v-model="imageModelKey" aria-label="Qwen 图像模型" placeholder="选择 Qwen 图像模型">
-          <el-option v-for="item in qwenModels" :key="item.key" :label="`${item.label} · ${item.providerLabel}`" :value="item.key" />
-        </el-select>
-        <el-text v-if="!qwenModels.length" type="warning" role="status">媒体模型里还没有 Qwen 图像模型。启动后会写入默认地址和密钥。</el-text>
-      </template>
-      <template v-else>
-        <el-select v-model="imageT2iWorkflow" aria-label="文生图工作流" placeholder="选择文生图工作流">
-          <el-option v-for="item in enabledImageWorkflows" :key="item.id" :label="`${item.label} · ${item.id}`" :value="item.id" />
-        </el-select>
-        <el-select v-model="imageEditWorkflow" aria-label="图像编辑工作流" placeholder="选择图像编辑工作流">
-          <el-option v-for="item in enabledImageWorkflows" :key="`edit-${item.id}`" :label="`${item.label} · ${item.id}`" :value="item.id" />
-        </el-select>
-        <el-text type="info">默认文生图是 Flux.3 Klein 底模，默认图像编辑是蒸馏编辑。右侧关闭后，画布不再列出该工作流。当前默认不能关闭。保存后生效。</el-text>
-        <div class="workflowList">
-          <div v-for="item in imageWorkflows" :key="item.id" class="workflowItem">
-            <span class="workflowName">{{ item.label }} · {{ item.id }}</span>
-            <el-switch :key="`${item.id}-${workflowSwitchKey}`" :modelValue="workflowOn(item.id)" :aria-label="`${item.label}开关`" @update:modelValue="setWorkflowOn(item.id, $event)" />
+    </section>
+
+    <section class="settingGroup" aria-labelledby="qcTitle">
+      <header class="groupHeader">
+        <span class="groupNumber" aria-hidden="true">02</span>
+        <h3 id="qcTitle">成片质检</h3>
+      </header>
+      <div class="settingCard">
+        <div class="fieldGrid">
+          <div class="field">
+            <label for="workflowQcLevel">质检范围</label>
+            <el-select id="workflowQcLevel" v-model="qcLevel">
+              <el-option label="只视频" value="video" />
+              <el-option label="视频 + 音频" value="videoAudio" />
+              <el-option label="人工质检" value="none" />
+            </el-select>
+          </div>
+          <div class="field">
+            <label for="workflowQcTrigger">触发方式</label>
+            <el-select id="workflowQcTrigger" v-model="qcTrigger" :disabled="qcLevel === 'none'">
+              <el-option label="自动 · 出片后质检" value="auto" />
+              <el-option label="手动 · 按需质检" value="manual" />
+            </el-select>
           </div>
         </div>
-      </template>
-      <ul class="sizes">
-        <li>角色设定图 2048×768，面部特写加正侧背</li>
-        <li>场景要换机位或会反复出现时，四方向拼版 1024×1024</li>
-        <li>只做氛围或转场时，无人空镜 1344×768，再交给视频</li>
-        <li>道具按物体高宽选 768×1024、1024×1024 或 1344×768</li>
-      </ul>
-    </section>
-
-    <section class="settingSection" aria-labelledby="videoTitle">
-      <div class="settingInfo">
-        <h3 id="videoTitle">出视频</h3>
-        <p class="description">一个视频节点只放一个连续镜头。可选 ComfyUI 工作流，或设置「视频模型」里的云 API（Wan3.0）。</p>
-      </div>
-      <el-select v-model="videoProviderId" aria-label="出视频后端">
-        <el-option label="ComfyUI 工作流" value="comfyui" />
-        <el-option label="云视频 · Wan3.0" value="videoModel" />
-      </el-select>
-      <template v-if="videoProviderId === 'comfyui'">
-        <el-select v-model="videoWorkflow" aria-label="默认视频工作流" placeholder="选择视频工作流">
-          <el-option v-for="item in enabledMainVideoWorkflows" :key="item.id" :label="`${item.label} · ${item.id}`" :value="item.id" />
-        </el-select>
-        <el-text type="info">右侧关闭后，画布不再列出该工作流。当前默认不能关闭。保存后生效。</el-text>
-        <div class="workflowList">
-          <div v-for="item in videoWorkflows" :key="item.id" class="workflowItem">
-            <span class="workflowName">{{ item.label }} · {{ item.id }}</span>
-            <el-switch :key="`${item.id}-${workflowSwitchKey}`" :modelValue="workflowOn(item.id)" :aria-label="`${item.label}开关`" @update:modelValue="setWorkflowOn(item.id, $event)" />
+        <template v-if="qcLevel !== 'none'">
+          <div class="fieldGrid">
+            <div class="field">
+              <label for="workflowVideoQc">画面模型</label>
+              <el-select id="workflowVideoQc" v-model="videoQcModelId" filterable teleported fitInputWidth popperClass="qcModelPopper" placeholder="选择质检模型" @change="onVideoQcModel">
+                <el-option-group v-if="enabledQcWorkflows.length" label="质检工作流">
+                  <el-option v-for="item in enabledQcWorkflows" :key="item.id" :label="item.label" :value="item.id" />
+                </el-option-group>
+                <el-option-group label="语言模型">
+                  <el-option v-for="item in languageVideoQcChoices" :key="`v-${item.providerId}-${item.modelId}`" :label="item.label" :value="item.modelId" />
+                </el-option-group>
+              </el-select>
+            </div>
+            <div v-if="qcLevel === 'videoAudio'" class="field">
+              <label for="workflowAudioQc">音轨模型</label>
+              <el-select id="workflowAudioQc" v-model="audioQcModelId" filterable teleported fitInputWidth popperClass="qcModelPopper" placeholder="选择可听音频的模型" @change="onAudioQcModel">
+                <el-option-group v-if="enabledQcWorkflows.length" label="质检工作流">
+                  <el-option v-for="item in enabledQcWorkflows" :key="item.id" :label="item.label" :value="item.id" />
+                </el-option-group>
+                <el-option-group label="语言模型">
+                  <el-option v-for="item in audioQcChoices" :key="`a-${item.providerId}-${item.modelId}`" :label="item.label" :value="item.modelId" />
+                </el-option-group>
+              </el-select>
+            </div>
           </div>
-        </div>
-        <el-text v-if="repairWorkflow" type="info">首尾帧修复用 {{ repairWorkflow.label }}（{{ repairWorkflow.id }}），不作为成片默认。</el-text>
-      </template>
-      <el-text v-else type="info">云视频使用设置 → 模型 →「视频模型」中的 API 地址与 Key，默认模型 wan3.0-video。</el-text>
+          <el-text v-if="!languageModels.length && !enabledQcWorkflows.length" type="warning" role="status">暂无可用的质检工作流或语言模型。</el-text>
+          <el-text v-else-if="videoQcModelId && !videoQcModels.some(item => item.modelId === videoQcModelId)" type="warning" role="status">当前画面质检模型不可用。</el-text>
+          <el-text v-else-if="qcLevel === 'videoAudio' && audioQcModelId && !audioQcModels.some(item => item.modelId === audioQcModelId)" type="warning" role="status">当前音轨质检模型不可用。</el-text>
+          <el-text v-else-if="qcLevel === 'videoAudio' && !usesGemmaQc && audioQcModelId && !audioCapableModels.some(item => item.modelId === audioQcModelId)" type="warning" role="status">当前音轨质检模型未勾选音频输入。</el-text>
+          <div v-if="usesGemmaQc" class="gemmaHost">
+            <div class="field">
+              <label for="workflowGemmaHost">Gemma 运行位置</label>
+              <el-select id="workflowGemmaHost" v-model="gemmaQcHost">
+                <el-option label="本机 ComfyUI" value="local" />
+                <el-option label="AutoDL 上的 ComfyUI" value="autodl" />
+              </el-select>
+            </div>
+            <p class="hint">
+              {{ gemmaQcHost === 'autodl' ? '整段成片会上传到下方配置的 AutoDL 实例。' : '使用下方配置的本机 ComfyUI。' }}
+              {{ qcLevel === 'videoAudio' ? '同一次 Gemma 调用检查画面与音轨。' : '本次只检查画面。' }}
+            </p>
+          </div>
+        </template>
+        <workflowCatalog title="质检工作流" :items="qcWorkflows" :disabledIds="disabledWorkflowIds" :switchKey="workflowSwitchKey" @change="setWorkflowOn" />
+      </div>
     </section>
 
-    <section class="settingSection" aria-labelledby="qcTitle">
-      <div class="settingInfo">
-        <h3 id="qcTitle">质检</h3>
-        <p class="description">质检工作流单独一类。自动：视频生成后直接质检。手动：等你要求再质检。不质检则交给人工看。画面和音轨都可以选本机 Gemma 4。选中后整段视频送进本机 Comfy，档位含音频时这一条同时听对白。</p>
-      </div>
-      <el-select v-model="qcLevel" aria-label="质检档位">
-        <el-option label="只视频" value="video" />
-        <el-option label="视频 + 音频" value="videoAudio" />
-        <el-option label="不质检（人工）" value="none" />
-      </el-select>
-      <el-select v-model="qcTrigger" :disabled="qcLevel === 'none'" aria-label="是否自动质检">
-        <el-option label="自动" value="auto" />
-        <el-option label="手动" value="manual" />
-      </el-select>
-      <el-text type="info">右侧关闭后，画面和音轨质检不再列出该工作流。当前选中的不能关闭。保存后生效。</el-text>
-      <div class="workflowList">
-        <div v-for="item in qcWorkflows" :key="item.id" class="workflowItem">
-          <span class="workflowName">{{ item.label }} · {{ item.id }}</span>
-          <el-switch :key="`${item.id}-${workflowSwitchKey}`" :modelValue="workflowOn(item.id)" :aria-label="`${item.label}开关`" @update:modelValue="setWorkflowOn(item.id, $event)" />
-        </div>
-      </div>
-      <template v-if="qcLevel !== 'none'">
-        <el-select v-model="videoQcModelId" filterable teleported fitInputWidth popperClass="qcModelPopper" aria-label="视频质检模型" placeholder="选择质检工作流或语言模型" @change="onVideoQcModel">
-          <el-option-group v-if="enabledQcWorkflows.length" label="质检工作流">
-            <el-option v-for="item in enabledQcWorkflows" :key="`qc-${item.id}`" :label="`${item.label} · ${item.id}`" :value="item.id" />
-          </el-option-group>
-          <el-option-group label="语言模型">
-            <el-option v-for="item in languageVideoQcChoices" :key="`v-${item.providerId}-${item.modelId}`" :label="item.label" :value="item.modelId" />
-          </el-option-group>
-        </el-select>
-        <el-select v-if="qcLevel === 'videoAudio'" v-model="audioQcModelId" filterable teleported fitInputWidth popperClass="qcModelPopper" aria-label="音频质检模型" placeholder="选择质检工作流或可听音频的模型" @change="onAudioQcModel">
-          <el-option-group v-if="enabledQcWorkflows.length" label="质检工作流">
-            <el-option v-for="item in enabledQcWorkflows" :key="`aqc-${item.id}`" :label="`${item.label} · ${item.id}`" :value="item.id" />
-          </el-option-group>
-          <el-option-group label="语言模型">
-            <el-option v-for="item in audioQcChoices" :key="`a-${item.providerId}-${item.modelId}`" :label="item.label" :value="item.modelId" />
-          </el-option-group>
-        </el-select>
-        <el-text v-if="!languageModels.length && !enabledQcWorkflows.length" type="warning" role="status">还没有质检工作流，也没有语言模型。</el-text>
-        <el-text v-else-if="videoQcModelId && !videoQcModels.some(item => item.modelId === videoQcModelId)" type="warning" role="status">当前画面质检不在已开启的质检工作流或语言模型里。</el-text>
-        <el-text v-else-if="qcLevel === 'videoAudio' && audioQcModelId && !audioQcModels.some(item => item.modelId === audioQcModelId)" type="warning" role="status">当前音轨质检不在已开启的质检工作流或语言模型里。</el-text>
-        <el-text v-else-if="qcLevel === 'videoAudio' && !gemmaVideoQc && !gemmaAudioQc && audioQcModelId && !audioCapableModels.some(item => item.modelId === audioQcModelId)" type="warning" role="status">当前音轨质检模型未勾选音频输入。</el-text>
-        <el-text v-if="qcLevel === 'videoAudio' && (gemmaVideoQc || gemmaAudioQc)" type="info">这条 Gemma 会同时看画面和听对白，不再另调另一个模型。</el-text>
-      </template>
-    </section>
-
-    <section v-if="usesComfy" class="settingSection" aria-labelledby="comfyTitle">
-      <div class="settingInfo">
-        <h3 id="comfyTitle">{{ videoHost === 'local' ? '本机 ComfyUI' : 'AutoDL 上的 ComfyUI' }}</h3>
-        <p class="description">{{ videoHost === 'local' ? '填写本机已经启动的 ComfyUI 地址，探测不会开机。出图和出视频共用这个地址。' : '留空则开机后使用实例的服务域名。手动地址只覆盖这台远程实例。出图和出视频共用这个地址。' }}</p>
-      </div>
-      <el-select v-model="videoHost" aria-label="ComfyUI 位置">
-        <el-option label="AutoDL 上的 ComfyUI" value="autodl" />
-        <el-option label="本机 ComfyUI" value="local" />
-      </el-select>
-      <div v-if="videoHost === 'local'" class="row">
-        <el-input v-model="localComfyuiBaseUrl" aria-label="本机 ComfyUI 地址" placeholder="http://127.0.0.1:8188" />
-        <el-button :loading="probing" @click="probe">探测</el-button>
-      </div>
-      <template v-else>
-        <div class="row">
-          <el-input v-model="comfyuiServiceField" aria-label="实例服务字段" placeholder="service_6006_domain" />
-          <el-select v-model="comfyuiScheme" aria-label="访问协议" style="width: 120px">
-            <el-option label="https" value="https" />
-            <el-option label="http" value="http" />
+    <section v-if="usesLocal || usesAutodl" class="settingGroup" aria-labelledby="comfyTitle">
+      <header class="groupHeader">
+        <span class="groupNumber" aria-hidden="true">03</span>
+        <h3 id="comfyTitle">运行环境</h3>
+      </header>
+      <div class="settingCard">
+        <div v-if="usesComfy" class="field">
+          <label for="workflowGenerationHost">生成所用的 ComfyUI</label>
+          <el-select id="workflowGenerationHost" v-model="videoHost">
+            <el-option label="AutoDL 上的 ComfyUI" value="autodl" />
+            <el-option label="本机 ComfyUI" value="local" />
           </el-select>
         </div>
-        <div class="row">
-          <el-input v-model="comfyuiBaseUrl" aria-label="手动 ComfyUI 地址" placeholder="一般留空，使用 AutoDL 上的 ComfyUI" />
-          <el-button :loading="probing" @click="probe">开机并探测</el-button>
+        <section v-if="usesLocal" class="connectionBlock" aria-labelledby="workflowLocalTitle">
+          <header class="cardHeader">
+            <h4 id="workflowLocalTitle">本机 ComfyUI</h4>
+            <p>连接已经启动的本机服务。</p>
+          </header>
+          <div class="field">
+            <label for="workflowLocalAddress">服务地址</label>
+            <div class="controlRow">
+              <el-input id="workflowLocalAddress" v-model="localComfyuiBaseUrl" placeholder="http://127.0.0.1:8188" />
+              <el-button :loading="probing === 'local'" :disabled="probing === 'autodl'" @click="probe('local')">探测连接</el-button>
+            </div>
+          </div>
+          <el-text v-if="probeResult?.host === 'local'" :type="probeResult.ok ? 'success' : 'danger'" role="status">{{ probeResult.message }}</el-text>
+        </section>
+        <section v-if="usesAutodl" class="connectionBlock" aria-labelledby="workflowAutodlTitle">
+          <header class="connectionHeader">
+            <div class="cardHeader">
+              <h4 id="workflowAutodlTitle">AutoDL</h4>
+              <p>同一实例可用于生成和 Gemma 质检。</p>
+            </div>
+            <div class="switchField">
+              <label for="workflowAutodlBoot">任务前检查开机</label>
+              <el-switch id="workflowAutodlBoot" v-model="autodlEnsureRunning" aria-label="任务前检查开机" />
+            </div>
+          </header>
+          <div class="fieldGrid">
+            <div class="field">
+              <label for="workflowAutodlUrl">平台地址</label>
+              <el-input id="workflowAutodlUrl" v-model="autodlBaseUrl" />
+            </div>
+            <div class="field">
+              <label for="workflowAutodlToken">开发者 Token</label>
+              <el-input id="workflowAutodlToken" v-model="autodlToken" type="password" showPassword />
+            </div>
+          </div>
+          <div class="field">
+            <label for="workflowAutodlInstance">实例</label>
+            <div class="controlRow">
+              <el-select id="workflowAutodlInstance" v-model="autodlInstanceUuid" filterable allowCreate defaultFirstOption placeholder="选择实例或输入 UUID">
+                <el-option v-for="item in instances" :key="item.uuid" :label="`${item.name || item.uuid} · ${item.status}`" :value="item.uuid" />
+              </el-select>
+              <el-button :loading="loadingInstances" @click="loadInstances">读取实例</el-button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="workflowAutodlCommand">开机命令</label>
+            <el-input id="workflowAutodlCommand" v-model="autodlStartCommand" placeholder="可选" />
+          </div>
+          <div class="fieldGrid">
+            <div class="field">
+              <label for="workflowServiceField">实例服务字段</label>
+              <el-input id="workflowServiceField" v-model="comfyuiServiceField" placeholder="service_6006_domain" />
+            </div>
+            <div class="field">
+              <label for="workflowServiceProtocol">访问协议</label>
+              <el-select id="workflowServiceProtocol" v-model="comfyuiScheme">
+                <el-option label="HTTPS" value="https" />
+                <el-option label="HTTP" value="http" />
+              </el-select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="workflowAutodlComfy">手动 ComfyUI 地址</label>
+            <el-input id="workflowAutodlComfy" v-model="comfyuiBaseUrl" placeholder="留空则从实例获取服务地址" />
+          </div>
+          <div class="connectionActions">
+            <el-button :loading="probing === 'autodl'" :disabled="probing === 'local'" @click="probe('autodl')">开机并探测</el-button>
+            <el-button :loading="checking" @click="checkStatus">查状态</el-button>
+            <el-button :loading="powering" @click="power('on')">开机</el-button>
+            <el-button :loading="powering" @click="power('off')">关机</el-button>
+            <el-tag v-if="statusMessage" effect="plain" role="status">{{ statusMessage }}</el-tag>
+          </div>
+          <el-text v-if="probeResult?.host === 'autodl'" :type="probeResult.ok ? 'success' : 'danger'" role="status">{{ probeResult.message }}</el-text>
+        </section>
+      </div>
+    </section>
+
+    <section v-if="usesLocal || usesAutodl" class="settingGroup" aria-labelledby="catalogTitle">
+      <header class="groupHeader">
+        <span class="groupNumber" aria-hidden="true">04</span>
+        <h3 id="catalogTitle">工作流管理</h3>
+      </header>
+      <div class="settingCard">
+        <div class="field">
+          <label for="workflowDirectory">额外工作流目录</label>
+          <el-input id="workflowDirectory" v-model="workflowRoot" placeholder="例如 E:\Manga\pipeline\workflows" />
+          <p class="hint">按 image、video、qc 分类追加到内置目录。</p>
         </div>
-      </template>
-      <el-text v-if="probeMessage" :type="probeOk ? 'success' : 'danger'" role="status">{{ probeMessage }}</el-text>
-    </section>
-
-    <section v-if="usesComfy" class="settingSection" aria-labelledby="catalogTitle">
-      <div class="settingInfo">
-        <h3 id="catalogTitle">额外工作流</h3>
-        <p class="description">内置工作流保留。额外目录按 image、video、qc 分类追加，同名不覆盖。</p>
-      </div>
-      <el-input v-model="workflowRoot" aria-label="额外工作流目录" placeholder="可选，例如 E:\Manga\pipeline\workflows" />
-    </section>
-    <section v-if="usesComfy" class="settingSection" aria-labelledby="uploadTitle">
-      <div class="settingInfo">
-        <h3 id="uploadTitle">上传 API 工作流</h3>
-        <p class="description">上传 ComfyUI 导出的 API JSON。服务端用设置里的语言模型对照内置 bindings 模板生成新绑定；校验失败不写盘。落在用户数据 workflows，不覆盖同名（含内置）。</p>
-      </div>
-      <el-input v-model="uploadId" aria-label="工作流 id" placeholder="例如 my_h3 或 video/my_h3" />
-      <el-input v-model="uploadLabel" aria-label="显示名称" placeholder="可选显示名" />
-      <div class="row">
-        <input ref="uploadInput" class="uploadInput" type="file" accept="application/json,.json" aria-label="选择 API 工作流 JSON" @change="onUploadFile" />
-        <el-button type="primary" :loading="uploading" :disabled="!uploadId.trim()" @click="pickUpload">选择并上传</el-button>
-      </div>
-      <el-text v-if="uploadMessage" :type="uploadOk ? 'success' : 'danger'" role="status">{{ uploadMessage }}</el-text>
-    </section>
-
-    <section v-if="usesComfy && videoHost === 'autodl'" class="settingSection" aria-labelledby="autodlTitle">
-      <div class="settingHeader">
-        <div class="settingInfo">
-          <h3 id="autodlTitle">AutoDL</h3>
-          <p class="description">只在出视频走 AutoDL 时使用。生成前先把这台实例开到 running，再连上面的 ComfyUI。</p>
-        </div>
-        <el-switch v-model="autodlEnsureRunning" aria-label="生成前先开机" />
-      </div>
-      <el-input v-model="autodlBaseUrl" aria-label="AutoDL 地址" />
-      <el-input v-model="autodlToken" type="password" showPassword aria-label="AutoDL Token" placeholder="开发者 Token" />
-      <div class="row">
-        <el-select v-model="autodlInstanceUuid" filterable allowCreate defaultFirstOption aria-label="AutoDL 实例" placeholder="实例 UUID">
-          <el-option v-for="item in instances" :key="item.uuid" :label="`${item.name || item.uuid} · ${item.status}`" :value="item.uuid" />
-        </el-select>
-        <el-button :loading="loadingInstances" @click="loadInstances">读取实例</el-button>
-      </div>
-      <el-input v-model="autodlStartCommand" aria-label="开机命令" placeholder="可选开机命令" />
-      <div class="row">
-        <el-button :loading="powering" @click="power('on')">开机</el-button>
-        <el-button :loading="powering" @click="power('off')">关机</el-button>
-        <el-button :loading="checking" @click="checkStatus">查状态</el-button>
-        <el-text v-if="statusMessage" role="status">{{ statusMessage }}</el-text>
+        <section class="connectionBlock" aria-labelledby="uploadTitle">
+          <header class="cardHeader">
+            <h4 id="uploadTitle">上传 API 工作流</h4>
+            <p>导入 ComfyUI 导出的 API JSON。校验通过后保存到用户工作流目录。</p>
+          </header>
+          <div class="fieldGrid">
+            <div class="field">
+              <label for="workflowUploadId">工作流 ID</label>
+              <el-input id="workflowUploadId" v-model="uploadId" placeholder="例如 video/my_h3" />
+            </div>
+            <div class="field">
+              <label for="workflowUploadLabel">显示名称</label>
+              <el-input id="workflowUploadLabel" v-model="uploadLabel" placeholder="可选" />
+            </div>
+          </div>
+          <div class="connectionActions">
+            <input ref="uploadInput" type="file" accept="application/json,.json" hidden @change="onUploadFile" />
+            <el-button :loading="uploading" :disabled="!uploadId.trim()" @click="pickUpload">选择并上传 JSON</el-button>
+            <el-text v-if="uploadMessage" :type="uploadOk ? 'success' : 'danger'" role="status">{{ uploadMessage }}</el-text>
+          </div>
+        </section>
       </div>
     </section>
-
-    <el-button type="primary" :loading="saving" @click="save">保存</el-button>
   </div>
 </template>
 
@@ -202,7 +305,9 @@ import { mediaProviders } from "@toonflow/providers";
 import { computed, onMounted, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import { modelChoices, saveSettings, settings } from "@/stores/settings";
+import workflowCatalog from "./workflowCatalog.vue";
 
+type ComfyHost = "local" | "autodl";
 type WorkflowItem = { id: string; label: string };
 type InstanceItem = { uuid: string; name: string; status: string };
 type QwenModel = { key: string; label: string; providerLabel: string };
@@ -220,7 +325,8 @@ const imageEditWorkflow = ref("image/flux3KleinDistilledEdit");
 const disabledWorkflowIds = ref<string[]>([]);
 const workflowSwitchKey = ref(0);
 const videoProviderId = ref<"comfyui" | "videoModel">("comfyui");
-const videoHost = ref("autodl");
+const videoHost = ref<ComfyHost>("autodl");
+const gemmaQcHost = ref<ComfyHost>("local");
 const localComfyuiBaseUrl = ref("http://127.0.0.1:8188");
 const videoWorkflow = ref("video/h3_ref2va_1080p");
 const videoQcModelId = ref("qwen3.8-omni-flash");
@@ -239,9 +345,8 @@ const imageWorkflows = ref<WorkflowItem[]>([]);
 const videoWorkflows = ref<WorkflowItem[]>([]);
 const qcWorkflows = ref<WorkflowItem[]>([]);
 const instances = ref<InstanceItem[]>([]);
-const probing = ref(false);
-const probeOk = ref(false);
-const probeMessage = ref("");
+const probing = ref<ComfyHost>();
+const probeResult = ref<{ host: ComfyHost; ok: boolean; message: string }>();
 const loadingInstances = ref(false);
 const powering = ref(false);
 const checking = ref(false);
@@ -276,6 +381,9 @@ const repairWorkflow = computed(() => videoWorkflows.value.find(item => item.id 
 const languageModels = computed(() => modelChoices.value);
 const gemmaVideoQc = computed(() => isGemmaQc(videoQcModelId.value));
 const gemmaAudioQc = computed(() => isGemmaQc(audioQcModelId.value));
+const usesGemmaQc = computed(() => qcLevel.value !== "none" && (gemmaVideoQc.value || (qcLevel.value === "videoAudio" && gemmaAudioQc.value)));
+const usesLocal = computed(() => (usesComfy.value && videoHost.value === "local") || (usesGemmaQc.value && gemmaQcHost.value === "local"));
+const usesAutodl = computed(() => (usesComfy.value && videoHost.value === "autodl") || (usesGemmaQc.value && gemmaQcHost.value === "autodl"));
 const audioCapableModels = computed(() => languageModels.value.filter(item => item.inputs.audio));
 const languageVideoQcChoices = computed(() => qcModelChoices(languageModels.value, videoQcModelId.value));
 const audioQcChoices = computed(() => qcModelChoices(languageModels.value, audioQcModelId.value));
@@ -360,6 +468,7 @@ function readForm() {
     : [];
   videoProviderId.value = source.videoProviderId === "videoModel" ? "videoModel" : "comfyui";
   videoHost.value = source.videoHost === "local" ? "local" : "autodl";
+  gemmaQcHost.value = source.gemmaQcHost === "autodl" ? "autodl" : "local";
   localComfyuiBaseUrl.value = text(source.localComfyuiBaseUrl, "") || "http://127.0.0.1:8188";
   videoWorkflow.value = text(source.videoWorkflow, "") || "video/h3_ref2va_1080p";
   videoQcModelId.value = text(source.videoQcModelId, "") || "qwen3.8-omni-flash";
@@ -387,7 +496,8 @@ function productionPatch() {
     imageEditWorkflow: imageEditWorkflow.value.trim() || "image/flux3KleinDistilledEdit",
     disabledWorkflowIds: disabledWorkflowIds.value,
     videoProviderId: videoProviderId.value === "videoModel" ? "videoModel" : "comfyui",
-    videoHost: videoHost.value === "local" ? "local" : "autodl",
+    videoHost: videoHost.value,
+    gemmaQcHost: gemmaQcHost.value,
     localComfyuiBaseUrl: localComfyuiBaseUrl.value.trim() || "http://127.0.0.1:8188",
     videoWorkflow: videoWorkflow.value.trim() || "video/h3_ref2va_1080p",
     videoQcModelId: videoQcModelId.value.trim() || "qwen3.8-omni-flash",
@@ -501,25 +611,26 @@ async function loadQwenModels() {
   if (installed.length) qwenModels.value = installed;
 }
 
-async function probe() {
-  probing.value = true;
-  probeMessage.value = "";
+async function probe(host: ComfyHost) {
+  probing.value = host;
+  probeResult.value = undefined;
   try {
     await saveSettings(() => ({ production: productionPatch() }));
-    const local = videoHost.value === "local";
-    const override = local ? localComfyuiBaseUrl.value.trim() : comfyuiBaseUrl.value.trim();
     const { data } = await axios.get<{ code: number; data?: { baseUrl?: string }; message?: string }>("/api/production/comfyui/status", {
-      ...(override ? { params: { baseUrl: override } } : {}),
+      params: { host },
       headers,
       timeout: 16 * 60_000,
     });
-    probeOk.value = data.code === 200;
-    probeMessage.value = data.code === 200 ? `${local ? "本机" : "远程"} ComfyUI 已连通 ${data.data?.baseUrl ?? override}` : (data.message || "ComfyUI 未就绪");
+    probeResult.value = {
+      host,
+      ok: data.code === 200,
+      message: data.code === 200 ? `ComfyUI 已连通 ${data.data?.baseUrl ?? ""}` : (data.message || "ComfyUI 未就绪"),
+    };
   } catch (error) {
-    probeOk.value = false;
-    probeMessage.value = axios.isAxiosError(error) ? error.response?.data?.message || "ComfyUI 未就绪" : "ComfyUI 未就绪";
+    const message = axios.isAxiosError(error) ? error.response?.data?.message || "ComfyUI 未就绪" : "ComfyUI 未就绪";
+    probeResult.value = { host, ok: false, message };
   } finally {
-    probing.value = false;
+    probing.value = undefined;
   }
 }
 
@@ -581,89 +692,219 @@ watch(() => {
 
 <style lang="scss" scoped>
 .workflow {
-  display: flex;
-  flex-direction: column;
+  --workflowAccent: var(--el-color-primary);
+  --workflowLine: var(--el-border-color-lighter);
+  --workflowSurface: var(--el-fill-color-lighter);
+  display: grid;
   gap: 24px;
+  min-width: 0;
+
+  .pageHeader {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 20px;
+    padding: 12px 0 16px;
+    border-bottom: 1px solid var(--workflowLine);
+    background: var(--el-bg-color-overlay);
+
+    h3 {
+      margin: 0;
+      color: var(--el-text-color-primary);
+      font-size: 25px;
+      font-weight: 680;
+      letter-spacing: 0.04em;
+    }
+
+    p {
+      margin: 4px 0 0;
+      color: var(--el-text-color-secondary);
+      line-height: 1.55;
+    }
+  }
 
   .workflowNotices {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    display: grid;
+    gap: 6px;
+    padding: 10px 14px;
+    border: 1px solid var(--el-color-warning-light-7);
+    border-radius: var(--el-border-radius-base);
+    background: var(--el-color-warning-light-9);
   }
 
-  .settingSection {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .settingHeader {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-  }
-
-  .settingInfo {
-    h3, h4 {
-      margin: 0;
-    }
-
-    .description {
-      margin: 6px 0 0;
-      color: var(--el-text-color-secondary);
-    }
-  }
-
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    .el-input, .el-select {
-      flex: 1;
-    }
-  }
-
-  .uploadInput {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    overflow: hidden;
-  }
-
-  ul {
-    margin: 0;
-    padding-left: 18px;
-  }
-
-  .workflowList {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .workflowItem {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 32px;
-  }
-
-  .workflowName {
+  .settingGroup {
+    display: grid;
+    gap: 10px;
     min-width: 0;
-    line-height: 1.4;
-    color: var(--el-text-color-regular);
-  }
 
-  .sizes {
-    color: var(--el-text-color-regular);
-  }
+    .groupHeader {
+      display: flex;
+      align-items: center;
+      gap: 10px;
 
-  span {
-    color: var(--el-text-color-secondary);
+      .groupNumber {
+        padding: 3px 6px;
+        border: 1px solid var(--el-color-primary-light-7);
+        border-radius: var(--el-border-radius-small);
+        color: var(--workflowAccent);
+        background: var(--el-color-primary-light-9);
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+      }
+
+      h3 {
+        margin: 0;
+        color: var(--el-text-color-primary);
+        font-size: 15px;
+        font-weight: 650;
+      }
+
+      &::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        margin-inline-start: 4px;
+        background: var(--workflowLine);
+      }
+    }
+
+    .generationGrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+      align-items: start;
+      gap: 12px;
+    }
+
+    .settingCard {
+      display: grid;
+      gap: 14px;
+      min-width: 0;
+      padding: clamp(12px, 2vw, 18px);
+      border: 1px solid var(--workflowLine);
+      border-radius: var(--el-border-radius-base);
+      background: var(--workflowSurface);
+
+      .cardHeader {
+        h4 {
+          margin: 0;
+          color: var(--el-text-color-primary);
+          font-size: 14px;
+          font-weight: 650;
+        }
+
+        p {
+          margin: 4px 0 0;
+          color: var(--el-text-color-secondary);
+          font-size: 13px;
+          line-height: 1.55;
+        }
+      }
+
+      .fieldGrid,
+      .gemmaHost {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+        gap: 12px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+
+        label {
+          color: var(--el-text-color-regular);
+          font-size: 13px;
+          font-weight: 600;
+        }
+
+        .controlRow {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 8px;
+        }
+
+        :deep(.el-select) {
+          min-width: 0;
+          width: 100%;
+        }
+      }
+
+      .hint {
+        margin: 0;
+        color: var(--el-text-color-secondary);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .gemmaHost {
+        align-items: center;
+        padding: 12px;
+        border-inline-start: 2px solid var(--workflowAccent);
+        background: var(--el-color-primary-light-9);
+      }
+
+      .connectionBlock {
+        display: grid;
+        gap: 12px;
+        padding-top: 14px;
+        border-top: 1px solid var(--workflowLine);
+
+        .connectionHeader,
+        .connectionActions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px 12px;
+
+          :deep(.el-button + .el-button) {
+            margin-inline-start: 0;
+          }
+        }
+
+        .connectionHeader {
+          justify-content: space-between;
+
+          .switchField {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--el-text-color-regular);
+            font-size: 13px;
+          }
+        }
+      }
+
+      .assetSizes {
+        border-top: 1px solid var(--workflowLine);
+        padding-top: 10px;
+        color: var(--el-text-color-regular);
+        font-size: 13px;
+
+        summary {
+          cursor: pointer;
+          font-weight: 600;
+        }
+
+        dl {
+          display: grid;
+          grid-template-columns: max-content minmax(0, 1fr);
+          gap: 6px 10px;
+          margin: 9px 0 0;
+          line-height: 1.5;
+
+          dd {
+            margin: 0;
+            color: var(--el-text-color-secondary);
+          }
+        }
+      }
+    }
   }
 }
 </style>

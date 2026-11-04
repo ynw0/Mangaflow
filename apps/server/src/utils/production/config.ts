@@ -1,8 +1,10 @@
 // 制作配置：出图可选 Qwen 图像 API 或 ComfyUI 工作流。出视频可选 AutoDL 上的 ComfyUI，或本机已启动的 ComfyUI。
 import conf from "@/utils/conf";
 
+export type ComfyHost = "local" | "autodl";
+
 export type ProductionConfig = {
-  videoHost: string;
+  videoHost: ComfyHost;
   localComfyuiBaseUrl: string;
   comfyuiBaseUrl: string;
   comfyuiServiceField: string;
@@ -25,9 +27,11 @@ export type ProductionConfig = {
   autodlInstanceUuid: string;
   autodlStartCommand: string;
   autodlEnsureRunning: boolean;
-  /** 成片画面质检模型（语言模型供应商里的 model id，或本机 Gemma 工作流 id） */
+  /** Gemma 工作流可独立选择质检所在的 ComfyUI。 */
+  gemmaQcHost: ComfyHost;
+  /** 成片画面质检模型（语言模型供应商里的 model id，或 Gemma 工作流 id） */
   videoQcModelId: string;
-  /** 成片音轨质检模型（语言模型 id，或本机 Gemma 工作流 id） */
+  /** 成片音轨质检模型（语言模型 id，或 Gemma 工作流 id） */
   audioQcModelId: string;
   /** 质检档位：只视频、视频加音频、不质检（人工） */
   qcLevel: "video" | "videoAudio" | "none";
@@ -57,6 +61,7 @@ const defaults: ProductionConfig = {
   autodlInstanceUuid: "",
   autodlStartCommand: "",
   autodlEnsureRunning: true,
+  gemmaQcHost: "local",
   videoQcModelId: "qwen3.8-omni-flash",
   audioQcModelId: "qwen3.8-omni-flash",
   qcLevel: "videoAudio",
@@ -107,6 +112,7 @@ export function readProduction(): ProductionConfig {
     autodlInstanceUuid: text(source.autodlInstanceUuid, ""),
     autodlStartCommand: text(source.autodlStartCommand, ""),
     autodlEnsureRunning: source.autodlEnsureRunning === undefined ? true : source.autodlEnsureRunning === true,
+    gemmaQcHost: source.gemmaQcHost === "autodl" ? "autodl" : defaults.gemmaQcHost,
     videoQcModelId: text(source.videoQcModelId, "") || defaults.videoQcModelId,
     audioQcModelId: text(source.audioQcModelId, "") || defaults.audioQcModelId,
     qcLevel: source.qcLevel === "video" || source.qcLevel === "none" ? source.qcLevel : "videoAudio",

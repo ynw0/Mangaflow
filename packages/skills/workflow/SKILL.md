@@ -2,7 +2,7 @@
 name: workflow
 description: 按小说或用户query制作漫剧。先编剧，再资产规划，再角色、场景、道具原画与对应审核，再视频导演、视频提示词审核与成片审核。出图按系统设置走 Qwen 图像 API 或 ComfyUI 工作流。出视频用 AutoDL 或本机的 ComfyUI。用户要做短剧、漫剧、分镜、资产或镜头时使用。
 metadata:
-  version: "1.2.1"
+  version: "1.3.0"
   displayName: 漫剧制作
   author: Manga
 ---
@@ -27,9 +27,9 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | 场景原画 | [scene-art.md](references/scene-art.md) 然后 [scene-prompt-review.md](references/scene-prompt-review.md) | 要换机位或反复出现时做四方向拼版；只做氛围或转场时做无人空镜 |
 | 道具原画 | [prop-art.md](references/prop-art.md) 然后 [prop-prompt-review.md](references/prop-prompt-review.md) | 审核通过的产品图 |
 | 单集导演规划（可选） | [directorPlan.md](references/directorPlan.md) | 分集画布上的分场情绪与注意事项 |
-| 成片 | 先读 bundled [h3-prompt-writing](../h3-prompt-writing/SKILL.md)：Ref2VA 先读 `references/ref-en.txt`，首尾帧再读 `references/base-en.txt`；再读 [video-director.md](references/video-director.md)，然后 [video-prompt-review.md](references/video-prompt-review.md) | 审核通过后用 `video/h3_ref2va_1080p`；只有首尾帧修复用 `video/h3_flf_repair` |
+| 成片 | 先读 bundled [h3-prompt-writing](../h3-prompt-writing/SKILL.md)：Ref2VA 先读 `references/ref-en.txt`，首尾帧再读 `references/base-en.txt`；再读 bundled [cinematicPromptCraft](../cinematicPromptCraft/SKILL.md) 并按剧情选择所需导演知识；然后读 [video-director.md](references/video-director.md)，最后读 [video-prompt-review.md](references/video-prompt-review.md) | 先完成单镜导演设计，再写 H3 正文并审核；审核通过后使用 `video/h3_ref2va_1080p`；只有首尾帧修复使用 `video/h3_flf_repair` |
 
-官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing → video-director → video-prompt-review → Comfy H3 Ref2VA）。
+官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing + cinematicPromptCraft 导演知识 → video-director → video-prompt-review → Comfy H3 Ref2VA）。
 
 出图以 production.image 为准。providerId 为 comfyui 时，没有参考图用 modelId，有参考图用 editModelId，ComfyUI 与出视频共用 host。modelId 或 editModelId 为 `image/flux3KleinT2i`、`image/flux3KleinDistilledT2i`、`image/flux3KleinEdit` 或 `image/flux3KleinDistilledEdit` 时，原画按 [common.md](references/common.md)「Flux.3 Klein 出图」写：只要正面场景描述，不写负面提示词，不加提示词扩写器。否则用其中的 providerId 与 modelId 调图像 API。出视频只用 ComfyUI 工作流，`providerId` 为 `comfyui`；`production.video.host` 为 `local` 时用本机地址，为 `autodl` 时用 AutoDL 实例。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片 16:9。
 

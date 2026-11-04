@@ -6,6 +6,16 @@
 ## 输入
 shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬要求、相邻镜头文本、continuity、`approved_assets`（含登记名、`canonical_description`、批准原画全文 `approved_image_prompt`、`allowed_variant_changes`）、`subjects`、实际 `ref_slot_plan` 与工作流能力。`story` 和 `must_have` 是编剧原文，程序没有改写。
 
+## 导演创作步骤（格式之外的新增能力）
+写 H3 正文前，先读 bundled `cinematicPromptCraft/SKILL.md` 并按镜头用途选读 1–3 篇相关 references。内部先确定“这镜交付什么信息→观众看哪里→主体怎样从起始状态运动到结束状态→摄影与光声怎样服务故事”；然后把决定写进已有六段正文，**不新增导演合同字段或额外 Agent**。
+
+- 主要视觉事件优先，细节有选择：普通对话不默认加入特效和运镜；玄幻技能也不默认大爆炸。
+- 人物动作从刺激、视线、手部/重心变化建立因果；只有剧情需要时描述夸张表情与大动作。
+- 特效选择来源、形态、传播路径、环境反馈和收束，需保留原画形状和场景布局；不要把特效库范例中未批准的道具带入镜头。
+- 运镜选择固定或一种主要运动，交代起止与焦点，不以“必须移动镜头”证明导演质量。
+- `detailed_description` 中在镜头初始部分明确稳定的场景、机位、光线与空间关系，后续时间段侧重**变化**：新增动作、视线、声音、参考状态和必要的摄影变化。持续不变的条件沿用前文，不机械重复每段清单。
+- 保留已有连续摄影、动作时序、对白、槽位和硬约束；新知识库只提供创作决策，不可覆盖上游事实或官方格式。
+
 ## 成片格式真源
 默认工作流 `video/h3_ref2va_1080p` 为 Ref2VA。写 prompt 前必须先读 bundled skill `h3-prompt-writing`：
 
@@ -20,7 +30,7 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 
 - 六段**标题**与**段内叙述**均为英文；细节量对齐官方「尽量详尽」。
 - 另填合同字段 `prompt_zh`：六段内容的简体中文对照，给人审阅，**不进** Comfy/API；勿把中文塞进 `prompt`。
-- 写入视频节点时调用 `setPrompt`：`prompt` 传英文，`promptZh` 传同一份简体中文对照。节点上显示中文，生成使用英文。不要只把英文写进节点。
+- 写入视频节点时调用 `setPrompt`：`prompt` 传英文，`promptZh` 传同一份简体中文对照。节点主编辑区展示并编辑**实际生成的英文**，中文在只读对照区，不进模型。不要仅修改中文对照作为成片改词。
 - `<d>` 内对白/歌词与画面可见文字保留原文语言。
 - 语言标签用英文全称（Chinese、English、Korean、Japanese），不要 zh/en/ja/ko/zh-CN。
 - 任务类型括号、关系词、`[Shot N]`、`At MM:SS.mmm`、`fully_preserved` 等官方记号保持英文原文。

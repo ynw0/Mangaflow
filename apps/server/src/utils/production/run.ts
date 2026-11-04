@@ -199,6 +199,9 @@ export async function runComfyWorkflow(options: {
   refs.first_frame = await localFile(directory, request.firstFrame) ?? refs.slot1;
   refs.last_frame = await localFile(directory, request.lastFrame) ?? (images.length > 1 ? await localFile(directory, images[1]) : undefined);
   const ratio = request.ratio?.trim() ?? "";
+  const bound = new Set(entry.bindings.bindings.map(item => item.source));
+  // 用户没指定采样时：一采 8 步、二采 4 步、百万像素 0.2、放大 2。工作流没绑的项不写。
+  const sampling = (source: string, given: number | undefined, fallback: number) => bound.has(source) ? given ?? fallback : undefined;
   const context = {
     prompt: request.prompt,
     image_prompt: request.prompt,
@@ -207,10 +210,10 @@ export async function runComfyWorkflow(options: {
     seed: request.seed ?? crypto.getRandomValues(new Uint32Array(1))[0],
     duration: request.duration,
     aspect_ratio: videoAspect[ratio],
-    megapixels: request.megapixels,
-    upscale: request.upscale,
-    first_pass_steps: request.firstPassSteps,
-    second_pass_steps: request.secondPassSteps,
+    megapixels: sampling("megapixels", request.megapixels, 0.2),
+    upscale: sampling("upscale", request.upscale, 2),
+    first_pass_steps: sampling("first_pass_steps", request.firstPassSteps, 8),
+    second_pass_steps: sampling("second_pass_steps", request.secondPassSteps, 4),
     params: mediaType === "video" ? pair(videoNative, ratio) : pixels(request.size, request.ratio),
     delivery: pair(videoDelivery, ratio),
     refs,

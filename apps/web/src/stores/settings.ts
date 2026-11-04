@@ -115,13 +115,29 @@ export function modelThinkingLevels(model: { thinkingLevels?: string[] } | undef
   return normalizeThinkingLevels(model.thinkingLevels);
 }
 
-export const thinkingLevelSetting = computed((): ThinkingLevelChoice => {
-  const value = settings.value.thinkingLevel;
-  if (typeof value !== "string") return "off";
-  const level = value.trim();
-  if (!level || level === "default") return "off";
-  return level;
-});
+function thinkingLevelByModel() {
+  const value = settings.value.thinkingLevelByModel;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const map: Record<string, string> = {};
+  for (const [key, level] of Object.entries(value)) {
+    if (typeof level === "string" && level.trim()) map[key] = level.trim();
+  }
+  return map;
+}
+
+// 每个模型记住自己的档位。没选过、或档位已不在该模型列表里，按关闭思考。
+export function thinkingLevelForModel(model?: { value: string; thinkingLevels?: string[] }) {
+  if (!model) return "off";
+  return resolveThinkingLevelForModel(thinkingLevelByModel()[model.value] || "off", model);
+}
+
+export function setModelThinkingLevel(modelKey: string, level: string) {
+  const model = modelChoices.value.find(item => item.value === modelKey);
+  const resolved = resolveThinkingLevelForModel(level, model);
+  const current = thinkingLevelByModel();
+  if (current[modelKey] === resolved) return;
+  settings.value = { ...settings.value, thinkingLevelByModel: { ...current, [modelKey]: resolved } };
+}
 
 export type ModelInputs = { image: boolean; video: boolean; audio: boolean };
 export type CustomProviderModel = { id: string; label: string; contextWindow?: number; maxOutputTokens?: number; inputs?: ModelInputs; thinkingLevels?: string[] };
@@ -140,19 +156,6 @@ export const modelChoices = computed(() => customProviders.value.flatMap(provide
   value: JSON.stringify([provider.id, model.id]), providerId: provider.id, modelId: model.id, label: model.label, contextWindow: model.contextWindow,
   inputs: modelInputs(model.inputs), thinkingLevels: modelThinkingLevels(model),
 }))));
-
-export const chatModelKeySetting = computed(() => {
-  const value = settings.value.chatModelKey;
-  return typeof value === "string" ? value : "";
-});
-
-export const activeChatModel = computed(() => {
-  const key = chatModelKeySetting.value;
-  const matched = key ? modelChoices.value.find(item => item.value === key) : undefined;
-  return matched ?? modelChoices.value[0];
-});
-
-export const thinkingLevelOptions = computed(() => thinkingLevelOptionsFor(activeChatModel.value?.thinkingLevels ?? []));
 
 export function resolveThinkingLevelForModel(level: ThinkingLevelChoice, model?: { thinkingLevels?: string[] }) {
   if (level === "off") return "off";

@@ -30,6 +30,11 @@
             </el-option-group>
           </el-select>
         </el-form-item>
+        <el-form-item label="思考等级">
+          <el-select v-model="thinkingLevel" :disabled="disabled || !selectedModelChoice" :teleported="false" aria-label="思考等级">
+            <el-option v-for="option in thinkingOptions" :key="option.value" :label="option.label" :value="option.value" />
+          </el-select>
+        </el-form-item>
       </el-form>
     </el-popover>
   </div>
@@ -39,13 +44,18 @@
 import { computed, ref, watch } from "vue";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import { modelIcon } from "@toonflow/model-icons";
-import { customProviders, modelChoices, settings } from "@/stores/settings";
+import { customProviders, modelChoices, setModelThinkingLevel, settings, thinkingLevelForModel, thinkingLevelOptionsFor } from "@/stores/settings";
 
 const selectedModel = defineModel<string>({ default: "" });
 const props = withDefaults(defineProps<{ active?: boolean; disabled?: boolean }>(), { active: true, disabled: false });
 const visible = ref(false);
 const modelGroups = computed(() => customProviders.value.toSorted((left, right) => Number(right.id === "tfRouter") - Number(left.id === "tfRouter")));
 const selectedModelChoice = computed(() => modelChoices.value.find(item => item.value === selectedModel.value));
+const thinkingOptions = computed(() => thinkingLevelOptionsFor(selectedModelChoice.value?.thinkingLevels ?? []));
+const thinkingLevel = computed({
+  get: () => thinkingLevelForModel(selectedModelChoice.value),
+  set: (value: string) => { if (selectedModel.value) setModelThinkingLevel(selectedModel.value, value); },
+});
 watch(modelChoices, items => {
   if (!selectedModel.value) selectedModel.value = items[0]?.value ?? "";
 }, { immediate: true });

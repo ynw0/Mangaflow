@@ -76,7 +76,7 @@ import modelPopover from "@/components/modelPopover.vue";
 import messageMarkdown from "@/components/messageMarkdown.vue";
 import toolMessage from "./agent/toolMessage.vue";
 import { createReplyStream, readAgentEvents } from "./agent/replyStream";
-import { modelChoices, resolveThinkingLevelForModel, thinkingLevelSetting } from "@/stores/settings";
+import { modelChoices, thinkingLevelForModel } from "@/stores/settings";
 import { writeClipboardText } from "@/lib/clipboard";
 
 const props = withDefaults(defineProps<{
@@ -219,7 +219,7 @@ async function send(content = draft.value) {
     accepted = true;
     const response = await fetch("/api/singleAgent/run", {
       method: "POST", headers: { ...requestHeaders, "Content-Type": "application/json" }, signal,
-      body: JSON.stringify({ sessionId: id, runId: reply.id, prompt, providerId: model.providerId, modelId: model.modelId, thinkingLevel: resolveThinkingLevelForModel(thinkingLevelSetting.value, model) }),
+      body: JSON.stringify({ sessionId: id, runId: reply.id, prompt, providerId: model.providerId, modelId: model.modelId, thinkingLevel: thinkingLevelForModel(model) }),
     });
     for await (const event of readAgentEvents<SingleAgentEvent>(response, signal)) {
       if (lifecycle !== owner) break;

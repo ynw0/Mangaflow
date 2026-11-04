@@ -1,10 +1,5 @@
 <template>
   <div class="providerList">
-    <section class="thinkingLevel" aria-labelledby="thinkingLevelTitle">
-      <h3 id="thinkingLevelTitle">思考等级</h3>
-      <p>对话使用这里的思考等级，选项来自当前对话所选模型在模型设置里勾选的档位。模型不支持所选档位时，按它实际支持的最近档位发送。关闭思考后不再输出思考过程。</p>
-      <el-segmented v-model="thinkingLevel" :options="thinkingLevelOptions" block aria-label="思考等级" />
-    </section>
     <div class="itemList">
       <el-card v-for="item in sortedProviders" :key="item.id" class="providerItem" shadow="never">
         <div class="providerHeader">
@@ -47,7 +42,7 @@
 import { computed, defineAsyncComponent, ref, shallowRef, type Component } from "vue";
 import axios from "axios";
 import { ElMessage } from "element-plus";
-import { activeChatModel, customProviders, resolveThinkingLevelForModel, saveSettings, thinkingLevelOptions, thinkingLevelSetting, type CustomProvider, type ThinkingLevelChoice } from "@/stores/settings";
+import { customProviders, saveSettings, type CustomProvider } from "@/stores/settings";
 import { IconPlus, IconSettings, IconEdit, IconTrash, IconRefresh } from "@tabler/icons-vue";
 import { languageProviders } from "@toonflow/providers";
 import logoUrl from "@toonflow/assets/logo.svg";
@@ -63,12 +58,6 @@ const editingProvider = ref<CustomProvider>();
 const deletingId = ref("");
 const fetchingId = ref("");
 const sortedProviders = computed(() => [...customProviders.value].sort((a, b) => Number(isTfRouterProvider(b)) - Number(isTfRouterProvider(a))));
-const thinkingLevel = computed({
-  get: () => resolveThinkingLevelForModel(thinkingLevelSetting.value, activeChatModel.value),
-  set: (value: ThinkingLevelChoice) => {
-    void saveSettings(() => ({ thinkingLevel: resolveThinkingLevelForModel(value, activeChatModel.value) })).catch(() => ElMessage.error("保存思考等级失败，请重试"));
-  },
-});
 
 function getProviderVersion(provider: CustomProvider) {
   const version = languageProviders.find(item => item.id.toLowerCase() === provider.id.toLowerCase())?.version ?? provider.version;
@@ -151,19 +140,3 @@ async function fetchProviderModels(provider: CustomProvider) {
 </script>
 
 <style lang="scss" scoped src="../../providerList.scss"></style>
-<style lang="scss" scoped>
-.thinkingLevel {
-  margin-bottom: 16px;
-
-  h3 {
-    margin: 0 0 6px;
-    font-size: 14px;
-  }
-
-  p {
-    margin: 0 0 10px;
-    color: var(--el-text-color-secondary);
-    font-size: 13px;
-  }
-}
-</style>

@@ -10,7 +10,8 @@ await createToolConfig({
 参考图片、视频、音频及首尾帧使用已存在的工作区相对路径，并确认所选模型支持相应输入。附件消息只提供文件信息，不表示模型已经看过图片或播放过视频。
 本轮具备画布节点工具且用户要求在节点内制作时，优先使用该节点已经注册的生成函数，让结果保留在对应节点；独立素材制作使用本轮可用的媒体生成工具。
 只生成用户要求的数量与范围，优先复用已有结果；失败后先处理原因，避免重复消耗算力。等待工具返回已保存的文件路径后再交付，不编造文件或用 Base64 代替产物链接。注意除非用户明确要求让Agent生成，否则统一在画布中处理。
-成片质检使用 qcVideo，传入已生成视频的工作区相对路径。模型、档位和是否听音轨以设置为准，不要传入模型 ID，不要用 ffmpeg 抽帧或静音检测代替。`,
+成片质检使用 qcVideo，传入已生成视频的工作区相对路径。模型、档位和是否听音轨以设置为准，不要传入模型 ID，不要用 ffmpeg 抽帧或静音检测代替。
+用户没有指定采样时，不要自填 megapixels、upscale、firstPassSteps、secondPassSteps。二采默认是百万像素 0.2、放大 2、一采 8 步、二采 4 步。`,
   configRules: [
     { type: "switch", field: "allowImage", title: "允许 AI 生成图片", value: true, props: { "aria-label": "允许 AI 生成图片" } },
     { type: "switch", field: "allowVideo", title: "允许 AI 生成视频", value: true, props: { "aria-label": "允许 AI 生成视频" } },

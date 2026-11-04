@@ -197,7 +197,7 @@ import { createPastedTextFile, readTextAttachment } from "./textAttachments";
 import useWorkspaceFiles from "@/lib/workspaceFiles";
 import { writeClipboardText } from "@/lib/clipboard";
 import anonymousData from "@/lib/anonymousData";
-import { modelChoices, resolveThinkingLevelForModel, saveSettings, settings, thinkingLevelSetting } from "@/stores/settings";
+import { modelChoices, saveSettings, settings, thinkingLevelForModel } from "@/stores/settings";
 import { useWorkspaceStore } from "@/stores/workspace";
 import type { AgentAttachment, AgentConversation, AgentMessage } from "./types";
 import type { AgentEvent, AgentMention, AgentToolCall } from "@toonflow/server/agent/types";
@@ -799,7 +799,7 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
     const response = await fetch("/api/agent", {
       method: "POST",
       headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
-      body: JSON.stringify({ prompt, mentions, attachments: attachments.map(({ name, path, mimeType }) => ({ name, path, mimeType })), directory, providerId: model.providerId, modelId: model.modelId, thinkingLevel: resolveThinkingLevelForModel(thinkingLevelSetting.value, model), sessionFile: props.sessionFile, resendFrom, delivery, goal: composerDrive.value === "goal", canvas: canvasContext && canvasId ? { id: canvasId, tools: canvasContext.tools } : undefined }),
+      body: JSON.stringify({ prompt, mentions, attachments: attachments.map(({ name, path, mimeType }) => ({ name, path, mimeType })), directory, providerId: model.providerId, modelId: model.modelId, thinkingLevel: thinkingLevelForModel(model), sessionFile: props.sessionFile, resendFrom, delivery, goal: composerDrive.value === "goal", canvas: canvasContext && canvasId ? { id: canvasId, tools: canvasContext.tools } : undefined }),
       signal: requestController.signal,
     });
     for await (const event of readAgentEvents(response, requestController.signal)) {

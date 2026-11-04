@@ -201,14 +201,14 @@ function samplingFor(entry: WorkflowEntry) {
     upscaleMax: 4,
     upscaleStep: 0.05,
     upscaleDefault: 2,
-    // 范围与生成请求校验一致。默认值来自工作流 JSON，16:9 一采是 10，9:16 一采是 8，二采都是 4。
+    // 范围与生成请求校验一致。用户没指定时固定一采 8、二采 4，不跟工作流 JSON 里的旧步数。
     ...(steps ? {
       firstPassMin: 1,
       firstPassMax: 64,
-      firstPassDefault: steps.firstPass,
+      firstPassDefault: 8,
       secondPassMin: 1,
       secondPassMax: 64,
-      secondPassDefault: steps.secondPass,
+      secondPassDefault: 4,
     } : {}),
   };
 }

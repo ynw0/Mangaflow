@@ -20,6 +20,8 @@ export type McpTool = {
 export type McpOptions = {
   getTools(): Promise<McpTool[]>;
   authorize(request: Request): boolean | Promise<boolean>;
+  challenge?(): string;
+  authorizationVersion?(): string;
   runInRequest?<T>(request: Request, operation: () => T): T;
   translate?(message: string | MessageDescriptor): string;
   translateError?(error: unknown): string;
@@ -88,11 +90,19 @@ export function createMcpRouter(options: McpOptions) {
   };
   // ACT: 使用支持取消通知的 Streamable HTTP 会话；单进程宿主不持久化 MCP 会话。
   const sessions = new Map<string, NodeStreamableHTTPServerTransport>();
+  let authorizationVersion = options.authorizationVersion?.();
   const router = Router();
   router.use((request, response) => (options.runInRequest ?? ((_request, operation) => operation()))(request, async () => {
     try {
+      const version = options.authorizationVersion?.();
+      if (version !== authorizationVersion) {
+        authorizationVersion = version;
+        const previous = [...sessions.values()];
+        sessions.clear();
+        await Promise.all(previous.map(transport => transport.close()));
+      }
       if (!await options.authorize(request)) {
-        response.setHeader("WWW-Authenticate", 'Bearer realm="Toonflow"');
+        response.setHeader("WWW-Authenticate", options.challenge?.() ?? 'Bearer realm="Toonflow"');
         response.status(401).json({ jsonrpc: "2.0", id: null, error: { code: -32001, message: translateMessage("MCP 未开启或访问凭证无效") } });
         return;
       }

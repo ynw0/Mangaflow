@@ -9,8 +9,27 @@ services:
     environment:
       # 容器内监听 0.0.0.0。宿主机端口只映射到环回地址，进程仍要求访问令牌。
       TOONFLOW_TOKEN: ${TOONFLOW_TOKEN:?请设置至少 32 位的 TOONFLOW_TOKEN}
+      TOONFLOW_PUBLIC_URL: ${TOONFLOW_PUBLIC_URL:-}
     volumes:
       - toonflowData:/app/data
 
+  caddy:
+    image: caddy:2
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on: [toonflow]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      TOONFLOW_DOMAIN: ${TOONFLOW_DOMAIN}
+    volumes:
+      - ./deploy/caddyConfig:/etc/caddy/Caddyfile:ro
+      - caddyData:/data
+      - caddyConfig:/config
+
 volumes:
   toonflowData:
+  caddyData:
+  caddyConfig:

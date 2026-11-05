@@ -50,7 +50,7 @@ export function sameToken(value: string) {
 }
 
 export function tokenMatches(req: Request) {
-  return sameToken(presentedToken(req));
+  return sameToken(presentedToken(req)) || sameToken(readCookie(req));
 }
 
 export function accessStatus(req: Request) {
@@ -59,12 +59,15 @@ export function accessStatus(req: Request) {
 }
 
 export function setAccessCookie(res: Response, token: string) {
-  res.set("Set-Cookie", `${cookieName}=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000`);
+  const secure = res.req.secure || res.req.get("origin")?.startsWith("https://");
+  res.set("Set-Cookie", `${cookieName}=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${secure ? "; Secure" : ""}`);
 }
 
 export function requireAccessToken(req: Request, res: Response, next: NextFunction) {
   if (!accessToken()) return next();
   const path = req.path;
+  // MCP 与 OAuth 端点执行各自认证，管理接口继续要求管理端令牌。
+  if (path === "/mcp" || path === "/mcp/" || /^\/api\/oauth\/(resource|metadata|register|authorize|approve|token|revoke)\/?$/.test(path)) return next();
   if ((req.method === "GET" && path === "/api/auth/status") || (req.method === "POST" && path === "/api/auth/login")) return next();
   if (!path.startsWith("/api") && !path.startsWith("/mcp") && !path.startsWith("/a2a")) return next();
   if (tokenMatches(req)) return next();

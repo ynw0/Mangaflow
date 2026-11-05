@@ -6,6 +6,7 @@ import { t, translateMessage, validationOptions } from "./i18n";
 export function validateFields(
   shape: Record<string, z.ZodType>,
   source: "body" | "query" | "params" = "body", // 默认校验 body
+  onInvalid?: (res: Response, errors: string[]) => void,
 ) {
   const schema = z.object(shape);
 
@@ -15,6 +16,7 @@ export function validateFields(
     if (!parseResult.success) {
       const errors = parseResult.error.issues.map((issue) => t`字段 ${issue.path.join(".")} ${translateMessage(issue.message)}`);
       console.error(errors);
+      if (onInvalid) return onInvalid(res, errors);
       return res.status(400).json(error("参数错误", errors));
     }
     next();

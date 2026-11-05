@@ -1,0 +1,7 @@
+# 域名须已解析到服务器，80/443 端口须能从公网访问。
+{$TOONFLOW_DOMAIN} {
+  reverse_proxy toonflow:3000 {
+    # 保留公网 Host 和 Authorization，MCP 长连接立即转发。
+    flush_interval -1
+  }
+}

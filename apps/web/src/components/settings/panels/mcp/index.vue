@@ -31,6 +31,19 @@
 
     <section class="settingSection" aria-labelledby="mcpEndpointTitle">
       <h3 id="mcpEndpointTitle">服务地址</h3>
+      <el-form labelPosition="top">
+        <el-form-item label="公网认证方式">
+          <el-select v-model="authModeDraft" :disabled="saving" aria-label="公网 MCP 认证方式">
+            <el-option label="OAuth" value="oauth" />
+            <el-option label="无认证" value="none" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="HTTPS 公网地址">
+          <el-input v-model="publicUrlDraft" :disabled="saving" dir="ltr" aria-label="HTTPS 公网地址" />
+        </el-form-item>
+        <el-alert v-if="authModeDraft === 'none'" title="公网访问者可以调用已开启的 MCP 工具" type="warning" :closable="false" showIcon />
+        <el-button :loading="saving" @click="savePublicSettings">保存公网设置</el-button>
+      </el-form>
       <div class="portSetting">
         <label for="mcpPort">首选本地端口</label>
         <el-input-number id="mcpPort" v-model="portDraft" :min="1" :max="65535" :precision="0" controlsPosition="right" size="small" :disabled="saving" />
@@ -79,6 +92,8 @@ import { writeClipboardText } from "@/lib/clipboard";
 import messageMarkdown from "@/components/messageMarkdown.vue";
 
 type McpStatus = {
+  authMode: "oauth" | "none";
+  publicUrl: string;
   enabled: boolean;
   connections: { id: string; state: { directory?: string; panel?: string; canvasId?: string } }[];
   endpoint: string | null;
@@ -99,6 +114,8 @@ const mcpSettings = computed(() => {
   };
 });
 const portDraft = ref<number | undefined>(mcpSettings.value.port);
+const authModeDraft = ref<"oauth" | "none">("oauth");
+const publicUrlDraft = ref("");
 watch(() => mcpSettings.value.port, port => { portDraft.value = port; });
 const status = ref<McpStatus>();
 const statusError = ref("");
@@ -125,6 +142,8 @@ async function refreshStatus() {
     if (data.code !== 200) throw new Error(data.message || "读取 MCP 状态失败");
     if (portDraft.value === (status.value?.preferredPort ?? mcpSettings.value.port)) portDraft.value = data.data.preferredPort;
     status.value = data.data;
+    authModeDraft.value = data.data.authMode;
+    publicUrlDraft.value = data.data.publicUrl;
   } catch (error) {
     statusError.value = errorMessage(error);
   } finally {
@@ -175,10 +194,30 @@ async function copyConfig(transport: "http" | "stdio") {
   if (!status.value || !mcpSettings.value.enabled) return;
   const config = transport === "stdio" ? status.value.stdio : {
     url: status.value.endpoint,
-    headers: { Authorization: `Bearer ${mcpSettings.value.token}` },
+    ...(["localhost", "127.0.0.1", "[::1]"].includes(new URL(status.value.endpoint!).hostname)
+      ? { headers: { Authorization: `Bearer ${mcpSettings.value.token}` } } : {}),
   };
   if (!config) return;
-  await copyText(JSON.stringify({ mcpServers: { toonflow: config } }, null, 2), "MCP 配置", transport === "http");
+  await copyText(JSON.stringify({ mcpServers: { toonflow: config } }, null, 2), "MCP 配置", "headers" in config);
+}
+
+async function savePublicSettings() {
+  saving.value = true;
+  try {
+    const publicUrl = publicUrlDraft.value.trim();
+    if (publicUrl) {
+      const url = new URL(publicUrl);
+      if (url.protocol !== "https:" || url.origin !== publicUrl || url.username || url.password) throw new Error("请填写 HTTPS 源地址，不包含路径或末尾斜杠");
+    }
+    if (authModeDraft.value === "oauth" && !publicUrl) throw new Error("OAuth 需要 HTTPS 公网地址");
+    await saveSettings(current => {
+      const raw = current.mcp;
+      const mcp = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+      return { mcp: { ...mcp, publicUrl, authMode: authModeDraft.value } };
+    });
+    await refreshStatus();
+  } catch (error) { ElMessage.error(errorMessage(error)); }
+  finally { saving.value = false; }
 }
 
 async function copyText(content: string, title: string, hasCredential = false) {

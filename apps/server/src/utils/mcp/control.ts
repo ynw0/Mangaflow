@@ -4,6 +4,7 @@ import { z } from "zod";
 import conf from "@/utils/conf";
 import { isMobileLinkRequest } from "@/utils/mobileLink";
 import { getRuntimePlatform } from "@/lib/platform";
+import { publicMcpSettings, verifyOauthToken } from "@/utils/mcp/oauth";
 
 export const controlStateSchema = z.object({
   directory: z.string().max(4096).nullable(),
@@ -45,7 +46,10 @@ export function getAppOrigin(req: Request) {
   return url.origin;
 }
 
-export function authorizeMcp(req: Request) {
+const localTransports = new WeakSet<Request>();
+export function markLocalMcpRequest(req: Request) { localTransports.add(req); }
+
+function authorizeControl(req: Request) {
   const { enabled, token } = getMcpSettings();
   if (!enabled || token.length < 32 || !allowedHost(req)) return false;
   const actual = Buffer.from(req.get("authorization") ?? "");
@@ -56,6 +60,15 @@ export function authorizeMcp(req: Request) {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+export async function authorizeMcp(req: Request) {
+  if (localTransports.has(req)) return authorizeControl(req);
+  const settings = publicMcpSettings();
+  if (!settings.enabled) return false;
+  // 公网 MCP 允许无 Origin 的服务端客户端；浏览器请求仅接受配置的公网源。
+  if (req.get("origin") && req.get("origin") !== settings.publicUrl) return false;
+  return settings.authMode === "none" || await verifyOauthToken(req);
+}
+
 export function assertAppRequest(req: Request) {
   getAppOrigin(req);
   if (req.get("x-toonflow-workspace") !== "1") throw Object.assign(new Error("只允许 Toonflow 页面访问控制连接"), { status: 403 });
@@ -63,7 +76,7 @@ export function assertAppRequest(req: Request) {
 
 export function assertControlRequest(req: Request) {
   assertAppRequest(req);
-  if (!authorizeMcp(req)) throw Object.assign(new Error("MCP 未开启或访问凭证无效"), { status: 403 });
+  if (!authorizeControl(req)) throw Object.assign(new Error("MCP 未开启或访问凭证无效"), { status: 403 });
 }
 
 export function listConnections() {

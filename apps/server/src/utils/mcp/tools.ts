@@ -17,7 +17,7 @@ import { getRuntimePlatform } from "@/lib/platform";
 const targetSchema = z.strictObject({ connectionId: z.uuid().optional(), directory: z.string().min(1).max(4096).optional(), canvasId: z.string().min(1).max(256).optional() });
 const requestSchema = z.strictObject({ target: targetSchema.optional(), args: z.record(z.string(), z.unknown()) });
 let authorizationController = new AbortController();
-for (const key of ["settings.mcp.enabled", "settings.mcp.token"] as const) conf.onDidChange(key, () => {
+for (const key of ["settings.mcp.enabled", "settings.mcp.token", "settings.mcp.authMode", "settings.mcp.publicUrl"] as const) conf.onDidChange(key, () => {
   authorizationController.abort();
   authorizationController = new AbortController();
 });

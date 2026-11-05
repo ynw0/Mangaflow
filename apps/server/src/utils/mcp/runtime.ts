@@ -6,7 +6,8 @@ import { dirname, resolve } from "node:path";
 import type { Socket } from "node:net";
 import type { Express } from "express";
 import conf from "@/utils/conf";
-import { getMcpSettings } from "@/utils/mcp/control";
+import { getMcpSettings, markLocalMcpRequest } from "@/utils/mcp/control";
+import type { Request } from "express";
 
 let runtime: { app: Express; appOrigin: string; requestHeaders: Record<string, string>; server?: Server; sockets?: Set<Socket>; url?: string; port?: number; preferredPort?: number; file?: string; command: string; entry: string; error?: string } | undefined;
 let reloadQueue = Promise.resolve();
@@ -65,6 +66,7 @@ export function reloadMcpRuntime() {
         res.writeHead(404).end();
         return;
       }
+      markLocalMcpRequest(req as Request);
       current.app(req, res);
     });
     const sockets = new Set<Socket>();

@@ -22,6 +22,7 @@ import * as chatImages from "@/utils/workspace/chatImages";
 import * as skillFile from "@/utils/skills/files";
 import * as mcpControl from "@/utils/mcp/control";
 import * as mcpRuntime from "@/utils/mcp/runtime";
+import * as mcpOauth from "@/utils/mcp/oauth";
 import * as mobileLink from "@/utils/mobileLink";
 import * as teams from "@/utils/teams";
 import * as a2aSettings from "@/agent/a2a/settings";
@@ -56,6 +57,7 @@ export default {
   skillFile,
   mcpControl,
   mcpRuntime,
+  mcpOauth,
   mobileLink,
   teams,
   a2aSettings,

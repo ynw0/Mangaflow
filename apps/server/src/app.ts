@@ -83,8 +83,15 @@ export async function createApp({
     app.use(logger("dev"));
   }
   app.use((request, response, next) => {
+    const oauthPublic = /^\/api\/oauth\/(resource|metadata|register|token|revoke)\/?$/.test(request.path)
+      || request.path.startsWith("/.well-known/oauth-");
+    if (oauthPublic) {
+      response.set("Access-Control-Allow-Origin", "*");
+      response.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+      response.set("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    }
     const origin = request.get("origin");
-    if (origin) {
+    if (origin && !oauthPublic) {
       let allowed = false;
       try {
         const url = new URL(origin);
@@ -107,6 +114,9 @@ export async function createApp({
     next();
   });
   app.use(languageRequest);
+  // 标准发现地址与自动生成的 OAuth 路由共用同一个接口实现。
+  app.use("/.well-known/oauth-authorization-server", (await import("@/routes/oauth/metadata")).default);
+  app.use("/.well-known/oauth-protected-resource", (await import("@/routes/oauth/resource")).default);
   app.use(requireAccessToken);
   app.use("/a2a", express.json({ limit: "2mb" }));
   app.use(["/api/workspaces/files/write", "/api/assets/save"], express.raw({ type: "application/octet-stream", limit: "100mb" }));
@@ -133,7 +143,9 @@ export async function createApp({
     import("@/utils/mcp/control"),
     import("@/utils/mcp/resources"),
   ]);
+  const { oauthChallenge, mcpSessionVersion } = await import("@/utils/mcp/oauth");
   app.use("/mcp", createMcpRouter({ getTools: getMcpTools, authorize: authorizeMcp, resources: skillResources,
+    challenge: oauthChallenge, authorizationVersion: mcpSessionVersion,
     runInRequest: (request, operation) => runWithLocale(resolveRequestLocale(request.get("accept-language")), operation),
     translate: translateMessage,
     translateError,

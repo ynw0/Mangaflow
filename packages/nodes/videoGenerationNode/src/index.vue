@@ -50,10 +50,10 @@
         <div v-if="frameMode" class="referenceHint">
           {{ selectedMode === "startFrameOptional" ? "仅一张图片时作为尾帧；两张图片按顺序作为首帧、尾帧" : "图片引用按顺序作为首帧、尾帧" }}
         </div>
-        <promptInput v-model="data.promptModel" v-model:text="editorText" :references="referenceMentions" expandable :placeholder="data.promptZh.trim() ? '中文对照，不进入视频生成' : undefined" />
+        <promptInput v-model="data.promptModel" v-model:text="editorText" :references="referenceMentions" expandable placeholder="英文生成提示词（实际发送给视频模型）" />
         <details v-if="data.promptZh.trim()" class="generationEnglish">
-          <summary>送去生成的英文</summary>
-          <textarea v-model="data.prompt" class="generationEnglishText" aria-label="送去生成的英文" />
+          <summary>中文对照（只读，不参与生成）</summary>
+          <textarea :value="data.promptZh" class="generationEnglishText" aria-label="中文提示词对照" readonly />
         </details>
         <div class="promptFooter">
           <el-select
@@ -144,12 +144,17 @@ const data = computed(() => node.data as { prompt: string; promptZh: string; pro
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
-// 有中文对照时，输入框编辑中文；送去生成的仍是英文 prompt。
+// 主编辑区始终与实际发送的英文 prompt 绑定；中文仅供阅读，手改英文后清除过期译文。
+if (data.value.promptZh.trim()) {
+  // 旧画布的 promptModel 可能仍是中文，此处恢复为当前实际生效的英文。
+  data.value.promptModel = data.value.prompt.split("\n").map((text) => [{ type: "Write", text }]);
+}
 const editorText = computed({
-  get: () => data.value.promptZh.trim() ? data.value.promptZh : data.value.prompt,
+  get: () => data.value.prompt,
   set: (value: string) => {
-    if (data.value.promptZh.trim()) data.value.promptZh = value;
-    else data.value.prompt = value;
+    if (data.value.prompt === value) return;
+    data.value.prompt = value;
+    data.value.promptZh = "";
   },
 });
 data.value.model ??= "";
@@ -535,14 +540,13 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setPrompt",
-  description: "修改此节点的视频提示词，支持 {{ref 1}} 等参考标记。prompt 是送去生成的英文；promptZh 是显示在节点上的简体中文对照，不进入生成。成片提示词两者都要传。只修改提示词，不启动生成",
+  description: "修改此节点的视频提示词，支持 {{ref 1}} 等参考标记。prompt 是送去生成并在主编辑区显示的英文；promptZh 是只读的简体中文对照，不进入生成。成片提示词两者都要传。只修改提示词，不启动生成",
   parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional() }),
   execute({ prompt: value, promptZh }) {
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");
     data.value.prompt = value;
     data.value.promptZh = promptZh ?? "";
-    const shown = data.value.promptZh.trim() ? data.value.promptZh : value;
-    data.value.promptModel = shown.split("\n").map((text) => [{ type: "Write", text }]);
+    data.value.promptModel = value.split("\n").map((text) => [{ type: "Write", text }]);
     return { prompt: value, promptZh: data.value.promptZh };
   },
 });

@@ -2,7 +2,7 @@
 name: cinematicPromptCraft
 description: 在漫剧或短剧的视频导演阶段，依据剧情意图选择构图、人物表演、动作调度、视觉特效、场景光影、镜头运动和声音方案，形成能在单个连续镜头中执行的视觉设计。用于 video-director 写 H3 视频提示词之前的导演构思；不代替 h3-prompt-writing，也不改剧情、参考槽位、身份锁或审核合同。
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   displayName: 影视导演创作知识库
   author: Manga
 ---
@@ -26,6 +26,7 @@ metadata:
 | 对话、情绪、反应 | [characterPerformance.md](references/characterPerformance.md) | [compositionAndLens.md](references/compositionAndLens.md)、[soundDesign.md](references/soundDesign.md) |
 | 揭示、悬念、静物发现 | [compositionAndLens.md](references/compositionAndLens.md) | [cameraMovement.md](references/cameraMovement.md)、[lightingAndColor.md](references/lightingAndColor.md) |
 | 战斗、追逐、碰撞 | [actionChoreography.md](references/actionChoreography.md) | [cameraMovement.md](references/cameraMovement.md)、[visualEffects.md](references/visualEffects.md) |
+| 机械变形、装置重组 | [mechanicalTransformation.md](references/mechanicalTransformation.md) | [actionChoreography.md](references/actionChoreography.md) |
 | 能量、法术、环境异变 | [visualEffects.md](references/visualEffects.md) | [lightingAndColor.md](references/lightingAndColor.md)、[actionChoreography.md](references/actionChoreography.md) |
 | 建立环境、转场场景 | [environmentDesign.md](references/environmentDesign.md) | [compositionAndLens.md](references/compositionAndLens.md)、[lightingAndColor.md](references/lightingAndColor.md) |
 | 风格决策、特殊题材 | [visualStyle.md](references/visualStyle.md) | [scenePlaybooks.md](references/scenePlaybooks.md) |

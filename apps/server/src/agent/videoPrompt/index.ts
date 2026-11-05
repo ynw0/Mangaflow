@@ -6,6 +6,8 @@ import { prepareVideoPrompt, videoPromptParameters } from "@/agent/videoPrompt/i
 import { draftSchema, inspectDraft, reviewSchema } from "@/agent/videoPrompt/format";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
+import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
+import { requireSameVideoReview, saveVideoReview } from "@/utils/production/videoReviews";
 
 const directorReferences = {
   dialogue: ["characterPerformance.md", "soundDesign.md"],
@@ -42,7 +44,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
   return {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "根据已确认的镜头合同和参考制作 H3 英文提示词与简体中文对照，依次导演、预检、独立审核和返修。不启动生成。已有视频节点传实际 canvasId、nodeId；明确获准修改目标节点时才传 write=true。references 必须是真实获准素材及用途，顺序匹配实际输入。",
+    description: "根据已确认的镜头合同和参考制作 H3 英文提示词与简体中文对照，依次导演、预检、独立审核和返修。通过后返回服务端 reviewId 与 generationRequest，不启动生成。已有视频节点传实际 canvasId、nodeId；明确获准修改目标节点时才传 write=true。references 必须是真实获准素材及用途，顺序匹配实际输入。",
     promptSnippet: "制作或重写 H3 成片提示词时，准备真实镜头合同后调用 draftVideoPrompt，使用其通过审核的英文和中文稿。",
     parameters: z.toJSONSchema(videoPromptParameters, { io: "input", target: "draft-07" }),
     executionMode: "sequential",
@@ -133,17 +135,24 @@ export function createVideoPromptTool(options: SubAgentModel & {
         attempts.push({ stage: "review", findings });
         if (review.status !== "ok") continue;
 
+        // 无论是否写回节点，都重新核对审稿期间的实际参数、参考内容与工作流。
+        const refreshed = await prepareVideoPrompt(cwd, input, canvas, signal);
+        requireSameVideoReview(prepared.snapshot, refreshed.snapshot);
+        if (input.node && refreshed.revision !== prepared.revision) {
+          throw new Error("视频节点在审稿期间已变化，请重新制作提示词");
+        }
+        const generationRequest = videoGenerationSchema.parse({ ...refreshed.generationRequest, prompt: lastDraft.prompt });
+        const reviewId = await saveVideoReview({ ...refreshed.snapshot, prompt: generationRequest.prompt }, {
+          shot: prepared.shot, request: generationRequest, promptZh: lastDraft.promptZh, review, skills, templateMatches, attempts,
+        });
+        generationRequest.reviewId = reviewId;
         let written = false;
         let writeError: string | undefined;
         if (input.node?.write && canvas && prepared.revision) {
           try {
-            const refreshed = await prepareVideoPrompt(cwd, input, canvas, signal);
-            if (refreshed.revision !== prepared.revision || JSON.stringify(refreshed.setup) !== JSON.stringify(prepared.setup)) {
-              throw new Error("工作流或视频节点在审稿期间已变化，请重新制作提示词");
-            }
             await canvas.call({
               name: "nodeTools",
-              args: { canvasId: input.node.canvasId, nodeId: input.node.nodeId, name: "node:setPrompt", args: { ...lastDraft, expectedRevision: prepared.revision } },
+              args: { canvasId: input.node.canvasId, nodeId: input.node.nodeId, name: "node:setPrompt", args: { ...lastDraft, reviewId, expectedRevision: prepared.revision } },
             }, signal);
             written = true;
           } catch (error) {
@@ -151,7 +160,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
             writeError = error instanceof Error ? error.message : String(error);
           }
         }
-        return finish({ status: "ok", ...lastDraft, written, writeError });
+        return finish({ status: "ok", ...lastDraft, reviewId, generationRequest, written, writeError });
       }
       return finish({ status: "rejected", findings, written: false });
     },

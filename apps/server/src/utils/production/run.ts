@@ -6,6 +6,7 @@ import { downloadOutput, probeComfy, submitWorkflow, uploadInput, waitForOutput 
 import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
 import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
+import { captureVideoReview, requireVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
 
 type MediaRef = { path: string; mimeType?: string };
 
@@ -142,7 +143,7 @@ async function localFile(directory: string, ref?: MediaRef) {
   return resolved.path;
 }
 
-async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unknown>, baseUrl: string, signal?: AbortSignal) {
+async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unknown>) {
   const raw = JSON.parse(await readFile(entry.workflowPath, "utf8")) as unknown;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail(`工作流不是 API JSON: ${entry.id}`);
   const workflow = structuredClone(raw) as Record<string, unknown>;
@@ -164,17 +165,15 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
     if (binding.kind !== "value" && field && Array.isArray(inputs?.[field])) {
       fail(`绑定 ${binding.source} 的目标 ${binding.target} 是连线，不能写入文件名`);
     }
-    const next = binding.kind === "value"
-      ? value
-      : await uploadInput(baseUrl, String(value), "toonflow", signal);
-    writePath(workflow, binding.target, next);
+    // 先组装本地实际请求，审核通过之前不上传素材或连接 GPU 主机。
+    writePath(workflow, binding.target, value);
   }
   const outputs = terminalNodeIds(workflow);
   if (!outputs.length) fail(dropped.length ? `工作流 ${entry.label} 没有输出节点。${dropped.join("；")}` : `工作流 ${entry.label} 没有输出节点`);
   return workflow;
 }
 
-export async function runComfyWorkflow(options: {
+export async function prepareComfyWorkflow(options: {
   directory: string;
   mediaType: "image" | "video";
   request: MediaGenerationRequest;
@@ -192,9 +191,8 @@ export async function runComfyWorkflow(options: {
   const { min, max: referenceSlots } = imageReferenceRange(entry);
   if (mediaType === "image" && images.length < min) fail(`${entry.label} 至少需要 ${min} 张参考图片`);
   if (images.length > referenceSlots) fail(`参考图片数量超过参考槽：传入 ${images.length} 张，${entry.label} 只有 ${referenceSlots} 个参考槽`);
+  signal?.throwIfAborted();
   const host = readProduction().videoHost;
-  const baseUrl = await resolveComfyBaseUrl(signal, host);
-  await probeComfy(baseUrl, signal);
   const refs: Record<string, string | undefined> = {};
   for (let index = 0; index < images.length; index += 1) refs[`slot${index + 1}`] = await localFile(directory, images[index]);
   refs.first_frame = await localFile(directory, request.firstFrame) ?? refs.slot1;
@@ -207,7 +205,7 @@ export async function runComfyWorkflow(options: {
     prompt: request.prompt,
     image_prompt: request.prompt,
     negative_prompt: "",
-    // 画布传入则用；未传保持旧行为随机
+    // 随机模式的具体值在生成时确定，审核绑定模式；固定与上次随机绑定具体值。
     seed: request.seed ?? crypto.getRandomValues(new Uint32Array(1))[0],
     duration: request.duration,
     aspect_ratio: videoAspect[ratio],
@@ -225,7 +223,42 @@ export async function runComfyWorkflow(options: {
       audio3: await localFile(directory, request.audios?.[2]),
     },
   };
-  const workflow = await renderWorkflow(entry, context, baseUrl, signal);
+  const seedMode = request.seedMode ?? (request.seed === undefined ? "random" : "fixed");
+  if (bound.has("seed") && seedMode !== "random" && request.seed === undefined) fail("固定种子模式需要提供具体种子");
+  const workflow = await renderWorkflow(entry, context);
+  const reviewWorkflow = structuredClone(workflow);
+  for (const binding of entry.bindings.bindings) {
+    if (seedMode === "random" && binding.source === "seed") writePath(reviewWorkflow, binding.target, "randomSeed");
+    // 正文独立比较，工作流快照保留绑定关系以便审核后填入最终稿。
+    if (binding.source === "prompt" || binding.source === "image_prompt") writePath(reviewWorkflow, binding.target, "approvedPrompt");
+  }
+  const inputs = entry.bindings.bindings.map(binding => ({ ...binding, value: readPath(reviewWorkflow, binding.target) }));
+  return { entry, workflow, reviewWorkflow, inputs, context, host, seedMode };
+}
+
+export type PreparedComfyWorkflow = Awaited<ReturnType<typeof prepareComfyWorkflow>>;
+
+export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWorkflow>[0]) {
+  const { directory, mediaType, request, signal } = options;
+  const prepared = await prepareComfyWorkflow(options);
+  const { entry, workflow, context, host } = prepared;
+  // 所有画布、Agent 与 MCP 请求共用此入口，先验审再启动 AutoDL 和上传。
+  const snapshot = mediaType === "video" && entry.bindings.promptFormat
+    ? await captureVideoReview(directory, prepared, signal) : undefined;
+  if (snapshot) await requireVideoReview(request.reviewId, snapshot);
+  signal?.throwIfAborted();
+  const baseUrl = await resolveComfyBaseUrl(signal, host);
+  await probeComfy(baseUrl, signal);
+  const uploadDirectory = `toonflow/${crypto.randomUUID()}`;
+  for (const [index, binding] of entry.bindings.bindings.entries()) {
+    if (binding.kind === "value") continue;
+    const path = readPath(workflow, binding.target);
+    if (typeof path !== "string" || !path) continue;
+    const expected = snapshot?.references.find(item => item.source === binding.source);
+    const bytes = expected ? await verifyReviewFile(path, expected, signal) : undefined;
+    const uploaded = await uploadInput(baseUrl, path, `${uploadDirectory}/${index}`, signal, bytes);
+    writePath(workflow, binding.target, uploaded);
+  }
   const promptId = await submitWorkflow(baseUrl, workflow, signal);
   const outputs = await waitForOutput(baseUrl, promptId, mediaType, signal);
   const files = [];
@@ -233,7 +266,7 @@ export async function runComfyWorkflow(options: {
   const execution = {
     promptId,
     host,
-    seed: bound.has("seed") ? context.seed : undefined,
+    seed: entry.bindings.bindings.some(item => item.source === "seed") ? context.seed : undefined,
     megapixels: context.megapixels,
     upscale: context.upscale,
     firstPassSteps: context.first_pass_steps,

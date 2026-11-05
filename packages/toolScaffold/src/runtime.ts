@@ -127,6 +127,10 @@ export interface MediaGenerationRequest {
   duration?: number;
   /** ComfyUI 工作流种子；云视频可忽略 */
   seed?: number;
+  /** H3 服务端审核记录索引，不能代替服务端校验 */
+  reviewId?: string;
+  /** 固定上次随机使用 seed 中的具体值 */
+  seedMode?: "fixed" | "random" | "last";
   /** 二采节点 8 的百万像素；云视频可忽略 */
   megapixels?: number;
   /** 二采节点 151 的放大倍率；云视频可忽略 */
@@ -187,7 +191,7 @@ export type VideoExecution = {
 };
 
 export type VideoQcReport = VideoQcState & {
-  generation?: { providerId: string; modelId: string; duration?: number; ratio?: string; execution?: VideoExecution };
+  generation?: { providerId: string; modelId: string; reviewId?: string; duration?: number; ratio?: string; execution?: VideoExecution };
 };
 
 export interface MediaContext {

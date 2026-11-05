@@ -1,10 +1,14 @@
-import { stat } from "@toonflow/file";
+import { open, stat } from "@toonflow/file";
 import { z } from "zod";
-import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
+import type { CanvasContext, MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
+import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { templateConditions, templateTagSchema } from "@/agent/videoPrompt/templates/schema";
 import { findWorkflow, imageReferenceRange, toMediaModel } from "@/utils/production/catalog";
 import { isWorkflowEnabled, readProduction } from "@/utils/production/config";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
+import { detectMimeType } from "@/utils/media/priceReference";
+import { prepareComfyWorkflow } from "@/utils/production/run";
+import { captureVideoReview } from "@/utils/production/videoReviews";
 
 const shortText = z.string().trim().min(1).max(500);
 const description = z.string().trim().min(1).max(6000);
@@ -40,6 +44,8 @@ export const videoPromptParameters = z.strictObject({
   modelId: shortText.optional(),
   duration: z.number().int().positive().optional(),
   sampling: sampling.optional(),
+  seed: videoGenerationSchema.shape.seed,
+  seedMode: videoGenerationSchema.shape.seedMode,
   ratio: z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"]).optional(),
 });
 
@@ -54,6 +60,7 @@ const nodeContext = z.object({
     supportsSeed: z.boolean().optional(),
   }),
   revision: z.string(),
+  request: videoGenerationSchema.extend({ prompt: z.string() }),
   images: z.array(material).optional(),
   videos: z.array(material).optional(),
   audios: z.array(material).optional(),
@@ -65,7 +72,7 @@ export type VideoPromptInput = z.infer<typeof videoPromptParameters>;
 export type VideoPromptFormat = "h3Ref2va" | "h3Frames" | "h3Text";
 
 export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, canvas?: CanvasContext, signal?: AbortSignal) {
-  const { node, modelId, duration, ratio, references, sampling: requestedSampling, templateTags, templateConditions, ...shot } = input;
+  const { node, modelId, duration, ratio, references, sampling: requestedSampling, seed, seedMode, templateTags, templateConditions, ...shot } = input;
   const production = readProduction();
   if (node && !canvas) throw new Error("请先打开目标视频节点所在的画布");
   const current = node && canvas ? nodeContext.parse(await canvas.call({
@@ -79,6 +86,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
     throw new Error("镜头要求与当前节点配置不一致，请先核对工作流、时长与画幅");
   }
   if (current && requestedSampling) throw new Error("已有节点使用节点采样配置，请先在节点上确认参数");
+  if (current && (seed !== undefined || seedMode !== undefined)) throw new Error("已有节点使用节点种子配置，请先在节点上确认种子");
   const workflow = await findWorkflow(current?.config.modelId ?? modelId ?? production.videoWorkflow);
   if (workflow.kind !== "video" || !workflow.bindings.promptFormat || !isWorkflowEnabled(workflow.id)) {
     throw new Error(`工作流 ${workflow.id} 未启用或没有 H3 提示词规则`);
@@ -104,7 +112,14 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
     signal?.throwIfAborted();
     const target = await resolveWorkspacePath(cwd, item.path);
     if (!(await stat(target.path)).isFile()) throw new Error(`参考素材不是文件：${item.path}`);
-    return { ...item, path: item.path.replaceAll("\\", "/") };
+    const handle = await open(target.path, "r");
+    let mimeType: string;
+    try {
+      const { buffer, bytesRead } = await handle.read(Buffer.alloc(16));
+      mimeType = detectMimeType(buffer.subarray(0, bytesRead), "");
+    } finally { await handle.close(); }
+    if (!mimeType.startsWith(`${item.kind}/`)) throw new Error(`参考素材类型不符：${item.path}`);
+    return { ...item, mimeType, path: item.path.replaceAll("\\", "/") };
   }));
   const images = approved.filter(item => item.kind === "image");
   const videos = approved.filter(item => item.kind === "video");
@@ -123,12 +138,26 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
       }
     }
   }
+  const mediaRefs = (items: typeof approved) => items.map(({ path, mimeType }) => ({ path, mimeType }));
+  const generationRequest: MediaGenerationRequest = current ? { ...current.request, prompt: "", reviewId: undefined } : {
+    providerId: "comfyui", modelId: workflow.id, prompt: "", duration: seconds, ratio: aspect,
+    resolution: spec ? undefined : capability.resolution[0],
+    mode: (format === "h3Frames" ? "startEndRequired" : approved.length
+      ? model.mode.find(Array.isArray) : "text") as MediaGenerationRequest["mode"],
+    generateAudio: model.audio === true || model.audio === "optional",
+    ...requestedSampling, seed, seedMode,
+    ...(format === "h3Frames" ? { firstFrame: mediaRefs(images)[0], lastFrame: mediaRefs(images)[1] }
+      : { images: mediaRefs(images), videos: mediaRefs(videos), audios: mediaRefs(audios) }),
+  };
+  const effective = await prepareComfyWorkflow({ directory: cwd, mediaType: "video", request: generationRequest, signal });
+  const snapshot = await captureVideoReview(cwd, effective, signal);
   const numbered = (items: typeof approved, name: string) => items.map((item, index) => ({ ...item, label: `<${name} ${index + 1}>` }));
   return {
-    shot, format, revision: current?.revision, templateTags, templateConditions,
+    shot, format, revision: current?.revision, templateTags, templateConditions, generationRequest, snapshot,
     setup: {
       modelId: workflow.id, duration: seconds, ratio: aspect, mode: current?.config.mode ?? format,
       host: production.videoHost, config: current?.config, usage: workflow.bindings.usage,
+      parameters: snapshot.parameters, seedMode: effective.seedMode,
       samplingCapabilities: spec, requestedSampling,
       references: [...numbered(images, "Picture"), ...numbered(videos, "Video"), ...numbered(audios, "Audio")],
     },

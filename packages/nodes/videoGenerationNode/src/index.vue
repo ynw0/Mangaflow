@@ -141,7 +141,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number });
+const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -268,6 +268,8 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     providerId: choice.providerId,
     modelId: choice.modelId,
     prompt: generationPrompt.value,
+    reviewId: data.value.reviewId,
+    seedMode: choice.supportsSeed ? data.value.seedMode : undefined,
     mode: selectedMode.value,
     duration: data.value.duration,
     resolution: choice.sampling ? undefined : data.value.resolution || undefined,
@@ -466,7 +468,9 @@ function getPromptContext() {
   const { images, videos, audios, firstFrame, lastFrame } = input;
   // 版本覆盖实际请求、种子模式和已有对照，写回时在节点内同步比较。
   const revision = JSON.stringify([input, config, data.value.promptZh]);
-  return { config, images, videos, audios, firstFrame, lastFrame, revision };
+  // 随机种子留到实际生成时取值，固定上次随机必须交付具体值供审核绑定。
+  const seed = config.supportsSeed && config.seedMode !== "random" ? resolveSeed() : undefined;
+  return { config, images, videos, audios, firstFrame, lastFrame, revision, request: { ...input, seed } };
 }
 
 nodeTools.register({
@@ -571,17 +575,18 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setPrompt",
-  description: "修改此节点的视频提示词，支持 {{ref 1}} 等参考标记。prompt 是送去生成并在主编辑区显示的英文；promptZh 是只读的简体中文对照，不进入生成。成片提示词两者都要传。只修改提示词，不启动生成",
-  parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional(), expectedRevision: z.string().optional() }),
-  execute({ prompt: value, promptZh, expectedRevision }) {
+  description: "修改此节点的视频提示词，支持 {{ref 1}} 等参考标记。prompt 是送去生成并在主编辑区显示的英文；promptZh 是只读的简体中文对照，不进入生成。成片提示词两者都要传。H3 的 reviewId 使用 draftVideoPrompt 返回的服务端编号；编号随实际请求由服务端校验。只修改提示词，不启动生成",
+  parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional(), reviewId: z.string().uuid().optional(), expectedRevision: z.string().optional() }),
+  execute({ prompt: value, promptZh, reviewId, expectedRevision }) {
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");
     if (expectedRevision !== undefined && (generating.value || getPromptContext().revision !== expectedRevision)) {
       throw new Error("视频节点在审稿期间已变化，请重新制作提示词");
     }
     data.value.prompt = value;
     data.value.promptZh = promptZh ?? "";
+    data.value.reviewId = reviewId;
     data.value.promptModel = value.split("\n").map((text) => [{ type: "Write", text }]);
-    return { prompt: value, promptZh: data.value.promptZh };
+    return { prompt: value, promptZh: data.value.promptZh, reviewId: data.value.reviewId };
   },
 });
 

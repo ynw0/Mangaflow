@@ -32,6 +32,8 @@ export const imageGenerationSchema = z.strictObject({
 });
 export const videoGenerationSchema = z.strictObject({
   ...sharedFields,
+  reviewId: z.uuid().optional(),
+  seedMode: z.enum(["fixed", "random", "last"]).optional(),
   videos: z.array(videoReference).max(64).optional(),
   audios: z.array(audioReference).max(64).optional(),
   firstFrame: imageReference.optional(),

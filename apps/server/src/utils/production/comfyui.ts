@@ -42,8 +42,8 @@ export async function probeComfy(baseUrl: string, signal?: AbortSignal) {
   return { ok: true as const, baseUrl: rootOf(baseUrl) };
 }
 
-export async function uploadInput(baseUrl: string, filePath: string, subfolder: string, signal?: AbortSignal) {
-  const bytes = new Uint8Array(await readFile(filePath));
+export async function uploadInput(baseUrl: string, filePath: string, subfolder: string, signal?: AbortSignal, verifiedBytes?: Uint8Array<ArrayBuffer>) {
+  const bytes = verifiedBytes ?? new Uint8Array(await readFile(filePath, { signal }));
   const form = new FormData();
   form.append("image", new Blob([bytes]), basename(filePath));
   form.append("type", "input");

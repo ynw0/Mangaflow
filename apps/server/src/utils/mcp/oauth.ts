@@ -15,21 +15,27 @@ export const mcpSettingsSchema = z.object({
   enabled: z.boolean().optional(), token: z.string().optional(), port: z.number().int().min(1).max(65535).optional(),
   authMode: z.enum(["oauth", "none"]).optional(), publicUrl: httpsOrigin.optional(),
 });
+export function oauthOwnerToken() {
+  const raw = conf.get("settings", {}).mcp as { token?: string } | undefined;
+  const token = accessToken() || conf.get("mcpTunnel.token", "") || raw?.token || "";
+  return /^[A-Za-z0-9._~-]{32,256}$/.test(token) ? token : "";
+}
 export function publicMcpSettings() {
   const raw = conf.get("settings", {}).mcp;
   const parsed = mcpSettingsSchema.parse(raw ?? {});
-  return { enabled: parsed.enabled === true, authMode: parsed.authMode ?? "oauth", publicUrl: parsed.publicUrl || process.env.TOONFLOW_PUBLIC_URL || "" };
+  return { enabled: parsed.enabled === true, authMode: parsed.authMode ?? "oauth",
+    publicUrl: conf.get("mcpTunnel.managed") === true ? conf.get("mcpTunnel.publicUrl", "") : parsed.publicUrl || process.env.TOONFLOW_PUBLIC_URL || "" };
 }
 export function oauthOrigin() {
   const settings = publicMcpSettings();
   if (!settings.enabled || settings.authMode !== "oauth") throw Object.assign(new Error("OAuth 未开启"), { status: 404 });
-  if (!settings.publicUrl || !httpsOrigin.safeParse(settings.publicUrl).success || !accessToken()) {
+  if (!settings.publicUrl || !httpsOrigin.safeParse(settings.publicUrl).success || !oauthOwnerToken()) {
     throw Object.assign(new Error("OAuth 需要 HTTPS 公网地址和管理端访问令牌"), { status: 503 });
   }
   return settings.publicUrl;
 }
 export function authorizationVersion() {
-  return hash(JSON.stringify([publicMcpSettings(), accessToken()]));
+  return hash(JSON.stringify([publicMcpSettings(), oauthOwnerToken()]));
 }
 const hash = (value: string) => createHash("sha256").update(value).digest("base64url");
 const secret = () => randomBytes(32).toString("base64url");
@@ -117,7 +123,7 @@ export async function beginAuthorization(input: z.infer<typeof authorizeSchema>)
 }
 export function approveAuthorization(id: string, token: string, approved: boolean) {
   oauthOrigin();
-  if (!sameToken(token)) throw Object.assign(new Error("管理员访问令牌不正确"), { status: 401 });
+  if (!sameToken(token, oauthOwnerToken())) throw Object.assign(new Error("管理员访问令牌不正确"), { status: 401 });
   prune(pending);
   const authorization = pending.get(id);
   if (!authorization) invalid("授权请求已过期，请重新连接");
@@ -196,12 +202,7 @@ export function oauthChallenge() {
 }
 
 let invalidationFailed = false;
-conf.onDidChange("settings", (next, previous) => {
-  const policy = (settings: Record<string, unknown> | undefined) => {
-    const mcp = settings?.mcp as Record<string, unknown> | undefined;
-    return JSON.stringify([mcp?.enabled, mcp?.authMode, mcp?.publicUrl]);
-  };
-  if (policy(next) === policy(previous)) return;
+function invalidateAuthorization() {
   sessionRevision = secret();
   pending.clear();
   codes.clear();
@@ -210,4 +211,15 @@ conf.onDidChange("settings", (next, previous) => {
   void transaction(store => { store.clients = []; store.tokens = {}; })
     .then(() => { invalidationFailed = false; })
     .catch(error => console.error("清除 MCP OAuth 授权失败", error));
+}
+conf.onDidChange("settings", (next, previous) => {
+  const policy = (settings: Record<string, unknown> | undefined) => {
+    const mcp = settings?.mcp as Record<string, unknown> | undefined;
+    return JSON.stringify([mcp?.enabled, mcp?.authMode, mcp?.publicUrl, mcp?.token]);
+  };
+  if (policy(next) !== policy(previous)) invalidateAuthorization();
+});
+conf.onDidChange("mcpTunnel", (next, previous) => {
+  const policy = (value: typeof next) => JSON.stringify([value?.managed, value?.publicUrl, value?.token]);
+  if (policy(next) !== policy(previous)) invalidateAuthorization();
 });

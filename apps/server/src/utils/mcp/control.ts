@@ -5,6 +5,7 @@ import conf from "@/utils/conf";
 import { isMobileLinkRequest } from "@/utils/mobileLink";
 import { getRuntimePlatform } from "@/lib/platform";
 import { publicMcpSettings, verifyOauthToken } from "@/utils/mcp/oauth";
+import { isPublicRequest } from "@/lib/accessToken";
 
 export const controlStateSchema = z.object({
   directory: z.string().max(4096).nullable(),
@@ -33,7 +34,7 @@ export function getMcpSettings() {
 }
 
 function allowedHost(req: Request) {
-  return isMobileLinkRequest(req) || !getRuntimePlatform().requiresLocalHost || ["localhost", "127.0.0.1", "[::1]"].includes(req.hostname);
+  return isPublicRequest(req) || isMobileLinkRequest(req) || !getRuntimePlatform().requiresLocalHost || ["localhost", "127.0.0.1", "[::1]"].includes(req.hostname);
 }
 
 export function getAppOrigin(req: Request) {

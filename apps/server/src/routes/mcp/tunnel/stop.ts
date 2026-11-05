@@ -1,0 +1,8 @@
+import { Router } from "express";
+import u from "@/utils";
+import { success } from "@/lib/responseFormat";
+export default Router().post("/", async (req, res) => {
+  u.mcpControl.assertAppRequest(req);
+  u.mcpTunnel.requireLocalTunnelRequest(req);
+  res.json(success(await u.mcpTunnel.stopPublicTunnel()));
+});

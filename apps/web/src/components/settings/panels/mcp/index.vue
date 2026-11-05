@@ -29,6 +29,8 @@
       <p class="description">画布与节点操作需要 MangaFlow 界面保持打开。</p>
     </section>
 
+    <tunnelPanel v-if="localTunnel" @changed="handleTunnelChanged" />
+
     <section class="settingSection" aria-labelledby="mcpEndpointTitle">
       <h3 id="mcpEndpointTitle">服务地址</h3>
       <el-form labelPosition="top">
@@ -39,7 +41,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="HTTPS 公网地址">
-          <el-input v-model="publicUrlDraft" :disabled="saving" dir="ltr" aria-label="HTTPS 公网地址" />
+          <el-input v-model="publicUrlDraft" :disabled="saving || tunnelRunning" dir="ltr" aria-label="HTTPS 公网地址" />
         </el-form-item>
         <el-alert v-if="authModeDraft === 'none'" title="公网访问者可以调用已开启的 MCP 工具" type="warning" :closable="false" showIcon />
         <el-button :loading="saving" @click="savePublicSettings">保存公网设置</el-button>
@@ -90,6 +92,8 @@ import { saveSettings, settings } from "@/stores/settings";
 import saveFile from "@/lib/saveFile";
 import { writeClipboardText } from "@/lib/clipboard";
 import messageMarkdown from "@/components/messageMarkdown.vue";
+import tunnelPanel from "./tunnelPanel.vue";
+import { isRemoteConnection } from "@/lib/platform";
 
 type McpStatus = {
   authMode: "oauth" | "none";
@@ -104,6 +108,7 @@ type McpStatus = {
 };
 
 const headers = { "x-toonflow-workspace": "1" };
+const localTunnel = !isRemoteConnection && ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
 const mcpSettings = computed(() => {
   const raw = settings.value.mcp;
   const value = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
@@ -116,6 +121,8 @@ const mcpSettings = computed(() => {
 const portDraft = ref<number | undefined>(mcpSettings.value.port);
 const authModeDraft = ref<"oauth" | "none">("oauth");
 const publicUrlDraft = ref("");
+const tunnelRunning = ref(false);
+async function handleTunnelChanged(running: boolean) { tunnelRunning.value = running; await refreshStatus(); }
 watch(() => mcpSettings.value.port, port => { portDraft.value = port; });
 const status = ref<McpStatus>();
 const statusError = ref("");
@@ -213,7 +220,7 @@ async function savePublicSettings() {
     await saveSettings(current => {
       const raw = current.mcp;
       const mcp = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
-      return { mcp: { ...mcp, publicUrl, authMode: authModeDraft.value } };
+      return { mcp: { ...mcp, ...(!tunnelRunning.value ? { publicUrl } : {}), authMode: authModeDraft.value } };
     });
     await refreshStatus();
   } catch (error) { ElMessage.error(errorMessage(error)); }

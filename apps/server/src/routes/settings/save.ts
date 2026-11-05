@@ -21,6 +21,8 @@ export default router.put("/", validateFields({ settings: z.record(z.string(), z
   u.mcpControl.assertAppRequest(req);
   const { settings } = req.body;
   const previousSettings = u.conf.get("settings", {});
+  const previousMcp = previousSettings.mcp as { publicUrl?: string } | undefined;
+  if (settings.mcp?.publicUrl !== previousMcp?.publicUrl) u.mcpTunnel.useManualPublicUrl();
   u.removeLegacySettings(settings);
   u.cleanNodeMenuSettings(settings);
   const nextSettings = restoreSettingsSecrets(settings, previousSettings);

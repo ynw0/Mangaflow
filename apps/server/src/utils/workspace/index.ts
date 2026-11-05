@@ -4,13 +4,14 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import conf from "@/utils/conf";
 import { getMobileLinkConfig, isMobileLinkRequest } from "@/utils/mobileLink";
 import { getRuntimePlatform } from "@/lib/platform";
+import { isPublicRequest } from "@/lib/accessToken";
 
 function forwardedRequest(req: Request) {
   return Boolean(req.get("x-forwarded-for") || req.get("forwarded") || req.get("x-real-ip"));
 }
 
 export function isLocalWorkspaceRequest(req: Request) {
-  if (isMobileLinkRequest(req)) return false;
+  if (isMobileLinkRequest(req) || isPublicRequest(req)) return false;
   // ACT: 反代之后 socket 都是 127.0.0.1。未显式信任代理时，带转发头的请求不再视为本机。
   if (forwardedRequest(req) && process.env.TOONFLOW_TRUST_PROXY !== "1") return false;
   const localAddress = ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress ?? "") && req.get("x-toonflow-local-client") !== "0";

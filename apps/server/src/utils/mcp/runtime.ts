@@ -31,6 +31,8 @@ function saveRuntime(value = runtime) {
 }
 
 export function initializeMcpRuntime(app: Express, url: string, entry: string, command = process.execPath, requestHeaders: Record<string, string> = {}) {
+  // 前台隧道不会跨进程存活，启动时清除上次进程留下的地址。
+  if (conf.get("mcpTunnel.managed") === true) conf.set("mcpTunnel.publicUrl", "");
   runtime = { app, appOrigin: new URL(url).origin, entry, command, requestHeaders: { ...requestHeaders } };
   return reloadMcpRuntime();
 }
@@ -39,8 +41,14 @@ export function getAppRequestHeaders() {
   return { ...runtime?.requestHeaders };
 }
 
+export function getMcpHostApp() {
+  if (!runtime) throw new Error("应用运行入口尚未就绪");
+  return runtime.app;
+}
+
 export function stopMcpRuntime() {
   reloadQueue = reloadQueue.catch(() => {}).then(async () => {
+    await (await import("@/utils/mcp/tunnel")).stopTunnelOnHostClose();
     const current = runtime;
     runtime = undefined;
     removeRuntime(current?.file);

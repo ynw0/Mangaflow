@@ -4,6 +4,10 @@ import { error } from "@/lib/responseFormat";
 
 const cookieName = "toonflowAccess";
 const tokenPattern = /^[A-Za-z0-9._~-]{32,256}$/;
+const publicRequests = new WeakMap<Request, string>();
+export function markPublicRequest(req: Request, token: string) { publicRequests.set(req, token); }
+export function isPublicRequest(req: Request) { return publicRequests.has(req); }
+export function requestAccessToken(req: Request) { return accessToken() || publicRequests.get(req) || ""; }
 
 export function accessToken() {
   const token = process.env.TOONFLOW_TOKEN?.trim() ?? "";
@@ -41,8 +45,7 @@ function presentedToken(req: Request) {
   return bearer || readCookie(req);
 }
 
-export function sameToken(value: string) {
-  const expected = accessToken();
+export function sameToken(value: string, expected = accessToken()) {
   if (!expected) return false;
   const actual = Buffer.from(value);
   const wanted = Buffer.from(expected);
@@ -50,11 +53,12 @@ export function sameToken(value: string) {
 }
 
 export function tokenMatches(req: Request) {
-  return sameToken(presentedToken(req)) || sameToken(readCookie(req));
+  const expected = requestAccessToken(req);
+  return sameToken(presentedToken(req), expected) || sameToken(readCookie(req), expected);
 }
 
 export function accessStatus(req: Request) {
-  const required = Boolean(accessToken());
+  const required = Boolean(requestAccessToken(req));
   return { required, authenticated: required && tokenMatches(req) };
 }
 
@@ -64,8 +68,9 @@ export function setAccessCookie(res: Response, token: string) {
 }
 
 export function requireAccessToken(req: Request, res: Response, next: NextFunction) {
-  if (!accessToken()) return next();
-  const path = req.path;
+  if (!requestAccessToken(req)) return next();
+  // Express 默认按不区分大小写的规则匹配路由，认证边界保持一致。
+  const path = req.path.toLowerCase();
   // MCP 与 OAuth 端点执行各自认证，管理接口继续要求管理端令牌。
   if (path === "/mcp" || path === "/mcp/" || /^\/api\/oauth\/(resource|metadata|register|authorize|approve|token|revoke)\/?$/.test(path)) return next();
   if ((req.method === "GET" && path === "/api/auth/status") || (req.method === "POST" && path === "/api/auth/login")) return next();

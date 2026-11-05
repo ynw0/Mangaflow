@@ -33,7 +33,7 @@ const plugin: ToolPlugin = {
     const qcTool: ToolDefinition = {
       name: "qcVideo",
       label: "成片质检",
-      description: "按设置里的画面质检模型和档位验收一条已生成的工作区视频。videoPath 为工作区相对路径，checklist 为可选验收要点。不选择模型，也不代替出视频。返回 status、findings 和实际使用的模型。",
+      description: "按设置里的画面质检模型和档位验收一条已生成的工作区视频。videoPath 为工作区相对路径，checklist 为可选验收要点。返回总状态、逐项 checks、问题 findings、实测规格与实际质检模型。",
       promptSnippet: "成片质检调用 qcVideo，传入工作区相对路径。模型、档位和是否听音轨以设置为准，不要用 ffmpeg 抽帧或静音检测代替。",
       parameters: z.toJSONSchema(qcVideoSchema, { io: "input", target: "draft-07" }),
       executionMode: "sequential",

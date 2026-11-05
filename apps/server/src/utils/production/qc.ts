@@ -10,16 +10,8 @@ import { findWorkflow } from "@/utils/production/catalog";
 import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, submitWorkflow, uploadInput, waitForText } from "@/utils/production/comfyui";
 import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
-
-export type QcStatus = "ok" | "rejected" | "unverified";
-export type QcFinding = { domain: "video" | "audio" | "general"; text: string };
-export type QcResult = {
-  status: QcStatus;
-  findings: QcFinding[];
-  videoModelId: string;
-  audioModelId: string;
-  merged: boolean;
-};
+import { parseQcPayload, summarizeQc, type QcMode } from "@/utils/production/qcResult";
+import type { QcVideoResult } from "@toonflow/tools-scaffold/runtime";
 
 type ModelInputs = { image: boolean; video: boolean; audio: boolean };
 type ContentPart =
@@ -53,14 +45,11 @@ function gemmaQcVariant(modelId: string) {
   return gemmaQcVariants[modelId.trim() as keyof typeof gemmaQcVariants];
 }
 
-function readFrameCount(stream: { nb_frames?: string | number; avg_frame_rate?: string; r_frame_rate?: string } | undefined, duration: number) {
-  const counted = Number(stream?.nb_frames);
-  if (Number.isFinite(counted) && counted > 0) return counted;
-  const rate = stream?.avg_frame_rate || stream?.r_frame_rate || "";
+function readFrameRate(stream: { avg_frame_rate?: string; r_frame_rate?: string }) {
+  const rate = stream.avg_frame_rate || stream.r_frame_rate || "";
   const [num, den] = rate.split("/").map(Number);
   const fps = den ? num / den : num;
-  if (Number.isFinite(fps) && fps > 0 && Number.isFinite(duration) && duration > 0) return Math.round(duration * fps);
-  return 0;
+  return Number.isFinite(fps) && fps > 0 ? fps : undefined;
 }
 
 function namedChoices(names: string[], pattern: RegExp) {
@@ -196,7 +185,7 @@ async function extractEvidence(absoluteVideo: string, workDir: string, signal?: 
   const audioPath = join(workDir, "qc-audio.mp3");
   const framePaths = [0.15, 0.5, 0.85].map((ratio, index) => join(workDir, `qc-frame-${index}.jpg`));
 
-  const probe = await new Promise<{ streams?: { codec_type?: string; disposition?: { attached_pic?: number }; nb_frames?: string | number; avg_frame_rate?: string; r_frame_rate?: string }[]; format?: { duration?: string | number } }>((resolve, reject) => {
+  const probe = await new Promise<{ streams?: { codec_type?: string; disposition?: { attached_pic?: number }; width?: number; height?: number; nb_frames?: string | number; avg_frame_rate?: string; r_frame_rate?: string }[]; format?: { duration?: string | number } }>((resolve, reject) => {
     const command = ffmpeg(absoluteVideo);
     const cancel = () => command.kill("SIGKILL");
     signal?.addEventListener("abort", cancel, { once: true });
@@ -208,9 +197,9 @@ async function extractEvidence(absoluteVideo: string, workDir: string, signal?: 
     });
   });
 
-  const hasVideo = probe.streams?.some(stream => stream.codec_type === "video" && !stream.disposition?.attached_pic);
-  if (!hasVideo) fail("质检目标不是含画面的视频文件");
-  const duration = Number(probe.format?.duration ?? 0);
+  const videoStream = probe.streams?.find(stream => stream.codec_type === "video" && !stream.disposition?.attached_pic);
+  if (!videoStream) fail("质检目标不是含画面的视频文件");
+  const duration = Number(probe.format?.duration) || 0;
   const hasAudio = probe.streams?.some(stream => stream.codec_type === "audio") === true;
 
   for (let index = 0; index < framePaths.length; index++) {
@@ -235,8 +224,10 @@ async function extractEvidence(absoluteVideo: string, workDir: string, signal?: 
     return `data:image/jpeg;base64,${bytes.toString("base64")}`;
   }));
 
-  const videoStream = probe.streams?.find(stream => stream.codec_type === "video" && !stream.disposition?.attached_pic);
-  return { frames, audioBase64: audioBytes ? audioBytes.toString("base64") : undefined, hasAudio, duration, frameCount: readFrameCount(videoStream, duration) };
+  const fps = readFrameRate(videoStream);
+  const frameCount = Number(videoStream.nb_frames) || undefined;
+  const technical = { width: videoStream.width, height: videoStream.height, duration: duration || undefined, fps, frameCount, hasAudio };
+  return { frames, audioBase64: audioBytes ? audioBytes.toString("base64") : undefined, technical };
 }
 
 async function completeMultimodal(configured: ReturnType<typeof getConfiguredModel>, parts: ContentPart[], signal?: AbortSignal) {
@@ -301,105 +292,6 @@ async function completeMultimodal(configured: ReturnType<typeof getConfiguredMod
   return text;
 }
 
-function extractJsonObject(text: string) {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
-  const body = (fenced ?? text).trim();
-  const start = body.indexOf("{");
-  const end = body.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
-  try {
-    return JSON.parse(body.slice(start, end + 1)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-// 模型常把 text 写成字符串数组。拼回一条，避免结论被丢掉后只剩「质检未通过」。
-function findingText(value: unknown) {
-  if (typeof value === "string") return value.trim();
-  if (!Array.isArray(value)) return "";
-  return value.map(item => typeof item === "string" ? item.trim() : "").filter(Boolean).join("\n");
-}
-
-const audioPassMark = "音轨合格";
-const audioUnverifiedMark = "音轨未验证";
-const audioFailMark = "音轨不合格";
-
-function audioVerdict(text: string) {
-  if (text.startsWith(audioPassMark)) return "pass" as const;
-  if (text.startsWith(audioUnverifiedMark)) return "unverified" as const;
-  if (text.startsWith(audioFailMark)) return "problem" as const;
-  if (/无法判断|听不清|未提供音轨|没有音轨|缺证据|无法核验/.test(text)) return "unverified" as const;
-  return "problem" as const;
-}
-
-// 听音轨时必须留下一条 audio。合格句留在结果里，不把整单打成不合格。
-function settleHeardAudio(findings: QcFinding[], hasAudio: boolean, claimed: QcStatus): Pick<QcResult, "status" | "findings"> {
-  const modelWroteAudio = findings.some(item => item.domain === "audio");
-  const kept = hasAudio ? findings : findings.filter(item => item.domain !== "audio");
-  if (!hasAudio) kept.push({ domain: "audio", text: `${audioUnverifiedMark}：本片没有音轨` });
-  if (hasAudio && !kept.some(item => item.domain === "audio")) {
-    kept.push({ domain: "audio", text: `${audioUnverifiedMark}：模型未给出音轨结论` });
-  }
-  const problems = kept.filter(item => item.domain !== "audio" || audioVerdict(item.text) === "problem");
-  const unverified = kept.some(item => item.domain === "audio" && audioVerdict(item.text) === "unverified");
-  const passed = kept.some(item => item.domain === "audio" && audioVerdict(item.text) === "pass");
-  if (problems.length) return { status: "rejected", findings: kept };
-  if (hasAudio && !modelWroteAudio && claimed === "rejected") {
-    kept.push({ domain: "general", text: "质检未通过" });
-    return { status: "rejected", findings: kept };
-  }
-  if (unverified || !passed) return { status: "unverified", findings: kept };
-  return { status: "ok", findings: kept };
-}
-
-function parseQcPayload(text: string, domainHint?: "video" | "audio", hear?: { hasAudio: boolean }): Pick<QcResult, "status" | "findings"> {
-  const parsed = extractJsonObject(text);
-  if (!parsed) {
-    const findings: QcFinding[] = [{ domain: "general", text: "模型未返回可解析的质检 JSON，标为未验证" }];
-    if (hear) findings.push({ domain: "audio", text: `${audioUnverifiedMark}：模型未返回可解析的质检 JSON` });
-    return { status: "unverified", findings };
-  }
-  const rawStatus = typeof parsed.status === "string" ? parsed.status.trim().toLowerCase() : "";
-  const status: QcStatus = rawStatus === "ok" || rawStatus === "rejected" || rawStatus === "unverified"
-    ? rawStatus
-    : "unverified";
-  const findings: QcFinding[] = [];
-  const list = Array.isArray(parsed.findings) ? parsed.findings : [];
-  for (const item of list) {
-    if (typeof item === "string" && item.trim()) {
-      findings.push({ domain: domainHint ?? "general", text: item.trim() });
-      continue;
-    }
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const record = item as Record<string, unknown>;
-    const textValue = findingText(record.text) || findingText(record.message) || findingText(record.reason);
-    if (!textValue) continue;
-    const domainRaw = typeof record.domain === "string" ? record.domain.trim().toLowerCase() : "";
-    const domain = domainRaw === "video" || domainRaw === "audio" || domainRaw === "general"
-      ? domainRaw
-      : (domainHint ?? "general");
-    findings.push({ domain, text: textValue });
-  }
-  if (hear) return settleHeardAudio(findings, hear.hasAudio, status);
-  if (status === "ok" && findings.length) {
-    // 只审画面时，ok 不能带条目；有条目则降为 rejected。
-    return { status: "rejected", findings };
-  }
-  if (status !== "ok" && !findings.length) {
-    findings.push({ domain: domainHint ?? "general", text: status === "unverified" ? "缺证据，未验证" : "质检未通过" });
-  }
-  return { status, findings };
-}
-
-function mergeResults(video: Pick<QcResult, "status" | "findings">, audio: Pick<QcResult, "status" | "findings">): Pick<QcResult, "status" | "findings"> {
-  const findings = [...video.findings, ...audio.findings];
-  const statuses = [video.status, audio.status];
-  if (statuses.includes("rejected")) return { status: "rejected", findings };
-  if (statuses.includes("unverified")) return { status: "unverified", findings };
-  return { status: "ok", findings: findings.filter(item => item.domain === "audio" && item.text.startsWith(audioPassMark)) };
-}
-
 function videoMime(path: string) {
   const ext = path.split(".").pop()?.toLowerCase();
   if (ext === "webm") return "video/webm";
@@ -416,31 +308,18 @@ async function visualParts(absoluteVideo: string, inputs: ModelInputs, frames: s
   return [{ type: "video_url", video_url: { url: `data:${videoMime(absoluteVideo)};base64,${bytes.toString("base64")}` } }];
 }
 
-function systemContract(kind: "merged" | "video" | "audio", checklist?: string, visual: "frames" | "video" = "frames") {
+function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "video" = "frames") {
+  const inputs = kind === "audio" ? "提供的音轨" : visual === "video" ? "提供的视频与相应音轨" : "提供的画面帧与相应音轨";
+  const domains = kind === "merged" ? "分别给出画面（video）和音轨（audio）的结论。"
+    : kind === "video" ? "仅审核画面，domain 用 video。" : "仅审核音轨，domain 用 audio。";
   const lines = [
-    visual === "video"
-      ? "你是 Mangaflow 成片质检员。只根据提供的整段视频和/或音轨做验收，不要虚构未给出的证据。"
-      : "你是 Mangaflow 成片质检员。只根据提供的画面帧和/或音轨做验收，不要虚构未给出的证据。",
-    "只输出一个 JSON 对象，不要其它解释。字段：",
-    'status: "ok" | "rejected" | "unverified"',
-    'findings: { "domain": "video"|"audio"|"general", "text": string }[]',
-    "规则：",
-    "- 原则门控：对白是否大致可辨且大体对得上；口型段是否同段；SFX/声景是否乱入；有对白时 BGM 是否盖过人声；画面主体/场景是否离谱。不套外部死数字。",
+    `你是 MangaFlow 成片质检员。根据${inputs}给出可观察证据。`,
+    '只输出一个 JSON 对象，格式为 {"checks":[{"domain":"video|audio|general","result":"pass|fail|unverified","evidence":"观察到的事实","time":"可选的时间点或区间"}]}。',
+    domains,
+    "分别检查本轮域内的验收要点。可确认符合用 pass，能指出具体偏差用 fail，证据不足用 unverified。时间无法核实时省略 time。",
+    "画面检查主体、场景、动作和连续性。音轨检查对白、与画面对齐的音效和声景，以及音量遮盖。",
   ];
-  if (kind === "video") {
-    lines.push(visual === "video" ? "本轮只审整段视频，domain 用 video。不要写音轨结论。" : "本轮只审画面（抽帧），domain 用 video。不要写音轨结论。");
-    lines.push("- ok：符合要求，且 findings 必须为 []");
-    lines.push("- rejected：有明确不符，findings 写整改意见");
-    lines.push("- unverified：缺证据无法证明，不是通过");
-  }
-  if (kind === "audio" || kind === "merged") {
-    lines.push(`必须有一条 domain=audio，不能省略。听清且合格时 text 以「${audioPassMark}」开头，接着写听到的对白或依据，这不是整改意见。听清但不合格时 text 以「${audioFailMark}」开头并写具体问题。听不清或没有音轨时 text 以「${audioUnverifiedMark}」开头，写缺什么。`);
-    if (kind === "merged") lines.push("画面只把不合格项写成 domain=video。写了画面问题也必须另有这条音轨结论。");
-    lines.push(`- status：有不合格项用 rejected；没有不合格但音轨未验证用 unverified；${kind === "merged" ? "画面和音轨都合格" : "听清且合格"}才用 ok。ok 时保留「${audioPassMark}」那条，不要为了空数组删掉它。`);
-  }
-  if (checklist?.trim()) {
-    lines.push("验收要点：", checklist.trim().slice(0, 4000));
-  }
+  if (checklist?.trim()) lines.push("本镜验收要点", checklist.trim());
   return lines.join("\n");
 }
 
@@ -449,14 +328,13 @@ export async function runProductionQc(input: {
   videoPath: string;
   checklist?: string;
   signal?: AbortSignal;
-}): Promise<QcResult> {
+}): Promise<QcVideoResult> {
   const production = readProduction();
   const videoModelId = production.videoQcModelId || defaultQcModelId;
   const audioModelId = production.audioQcModelId || defaultQcModelId;
   if (production.qcLevel === "none") {
     return {
-      status: "unverified",
-      findings: [{ domain: "general", text: "当前是人工质检，没有调用质检模型。" }],
+      ...summarizeQc([{ domain: "general", result: "unverified", evidence: "当前是人工质检，没有调用质检模型。" }]),
       videoModelId: "",
       audioModelId: "",
       merged: false,
@@ -472,25 +350,27 @@ export async function runProductionQc(input: {
     const localVideo = join(workDir, qcSourceName(absoluteVideo));
     await copyFile(absoluteVideo, localVideo);
     const evidence = await extractEvidence(localVideo, workDir, input.signal);
+    const { technical } = evidence;
     if (gemmaVariant) {
       const hearAudio = production.qcLevel !== "video";
       const usedId = (videoVariant ? videoModelId : audioModelId).trim();
       const lines = hearAudio
         ? [
           systemContract("merged", input.checklist, "video"),
-          "输入是整段成片和原音轨。画面大约每秒一帧，时间戳对应该秒。对白听音轨，不要只靠画面猜。能判断的动作按这些帧判断，不要因为不是逐帧就整段 unverified。",
+          "输入是整段成片和原音轨。按能看到的画面判断动作，按听到的音轨判断声音；无法辨认的局部动作标为 unverified。",
         ]
         : [
           systemContract("video", input.checklist, "video"),
           "本轮只审画面，不要因对白或音轨下结论。",
         ];
-      if (hearAudio && !evidence.hasAudio) lines.push("本片没有音轨。对白无法核验，标 unverified。");
+      if (hearAudio && !technical.hasAudio) lines.push("本片没有音轨。对白无法核验，标 unverified。");
       // 固定本次质检选定的运行位置，生成和质检各自选择 ComfyUI。
       const baseUrl = await resolveComfyBaseUrl(input.signal, production.gemmaQcHost);
       const text = await runGemmaQc(baseUrl, absoluteVideo, lines.join("\n"), gemmaVariant, hearAudio, input.signal);
-      const parsed = parseQcPayload(text, undefined, hearAudio ? { hasAudio: evidence.hasAudio } : undefined);
+      const parsed = parseQcPayload(text, hearAudio ? "merged" : "video", technical.hasAudio);
       return {
         ...parsed,
+        technical,
         videoModelId: usedId,
         audioModelId: hearAudio ? usedId : "",
         merged: hearAudio,
@@ -507,7 +387,7 @@ export async function runProductionQc(input: {
         ...await visualParts(absoluteVideo, videoResolved.inputs, evidence.frames),
       ], input.signal);
       const parsed = parseQcPayload(videoText, "video");
-      return { ...parsed, videoModelId: videoResolved.modelId, audioModelId: "", merged: false };
+      return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: "", merged: false };
     }
     const audioResolved = resolveQcModel(audioModelId);
     if (!audioResolved.inputs.audio) {
@@ -534,8 +414,8 @@ export async function runProductionQc(input: {
         parts.push({ type: "text", text: "（本片未检出音轨；若验收要求听感，应标 unverified。）" });
       }
       const text = await completeMultimodal(videoResolved.configured, parts, input.signal);
-      const parsed = parseQcPayload(text, undefined, { hasAudio: Boolean(evidence.audioBase64) });
-      return { ...parsed, videoModelId: videoResolved.modelId, audioModelId: videoResolved.modelId, merged: true };
+      const parsed = parseQcPayload(text, "merged", Boolean(evidence.audioBase64));
+      return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: videoResolved.modelId, merged: true };
     }
 
     const videoText = await completeMultimodal(videoResolved.configured, [
@@ -552,9 +432,10 @@ export async function runProductionQc(input: {
       audioParts.push({ type: "text", text: "无音轨可听。" });
     }
     const audioText = await completeMultimodal(audioResolved.configured, audioParts, input.signal);
-    const mergedResult = mergeResults(parseQcPayload(videoText, "video"), parseQcPayload(audioText, "audio", { hasAudio: Boolean(evidence.audioBase64) }));
+    const mergedResult = summarizeQc([...parseQcPayload(videoText, "video").checks, ...parseQcPayload(audioText, "audio", Boolean(evidence.audioBase64)).checks]);
     return {
       ...mergedResult,
+      technical,
       videoModelId: videoResolved.modelId,
       audioModelId: audioResolved.modelId,
       merged: false,

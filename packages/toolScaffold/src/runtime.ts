@@ -156,8 +156,17 @@ export interface QcVideoRequest {
   checklist?: string;
 }
 
+export type QcCheck = {
+  domain: "video" | "audio" | "general";
+  result: "pass" | "fail" | "unverified";
+  evidence: string;
+  time?: string;
+};
+
 export interface QcVideoResult {
   status: "ok" | "rejected" | "unverified";
+  checks: QcCheck[];
+  technical?: { width?: number; height?: number; duration?: number; fps?: number; frameCount?: number; hasAudio: boolean };
   findings: { domain: "video" | "audio" | "general"; text: string }[];
   videoModelId: string;
   audioModelId: string;

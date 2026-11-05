@@ -86,7 +86,7 @@ function conductText(production?: ProductionPrompt) {
       : "- 成片质检是手动，视频和音频一起审。不要在生成后自动质检。用户要求时再调用 qcVideo。");
   }
   if (production.qcLevel === "videoAudio") {
-    lines.push("- 听音轨时 qcVideo 必定有一条 domain 为 audio 的结论。「音轨合格」是听感通过，原样告诉用户听到了什么；「音轨未验证」是没听清，不能当成通过；「音轨不合格」才是听感硬伤。");
+    lines.push("- 音轨结论看 qcVideo 的 checks。每项有 domain、result 和 evidence。pass 用证据说明通过，fail 说明具体偏差，unverified 说明缺什么证据。");
   }
   if (production.goalMode) {
     lines.push("- 本轮是目标模式。用户这条消息是要做完的目标。改完提示词、写完汇报、放进队列、等别人安排下一步，都不是完成。");

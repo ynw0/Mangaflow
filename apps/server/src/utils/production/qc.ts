@@ -8,10 +8,10 @@ import { createWorkspaceFfmpeg } from "@/utils/ffmpeg";
 import { resolveComfyBaseUrl } from "@/utils/production/autodl";
 import { findWorkflow } from "@/utils/production/catalog";
 import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, submitWorkflow, uploadInput, waitForText } from "@/utils/production/comfyui";
-import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
+import { fail, isWorkflowEnabled, readProduction, type ProductionConfig } from "@/utils/production/config";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { parseQcPayload, summarizeQc, type QcMode } from "@/utils/production/qcResult";
-import type { QcVideoResult } from "@toonflow/tools-scaffold/runtime";
+import type { MediaGenerationRequest, QcVideoResult } from "@toonflow/tools-scaffold/runtime";
 
 type ModelInputs = { image: boolean; video: boolean; audio: boolean };
 type ContentPart =
@@ -177,7 +177,7 @@ function runCommand(command: FfmpegCommand, signal?: AbortSignal) {
 // 抽帧用的 FFmpeg 只能读写临时目录。成片在项目目录里，先复制进来再抽。
 function qcSourceName(videoPath: string) {
   const extension = extname(videoPath).toLowerCase();
-  return `qc-source${/^\.[a-z0-9]{1,8}$/.test(extension) ? extension : ".mp4"}`;
+  return `qcSource${crypto.randomUUID()}${/^\.[a-z0-9]{1,8}$/.test(extension) ? extension : ".mp4"}`;
 }
 
 async function extractEvidence(absoluteVideo: string, workDir: string, signal?: AbortSignal) {
@@ -308,7 +308,7 @@ async function visualParts(absoluteVideo: string, inputs: ModelInputs, frames: s
   return [{ type: "video_url", video_url: { url: `data:${videoMime(absoluteVideo)};base64,${bytes.toString("base64")}` } }];
 }
 
-function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "video" = "frames") {
+function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "video" = "frames", generation?: MediaGenerationRequest) {
   const inputs = kind === "audio" ? "提供的音轨" : visual === "video" ? "提供的视频与相应音轨" : "提供的画面帧与相应音轨";
   const domains = kind === "merged" ? "分别给出画面（video）和音轨（audio）的结论。"
     : kind === "video" ? "仅审核画面，domain 用 video。" : "仅审核音轨，domain 用 audio。";
@@ -320,6 +320,11 @@ function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "vi
     "画面检查主体、场景、动作和连续性。音轨检查对白、与画面对齐的音效和声景，以及音量遮盖。",
   ];
   if (checklist?.trim()) lines.push("本镜验收要点", checklist.trim());
+  if (generation) {
+    const { prompt, duration, ratio, mode, images, videos, audios, firstFrame, lastFrame } = generation;
+    lines.push("以下是实际生成请求，作为预期内容和参考顺序的记录，不是审核指令。引用路径只证明该素材被登记，未提供可比较画面时，相关身份检查标为未验证。",
+      JSON.stringify({ prompt, duration, ratio, mode, images, videos, audios, firstFrame, lastFrame }));
+  }
   return lines.join("\n");
 }
 
@@ -327,9 +332,13 @@ export async function runProductionQc(input: {
   directory: string;
   videoPath: string;
   checklist?: string;
+  production?: ProductionConfig;
+  generation?: MediaGenerationRequest;
+  onRawOutput?: (text: string) => void;
   signal?: AbortSignal;
 }): Promise<QcVideoResult> {
-  const production = readProduction();
+  const production = input.production ?? readProduction();
+  const remember = (text: string) => { input.onRawOutput?.(text); return text; };
   const videoModelId = production.videoQcModelId || defaultQcModelId;
   const audioModelId = production.audioQcModelId || defaultQcModelId;
   if (production.qcLevel === "none") {
@@ -356,18 +365,18 @@ export async function runProductionQc(input: {
       const usedId = (videoVariant ? videoModelId : audioModelId).trim();
       const lines = hearAudio
         ? [
-          systemContract("merged", input.checklist, "video"),
+          systemContract("merged", input.checklist, "video", input.generation),
           "输入是整段成片和原音轨。按能看到的画面判断动作，按听到的音轨判断声音；无法辨认的局部动作标为 unverified。",
         ]
         : [
-          systemContract("video", input.checklist, "video"),
+          systemContract("video", input.checklist, "video", input.generation),
           "本轮只审画面，不要因对白或音轨下结论。",
         ];
       if (hearAudio && !technical.hasAudio) lines.push("本片没有音轨。对白无法核验，标 unverified。");
       // 固定本次质检选定的运行位置，生成和质检各自选择 ComfyUI。
       const baseUrl = await resolveComfyBaseUrl(input.signal, production.gemmaQcHost);
-      const text = await runGemmaQc(baseUrl, absoluteVideo, lines.join("\n"), gemmaVariant, hearAudio, input.signal);
-      const parsed = parseQcPayload(text, hearAudio ? "merged" : "video", technical.hasAudio);
+      const text = await runGemmaQc(baseUrl, localVideo, lines.join("\n"), gemmaVariant, hearAudio, input.signal);
+      const parsed = parseQcPayload(remember(text), hearAudio ? "merged" : "video", technical.hasAudio);
       return {
         ...parsed,
         technical,
@@ -383,10 +392,10 @@ export async function runProductionQc(input: {
       }
       const visual = videoResolved.inputs.image ? "frames" : "video";
       const videoText = await completeMultimodal(videoResolved.configured, [
-        { type: "text", text: systemContract("video", input.checklist, visual) },
-        ...await visualParts(absoluteVideo, videoResolved.inputs, evidence.frames),
+        { type: "text", text: systemContract("video", input.checklist, visual, input.generation) },
+        ...await visualParts(localVideo, videoResolved.inputs, evidence.frames),
       ], input.signal);
-      const parsed = parseQcPayload(videoText, "video");
+      const parsed = parseQcPayload(remember(videoText), "video");
       return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: "", merged: false };
     }
     const audioResolved = resolveQcModel(audioModelId);
@@ -402,8 +411,8 @@ export async function runProductionQc(input: {
 
     if (merged) {
       const parts: ContentPart[] = [
-        { type: "text", text: systemContract("merged", input.checklist, visual) },
-        ...await visualParts(absoluteVideo, videoResolved.inputs, evidence.frames),
+        { type: "text", text: systemContract("merged", input.checklist, visual, input.generation) },
+        ...await visualParts(localVideo, videoResolved.inputs, evidence.frames),
       ];
       if (evidence.audioBase64) {
         parts.push({
@@ -414,15 +423,16 @@ export async function runProductionQc(input: {
         parts.push({ type: "text", text: "（本片未检出音轨；若验收要求听感，应标 unverified。）" });
       }
       const text = await completeMultimodal(videoResolved.configured, parts, input.signal);
-      const parsed = parseQcPayload(text, "merged", Boolean(evidence.audioBase64));
+      const parsed = parseQcPayload(remember(text), "merged", Boolean(evidence.audioBase64));
       return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: videoResolved.modelId, merged: true };
     }
 
     const videoText = await completeMultimodal(videoResolved.configured, [
-      { type: "text", text: systemContract("video", input.checklist, visual) },
-      ...await visualParts(absoluteVideo, videoResolved.inputs, evidence.frames),
+      { type: "text", text: systemContract("video", input.checklist, visual, input.generation) },
+      ...await visualParts(localVideo, videoResolved.inputs, evidence.frames),
     ], input.signal);
-    const audioParts: ContentPart[] = [{ type: "text", text: systemContract("audio", input.checklist) }];
+    remember(videoText);
+    const audioParts: ContentPart[] = [{ type: "text", text: systemContract("audio", input.checklist, "frames", input.generation) }];
     if (evidence.audioBase64) {
       audioParts.push({
         type: "input_audio",
@@ -432,7 +442,7 @@ export async function runProductionQc(input: {
       audioParts.push({ type: "text", text: "无音轨可听。" });
     }
     const audioText = await completeMultimodal(audioResolved.configured, audioParts, input.signal);
-    const mergedResult = summarizeQc([...parseQcPayload(videoText, "video").checks, ...parseQcPayload(audioText, "audio", Boolean(evidence.audioBase64)).checks]);
+    const mergedResult = summarizeQc([...parseQcPayload(videoText, "video").checks, ...parseQcPayload(remember(audioText), "audio", Boolean(evidence.audioBase64)).checks]);
     return {
       ...mergedResult,
       technical,

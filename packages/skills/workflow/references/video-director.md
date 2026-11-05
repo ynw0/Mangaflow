@@ -138,4 +138,4 @@ N/A
 缺完整准备上下文、参考未批准、Picture 映射冲突、剧情或连续性冲突、给定时长无法执行、`media_refs.instruction` 为空。返回公共 blocked 合同，不替换素材或删剧情。
 
 ## 交接要求
-总控把合同交给镜头文生视频提示词工对照原文与准备结果审核，不改 prompt 或 Picture 槽位。rejected 时把 findings 原样退回本角色重写；status=ok 后总控将 director 与 review 一并进入出片。开 GPU 仍由总控另行确认。成片质检按设置里的档位和自动/手动执行：不质检则交给用户看，不要调用 `qcVideo`；手动时不自动调用；自动时生成后调用 `qcVideo`。只视频不因音轨打回。时序或缺听感证据标未验证。模型与档位以设置为准，不要改用 ffmpeg 抽帧代替。
+总控把合同交给镜头文生视频提示词工对照原文与准备结果审核，不改 prompt 或 Picture 槽位。rejected 时把 findings 原样退回本角色重写；status=ok 后总控将 director 与 review 一并进入出片。开 GPU 仍由总控另行确认。成片质检按 [common.md](common.md) 的档位执行。自动质检用 `getVideoQcStatus` 查询服务端任务，手动质检按用户要求调用 `qcVideo`。时序或听感缺证据时标未验证。

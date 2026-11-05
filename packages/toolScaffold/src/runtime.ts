@@ -176,6 +176,20 @@ export interface QcVideoResult {
   merged: boolean;
 }
 
+export type VideoQcState =
+  | { status: "notRequested" | "queued" | "running" | "interrupted" }
+  | { status: "failed"; message: string }
+  | { status: "completed"; result: QcVideoResult };
+
+export type VideoExecution = {
+  promptId: string; host: string; seed?: number; megapixels?: number; upscale?: number;
+  firstPassSteps?: number; secondPassSteps?: number;
+};
+
+export type VideoQcReport = VideoQcState & {
+  generation?: { providerId: string; modelId: string; duration?: number; ratio?: string; execution?: VideoExecution };
+};
+
 export interface MediaContext {
   listModels(): Promise<MediaModel[]>;
   generateImage(request: MediaGenerationRequest, signal?: AbortSignal): Promise<GeneratedMedia[]>;
@@ -183,6 +197,7 @@ export interface MediaContext {
   generateAudio(request: MediaGenerationRequest, signal?: AbortSignal): Promise<GeneratedMedia[]>;
   /** 按设置里的质检模型和档位验收一条工作区视频。 */
   qcVideo(request: QcVideoRequest, signal?: AbortSignal): Promise<QcVideoResult>;
+  getVideoQcStatus(videoPath: string): Promise<VideoQcReport>;
 }
 
 export interface QuestionField {

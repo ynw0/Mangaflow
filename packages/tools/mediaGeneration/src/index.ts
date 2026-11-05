@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { MediaContext, ToolDefinition, ToolPlugin } from "@toonflow/tools-scaffold/runtime";
-import { audioGenerationSchema, imageGenerationSchema, listMediaModelsSchema, qcVideoSchema, videoGenerationSchema } from "./runtime";
+import { audioGenerationSchema, imageGenerationSchema, listMediaModelsSchema, qcVideoSchema, videoGenerationSchema, videoQcStatusSchema } from "./runtime";
 
 const configSchema = z.strictObject({
   allowImage: z.boolean().default(true),
@@ -43,7 +43,19 @@ const plugin: ToolPlugin = {
         return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
       },
     };
-    return [qcTool, ...(generationTools.length ? [listTool] : []), ...generationTools.map<ToolDefinition>(operation => ({
+    const qcStatusTool: ToolDefinition = {
+      name: "getVideoQcStatus",
+      label: "查询成片质检状态",
+      description: "按工作区内成片相对路径读取持久化质检状态。已完成时返回逐项结果；此操作不启动质检。",
+      parameters: z.toJSONSchema(videoQcStatusSchema, { io: "input", target: "draft-07" }),
+      async execute(_id, params, signal) {
+        signal?.throwIfAborted();
+        const { videoPath } = videoQcStatusSchema.parse(params);
+        const result = await media.getVideoQcStatus(videoPath);
+        return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
+      },
+    };
+    return [qcTool, qcStatusTool, ...(generationTools.length ? [listTool] : []), ...generationTools.map<ToolDefinition>(operation => ({
       name: operation.name,
       label: operation.label,
       description: `${operation.description}providerId 和 modelId 必须来自 listMediaModels。引用素材的 path 及 outputDirectory 均为工作区相对路径；省略输出目录使用默认媒体目录。等待生成完成后返回已保存的文件路径，不返回 Base64。`,

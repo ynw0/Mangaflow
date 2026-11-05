@@ -80,8 +80,8 @@ function conductText(production?: ProductionPrompt) {
     lines.push("- 成片质检档位是不质检（人工）。不要调用 qcVideo。视频生成后交给用户看。");
   } else if (production.qcTrigger === "auto") {
     lines.push(production.qcLevel === "video"
-      ? "- 成片质检是自动，且只审视频。每条视频生成完成后调用 qcVideo，只看画面，不要因音轨打回。把质检结果告诉用户；打回后不要擅自再生成。"
-      : "- 成片质检是自动，视频和音频一起审。每条视频生成完成后调用 qcVideo。把质检结果告诉用户；打回后不要擅自再生成。");
+      ? "- 服务端在成片保存后自动质检画面。使用 getVideoQcStatus 读取结果；打回后按用户授权处理。"
+      : "- 服务端在成片保存后自动质检视频与音轨。使用 getVideoQcStatus 读取结果；打回后按用户授权处理。");
   } else {
     lines.push(production.qcLevel === "video"
       ? "- 成片质检是手动，且只审视频。不要在生成后自动质检。用户要求时再调用 qcVideo，并且只看画面。"

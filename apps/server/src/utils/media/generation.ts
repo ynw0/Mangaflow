@@ -10,6 +10,7 @@ import { loadVideoModelProvider, readVideoModel, requireVideoModel, videoModelAs
 import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { getProviderPrice } from "@/utils/media/billing";
 import { detectMimeType, readPriceReference } from "@/utils/media/priceReference";
+import { recordVideoOutputs } from "@/utils/production/videoRecords";
 
 const maxMediaSize = 100 * 1024 * 1024;
 const mediaExtensions: Record<string, string> = {
@@ -234,10 +235,11 @@ export async function generateMedia(
   await resolveWorkspacePath(directory, outputDirectory, true);
   if (request.providerId === "comfyui") {
     if (mediaType === "audio") invalid("ComfyUI 工作流用于出视频");
-    const files = await runComfyWorkflow({ directory, mediaType, request, signal });
+    const { files, execution } = await runComfyWorkflow({ directory, mediaType, request, signal });
     const result: GeneratedMedia[] = [];
     try {
       for (const file of files) result.push(...await writeGenerated(directory, outputDirectory, mediaType, file.bytes, file.mimeType, signal));
+      if (mediaType === "video") await recordVideoOutputs(directory, result, request, execution);
       return result;
     } catch (error) {
       await Promise.all(result.map(item => unlink(join(directory, item.path)).catch((cause: NodeJS.ErrnoException) => { if (cause.code !== "ENOENT") throw cause; })));
@@ -277,6 +279,7 @@ export async function generateMedia(
         } finally { release(); }
       }
       signal?.throwIfAborted();
+      await recordVideoOutputs(directory, result, request);
       return result;
     } catch (err) {
       await Promise.all(written.map(path => unlink(path).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; })));
@@ -315,6 +318,7 @@ export async function generateMedia(
       } finally { release(); }
     }
     signal?.throwIfAborted();
+    if (mediaType === "video") await recordVideoOutputs(directory, result, request);
     return result;
   } catch (err) {
     // ACT: 只回滚本次创建的文件，保留目录中已有的节点资源。

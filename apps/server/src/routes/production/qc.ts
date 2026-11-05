@@ -17,12 +17,7 @@ export default Router().post("/", validateFields(inputSchema.shape), async (req,
   try {
     const input = inputSchema.parse(req.body, validationOptions());
     const directory = await u.workspace.resolveWorkspace(req, input.directory);
-    const data = await u.production.runProductionQc({
-      directory,
-      videoPath: input.videoPath,
-      checklist: input.checklist,
-      signal: AbortSignal.timeout(180_000),
-    });
+    const data = await u.production.checkRecordedVideo(directory, input.videoPath, input.checklist, AbortSignal.timeout(180_000));
     res.set("Cache-Control", "no-store").json(success(data));
   } catch (cause) {
     const response = errorFromCause(cause);

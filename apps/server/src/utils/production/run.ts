@@ -3,7 +3,7 @@ import { readFile } from "@toonflow/file";
 import type { MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import { resolveComfyBaseUrl } from "@/utils/production/autodl";
 import { downloadOutput, probeComfy, submitWorkflow, uploadInput, waitForOutput } from "@/utils/production/comfyui";
-import { fail, isWorkflowEnabled } from "@/utils/production/config";
+import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
 import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 
@@ -192,7 +192,8 @@ export async function runComfyWorkflow(options: {
   const { min, max: referenceSlots } = imageReferenceRange(entry);
   if (mediaType === "image" && images.length < min) fail(`${entry.label} 至少需要 ${min} 张参考图片`);
   if (images.length > referenceSlots) fail(`参考图片数量超过参考槽：传入 ${images.length} 张，${entry.label} 只有 ${referenceSlots} 个参考槽`);
-  const baseUrl = await resolveComfyBaseUrl(signal);
+  const host = readProduction().videoHost;
+  const baseUrl = await resolveComfyBaseUrl(signal, host);
   await probeComfy(baseUrl, signal);
   const refs: Record<string, string | undefined> = {};
   for (let index = 0; index < images.length; index += 1) refs[`slot${index + 1}`] = await localFile(directory, images[index]);
@@ -229,5 +230,14 @@ export async function runComfyWorkflow(options: {
   const outputs = await waitForOutput(baseUrl, promptId, mediaType, signal);
   const files = [];
   for (const output of outputs) files.push(await downloadOutput(baseUrl, output, signal));
-  return files;
+  const execution = {
+    promptId,
+    host,
+    seed: bound.has("seed") ? context.seed : undefined,
+    megapixels: context.megapixels,
+    upscale: context.upscale,
+    firstPassSteps: context.first_pass_steps,
+    secondPassSteps: context.second_pass_steps,
+  };
+  return { files, execution };
 }

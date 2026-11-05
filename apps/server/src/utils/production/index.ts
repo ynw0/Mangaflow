@@ -6,3 +6,4 @@ export { autodlPower, autodlStatus, listAutodlInstances, resolveComfyBaseUrl } f
 export { runComfyWorkflow } from "@/utils/production/run";
 export { uploadVideoWorkflow } from "@/utils/production/upload";
 export { runProductionQc } from "@/utils/production/qc";
+export { checkRecordedVideo, getVideoQcStatus } from "@/utils/production/videoRecords";

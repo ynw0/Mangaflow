@@ -25,6 +25,7 @@ export const qcVideoSchema = z.strictObject({
   videoPath: relativePath,
   checklist: z.string().max(8000).optional(),
 });
+export const videoQcStatusSchema = qcVideoSchema.pick({ videoPath: true });
 export const imageGenerationSchema = z.strictObject({
   ...sharedFields,
   size: z.string().trim().min(1).max(64).optional(),

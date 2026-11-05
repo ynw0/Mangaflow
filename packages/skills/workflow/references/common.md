@@ -9,6 +9,8 @@
 - 保留已有业务标识。asset_key、variant_key 是业务字符串；variant_id 是数据库整数，不互相代替，不推测旧字段含义。
 
 ## 制作设定
+
+原画的正负面写法以所选工作流的 `usage` 为准，通用规则按实际负面条件生效能力应用。内置 Qwen-Image-2.1 标准版和 Turbo 的文生图、编辑均为 CFG 1，`negative_constraints` 返回 []，提示词直传。文生图描述目标画面，编辑说明对 `<image1>` 改什么、保留什么，其余参考图按实际槽位指代。云端 Qwen 模型按其对应接口处理。
 每个专业任务必须携带当前 production_profile 及版本。画风、集长、改编尺度、声音策略和世界规则均从项目设定读取，不把某部作品的基准作为其他作品默认值；缺少设定时 blocked。
 成片 `production_profile.aspect_ratio`（默认 16:9）只约束视频镜头，不约束资产设定图。角色身份资产是 `identity_sheet`：同一张宽图从左到右为面部近景、正面全身、侧面全身、背面全身，默认 `2048×768`。场景按用途二选一：后续要换机位或该地点会反复出现，用 `scene_quad` 四方向拼版（默认 `1024×1024`，顶视、45°俯视、正面、侧面，无人，同一空间）；只做一次氛围、转场或背景，用 `establishing_wide` 无人空镜（默认 `1344×768`），这张是视频素材的起点，不是空间资产。两者都需要时先做拼版，再基于它做空镜视频。道具先分析完整产品的自然外轮廓，再选 `product_portrait` 3:4（默认 768×1024）、`product_square` 1:1（默认 1024×1024）或 `product_wide`（默认 1344×768）；不要默认方图。输入画幅与所选 still_format 冲突时 blocked。
 原画 `prompt` 只写正面画面。Qwen 和带负面节点的其他 Comfy 原画工作流，把禁忌以不想要的视觉概念写入 `negative_constraints`，由 sidecar 送入负面节点。Flux.3 Klein 工作流见下文「Flux.3 Klein 出图」，`negative_constraints` 返回 []。镜头成片只有一段正面 `prompt`，没有负面提示词节点，不返回 `negative_constraints`。镜头 `must_not_have` 改写成画面上已经成立的可见事实，写入 `prompt` 与 `director_requirements`，不要照抄否定句，也不要写「无字幕」「零自发光」这类把禁忌概念送进正面的句子。正面禁止否定/排除写法：中文「不、不要、没有、无、非、排除、避免、去除、除了、其余、其他、不入画、消失、缺少、不是、禁止」、英文 `no` / `not` / `without` / `don't`，以及伪正向「留在图内」等。sidecar 在提交合同时硬拒这些否定写法。详见下文「原画正负面与多格」「成片正面改写」。

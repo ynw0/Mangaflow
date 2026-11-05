@@ -189,6 +189,19 @@ export async function findWorkflow(id: string) {
   return entry;
 }
 
+// 从实际槽位推导输入范围，目录展示和生成校验共用这一规则。
+export function imageReferenceRange(entry: WorkflowEntry) {
+  const slots = entry.bindings.bindings.flatMap(item => {
+    const index = /^refs\.slot([1-9]\d*)$/.exec(item.source)?.[1];
+    return item.kind === "image" && index ? [{ index: Number(index), required: item.required }] : [];
+  });
+  return { min: Math.max(0, ...slots.filter(item => item.required).map(item => item.index)), max: slots.length };
+}
+
+export function workflowSummary(entry: WorkflowEntry) {
+  return { id: entry.id, label: entry.label, usage: entry.bindings.usage, ...(entry.kind === "image" ? { imageReferences: imageReferenceRange(entry) } : {}) };
+}
+
 // 二采的分辨率是节点 8 百万像素（倍数 32）再乘节点 151 的放大倍率。
 function samplingFor(entry: WorkflowEntry) {
   const sources = new Set(entry.bindings.bindings.map(item => item.source));
@@ -224,6 +237,12 @@ export function toMediaModel(entry: WorkflowEntry) {
   const frames = entry.bindings.bindings.some(item => item.source === "refs.first_frame");
   const needsImage = entry.bindings.bindings.some(item => item.kind === "image" && item.required);
   if (entry.kind === "image") {
+    const imageReferences = imageReferenceRange(entry);
+    const mode = [
+      ...(imageReferences.min === 0 ? ["text"] : []),
+      ...(imageReferences.min <= 1 && imageReferences.max >= 1 ? ["singleImage"] : []),
+      ...(imageReferences.max >= 2 ? ["multiReference"] : []),
+    ];
     return {
       providerId: "comfyui",
       providerLabel: "ComfyUI",
@@ -231,7 +250,9 @@ export function toMediaModel(entry: WorkflowEntry) {
       label: entry.label,
       type: "image" as const,
       supportsPrice: false,
-      mode: ["text", "singleImage", "multiReference"],
+      usage: entry.bindings.usage,
+      imageReferences,
+      mode,
       imageSizes: ["2048x768", "1024x1024", "1344x768", "768x1024", "768x1344", "1024x768", "1248x832", "832x1248", "1568x672"],
       imageRatios: ["8:3", "1:1", "16:9", "3:4", "9:16", "4:3", "3:2", "2:3", "21:9"],
     };
@@ -243,6 +264,7 @@ export function toMediaModel(entry: WorkflowEntry) {
     providerLabel: "ComfyUI",
     modelId: entry.id,
     label: entry.label,
+    usage: entry.bindings.usage,
     type: "video" as const,
     supportsPrice: false,
     mode: frames

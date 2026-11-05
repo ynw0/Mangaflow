@@ -1,4 +1,5 @@
 workflow: ./flux3KleinEditApi.json
+usage: 已有参考图的身份保留、构图或局部修改。给清楚的编辑目标与保留条件，负面提示词留空。
 label: Flux.3 Klein 图像编辑
 bindings:
 - source: image_prompt

@@ -300,10 +300,15 @@ function loadModels() {
   modelsRequest = ai.getMediaModels().then((items) => {
     if (disposed || generating.value || deleting.value) return;
     models.value = items.filter((item) => item.type === "image");
-    // 当前选择不在这次列表里时改用第一项，出图后端切换后已有节点跟着走。
-    const listed = data.value.model && models.value.some((item) => JSON.stringify([item.providerId, item.modelId]) === data.value.model);
-    if (!listed) {
-      const first = models.value[0];
+    // 新节点按实际参考数量选择默认项，已保存的选择交给用户调整。
+    if (!data.value.model) {
+      const first = models.value.find(item => {
+        const range = item.imageReferences;
+        const inpaint = data.value.inpaint;
+        const count = refList.value.filter(ref => ref.dataType === "IMAGE" && ref.value?.url !== inpaint?.source).length
+          + (inpaint ? 2 + (inpaint.images?.length ?? 0) : 0);
+        return !range || (count >= range.min && count <= range.max);
+      });
       data.value.model = first ? JSON.stringify([first.providerId, first.modelId]) : "";
     }
   }).finally(() => {

@@ -1,4 +1,5 @@
 workflow: ./h3_ref2va_1080p_api.json
+usage: 用已批准的图片、视频或音频做单镜连续成片，按 H3 Ref2VA 六段格式和实际槽位编写。适合需 1080P 交付的参考生成。
 # 对应工作流时长节点明确标注的 2–15 秒范围。
 capabilities:
   duration_seconds:

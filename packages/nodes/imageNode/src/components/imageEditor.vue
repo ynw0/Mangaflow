@@ -381,7 +381,7 @@ async function createInpaint(input: InpaintDraftInput, signal: AbortSignal) {
     }
     const result = await createVariation({
       label: "局部重绘", nodeId, prompt: buildInpaintPrompt(input.prompt),
-      model: typeof node.data.model === "string" ? node.data.model : "",
+      model: "",
       size: typeof node.data.size === "string" ? node.data.size : "",
       ratio: typeof node.data.ratio === "string" ? node.data.ratio : "16:9",
       inpaint: { source: node.data.outputs?.image?.value?.url ?? "", original: paths[0]!, guide: paths[1]!, mask: paths[2]!, images: input.images ?? [] },

@@ -1,4 +1,5 @@
 workflow: ./flux3KleinT2iApi.json
+usage: 无参考图的细节原画和构图探索。用正面画面描述，负面提示词留空。
 label: Flux.3 Klein 文生图
 bindings:
 - source: image_prompt

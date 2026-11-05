@@ -1,4 +1,5 @@
 workflow: ./character_image_api.json
+usage: 从文字建立角色身份图，适合锁定比例、服装和标志特征。使用批准的设定，画幅服务角色设定拼版。
 bindings:
 - source: image_prompt
   target: 187.inputs.text

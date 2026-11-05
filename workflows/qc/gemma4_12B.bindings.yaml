@@ -1,4 +1,5 @@
 workflow: ./gemma4E2bApi.json
+usage: 使用设置指定的本机或 AutoDL 运行 Gemma 4 12B，适合有相应显存的细节验收。结果按可观察证据给出。
 label: Gemma 4 12B 质检
 bindings:
 - source: prompt

@@ -1,4 +1,5 @@
 workflow: ./scene_image_api.json
+usage: 从文字建立场景原画，适合确定入口、空间锚点与固定陈设。需要反复换机位时按场景拼版合同描述。
 bindings:
 - source: image_prompt
   target: 187.inputs.text

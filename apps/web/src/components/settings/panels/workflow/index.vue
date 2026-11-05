@@ -52,13 +52,13 @@
               <div class="field">
                 <label for="workflowImageT2i">无参考图</label>
                 <el-select id="workflowImageT2i" v-model="imageT2iWorkflow" placeholder="选择文生图工作流">
-                  <el-option v-for="item in enabledImageWorkflows" :key="item.id" :label="item.label" :value="item.id" />
+                  <el-option v-for="item in textImageWorkflows" :key="item.id" :label="item.label" :value="item.id" />
                 </el-select>
               </div>
               <div class="field">
                 <label for="workflowImageEdit">有参考图</label>
                 <el-select id="workflowImageEdit" v-model="imageEditWorkflow" placeholder="选择图像编辑工作流">
-                  <el-option v-for="item in enabledImageWorkflows" :key="item.id" :label="item.label" :value="item.id" />
+                  <el-option v-for="item in editImageWorkflows" :key="item.id" :label="item.label" :value="item.id" />
                 </el-select>
               </div>
             </div>
@@ -308,7 +308,7 @@ import { modelChoices, saveSettings, settings } from "@/stores/settings";
 import workflowCatalog from "./workflowCatalog.vue";
 
 type ComfyHost = "local" | "autodl";
-type WorkflowItem = { id: string; label: string };
+type WorkflowItem = { id: string; label: string; usage?: string; imageReferences?: { min: number; max: number } };
 type InstanceItem = { uuid: string; name: string; status: string };
 type QwenModel = { key: string; label: string; providerLabel: string };
 
@@ -375,6 +375,8 @@ const imageModelKey = computed({
 const usesComfy = computed(() => imageSource.value === "comfyui" || videoProviderId.value === "comfyui");
 const mainVideoWorkflows = computed(() => videoWorkflows.value.filter(item => item.id !== "video/h3_flf_repair"));
 const enabledImageWorkflows = computed(() => imageWorkflows.value.filter(item => workflowOn(item.id)));
+const textImageWorkflows = computed(() => enabledImageWorkflows.value.filter(item => item.imageReferences?.min === 0));
+const editImageWorkflows = computed(() => enabledImageWorkflows.value.filter(item => (item.imageReferences?.max ?? 0) > 0));
 const enabledMainVideoWorkflows = computed(() => mainVideoWorkflows.value.filter(item => workflowOn(item.id)));
 const enabledQcWorkflows = computed(() => qcWorkflows.value.filter(item => workflowOn(item.id)));
 const repairWorkflow = computed(() => videoWorkflows.value.find(item => item.id === "video/h3_flf_repair"));
@@ -582,9 +584,6 @@ async function loadWorkflows() {
   imageWorkflows.value = data.data.image;
   videoWorkflows.value = data.data.video;
   qcWorkflows.value = data.data.qc;
-  const enabledImage = data.data.image.filter(item => workflowOn(item.id));
-  if (enabledImage.length && !enabledImage.some(item => item.id === imageT2iWorkflow.value)) imageT2iWorkflow.value = enabledImage.find(item => item.id === "image/flux3KleinT2i")?.id || enabledImage[0]?.id || imageT2iWorkflow.value;
-  if (enabledImage.length && !enabledImage.some(item => item.id === imageEditWorkflow.value)) imageEditWorkflow.value = enabledImage.find(item => item.id === "image/flux3KleinDistilledEdit")?.id || enabledImage[0]?.id || imageEditWorkflow.value;
   const selectable = data.data.video.filter(item => item.id !== "video/h3_flf_repair" && workflowOn(item.id));
   if (selectable.length && !selectable.some(item => item.id === videoWorkflow.value)) videoWorkflow.value = selectable[0]?.id || videoWorkflow.value;
 }

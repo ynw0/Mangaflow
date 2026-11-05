@@ -4,7 +4,7 @@ import type { MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import { resolveComfyBaseUrl } from "@/utils/production/autodl";
 import { downloadOutput, probeComfy, submitWorkflow, uploadInput, waitForOutput } from "@/utils/production/comfyui";
 import { fail, isWorkflowEnabled } from "@/utils/production/config";
-import { findWorkflow, type WorkflowEntry } from "@/utils/production/catalog";
+import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 
 type MediaRef = { path: string; mimeType?: string };
@@ -188,12 +188,12 @@ export async function runComfyWorkflow(options: {
   if (mediaType === "video" && limits && request.duration != null && (request.duration < limits.min || request.duration > limits.max)) {
     fail(`${entry.label} 的时长需要在 ${limits.min} 到 ${limits.max} 秒`);
   }
+  const images = request.images ?? [];
+  const { min, max: referenceSlots } = imageReferenceRange(entry);
+  if (mediaType === "image" && images.length < min) fail(`${entry.label} 至少需要 ${min} 张参考图片`);
+  if (images.length > referenceSlots) fail(`参考图片数量超过参考槽：传入 ${images.length} 张，${entry.label} 只有 ${referenceSlots} 个参考槽`);
   const baseUrl = await resolveComfyBaseUrl(signal);
   await probeComfy(baseUrl, signal);
-
-  const images = request.images ?? [];
-  const referenceSlots = entry.bindings.bindings.filter(item => /^refs\.slot\d+$/.test(item.source)).length;
-  if (images.length > referenceSlots) fail(`参考图片数量超过参考槽：传入 ${images.length} 张，${entry.label} 只有 ${referenceSlots} 个参考槽`);
   const refs: Record<string, string | undefined> = {};
   for (let index = 0; index < images.length; index += 1) refs[`slot${index + 1}`] = await localFile(directory, images[index]);
   refs.first_frame = await localFile(directory, request.firstFrame) ?? refs.slot1;

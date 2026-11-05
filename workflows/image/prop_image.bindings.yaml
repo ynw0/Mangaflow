@@ -1,4 +1,5 @@
 workflow: ./prop_image_api.json
+usage: 从文字建立产品式道具原画，强调外轮廓、结构、材质和比例。按道具自然长宽选择画幅。
 bindings:
 - source: image_prompt
   target: 187.inputs.text

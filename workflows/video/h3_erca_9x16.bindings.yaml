@@ -1,4 +1,5 @@
 workflow: ./h3_erca_9x16_api.json
+usage: 竖屏 9:16 的 H3 二次采样成片。参考关系和动作按 H3 Ref2VA 写，构图保留竖屏内必要接触点。
 label: 二采 MiniMax H3 9:16
 # 二采 MiniMax H3（9:16）：9 槽参考图 + 视频/音频；duration 经 PrimitiveFloat 注入（合同秒 2–15）。
 # H3 节点支持 ref_image_0..8（9 槽）；节点 id 与旧 h3_erca 对齐。

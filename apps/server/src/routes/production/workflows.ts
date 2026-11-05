@@ -6,6 +6,6 @@ import u from "@/utils";
 export default Router().get("/", async (req, res) => {
   u.mcpControl.assertAppRequest(req);
   const { entries, notices } = await u.production.loadWorkflowCatalog();
-  const map = (kind: "image" | "video" | "qc") => entries.filter(item => item.kind === kind).map(item => ({ id: item.id, label: item.label }));
+  const map = (kind: "image" | "video" | "qc") => entries.filter(item => item.kind === kind).map(u.production.workflowSummary);
   res.set("Cache-Control", "no-store").json(success({ image: map("image"), video: map("video"), qc: map("qc"), notices }));
 });

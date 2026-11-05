@@ -1,0 +1,16 @@
+workflow: ./qwenImage21TurboT2iApi.json
+label: Qwen-Image-2.1 Turbo 文生图
+usage: 快速试构图、灯光和风格，使用官方 Turbo 八步序列。输入为纯文本，按主体、构图、材质和光线描述目标画面。 CFG 为 1，直接传提示词，负面提示词留空。
+bindings:
+- source: image_prompt
+  target: 5.inputs.prompt
+  kind: value
+- source: params.width
+  target: 6.inputs.width
+  kind: value
+- source: params.height
+  target: 6.inputs.height
+  kind: value
+- source: seed
+  target: 7.inputs.noise_seed
+  kind: value

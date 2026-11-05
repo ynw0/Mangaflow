@@ -9,6 +9,7 @@
         <span class="workflowInfo">
           <strong>{{ item.label }}</strong>
           <code>{{ item.id }}</code>
+          <span v-if="item.usage" class="workflowUsage">{{ item.usage }}</span>
         </span>
         <el-switch :key="`${item.id}-${switchKey}`" :modelValue="!disabledIds.includes(item.id)" :aria-label="`${item.label}开关`" @update:modelValue="emit('change', item.id, $event)" />
       </li>
@@ -22,7 +23,7 @@ import { computed } from "vue";
 
 const props = defineProps<{
   title: string;
-  items: { id: string; label: string }[];
+  items: { id: string; label: string; usage?: string }[];
   disabledIds: string[];
   switchKey: number;
 }>();
@@ -82,6 +83,12 @@ const enabledCount = computed(() => props.items.filter(item => !props.disabledId
         code {
           color: var(--el-text-color-secondary);
           font-size: 11px;
+        }
+
+        .workflowUsage {
+          color: var(--el-text-color-regular);
+          font-size: 12px;
+          line-height: 1.5;
         }
       }
     }

@@ -1,4 +1,5 @@
 workflow: ./flux3KleinDistilledT2iApi.json
+usage: 无参考图的快速试构图和批量草稿。用正面画面描述，负面提示词留空。
 label: Flux.3 Klein 蒸馏文生图
 bindings:
 - source: image_prompt

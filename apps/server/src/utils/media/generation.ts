@@ -32,27 +32,6 @@ function imageOptions(value: unknown, pattern: RegExp) {
   return Array.isArray(value) ? [...new Set(value.filter((item): item is string => typeof item === "string" && item.length <= 64 && item === item.trim() && pattern.test(item)))] : undefined;
 }
 
-// 有参考图而当前工作流不接收图片时，改用设置里的图像编辑工作流。没点名出图工作流时，按有没有参考图选择。
-async function resolveImageWorkflow(request: MediaGenerationRequest) {
-  const production = readProduction();
-  const hasImages = (request.images?.length ?? 0) > 0;
-  const chosen = (await listWorkflowCatalog()).find(item => item.kind === "image" && item.id === request.modelId);
-  const acceptsImages = chosen?.bindings.bindings.some(item => item.kind === "image") ?? false;
-  if (chosen && (!hasImages || acceptsImages)) return chosen.id;
-  return hasImages ? production.imageEditWorkflow : production.imageT2iWorkflow;
-}
-
-async function applyImageSource(request: MediaGenerationRequest) {
-  const production = readProduction();
-  if (production.imageSource === "comfyui") {
-    return { ...request, providerId: "comfyui", modelId: await resolveImageWorkflow(request) };
-  }
-  if (request.providerId === "comfyui") {
-    return { ...request, providerId: production.imageProviderId, modelId: production.imageModelId };
-  }
-  return request;
-}
-
 export async function listMediaModels(): Promise<MediaModel[]> {
   const installedProviders = await listMediaProviders();
   const production = readProduction();
@@ -83,7 +62,7 @@ export async function listMediaModels(): Promise<MediaModel[]> {
     ? models.filter(item => item.type !== "image" || item.providerId === "comfyui")
     : models;
   const ordered = preferModel(
-    visible,
+    production.imageSource === "comfyui" ? preferModel(visible, "image", "comfyui", production.imageEditWorkflow) : visible,
     "image",
     production.imageSource === "comfyui" ? "comfyui" : production.imageProviderId,
     production.imageSource === "comfyui" ? production.imageT2iWorkflow : production.imageModelId,
@@ -249,7 +228,7 @@ export async function generateMedia(
 ): Promise<GeneratedMedia[]> {
   signal?.throwIfAborted();
   if (!request.prompt.trim()) invalid("请输入生成提示词");
-  if (mediaType === "image") request = await applyImageSource(request);
+  // 明确选择的出图后端和工作流直接执行，输入不匹配由工作流校验返回。
   const directory = await realpath(cwd);
   const outputDirectory = request.outputDirectory ?? "assets/generated";
   await resolveWorkspacePath(directory, outputDirectory, true);

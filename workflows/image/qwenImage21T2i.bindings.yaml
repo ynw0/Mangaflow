@@ -1,0 +1,16 @@
+workflow: ./qwenImage21T2iApi.json
+label: Qwen-Image-2.1 文生图
+usage: 需要细节或复杂构图的原画，使用标准版二十五步采样。输入为纯文本，按主体、构图、材质和光线描述目标画面。 CFG 为 1，直接传提示词，负面提示词留空。
+bindings:
+- source: image_prompt
+  target: 5.inputs.prompt
+  kind: value
+- source: params.width
+  target: 6.inputs.width
+  kind: value
+- source: params.height
+  target: 6.inputs.height
+  kind: value
+- source: seed
+  target: 11.inputs.seed
+  kind: value

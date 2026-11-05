@@ -1,4 +1,5 @@
 workflow: ./flux3KleinDistilledEditApi.json
+usage: 已有参考图的快速局部调整和候选草稿。明确改动范围与保留项，负面提示词留空。
 label: Flux.3 Klein 蒸馏图像编辑
 bindings:
 - source: image_prompt

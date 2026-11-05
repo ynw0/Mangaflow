@@ -452,6 +452,32 @@ function getConfig() {
   };
 }
 
+function getPromptContext() {
+  const input = generationInput.value;
+  if (!input || !input.mode || !matchingModes.value.some(mode => JSON.stringify(mode) === JSON.stringify(input.mode))) {
+    throw new Error("请先选择与实际引用匹配的视频工作流和模式");
+  }
+  if (refList.value.some(item => !item.value || !["IMAGE", "VIDEO", "AUDIO"].includes(item.dataType))) {
+    throw new Error("请准备好参考素材，并将文字要求写入分镜合同");
+  }
+  const config = getConfig().config;
+  const { images, videos, audios, firstFrame, lastFrame } = input;
+  // 版本覆盖实际请求、种子模式和已有对照，写回时在节点内同步比较。
+  const revision = JSON.stringify([input, config, data.value.promptZh]);
+  return { config, images, videos, audios, firstFrame, lastFrame, revision };
+}
+
+nodeTools.register({
+  name: "getPromptContext",
+  description: "读取视频提示词制作需要的实际工作流、模式、参数、按生成顺序排列的参考及写回版本。",
+  parameters: z.strictObject({}),
+  async execute(_args, { signal }) {
+    await loadModels();
+    signal?.throwIfAborted();
+    return getPromptContext();
+  },
+});
+
 nodeTools.register({
   name: "getConfig",
   description: "读取此视频生成节点的当前配置（含种子与种子模式）、可选视频模型能力、通用比例及适合当前引用的模式，不含密钥；时长与分辨率须符合 durationResolutionMap。二采模型看 sampling：用百万像素、放大倍率和一采/二采步数，不使用分辨率",
@@ -541,9 +567,12 @@ nodeTools.register({
 nodeTools.register({
   name: "setPrompt",
   description: "修改此节点的视频提示词，支持 {{ref 1}} 等参考标记。prompt 是送去生成并在主编辑区显示的英文；promptZh 是只读的简体中文对照，不进入生成。成片提示词两者都要传。只修改提示词，不启动生成",
-  parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional() }),
-  execute({ prompt: value, promptZh }) {
+  parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional(), expectedRevision: z.string().optional() }),
+  execute({ prompt: value, promptZh, expectedRevision }) {
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");
+    if (expectedRevision !== undefined && (generating.value || getPromptContext().revision !== expectedRevision)) {
+      throw new Error("视频节点在审稿期间已变化，请重新制作提示词");
+    }
     data.value.prompt = value;
     data.value.promptZh = promptZh ?? "";
     data.value.promptModel = value.split("\n").map((text) => [{ type: "Write", text }]);

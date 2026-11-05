@@ -1,4 +1,5 @@
 workflow: ./h3_flf_repair_api.json
+prompt_format: h3Frames
 usage: 已有确定首帧和尾帧时修复两帧之间的连续动作，使用 H3 首尾帧格式和固定的起止构图。
 bindings:
 - source: prompt

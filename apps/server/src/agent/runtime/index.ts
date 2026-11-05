@@ -19,6 +19,7 @@ import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { configureAgentRequests } from "@/agent/runtime/requests";
 import { getAgentImageReference, getOffloadedImageText, readAgentImage } from "@/agent/runtime/imageAttachments";
 import { createSubAgentTool } from "@/agent/tools/subAgent";
+import { createVideoPromptTool } from "@/agent/videoPrompt";
 import { createMemoryTool } from "@/agent/tools/memory";
 import { createReportTool } from "@/agent/tools/report";
 import { runDelegatedAgent } from "@/agent/runtime/delegation";
@@ -200,6 +201,14 @@ export async function run(
     };
     unregister = registerAgentSession(history.getSessionFile()!, active);
     const tools = await createAgentTools(cwd, canvas, question);
+    const skillOperator = tools.find(tool => tool.name === "skillOperator");
+    if (!child && skillOperator) {
+      if (tools.some(tool => tool.name === "draftVideoPrompt")) throw new Error("工具名称 draftVideoPrompt 已被内置视频提示词工具占用");
+      tools.push(createVideoPromptTool({
+        cwd, canvas, skillOperator, modelRuntime: runtime, model: runtime.getModel(providerId, modelId),
+        thinkingLevel: toSdkThinkingLevel(thinkingLevel),
+      }));
+    }
     if (isMemoryEnabled()) {
       const memoryTool = createMemoryTool();
       if (tools.some(tool => tool.name === memoryTool.name)) throw new Error("工具名称 memory 已被内置全局记忆工具占用");

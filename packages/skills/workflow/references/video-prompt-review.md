@@ -9,8 +9,8 @@
 - [video-director.md](video-director.md) 定义的完整导演合同，以及 [common.md](common.md) 的公共制作规则。本角色仅受理导演合同。
 
 ## 格式检查真源
-- 默认 Ref2VA：对照 [ref-en.txt](../../h3-prompt-writing/references/ref-en.txt) 检查六段顺序、字段名、标签语义、关系词、时长记号、运镜与对白标记。
-- keyframe / 首尾帧模式：对照 [base-en.txt](../../h3-prompt-writing/references/base-en.txt)。
+- 使用 Ref2VA 时，对照 [ref-en.txt](../../h3-prompt-writing/references/ref-en.txt) 检查六段顺序、字段名、标签语义、关系词、时长记号、运镜与对白标记。
+- 纯文生视频或首尾帧模式，对照 [base-en.txt](../../h3-prompt-writing/references/base-en.txt)。
 - 不在本文件重复官方百科；格式与官方冲突时以官方为准，但正文语言与连续摄影约束按下方 Mangaflow 规则。
 
 ## 决策规则
@@ -18,12 +18,13 @@
 先核对原文、镜头剧情和已批准资产，再核对时长、参考槽位、H3 格式及制作规则，最后审核导演创作质量。
 
 ### 语言与结构
-- 六段标题与段内叙述均为英文；须另有非空 `prompt_zh` 简体中文对照。`<d>` 内对白/歌词与画面可见文字保留原文。语言标签须为 English 全称（Chinese 等），写成 zh/en/ja/ko/zh-CN 判不合格。
+- 当前模式要求的各段标题与叙述均为英文；须另有非空 `prompt_zh` 简体中文对照。`<d>` 内对白/歌词与画面可见文字保留原文。语言标签须为 English 全称（Chinese 等），写成 zh/en/ja/ko/zh-CN 判不合格。
 - 对白必须保持剧情确定文本；不得改写或删减已确认台词。
-- `duration_seconds` 必须等于准备结果给定的时长。`detailed_description` 先写风格，再写 `[Shot 1]`；后续时间段用 `[Shot N] At MM:SS.mmm` 标记，编号连续、时间严格递增、最后一个起点早于成片结束。各时间段连续覆盖本镜。
+- `duration_seconds` 必须等于准备结果给定的时长。Ref2VA 用 `detailed_description`，纯文本和首尾帧用 `integrated_multimodal_description`。首段建立画风与机位；后续时间段用 `[Shot N] At MM:SS.mmm` 标记，编号连续、时间严格递增、最后一个起点早于成片结束。各时间段连续覆盖本镜。
 - `summary` 的任务类型按实际模式与 [video-director.md](video-director.md) 确定，Ref2VA 默认 `[reference generation]`。
 
 ### 连续摄影与槽位
+- 按实际引用方式核对素材。Subject 定义及 retention_analysis 属于 Ref2VA；首尾帧按 base-en.txt 检查帧对齐说明与镜尾锚点。
 - 一个 shot 只有一个连续摄影镜头。出现切镜、反打、蒙太奇、跨场景或时间跳跃，判不合格。
 - `ref_bindings` 的各项和顺序必须与准备结果的 `ref_slot_plan` 完全一致。Picture 只能引用本镜已批准的槽位；动作句使用本镜登记名，主体标签须与本镜身份定义一致。
 - Subject 按身份定义，Picture 按实际槽位编号。同一主体的多个参考状态引用同一个 Subject，逐张说明用途。每个身份或状态槽都要被对应主体引用。`retention_analysis` 覆盖已定义 Subject。独立 Picture 条目用于实际成立的帧或构图锚，关系词与其用途及保留范围一致。普通参考图的用途可以描述为变形状态，不能假定模型会在指定帧复现。

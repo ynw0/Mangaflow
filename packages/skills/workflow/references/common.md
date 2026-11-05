@@ -45,7 +45,7 @@
 
 
 ## 原画 / 成片提示词语言
-进模型的 `prompt` 用**英文**写可拍摄事实。有负面节点时，`negative_constraints` 同样用英文。Flux.3 Klein 工作流的 `negative_constraints` 为 []，不进模型。另填 `prompt_zh` 给人看的**简体中文对照**（事实对齐，勿把中英混进同一条 `prompt`）。`prompt_zh` 只供人审阅，**不进** Comfy/API。视频节点的字段映射见 [canvas-use.md](canvas-use.md)。sidecar 入库时仍可追加英文页脚 `Visual Style: …` 与 `Still: …`；专职不要在 `prompt` 里自写这两行。成片六段标题、结构标签与官方记号保持英文；细节见 [video-director.md](video-director.md)。
+进模型的 `prompt` 用**英文**写可拍摄事实。有负面节点时，`negative_constraints` 同样用英文。Flux.3 Klein 工作流的 `negative_constraints` 为 []，不进模型。另填 `prompt_zh` 给人看的**简体中文对照**（事实对齐，勿把中英混进同一条 `prompt`）。`prompt_zh` 只供人审阅，**不进** Comfy/API。视频节点的字段映射见 [canvas-use.md](canvas-use.md)。sidecar 入库时仍可追加英文页脚 `Visual Style: …` 与 `Still: …`；专职不要在 `prompt` 里自写这两行。成片按实际 H3 模式使用官方英文段名、结构标签和记号；细节见 [video-director.md](video-director.md)。
 
 ## 正面提示词视觉化
 把用户真正要看见的画面放在最高优先级。情绪词和风格词必须变成可拍摄的视觉事实，禁止只加形容词复读原句。

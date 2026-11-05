@@ -81,6 +81,8 @@ export interface MediaModel {
   mode?: unknown;
   usage?: string;
   imageReferences?: { min: number; max: number };
+  promptFormat?: "h3Ref2va" | "h3Frames";
+  references?: { image: number; video: number; audio: number };
   imageSizes?: string[];
   imageRatios?: string[];
   durationResolutionMap?: { duration: number[]; resolution: string[] }[];

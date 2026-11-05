@@ -7,7 +7,7 @@
 shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬要求、相邻镜头文本、continuity、`approved_assets`（含登记名、`canonical_description`、批准原画全文 `approved_image_prompt`、`allowed_variant_changes`）、`subjects`、实际 `ref_slot_plan` 与工作流能力。`story` 和 `must_have` 是编剧原文，程序没有改写。
 
 ## 导演创作步骤
-写 H3 正文前，先读 bundled `cinematicPromptCraft/SKILL.md`，按镜头用途选读相关资料并完成内部导演决策。揭示、冲突、觉醒等关键节拍仍有创作空间时，比较两种拍法能交付的信息与执行负荷，并结合当前集已写镜头选择。只把入选方案写进现有六段正文。
+写 H3 正文前，先读 bundled `cinematicPromptCraft/SKILL.md`，按镜头用途选读相关资料并完成内部导演决策。揭示、冲突、觉醒等关键节拍仍有创作空间时，比较两种拍法能交付的信息与执行负荷，并结合当前集已写镜头选择。只把入选方案写进当前模式规定的正文。
 
 - 主要视觉事件优先，细节有选择：普通对话不默认加入特效和运镜；玄幻技能也不默认大爆炸。
 - 人物动作从刺激、视线、手部/重心变化建立因果；只有剧情需要时描述夸张表情与大动作。
@@ -17,19 +17,18 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 - 保留已有连续摄影、动作时序、对白、槽位和硬约束；新知识库只提供创作决策，不可覆盖上游事实或官方格式。
 
 ## 成片格式真源
-默认工作流 `video/h3_ref2va_1080p` 为 Ref2VA。写 prompt 前必须先读 bundled skill `h3-prompt-writing`：
+按目标节点的真实工作流及引用模式写作。新建镜头从用户指定或当前 production.video 取工作流，再核对实际能力。
 
-1. 先读 `h3-prompt-writing/references/ref-en.txt`（六段结构、标签、关系词、时长记号、运镜与对白标记）。
-2. 首尾帧等 keyframe 模式（如 `video/h3_flf_repair`）再读 `h3-prompt-writing/references/base-en.txt`。
-3. 字段名、六段顺序、标签语义、关系词、时长记号以官方为准；本文件不重复官方百科。
+- Ref2VA 普通参考模式按 [ref-en.txt](../../h3-prompt-writing/references/ref-en.txt)，依次输出 subject_definitions、summary、retention_analysis、detailed_description、overall_soundscape、non_diegetic_music。
+- 纯文生视频按 [base-en.txt](../../h3-prompt-writing/references/base-en.txt) 的三段正文。首尾帧模式在三段正文之前按该指南写帧对齐说明，镜尾匹配实际时长。
+- 以下 Subject、retention_analysis、summary 专属规则用于 Ref2VA。三段格式直接在 integrated_multimodal_description 交代身份、空间和时间变化。
 
-六段顺序固定：`subject_definitions:` → `summary:` → `retention_analysis:` → `detailed_description:` → `overall_soundscape:` → `non_diegetic_music:`。
 
 ## 正文语言
 对齐官方 H3（见 bundled `h3-prompt-writing` / `vendor/minimaxH3Skills`）：
 
-- 六段**标题**与**段内叙述**均为英文；细节量对齐官方「尽量详尽」。
-- 另填合同字段 `prompt_zh`：六段内容的简体中文对照，给人审阅，**不进** Comfy/API；勿把中文塞进 `prompt`。
+- 字段标题和正文用英文，优先写影响叙事、执行与验收的可见可听细节。
+- 另填合同字段 `prompt_zh`：各段内容的简体中文对照，给人审阅，**不进** Comfy/API；勿把中文塞进 `prompt`。
 - 写入视频节点时按 [canvas-use.md](canvas-use.md) 交接英文正文和简体中文对照。
 - `<d>` 内对白/歌词与画面可见文字保留原文语言。
 - 语言标签用英文全称（Chinese、English、Korean、Japanese），不要 zh/en/ja/ko/zh-CN。
@@ -56,7 +55,7 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 - 运镜只写一种主运镜和它的起止。镜子、倒影、旋转跟拍不作为必须完成的动作。禁止只罗列运镜词，禁止堆「真实、流畅、超真实、没有闪烁」这类空词。
 
 ### 对白与同音字
-- 角色说话时用同音不同字（如「不抗」→「扛」）。
+- 对白保留已确认的原文文字和语言。
 - 开口时三者齐全：`<Subject N> (S1)`、动作或语气、`<d>[Chinese] 剧情原文</d>`。多人齐声用 `(S1,S2)` 配一个 `<d>`。
 
 ### 说话时序

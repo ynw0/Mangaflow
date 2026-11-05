@@ -268,7 +268,8 @@ export function useCanvasTools(options: {
         return { fitted, nodeIds: nodeIds?.slice(0, 100), nodeCount: nodeIds?.length ?? flow.nodes.value.length, truncated: (nodeIds?.length ?? 0) > 100, viewport: { ...flow.viewport.value } };
       }
       case "nodeTools": {
-        const args = canvasSchemas.nodeTools.parse(request.args);
+        const { canvasId: expectedCanvas, ...args } = canvasSchemas.nodeTools.parse(request.args);
+        if (expectedCanvas && expectedCanvas !== canvasId) throw new Error(canvasSwitchedMessage(expectedCanvas));
         findNode(args.nodeId, turn);
         return getNodeTools().call(args, signal);
       }

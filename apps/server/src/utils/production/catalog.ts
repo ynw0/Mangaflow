@@ -233,11 +233,10 @@ export function toMediaModel(entry: WorkflowEntry) {
     : [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
   const audioSlots = entry.bindings.bindings.filter(item => item.kind === "audio").length;
   const hasAudio = audioSlots > 0;
-  const audioReference = `audioReference:${audioSlots > 0 ? audioSlots : 1}`;
+  const videoSlots = entry.bindings.bindings.filter(item => item.kind === "video").length;
   const frames = entry.bindings.bindings.some(item => item.source === "refs.first_frame");
-  const needsImage = entry.bindings.bindings.some(item => item.kind === "image" && item.required);
+  const imageReferences = imageReferenceRange(entry);
   if (entry.kind === "image") {
-    const imageReferences = imageReferenceRange(entry);
     const mode = [
       ...(imageReferences.min === 0 ? ["text"] : []),
       ...(imageReferences.min <= 1 && imageReferences.max >= 1 ? ["singleImage"] : []),
@@ -259,19 +258,25 @@ export function toMediaModel(entry: WorkflowEntry) {
   }
   if (entry.kind !== "video") fail(`${entry.id} 不是出视频工作流`);
   const sampling = samplingFor(entry);
+  const references = { image: imageReferences.max, video: videoSlots, audio: audioSlots };
+  const referenceMode = Object.entries(references).flatMap(([kind, count]) => count ? [`${kind}Reference:${count}`] : []);
   return {
     providerId: "comfyui",
     providerLabel: "ComfyUI",
     modelId: entry.id,
     label: entry.label,
     usage: entry.bindings.usage,
+    promptFormat: entry.bindings.promptFormat,
+    references,
     type: "video" as const,
     supportsPrice: false,
     mode: frames
       ? ["startEndRequired"]
-      : needsImage
-        ? ["singleImage", ["imageReference:9", "videoReference:1", audioReference]]
-        : ["text", "singleImage", ["imageReference:9", "videoReference:1", audioReference]],
+      : [
+        ...(imageReferences.min === 0 ? ["text"] : []),
+        ...(imageReferences.min <= 1 && imageReferences.max >= 1 ? ["singleImage"] : []),
+        ...(referenceMode.length ? [referenceMode] : []),
+      ],
     durationResolutionMap: [{ duration: durations, resolution: sampling ? [] : ["1080P"] }],
     sampling,
     audio: hasAudio ? "optional" as const : false,

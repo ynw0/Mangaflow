@@ -34,8 +34,9 @@ export async function runSubAgent(options: SubAgentModel & {
   inputRequired?: () => string | undefined;
   onTool?: (tool: ToolCall) => void;
   onProgress?: (message: string) => void;
+  responseFormat?: "json";
 }) {
-  const { cwd, name, task, tools, instructions, signal = new AbortController().signal, history, inputRequired, onTool, onProgress, ...modelOptions } = options;
+  const { cwd, name, task, tools, instructions, signal = new AbortController().signal, history, inputRequired, onTool, onProgress, responseFormat, ...modelOptions } = options;
   const result: SubAgentResult = { name, status: "running", result: "准备执行" };
   const usage = emptyUsage();
   let session: AgentSession | undefined;
@@ -84,7 +85,8 @@ export async function runSubAgent(options: SubAgentModel & {
       if (event.type === "message_start" && event.message.role === "assistant") onProgress?.("正在处理");
       if (event.type === "tool_execution_start") onProgress?.(`正在调用 ${event.toolName}`);
     });
-    await session.prompt(`你正在执行委派的独立子任务。仅处理下述任务，遵守系统中的授权与工作区规则。缺少信息或授权时，说明阻碍并交回调用方；若提供 requestInput 则使用它等待补充。最终返回简明结论、实际修改的文件相对路径、验证情况与未完成项；长篇产物写入已授权的工作区文件。\n\n${JSON.stringify({ name, task })}`, { expandPromptTemplates: false });
+    const responseRule = responseFormat === "json" ? "按任务定义仅返回 JSON 对象。" : "最终返回简明结论、实际修改的文件相对路径、验证情况与未完成项；长篇产物写入已授权的工作区文件。";
+    await session.prompt(`你正在执行委派的独立子任务。仅处理下述任务，遵守系统中的授权与工作区规则。缺少信息或授权时，说明阻碍并交回调用方；若提供 requestInput 则使用它等待补充。${responseRule}\n\n${JSON.stringify({ name, task })}`, { expandPromptTemplates: false });
     signal.throwIfAborted();
     const question = inputRequired?.();
     const reply = session.messages.findLast(message => message.role === "assistant");

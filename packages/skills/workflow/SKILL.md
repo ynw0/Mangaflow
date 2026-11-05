@@ -2,7 +2,7 @@
 name: workflow
 description: 按小说或用户query制作漫剧。先编剧，再资产规划，再角色、场景、道具原画与对应审核，再视频导演、视频提示词审核与成片审核。出图按系统设置走 Qwen 图像 API 或 ComfyUI 工作流。出视频用 AutoDL 或本机的 ComfyUI。用户要做短剧、漫剧、分镜、资产或镜头时使用。
 metadata:
-  version: "1.6.0"
+  version: "1.7.0"
   displayName: 漫剧制作
   author: Manga
 ---
@@ -27,7 +27,7 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | 场景原画 | [scene-art.md](references/scene-art.md) 然后 [scene-prompt-review.md](references/scene-prompt-review.md) | 要换机位或反复出现时做四方向拼版；只做氛围或转场时做无人空镜 |
 | 道具原画 | [prop-art.md](references/prop-art.md) 然后 [prop-prompt-review.md](references/prop-prompt-review.md) | 审核通过的产品图 |
 | 单集导演规划（可选） | [directorPlan.md](references/directorPlan.md) | 分集画布上的分场情绪与注意事项 |
-| 成片 | 先读 bundled [h3-prompt-writing](../h3-prompt-writing/SKILL.md)：Ref2VA 先读 `references/ref-en.txt`，首尾帧再读 `references/base-en.txt`；再读 bundled [cinematicPromptCraft](../cinematicPromptCraft/SKILL.md) 并按剧情选择所需导演知识；然后读 [video-director.md](references/video-director.md)，最后读 [video-prompt-review.md](references/video-prompt-review.md) | 先完成单镜导演设计，再写 H3 正文并审核；审核通过后使用 `video/h3_ref2va_1080p`；只有首尾帧修复使用 `video/h3_flf_repair` |
+| 成片提示词 | 已有节点先核对实际工作流和模式，新镜用用户指定或 production.video。内置 Agent 用 draftVideoPrompt 读取 [导演 Skill](../cinematicPromptCraft/SKILL.md)、对应的 [H3 规则](../h3-prompt-writing/SKILL.md) 和 [视频审核规则](references/video-prompt-review.md) | 程序预检和独立审核通过后交接英中文稿。出片使用同一已审工作流及参数，并另行确认 |
 
 官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing + cinematicPromptCraft 导演知识 → video-director → video-prompt-review → Comfy H3 Ref2VA）。
 

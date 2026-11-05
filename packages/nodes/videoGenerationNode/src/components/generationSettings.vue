@@ -87,24 +87,27 @@
         <span class="sectionLabel">生成音频</span>
         <el-switch v-model="generateAudio" :disabled="disabled" aria-label="生成音频" />
       </div>
-      <div class="sectionLabel seedLabel">种子</div>
-      <div class="seedRow">
-        <el-select v-model="seedMode" class="seedModeSelect" :disabled="disabled" :teleported="false" aria-label="种子模式">
-          <el-option value="fixed" label="固定" />
-          <el-option value="random" label="随机" />
-          <el-option value="last" label="固定上次随机" />
-        </el-select>
-        <el-input-number
-          v-model="seed"
-          class="seedInput"
-          :disabled="disabled || seedMode === 'random'"
-          :controls="false"
-          :min="0"
-          :max="Number.MAX_SAFE_INTEGER"
-          :step="1"
-          :precision="0"
-          aria-label="种子值" />
-      </div>
+      <template v-if="model?.supportsSeed">
+        <div class="sectionLabel seedLabel">种子</div>
+        <div class="seedRow">
+          <el-select v-model="seedMode" class="seedModeSelect" :disabled="disabled" :teleported="false" aria-label="种子模式">
+            <el-option value="fixed" label="固定" />
+            <el-option value="random" label="随机" />
+            <el-option value="last" label="固定上次随机" :disabled="lastSeed == null" />
+          </el-select>
+          <el-input-number
+            v-model="displayedSeed"
+            class="seedInput"
+            :disabled="disabled || seedMode !== 'fixed'"
+            :placeholder="seedMode === 'random' ? '生成时取值' : '暂无随机记录'"
+            :controls="false"
+            :min="0"
+            :max="Number.MAX_SAFE_INTEGER"
+            :step="1"
+            :precision="0"
+            aria-label="种子值" />
+        </div>
+      </template>
     </div>
   </el-popover>
 </template>
@@ -115,7 +118,7 @@ import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch, ElInputNumber } from
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import type { NodeMediaModel } from "@toonflow/nodes-scaffold/runtime";
 
-const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[] }>();
+const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number }>();
 const settingsVisible = ref(false);
 const duration = defineModel<number | undefined>("duration", { required: true });
 const resolution = defineModel<string>("resolution", { required: true });
@@ -128,6 +131,10 @@ const mode = defineModel<string>("mode", { required: true });
 const generateAudio = defineModel<boolean>("generateAudio", { required: true });
 const seed = defineModel<number>("seed", { required: true });
 const seedMode = defineModel<"fixed" | "random" | "last">("seedMode", { required: true });
+const displayedSeed = computed({
+  get: () => seedMode.value === "fixed" ? seed.value : props.lastSeed,
+  set: value => { if (seedMode.value === "fixed" && value !== undefined) seed.value = value; },
+});
 const modeLabels: Record<string, string> = {
   text: "文生视频", singleImage: "单图参考", startEndRequired: "首尾帧必填", endFrameOptional: "尾帧可选", startFrameOptional: "首帧可选",
 };

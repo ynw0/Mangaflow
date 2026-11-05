@@ -1,6 +1,7 @@
 import { stat } from "@toonflow/file";
 import { z } from "zod";
 import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
+import { templateConditions, templateTagSchema } from "@/agent/videoPrompt/templates/schema";
 import { findWorkflow, imageReferenceRange, toMediaModel } from "@/utils/production/catalog";
 import { isWorkflowEnabled, readProduction } from "@/utils/production/config";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
@@ -32,6 +33,8 @@ export const videoPromptParameters = z.strictObject({
   mustNotHave: requirements,
   intent: z.enum(["dialogue", "action", "effects", "mechanical", "reveal", "environment"]),
   adjacentShots: z.string().trim().max(6000).optional(),
+  templateTags: templateTagSchema.optional(),
+  templateConditions: templateConditions.pick({ subjectCount: true, anchors: true }).optional(),
   references: z.array(reference).max(24),
   node: z.strictObject({ canvasId: shortText, nodeId: shortText, write: z.boolean().optional() }).optional(),
   modelId: shortText.optional(),
@@ -48,6 +51,7 @@ const nodeContext = z.object({
     megapixels: z.number().optional(), upscale: z.number().optional(),
     firstPassSteps: z.number().optional(), secondPassSteps: z.number().optional(),
     seed: z.number().optional(), seedMode: z.string().optional(),
+    supportsSeed: z.boolean().optional(),
   }),
   revision: z.string(),
   images: z.array(material).optional(),
@@ -61,7 +65,7 @@ export type VideoPromptInput = z.infer<typeof videoPromptParameters>;
 export type VideoPromptFormat = "h3Ref2va" | "h3Frames" | "h3Text";
 
 export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, canvas?: CanvasContext, signal?: AbortSignal) {
-  const { node, modelId, duration, ratio, references, sampling: requestedSampling, ...shot } = input;
+  const { node, modelId, duration, ratio, references, sampling: requestedSampling, templateTags, templateConditions, ...shot } = input;
   const production = readProduction();
   if (node && !canvas) throw new Error("请先打开目标视频节点所在的画布");
   const current = node && canvas ? nodeContext.parse(await canvas.call({
@@ -121,7 +125,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   }
   const numbered = (items: typeof approved, name: string) => items.map((item, index) => ({ ...item, label: `<${name} ${index + 1}>` }));
   return {
-    shot, format, revision: current?.revision,
+    shot, format, revision: current?.revision, templateTags, templateConditions,
     setup: {
       modelId: workflow.id, duration: seconds, ratio: aspect, mode: current?.config.mode ?? format,
       host: production.videoHost, config: current?.config, usage: workflow.bindings.usage,

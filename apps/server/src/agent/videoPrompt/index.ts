@@ -4,6 +4,8 @@ import { z } from "zod";
 import { addUsage, emptyUsage, runSubAgent, type SubAgentModel } from "@/agent/runtime/subAgent";
 import { prepareVideoPrompt, videoPromptParameters } from "@/agent/videoPrompt/input";
 import { draftSchema, inspectDraft, reviewSchema } from "@/agent/videoPrompt/format";
+import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
+import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
 
 const directorReferences = {
   dialogue: ["characterPerformance.md", "soundDesign.md"],
@@ -12,6 +14,14 @@ const directorReferences = {
   mechanical: ["mechanicalTransformation.md", "actionChoreography.md"],
   reveal: ["scenePlaybooks.md", "compositionAndLens.md"],
   environment: ["environmentDesign.md", "compositionAndLens.md"],
+};
+const scenesByIntent: Record<keyof typeof directorReferences, NonNullable<VideoPromptTags["scene"]>> = {
+  dialogue: ["对话", "质问", "谈判", "告别", "交接"],
+  action: ["追逐", "战斗", "格挡", "救援", "撤离", "交接"],
+  effects: ["觉醒", "施法", "灾变", "战斗", "格挡"],
+  mechanical: ["机械变形", "装置启动"],
+  reveal: ["揭示", "调查", "反转", "危险逼近", "反应", "登场"],
+  environment: ["场景建立", "转场", "战后余波"],
 };
 const skillList = z.object({ skills: z.array(z.object({
   name: z.string(), scope: z.enum(["global", "workspace"]), disableModelInvocation: z.boolean().optional(),
@@ -39,6 +49,14 @@ export function createVideoPromptTool(options: SubAgentModel & {
     async execute(_id, params, signal, onUpdate, ctx) {
       const input = videoPromptParameters.parse(params);
       const prepared = await prepareVideoPrompt(cwd, input, canvas, signal);
+      const tags = { scene: scenesByIntent[input.intent], ...prepared.templateTags };
+      const candidates = findVideoPromptTemplates(tags, {
+        ...prepared.templateConditions,
+        duration: prepared.setup.duration,
+        format: prepared.format,
+        imageCount: prepared.setup.references.filter(reference => reference.kind === "image").length,
+      });
+      const templateMatches = candidates.map(({ id, title, matches }) => ({ id, title, matches }));
       const usage = emptyUsage();
       const skills: { name: string; scope: string; path: string; version?: string }[] = [];
       const attempts: { stage: "director" | "preflight" | "review"; findings: string[] }[] = [];
@@ -66,7 +84,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const reviewRules = await read("workflow", "references/video-prompt-review.md");
       const update = (text: string) => onUpdate?.({ content: [{ type: "text", text }], details: {} });
       const finish = (result: Record<string, unknown>) => {
-        const details = { ...result, shotId: input.shotId, workflow: prepared.setup, skills, attempts };
+        const details = { ...result, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, attempts };
         return { details, content: [{ type: "text" as const, text: JSON.stringify(details) }], usage };
       };
       const taskInput = { shot: prepared.shot, format: prepared.format, workflow: prepared.setup };
@@ -93,7 +111,8 @@ export function createVideoPromptTool(options: SubAgentModel & {
         const draft = await specialist(draftSchema, round ? "导演返修" : "导演写作", [
           '输出 {"status":"ok","prompt":"英文生成正文","promptZh":"简中对照"}；缺少关键输入或无法在给定时长交付剧情时，输出 {"status":"blocked","reason":"具体原因"}。',
           "先在内部确定镜头要交付的叙事信息，再设计可见的起点、动作、接触或变化、反馈和末态。按实际模式写 H3 正文，稳定设定与逐段变化分开，英文和中文保持同样的可见事实。",
-          JSON.stringify({ ...taskInput, ...(lastDraft ? { previousDraft: lastDraft, findings } : {}) }),
+          "按已确认的剧情和素材取用匹配的拍法。模板片段含占位词、使用条件和验收点，只有条件满足时才采用相关片段，实际正文写真实可观察的事件。",
+          JSON.stringify({ ...taskInput, candidates, ...(lastDraft ? { previousDraft: lastDraft, findings } : {}) }),
         ].join("\n"), [...directorRules, ...formatRules]);
         if (draft.status === "blocked") {
           attempts.push({ stage: "director", findings: [draft.reason] });

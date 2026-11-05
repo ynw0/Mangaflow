@@ -88,6 +88,7 @@
             v-model:generateAudio="data.generateAudio"
             v-model:seed="data.seed"
             v-model:seedMode="data.seedMode"
+            :lastSeed="data.lastSeed"
             :ratios="ratioOptions"
             :model="selectedModel"
             :disabled="generating || deleting || !selectedModel" />
@@ -363,14 +364,10 @@ function resolveSeed() {
   const mode = data.value.seedMode ?? "fixed";
   if (mode === "fixed") return data.value.seed ?? defaultSeed;
   if (mode === "last") {
-    if (data.value.lastSeed == null) data.value.lastSeed = randomSeed();
-    data.value.seed = data.value.lastSeed;
+    if (data.value.lastSeed == null) throw new Error("暂无随机种子记录，请先使用随机模式生成");
     return data.value.lastSeed;
   }
-  const next = randomSeed();
-  data.value.lastSeed = next;
-  data.value.seed = next;
-  return next;
+  return randomSeed();
 }
 
 async function startGeneration() {
@@ -383,6 +380,9 @@ async function startGeneration() {
   if (!generationPrompt.value) throw new Error("请输入生成提示词");
   if (refList.value.some(item => item.value === undefined)) throw new Error("引用节点暂无内容，请先补充引用内容");
   if (choice.mode?.length && !matchingModes.value.length) throw new Error("当前模型没有适合这些参考素材的生成模式，请更换模型或调整引用");
+  // 启动时固定本次种子，随机记录随成功输出更新，保留用户输入的固定种子。
+  const seed = choice.supportsSeed ? resolveSeed() : undefined;
+  const usedRandomSeed = seed !== undefined && data.value.seedMode === "random";
   const workspace = files.getWorkspaceFiles();
   const controller = new AbortController();
   generationController = controller;
@@ -391,18 +391,19 @@ async function startGeneration() {
     .list()
     .then(({ directory }) => {
       controller.signal.throwIfAborted();
-      return ai.generateVideo({ ...input, directory, seed: resolveSeed() }, controller.signal);
+      return ai.generateVideo({ ...input, directory, seed }, controller.signal);
     })
     .then(([result]) => {
       controller.signal.throwIfAborted();
       if (!result) throw new Error("供应商未返回视频");
+      if (usedRandomSeed) data.value.lastSeed = seed;
       outputs.value.video = { dataType: "VIDEO", value: { url: result.path, mimeType: result.mimeType } };
     }))
     .catch((error) => showNodeError(error, "视频生成失败"))
     .finally(() => {
       generationController = undefined;
     });
-  return { status: "generating" };
+  return { status: "generating", seed };
 }
 
 nodeEvent.on("save", (reason) => {
@@ -442,9 +443,10 @@ function getConfig() {
       ratio: data.value.ratio,
       mode: selectedMode.value,
       generateAudio: data.value.generateAudio,
-      seed: data.value.seed,
-      seedMode: data.value.seedMode,
-      lastSeed: data.value.lastSeed,
+      supportsSeed: selectedModel.value?.supportsSeed === true,
+      seed: selectedModel.value?.supportsSeed ? data.value.seed : undefined,
+      seedMode: selectedModel.value?.supportsSeed ? data.value.seedMode : undefined,
+      lastSeed: selectedModel.value?.supportsSeed ? data.value.lastSeed : undefined,
     },
     models: models.value,
     ratios: ratioOptions,
@@ -505,7 +507,7 @@ nodeTools.register({
     ratio: z.enum(ratioOptions).optional(),
     mode: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     generateAudio: z.boolean().optional(),
-    seed: z.number().int().nonnegative().optional(),
+    seed: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
     seedMode: z.enum(["fixed", "random", "last"]).optional(),
   }).refine((args) => (args.providerId === undefined) === (args.modelId === undefined), "providerId 与 modelId 必须同时提供"),
   async execute(args, { signal }) {
@@ -517,6 +519,9 @@ nodeTools.register({
     const choice = args.modelId === undefined ? selectedModel.value
       : models.value.find((item) => item.providerId === args.providerId && item.modelId === args.modelId);
     if (!choice) throw new Error("请选择 getConfig 返回的有效视频模型");
+    if (!choice.supportsSeed && (args.seed !== undefined || args.seedMode !== undefined)) throw new Error("当前工作流没有绑定种子");
+    if (args.seedMode === "last" && data.value.lastSeed == null) throw new Error("暂无随机种子记录");
+    if (args.seed !== undefined && (args.seedMode ?? data.value.seedMode) !== "fixed") throw new Error("只有固定模式可以设置种子值");
     const durations = getDurations(choice);
     if (args.duration !== undefined && !durations.includes(args.duration)) throw new Error(`当前模型不支持时长 ${args.duration}，可选：${durations.join("、")}`);
     const duration = args.duration ?? (durations.includes(data.value.duration!) ? data.value.duration : durations[0]);

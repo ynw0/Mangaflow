@@ -82,6 +82,7 @@ export interface MediaModel {
   usage?: string;
   imageReferences?: { min: number; max: number };
   promptFormat?: "h3Ref2va" | "h3Frames";
+  supportsSeed?: boolean;
   references?: { image: number; video: number; audio: number };
   imageSizes?: string[];
   imageRatios?: string[];

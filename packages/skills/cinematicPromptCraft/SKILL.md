@@ -2,7 +2,7 @@
 name: cinematicPromptCraft
 description: 在漫剧或短剧的视频导演阶段，依据剧情意图选择构图、人物表演、动作调度、视觉特效、场景光影、镜头运动和声音方案，形成能在单个连续镜头中执行的视觉设计。用于 video-director 写 H3 视频提示词之前的导演构思；不代替 h3-prompt-writing，也不改剧情、参考槽位、身份锁或审核合同。
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   displayName: 影视导演创作知识库
   author: Manga
 ---
@@ -20,6 +20,8 @@ metadata:
 - 设计内容只在**导演内部规划**中使用，最终仍由现有 `video-director` 返回原有合同。英文六段格式、Picture/Subject/对白关系词由 `h3-prompt-writing` 与当前 workflow 规则决定。
 
 ## 根据镜头目的读取知识（每条镜头按需）
+
+内置 Agent 可调用 searchVideoPromptTemplates 的 listTags 查看标签，再用 search 多选剧情、情绪、表演、动作、特效、摄影、构图、光影、声音和环境。已知时传入时长、参考模式、参考图数量、主体数量和可用锚点。draftVideoPrompt 用同一目录检索，并记录命中的模板。模板里的摄影或动作标签可以表示可选拍法，采纳时核对适用条件，只保留当前镜头确实需要的运动和事件。
 
 | 任务特征 | 必读参考 | 按需增读 |
 | --- | --- | --- |

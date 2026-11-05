@@ -69,6 +69,9 @@ export function inspectDraft(draft: { prompt: string; promptZh: string }, prepar
   }
   if (!/\p{Script=Han}/u.test(promptZh)) findings.push("提供与英文事实一致的简体中文对照。");
   const narration = prompt.replace(/<d>[\s\S]*?<\/d>/gi, "").replace(/"[^"\n]*"/g, "");
+  if (/\[[^\[\]\n]*\p{Script=Han}[^\[\]\n]*\]/u.test(narration)) {
+    findings.push("英文正文仍有未替换的模板占位词，请写入镜头中的真实对象或动作。");
+  }
   if (/\b(?:no cuts|no subtitles|no dialogue|the camera cuts to|the shot cuts to)\b/i.test(narration)) {
     findings.push("用正向可见事实描述一个连续摄影镜头。");
   }

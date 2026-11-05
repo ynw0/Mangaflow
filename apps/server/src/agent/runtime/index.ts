@@ -20,6 +20,7 @@ import { configureAgentRequests } from "@/agent/runtime/requests";
 import { getAgentImageReference, getOffloadedImageText, readAgentImage } from "@/agent/runtime/imageAttachments";
 import { createSubAgentTool } from "@/agent/tools/subAgent";
 import { createVideoPromptTool } from "@/agent/videoPrompt";
+import { createVideoTemplateSearchTool } from "@/agent/videoPrompt/templates";
 import { createMemoryTool } from "@/agent/tools/memory";
 import { createReportTool } from "@/agent/tools/report";
 import { runDelegatedAgent } from "@/agent/runtime/delegation";
@@ -201,6 +202,11 @@ export async function run(
     };
     unregister = registerAgentSession(history.getSessionFile()!, active);
     const tools = await createAgentTools(cwd, canvas, question);
+    if (!child) {
+      const searchTemplates = createVideoTemplateSearchTool();
+      if (tools.some(tool => tool.name === searchTemplates.name)) throw new Error("视频提示词模板工具名称冲突");
+      tools.push(searchTemplates);
+    }
     const skillOperator = tools.find(tool => tool.name === "skillOperator");
     if (!child && skillOperator) {
       if (tools.some(tool => tool.name === "draftVideoPrompt")) throw new Error("工具名称 draftVideoPrompt 已被内置视频提示词工具占用");

@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseWorkflowBindings, type WorkflowBindings } from "@/utils/production/bindings";
 import { readProduction, fail } from "@/utils/production/config";
 import { resolveAppDirectory } from "@/resolveAppDirectory";
+import { validateH3Workflow } from "@/utils/production/h3Workflow";
 
 export type WorkflowKind = "image" | "video" | "qc";
 
@@ -90,6 +91,7 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
   if (!insideRoot(root, workflowPath)) fail(`工作流文件越出目录: ${id}`);
   const info = await stat(workflowPath).catch(() => undefined);
   if (!info?.isFile()) fail(`工作流 JSON 不存在: ${id}`);
+  if (kind === "video") validateH3Workflow(JSON.parse(await readFile(workflowPath, "utf8")), parsed);
   return {
     id,
     label: parsed.label?.trim() || labels[id] || id.split("/").at(-1) || id,

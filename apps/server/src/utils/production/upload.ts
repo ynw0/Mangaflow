@@ -9,6 +9,7 @@ import {
 } from "@/utils/production/bindings";
 import { customWorkflowRoot, listWorkflowCatalog, resolveBuiltinWorkflowsRoot } from "@/utils/production/catalog";
 import { fail } from "@/utils/production/config";
+import { validateH3Workflow } from "@/utils/production/h3Workflow";
 
 const slugPattern = /^[a-z][a-z0-9_]{0,63}$/;
 const allowedSources = new Set([
@@ -78,6 +79,7 @@ function targetExists(nodes: Record<string, unknown>, target: string) {
 }
 
 function validateBindings(parsed: WorkflowBindings, nodes: Record<string, unknown>) {
+  validateH3Workflow(nodes, parsed);
   if (!parsed.bindings.some(item => item.source === "prompt")) fail("bindings 必须包含 source: prompt");
   for (const item of parsed.bindings) {
     if (!allowedSources.has(item.source)) fail(`不支持的 binding.source: ${item.source}`);
@@ -141,6 +143,7 @@ async function generateBindingsYaml(options: {
     "4. target 必须是「节点id.inputs.字段名」，且节点与字段必须出现在摘要中。",
     "5. kind 为 value|image|video|audio；可选参考槽 required: false。",
     "6. 必须包含 prompt；能识别到种子/时长/参考图/音视频就绑定。",
+    "H3 节点或模型必须声明 prompt_format：首尾帧绑定使用 h3Frames，参考生成使用 h3Ref2va。不得省略或猜测不一致的模式。",
     `7. workflow 写成: ./${options.slug}_api.json`,
     options.label?.trim() ? `8. 可写 label: ${options.label.trim()}` : "8. 可不写 label。",
     "",

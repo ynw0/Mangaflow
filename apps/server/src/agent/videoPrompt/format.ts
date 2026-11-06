@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { prepareVideoPrompt } from "@/agent/videoPrompt/input";
+import { inspectDialogue } from "@/agent/videoPrompt/dialogue";
 
 type Prepared = Awaited<ReturnType<typeof prepareVideoPrompt>>;
 
@@ -41,6 +42,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string }, prepar
   const timeline = prompt.slice(start.index + start[0].length, headings.at(-2)!.index);
   const segments = [...timeline.matchAll(/(?:^|\n)[\t ]*\[Shot (\d+)\]([^\n]*)/g)];
   let previous = 0;
+  const windows: { index: number; number: string; start: number }[] = [];
   if (!segments.length) findings.push("缺少 [Shot 1] 时间段。");
   if (format === "h3Frames" && !prefix.includes(`Picture 2 (from Shot ${segments.length})`)) {
     findings.push("尾帧对齐说明须指向实际最后一个时间段。");
@@ -51,11 +53,12 @@ export function inspectDraft(draft: { prompt: string; promptZh: string }, prepar
       break;
     }
     const time = /^\s*At (\d{2}):([0-5]\d)\.(\d{3})(?=\D|$)/.exec(segment[2] ?? "");
+    const seconds = index && time ? Number(time[1]) * 60 + Number(time[2]) + Number(time[3]) / 1000 : 0;
+    windows.push({ index: segment.index, number: segment[1]!, start: seconds });
     if (!index) {
       if (/^\s*At\b/.test(segment[2] ?? "")) findings.push("首段直接从起始状态写起。");
       continue;
     }
-    const seconds = time ? Number(time[1]) * 60 + Number(time[2]) + Number(time[3]) / 1000 : 0;
     if (seconds <= previous || seconds >= setup.duration) {
       findings.push("后续时间段须使用 At MM:SS.mmm，时点严格递增且早于镜尾。");
       break;
@@ -67,6 +70,18 @@ export function inspectDraft(draft: { prompt: string; promptZh: string }, prepar
   if ([...tags].some(tag => !approved.has(tag)) || (format === "h3Ref2va" && [...approved].some(tag => !tags.has(tag)))) {
     findings.push("参考标签须覆盖实际引用，且编号只能来自准备结果。");
   }
+  if (format === "h3Ref2va") {
+    const definitions = prompt.slice(headings[0]!.index + headings[0]![0].length, headings[1]!.index);
+    const subjects = [...definitions.matchAll(/^[\t ]*<Subject ([1-9]\d*)>/gm)].map(match => match[1]!);
+    const used = [...prompt.matchAll(/<Subject (\d+)>/g)].map(match => match[1]!);
+    if (subjects.length !== new Set(subjects).size) findings.push("每个 Subject 只能定义一次。");
+    if (used.some(id => !subjects.includes(id))) findings.push("存在未在 subject_definitions 中定义的 Subject。");
+    const retention = prompt.slice(headings[2]!.index + headings[2]![0].length, headings[3]!.index);
+    if (subjects.some(id => !retention.includes(`<Subject ${id}>`))) findings.push("retention_analysis 必须覆盖每个已定义 Subject。");
+  }
+  if ((prompt.match(/<\/?d\b[^>]*>/gi)?.length ?? 0) !== (timeline.match(/<\/?d\b[^>]*>/gi)?.length ?? 0)) findings.push("对白只能出现在镜头时间轴中。");
+  if (/<d>/.test(timeline.slice(0, windows[0]?.index))) findings.push("对白必须位于编号时间段内。");
+  findings.push(...inspectDialogue(timeline, setup.duration, windows));
   if (!/\p{Script=Han}/u.test(promptZh)) findings.push("提供与英文事实一致的简体中文对照。");
   const narration = prompt.replace(/<d>[\s\S]*?<\/d>/gi, "").replace(/"[^"\n]*"/g, "");
   if (/\[[^\[\]\n]*\p{Script=Han}[^\[\]\n]*\]/u.test(narration)) {

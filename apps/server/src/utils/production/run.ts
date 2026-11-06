@@ -7,6 +7,7 @@ import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/conf
 import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { captureVideoReview, requireVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
+import { validateH3Workflow } from "@/utils/production/h3Workflow";
 
 type MediaRef = { path: string; mimeType?: string };
 
@@ -147,6 +148,7 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
   const raw = JSON.parse(await readFile(entry.workflowPath, "utf8")) as unknown;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail(`工作流不是 API JSON: ${entry.id}`);
   const workflow = structuredClone(raw) as Record<string, unknown>;
+  if (entry.kind === "video") validateH3Workflow(workflow, entry.bindings);
   const dropped: string[] = [];
   for (const binding of entry.bindings.bindings) {
     const value = readPath(context, binding.source);

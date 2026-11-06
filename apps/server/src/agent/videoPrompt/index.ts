@@ -44,9 +44,9 @@ export function createVideoPromptTool(options: SubAgentModel & {
   return {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "根据已确认的镜头合同和参考制作 H3 英文提示词与简体中文对照，依次导演、预检、独立审核和返修。通过后返回服务端 reviewId 与 generationRequest，不启动生成。已有视频节点传实际 canvasId、nodeId；明确获准修改目标节点时才传 write=true。references 必须是真实获准素材及用途，顺序匹配实际输入。",
+    description: "根据已确认的镜头合同和参考制作 H3 英文提示词与简体中文对照，依次导演、预检、独立审核和返修。通过后返回服务端 reviewId 与 generationRequest，不启动生成。已有节点传 node，禁止同时传 modelId、duration、ratio、sampling、seed、seedMode，先通过节点 setConfig 配置后再 getPromptContext；明确获准修改目标节点时才传 write=true。无节点时必须给 duration、ratio；随机模式不传 seed，fixed/last 必须传 seed。references 必须是真实获准素材及用途，顺序匹配实际输入。",
     promptSnippet: "制作或重写 H3 成片提示词时，准备真实镜头合同后调用 draftVideoPrompt，使用其通过审核的英文和中文稿。",
-    parameters: z.toJSONSchema(videoPromptParameters, { io: "input", target: "draft-07" }),
+    parameters: { type: "object", ...z.toJSONSchema(videoPromptParameters, { io: "input", target: "draft-07" }) },
     executionMode: "sequential",
     async execute(_id, params, signal, onUpdate, ctx) {
       const startedAt = performance.now();

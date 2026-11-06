@@ -513,7 +513,18 @@ nodeTools.register({
     generateAudio: z.boolean().optional(),
     seed: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
     seedMode: z.enum(["fixed", "random", "last"]).optional(),
-  }).refine((args) => (args.providerId === undefined) === (args.modelId === undefined), "providerId 与 modelId 必须同时提供"),
+  }).superRefine((args, context) => {
+    if ((args.providerId === undefined) !== (args.modelId === undefined)) context.addIssue({
+      code: "custom", path: [args.providerId === undefined ? "providerId" : "modelId"],
+      message: "providerId 与 modelId 必须同时提供，请从 getConfig.models 选择同一项",
+    });
+  }).refine(args => args.seed === undefined || (args.seedMode !== "random" && args.seedMode !== "last"), {
+    path: ["seed"], message: "seedMode=random 或 last 时不能传 seed；要指定种子请显式使用 fixed",
+  }).meta({
+    // refine 保留执行校验；同一规则显式暴露给工具的 JSON Schema。
+    dependencies: { providerId: ["modelId"], modelId: ["providerId"] },
+    allOf: [{ if: { required: ["seedMode"], properties: { seedMode: { enum: ["random", "last"] } } }, then: { not: { required: ["seed"] } } }],
+  }),
   async execute(args, { signal }) {
     signal?.throwIfAborted();
     if (generating.value || deleting.value) throw new Error("节点正在生成或删除，请稍后修改配置");
@@ -522,10 +533,10 @@ nodeTools.register({
     if (generating.value || deleting.value) throw new Error("节点正在生成或删除，请稍后修改配置");
     const choice = args.modelId === undefined ? selectedModel.value
       : models.value.find((item) => item.providerId === args.providerId && item.modelId === args.modelId);
-    if (!choice) throw new Error("请选择 getConfig 返回的有效视频模型");
+    if (!choice) throw new Error(`模型组合无效：providerId=${args.providerId ?? "未指定"}，modelId=${args.modelId ?? "未选择"}。可选模型：${JSON.stringify(models.value.map(({ providerId, modelId, label }) => ({ providerId, modelId, label })))}。请重新读取 getConfig 后选择，不得替换为未获用户批准的模型。`);
     if (!choice.supportsSeed && (args.seed !== undefined || args.seedMode !== undefined)) throw new Error("当前工作流没有绑定种子");
     if (args.seedMode === "last" && data.value.lastSeed == null) throw new Error("暂无随机种子记录");
-    if (args.seed !== undefined && (args.seedMode ?? data.value.seedMode) !== "fixed") throw new Error("只有固定模式可以设置种子值");
+    if (args.seed !== undefined && (args.seedMode ?? data.value.seedMode) !== "fixed") throw new Error(`字段 seed 与种子模式冲突：当前 seedMode=${data.value.seedMode}，本次 seedMode=${args.seedMode ?? "未指定"}。指定 seed 时必须同时传 seedMode=fixed；使用 random 或 last 时不要传 seed。`);
     const durations = getDurations(choice);
     if (args.duration !== undefined && !durations.includes(args.duration)) throw new Error(`当前模型不支持时长 ${args.duration}，可选：${durations.join("、")}`);
     const duration = args.duration ?? (durations.includes(data.value.duration!) ? data.value.duration : durations[0]);
@@ -547,7 +558,7 @@ nodeTools.register({
       throw new Error(`当前时长不支持分辨率 ${args.resolution}，可选：${resolutions.join("、")}`);
     }
     const resolution = args.resolution ?? (resolutions.includes(data.value.resolution) ? data.value.resolution : resolutions[0] ?? "");
-    if (args.mode !== undefined && !getMatchingModes(choice).some((item) => JSON.stringify(item) === JSON.stringify(args.mode))) throw new Error("所选模式不受当前模型支持或不适用于当前引用，请根据模型能力及已连接素材选择");
+    if (args.mode !== undefined && !getMatchingModes(choice).some((item) => JSON.stringify(item) === JSON.stringify(args.mode))) throw new Error(`字段 mode=${JSON.stringify(args.mode)} 不适用于当前模型和引用。允许值：${JSON.stringify(getMatchingModes(choice))}。请重新读取 getConfig 确认。`);
     if (args.generateAudio !== undefined && choice.audio !== "optional" && args.generateAudio !== (choice.audio === true)) throw new Error("当前模型不支持切换声音，请查看 getConfig 返回的 audio 能力");
     data.value.model = JSON.stringify([choice.providerId, choice.modelId]);
     data.value.duration = duration;

@@ -26,28 +26,40 @@ const sampling = z.strictObject({
   secondPassSteps: z.number().int().min(1).max(64).optional(),
 });
 
-export const videoPromptParameters = z.strictObject({
+const ratioSchema = z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"]);
+const shotFields = {
   shotId: shortText,
   story: description,
   purpose: shortText,
   style: description,
   continuityIn: z.string().trim().max(3000),
   continuityOut: z.string().trim().max(3000),
-  mustHave: requirements,
-  mustNotHave: requirements,
+  mustHave: requirements.describe("必须出现的剧情事实，逐条填写字符串数组；无内容传 []，不能传字符串"),
+  mustNotHave: requirements.describe("禁止出现的事实，逐条填写字符串数组；无内容传 []"),
   intent: z.enum(["dialogue", "action", "effects", "mechanical", "reveal", "environment"]),
   adjacentShots: z.string().trim().max(6000).optional(),
   templateTags: templateTagSchema.optional(),
   templateConditions: templateConditions.pick({ subjectCount: true, anchors: true }).optional(),
   references: z.array(reference).max(24),
-  node: z.strictObject({ canvasId: shortText, nodeId: shortText, write: z.boolean().optional() }).optional(),
+};
+const newShotFields = {
+  ...shotFields,
+  node: z.never().optional(),
   modelId: shortText.optional(),
-  duration: z.number().int().positive().optional(),
+  duration: z.number().int().positive(),
   sampling: sampling.optional(),
-  seed: videoGenerationSchema.shape.seed,
-  seedMode: videoGenerationSchema.shape.seedMode,
-  ratio: z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"]).optional(),
-});
+  ratio: ratioSchema,
+};
+// 已有节点只提供定位信息；新镜头的规格与种子政策由请求明确给出。
+export const videoPromptParameters = z.union([
+  z.strictObject({ ...shotFields,
+    node: z.strictObject({ canvasId: shortText, nodeId: shortText, write: z.boolean().optional() }),
+    modelId: z.never().optional(), duration: z.never().optional(), ratio: z.never().optional(),
+    sampling: z.never().optional(), seed: z.never().optional(), seedMode: z.never().optional(),
+  }).describe("已有视频节点：先 getConfig → setConfig → getPromptContext，再传 node；禁止重复传生成参数"),
+  z.strictObject({ ...newShotFields, seedMode: z.literal("random").optional(), seed: z.never().optional() }),
+  z.strictObject({ ...newShotFields, seedMode: z.enum(["fixed", "last"]), seed: videoGenerationSchema.shape.seed.unwrap() }),
+]).describe("已有节点只传 node 与镜头合同；新镜头必须传 duration、ratio。新镜头随机模式不传 seed，fixed/last 模式必须同时传具体 seed。");
 
 const nodeContext = z.object({
   config: z.object({
@@ -96,7 +108,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   const aspect = current?.config.ratio ?? ratio;
   if (!seconds || !aspect) throw new Error("新镜头需要明确时长和画幅");
   const capability = model.durationResolutionMap?.find(item => item.duration.includes(seconds));
-  if (!capability || !videoPromptParameters.shape.ratio.safeParse(aspect).success) throw new Error("工作流不支持该时长或画幅");
+  if (!capability || !ratioSchema.safeParse(aspect).success) throw new Error(`工作流 ${workflow.id} 不支持 duration=${seconds} 或 ratio=${aspect}。允许时长：${JSON.stringify(model.durationResolutionMap?.flatMap(item => item.duration))}；允许画幅：${ratioSchema.options.join("、")}`);
   if (current?.config.resolution && capability.resolution.length && !capability.resolution.includes(current.config.resolution)) {
     throw new Error("当前分辨率不适用于该时长");
   }
@@ -106,7 +118,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
     || (requestedSampling.upscale !== undefined && (requestedSampling.upscale < spec.upscaleMin || requestedSampling.upscale > spec.upscaleMax))
     || (requestedSampling.firstPassSteps !== undefined && spec.firstPassDefault === undefined)
     || (requestedSampling.secondPassSteps !== undefined && spec.secondPassDefault === undefined))) {
-    throw new Error("请求的采样参数不受所选工作流支持");
+    throw new Error(`字段 sampling=${JSON.stringify(requestedSampling)} 不受工作流 ${workflow.id} 支持。实际采样能力：${JSON.stringify(spec ?? null)}。请重新核对模型能力。`);
   }
   const approved = await Promise.all(references.map(async item => {
     signal?.throwIfAborted();

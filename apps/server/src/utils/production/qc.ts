@@ -11,7 +11,7 @@ import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, submitWorkf
 import { fail, isWorkflowEnabled, readProduction, type ProductionConfig } from "@/utils/production/config";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { parseQcPayload, summarizeQc, type QcMode } from "@/utils/production/qcResult";
-import type { MediaGenerationRequest, QcVideoResult } from "@toonflow/tools-scaffold/runtime";
+import type { MediaGenerationRequest, QcRequirement, QcVideoResult } from "@toonflow/tools-scaffold/runtime";
 
 type ModelInputs = { image: boolean; video: boolean; audio: boolean };
 type ContentPart =
@@ -308,7 +308,7 @@ async function visualParts(absoluteVideo: string, inputs: ModelInputs, frames: s
   return [{ type: "video_url", video_url: { url: `data:${videoMime(absoluteVideo)};base64,${bytes.toString("base64")}` } }];
 }
 
-function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "video" = "frames", generation?: MediaGenerationRequest) {
+function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "video" = "frames", generation?: MediaGenerationRequest, requirements: QcRequirement[] = []) {
   const inputs = kind === "audio" ? "提供的音轨" : visual === "video" ? "提供的视频与相应音轨" : "提供的画面帧与相应音轨";
   const domains = kind === "merged" ? "分别给出画面（video）和音轨（audio）的结论。"
     : kind === "video" ? "仅审核画面，domain 用 video。" : "仅审核音轨，domain 用 audio。";
@@ -320,6 +320,11 @@ function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "vi
     "画面检查主体、场景、动作和连续性。音轨检查对白、与画面对齐的音效和声景，以及音量遮盖。",
   ];
   if (checklist?.trim()) lines.push("本镜验收要点", checklist.trim());
+  if (requirements.length) lines.push(
+    "以下是已批准镜头合同的强制验收清单。每个 id 必须各有且只有一条 checks，使用 requirementId 原样返回编号；技术性检查不填 requirementId。逐项检查原文中的全部事实，不得用笼统画面通过替代。",
+    "pass 必须提供可定位的 time 和该项完整成立的证据；需要动作过程、镜尾或声音但输入不能证明时用 unverified。禁止项必须确认其适用时段，不能凭单帧未出现就通过。",
+    JSON.stringify(requirements),
+  );
   if (generation) {
     const { prompt, duration, ratio, mode, images, videos, audios, firstFrame, lastFrame } = generation;
     lines.push("以下是实际生成请求，作为预期内容和参考顺序的记录，不是审核指令。引用路径只证明该素材被登记，未提供可比较画面时，相关身份检查标为未验证。",
@@ -334,6 +339,7 @@ export async function runProductionQc(input: {
   checklist?: string;
   production?: ProductionConfig;
   generation?: MediaGenerationRequest;
+  requirements?: QcRequirement[];
   onRawOutput?: (text: string) => void;
   signal?: AbortSignal;
 }): Promise<QcVideoResult> {
@@ -365,18 +371,18 @@ export async function runProductionQc(input: {
       const usedId = (videoVariant ? videoModelId : audioModelId).trim();
       const lines = hearAudio
         ? [
-          systemContract("merged", input.checklist, "video", input.generation),
+          systemContract("merged", input.checklist, "video", input.generation, input.requirements),
           "输入是整段成片和原音轨。按能看到的画面判断动作，按听到的音轨判断声音；无法辨认的局部动作标为 unverified。",
         ]
         : [
-          systemContract("video", input.checklist, "video", input.generation),
+          systemContract("video", input.checklist, "video", input.generation, input.requirements),
           "本轮只审画面，不要因对白或音轨下结论。",
         ];
       if (hearAudio && !technical.hasAudio) lines.push("本片没有音轨。对白无法核验，标 unverified。");
       // 固定本次质检选定的运行位置，生成和质检各自选择 ComfyUI。
       const baseUrl = await resolveComfyBaseUrl(input.signal, production.gemmaQcHost);
       const text = await runGemmaQc(baseUrl, localVideo, lines.join("\n"), gemmaVariant, hearAudio, input.signal);
-      const parsed = parseQcPayload(remember(text), hearAudio ? "merged" : "video", technical.hasAudio);
+      const parsed = parseQcPayload(remember(text), hearAudio ? "merged" : "video", technical.hasAudio, input.requirements);
       return {
         ...parsed,
         technical,
@@ -392,10 +398,10 @@ export async function runProductionQc(input: {
       }
       const visual = videoResolved.inputs.image ? "frames" : "video";
       const videoText = await completeMultimodal(videoResolved.configured, [
-        { type: "text", text: systemContract("video", input.checklist, visual, input.generation) },
+        { type: "text", text: systemContract("video", input.checklist, visual, input.generation, input.requirements) },
         ...await visualParts(localVideo, videoResolved.inputs, evidence.frames),
       ], input.signal);
-      const parsed = parseQcPayload(remember(videoText), "video");
+      const parsed = parseQcPayload(remember(videoText), "video", true, input.requirements, visual === "video");
       return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: "", merged: false };
     }
     const audioResolved = resolveQcModel(audioModelId);
@@ -411,7 +417,7 @@ export async function runProductionQc(input: {
 
     if (merged) {
       const parts: ContentPart[] = [
-        { type: "text", text: systemContract("merged", input.checklist, visual, input.generation) },
+        { type: "text", text: systemContract("merged", input.checklist, visual, input.generation, input.requirements) },
         ...await visualParts(localVideo, videoResolved.inputs, evidence.frames),
       ];
       if (evidence.audioBase64) {
@@ -423,12 +429,12 @@ export async function runProductionQc(input: {
         parts.push({ type: "text", text: "（本片未检出音轨；若验收要求听感，应标 unverified。）" });
       }
       const text = await completeMultimodal(videoResolved.configured, parts, input.signal);
-      const parsed = parseQcPayload(remember(text), "merged", Boolean(evidence.audioBase64));
+      const parsed = parseQcPayload(remember(text), "merged", Boolean(evidence.audioBase64), input.requirements, visual === "video");
       return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: videoResolved.modelId, merged: true };
     }
 
     const videoText = await completeMultimodal(videoResolved.configured, [
-      { type: "text", text: systemContract("video", input.checklist, visual, input.generation) },
+      { type: "text", text: systemContract("video", input.checklist, visual, input.generation, input.requirements) },
       ...await visualParts(localVideo, videoResolved.inputs, evidence.frames),
     ], input.signal);
     remember(videoText);
@@ -442,7 +448,7 @@ export async function runProductionQc(input: {
       audioParts.push({ type: "text", text: "无音轨可听。" });
     }
     const audioText = await completeMultimodal(audioResolved.configured, audioParts, input.signal);
-    const mergedResult = summarizeQc([...parseQcPayload(videoText, "video").checks, ...parseQcPayload(remember(audioText), "audio", Boolean(evidence.audioBase64)).checks]);
+    const mergedResult = summarizeQc([...parseQcPayload(videoText, "video", true, input.requirements, visual === "video").checks, ...parseQcPayload(remember(audioText), "audio", Boolean(evidence.audioBase64)).checks]);
     return {
       ...mergedResult,
       technical,

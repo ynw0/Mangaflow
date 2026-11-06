@@ -6,6 +6,8 @@ import conf from "@/utils/conf";
 import { readProduction, type ProductionConfig } from "@/utils/production/config";
 import { runProductionQc } from "@/utils/production/qc";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
+import { readQcRequirements } from "@/utils/production/qcRequirements";
+import type { QcRequirement } from "@toonflow/tools-scaffold/runtime";
 
 type VideoIdentity = Awaited<ReturnType<typeof videoIdentity>>;
 type VideoRecord = {
@@ -17,10 +19,11 @@ type VideoRecord = {
   qc: VideoQcState;
   checklist?: string;
   rawQc?: string[];
+  requirements?: QcRequirement[];
   qcPolicy?: QcPolicy;
 };
 
-type QcPolicy = Pick<ProductionConfig, "qcLevel" | "videoQcModelId" | "audioQcModelId" | "gemmaQcHost">;
+type QcPolicy = Pick<ProductionConfig, "qcLevel" | "videoQcModelId" | "audioQcModelId" | "gemmaQcHost"> & { contractVersion: number };
 
 const active = new Map<string, { checklist?: string; running: boolean; promise: Promise<QcVideoResult> }>();
 let queue: Promise<unknown> = Promise.resolve();
@@ -51,7 +54,7 @@ function newRecord(video: VideoIdentity, qc: VideoQcState): VideoRecord {
 }
 
 function qcPolicy({ qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost }: ProductionConfig): QcPolicy {
-  return { qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost };
+  return { qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost, contractVersion: 1 };
 }
 
 async function saveRecord(video: VideoIdentity, record: VideoRecord, exclusive = false) {
@@ -98,12 +101,15 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, product
     if (task) task.running = true;
     try {
       signal?.throwIfAborted();
+      const requirements = await readQcRequirements(video.directory, saved.generation?.request);
+      record.requirements = requirements;
       const result = await runProductionQc({
         directory: video.directory,
         videoPath: video.videoPath,
         checklist,
         production,
         generation: saved.generation?.request,
+        requirements,
         onRawOutput: text => rawQc.push(text),
         signal: signal ?? AbortSignal.timeout(45 * 60_000),
       });

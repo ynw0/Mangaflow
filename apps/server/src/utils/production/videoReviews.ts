@@ -99,13 +99,18 @@ export async function saveVideoReview(snapshot: VideoReviewSnapshot, audit: Reco
 
 export async function requireVideoReview(reviewId: string | undefined, snapshot: VideoReviewSnapshot) {
   if (!reviewId) fail("此 H3 请求尚无服务端审核记录，请先完成提示词审核", 409);
+  const record = await readApprovedVideoReview(reviewId);
+  requireSameVideoReview(record.snapshot, snapshot);
+}
+
+export async function readApprovedVideoReview(reviewId: string) {
   const text = await readFile(reviewPath(reviewId), "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") fail("服务端找不到此审核记录，请重新审核", 409);
     throw error;
   });
-  const record = JSON.parse(text) as { status: string; snapshot: VideoReviewSnapshot };
+  const record = JSON.parse(text) as { status: string; snapshot: VideoReviewSnapshot; audit: Record<string, unknown> };
   if (record.status !== "approved" || !record.snapshot) fail("服务端审核记录未通过，请重新审核", 409);
-  requireSameVideoReview(record.snapshot, snapshot);
+  return record;
 }
 
 export async function verifyReviewFile(path: string, expected: ReviewFile, signal?: AbortSignal) {

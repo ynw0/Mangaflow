@@ -164,11 +164,15 @@ export interface QcVideoRequest {
 }
 
 export type QcCheck = {
+  requirementId?: string;
+  requirement?: string;
   domain: "video" | "audio" | "general";
   result: "pass" | "fail" | "unverified";
   evidence: string;
   time?: string;
 };
+
+export type QcRequirement = { id: string; source: string; text: string };
 
 export interface QcVideoResult {
   status: "ok" | "rejected" | "unverified";

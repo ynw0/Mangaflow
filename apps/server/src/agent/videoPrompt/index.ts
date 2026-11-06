@@ -49,6 +49,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
     parameters: z.toJSONSchema(videoPromptParameters, { io: "input", target: "draft-07" }),
     executionMode: "sequential",
     async execute(_id, params, signal, onUpdate, ctx) {
+      const startedAt = performance.now();
       const input = videoPromptParameters.parse(params);
       const prepared = await prepareVideoPrompt(cwd, input, canvas, signal);
       const tags = { scene: scenesByIntent[input.intent], ...prepared.templateTags };
@@ -60,6 +61,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
       });
       const templateMatches = candidates.map(({ id, title, matches }) => ({ id, title, matches }));
       const usage = emptyUsage();
+      const modelCalls: { name: string; elapsedMs: number; status: string; usage: ReturnType<typeof emptyUsage> }[] = [];
       const skills: { name: string; scope: string; path: string; version?: string }[] = [];
       const attempts: { stage: "director" | "preflight" | "review"; findings: string[] }[] = [];
       const skillCall = async (args: Record<string, string>) =>
@@ -86,13 +88,15 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const reviewRules = await read("workflow", "references/video-prompt-review.md");
       const update = (text: string) => onUpdate?.({ content: [{ type: "text", text }], details: {} });
       const finish = (result: Record<string, unknown>) => {
-        const details = { ...result, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, attempts };
+        const details = { ...result, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, attempts,
+          modelCalls, elapsedMs: Math.round(performance.now() - startedAt) };
         return { details, content: [{ type: "text" as const, text: JSON.stringify(details) }], usage };
       };
       const taskInput = { shot: prepared.shot, format: prepared.format, workflow: prepared.setup };
       async function specialist<T>(schema: z.ZodType<T>, name: string, task: string, rules: string[]) {
         signal?.throwIfAborted();
         update(name);
+        const callStartedAt = performance.now();
         const output = await runSubAgent({
           ...model, cwd, name, task, tools: [], signal, responseFormat: "json",
           instructions: [
@@ -101,6 +105,8 @@ export function createVideoPromptTool(options: SubAgentModel & {
           ].join("\n\n"),
         });
         addUsage(usage, output.usage);
+        // 记录实际返回的用量与单次调用耗时，不按轮次推算 Token 消耗。
+        modelCalls.push({ name, elapsedMs: Math.round(performance.now() - callStartedAt), status: output.result.status, usage: output.usage });
         signal?.throwIfAborted();
         if (output.result.status !== "completed") throw new Error(`${name}未完成：${output.result.result}`);
         try { return parseReply(schema, output.result.result); }
@@ -144,6 +150,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         const generationRequest = videoGenerationSchema.parse({ ...refreshed.generationRequest, prompt: lastDraft.prompt });
         const reviewId = await saveVideoReview({ ...refreshed.snapshot, prompt: generationRequest.prompt }, {
           shot: prepared.shot, request: generationRequest, promptZh: lastDraft.promptZh, review, skills, templateMatches, attempts,
+          modelCalls, usage, reviewElapsedMs: Math.round(performance.now() - startedAt),
         });
         generationRequest.reviewId = reviewId;
         let written = false;

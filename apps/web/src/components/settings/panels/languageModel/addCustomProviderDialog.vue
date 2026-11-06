@@ -150,7 +150,8 @@ const props = defineProps<{ provider?: CustomProvider }>();
 const visible = defineModel<boolean>({ default: false });
 const providerForm = ref<FormInstance>();
 const form = reactive({ id: "", label: "", apiUrl: "", protocol: "openai-completions", apiKey: "" });
-const models = ref<(CustomProviderModel & { key: string })[]>([]);
+// 编辑模型的所有入口均已通过 modelInputs 初始化输入能力。
+const models = ref<(CustomProviderModel & { key: string; inputs: ReturnType<typeof modelInputs> })[]>([]);
 const expandedModels = ref(new Set<string>());
 const fetchedModels = shallowRef<CustomProviderModel[]>([]);
 const selectedIds = ref(new Set<string>());

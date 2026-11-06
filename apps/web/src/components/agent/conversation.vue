@@ -334,7 +334,8 @@ const messageVirtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>(comput
 }));
 // 视口上方条目重测后始终补 scroll（含向上拖历史），避免估高差导致整段跳
 messageVirtualizer.value.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
-  const offset = instance.getScrollOffset() + instance.scrollAdjustments;
+  // 使用虚拟列表公开状态，不调用库的私有方法。
+  const offset = (instance.scrollOffset ?? messageScrollOffset) + instance.scrollAdjustments;
   if (!instance.itemSizeCache.has(item.key)) return item.start < offset;
   return item.start + item.size <= offset;
 };

@@ -117,7 +117,7 @@ watch(
     if (!isVisible || !provider) return;
     if (isTfRouterProvider(provider)) return;
     if (provider.models.length) {
-      models.value = structuredClone(provider.models).map(model => ({ ...model, inputs: modelInputs(model.inputs) }));
+      models.value = structuredClone<readonly CustomProviderModel[]>(provider.models).map(model => ({ ...model, inputs: modelInputs(model.inputs) }));
       return;
     }
     const apiKey = typeof key === "string" ? key.trim() : "";

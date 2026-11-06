@@ -108,6 +108,7 @@ declare module 'vue' {
     SkillMenu: typeof import('./../components/agent/skillMenu.vue')['default']
     TfAccount: typeof import('./../components/settings/tfAccount.vue')['default']
     ToolMessage: typeof import('./../components/agent/toolMessage.vue')['default']
+    TunnelPanel: typeof import('./../components/settings/panels/mcp/tunnelPanel.vue')['default']
     Ui: typeof import('./../components/settings/panels/ui.vue')['default']
     UpdateBox: typeof import('./../components/updateBox.vue')['default']
     VideoModel: typeof import('./../components/settings/panels/videoModel/index.vue')['default']

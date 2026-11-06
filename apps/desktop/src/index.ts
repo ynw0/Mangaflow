@@ -18,7 +18,19 @@ import prepareWebviewRuntime from "./webviewRuntime";
 const execFileAsync = promisify(execFile);
 const pendingInstalls: PluginInstallRequest[] = [];
 let deliverInstall: ((request: PluginInstallRequest) => void) | undefined;
+function openExternalUrl(url: string) {
+  const target = URL.canParse(url) ? new URL(url) : null;
+  if (url.length > 8192 || /[\u0000-\u001f\u007f]/.test(url) || !target
+    || !["http:", "https:"].includes(target.protocol) || target.username || target.password) {
+    throw Object.assign(new Error(t`网页地址无效，仅支持不含账号密码的 HTTP / HTTPS 链接`), { status: 400 });
+  }
+  if (!Utils.openExternal(target.href)) throw new Error(t`打开链接失败，请检查默认浏览器设置后重试。`);
+}
+
 function openUrl(url: string) {
+  // 网页链接交给系统浏览器，安装协议仍使用原来的校验与确认队列。
+  const target = URL.canParse(url) ? new URL(url) : null;
+  if (target?.protocol === "http:" || target?.protocol === "https:") return openExternalUrl(url);
   const request = parseInstallUrl(url);
   if (deliverInstall) deliverInstall(request);
   else if (!pendingInstalls.some(item => item.type === request.type && item.url === request.url)) {
@@ -218,8 +230,9 @@ async function start() {
         navigate();
         return;
       }
-      if (!Utils.openExternal(target.href)) {
-        void Utils.showMessageBox({ type: "error", title: t`打开链接失败`, message: t`请检查默认浏览器设置后重试。` });
+      try { openExternalUrl(target.href); }
+      catch (error) {
+        void Utils.showMessageBox({ type: "error", title: t`打开链接失败`, message: translateMessage(error instanceof Error ? error.message : "无法打开链接") });
       }
     }
     // ACT: 两版 SDK 的全局事件不带 WebView ID，使用事件名后缀限定主窗口。

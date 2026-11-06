@@ -13,14 +13,15 @@ const qcPayload = z.object({
   })).min(1),
 });
 
-function extractJsonObject(text: string): unknown {
+function extractJsonObject(text: string): { value?: unknown; error?: string } {
+  if (!text.trim()) return { error: "质检模型返回空正文。" };
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) return;
+  if (start < 0 || end <= start) return { error: "未找到完整 JSON 对象；可能未遵守格式或输出被截断。" };
   try {
-    return JSON.parse(text.slice(start, end + 1));
+    return { value: JSON.parse(text.slice(start, end + 1)) };
   } catch {
-    return;
+    return { error: "JSON 语法无效或正文不完整；可能输出截断，需查看原始回复确认。" };
   }
 }
 
@@ -36,11 +37,14 @@ export function summarizeQc(checks: QcCheck[]): Pick<QcVideoResult, "status" | "
 }
 
 export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requirements: QcRequirement[] = [], timelineEvidence = true) {
-  const parsed = qcPayload.safeParse(extractJsonObject(text));
+  const extracted = extractJsonObject(text);
+  const parsed = qcPayload.safeParse(extracted.value);
+  const diagnostic = extracted.error ?? (!parsed.success
+    ? `质检 JSON 字段不符合约定：${parsed.error.issues.map(issue => `${issue.path.join(".") || "根对象"}（${issue.code}）`).join("；")}。` : "");
   const required = mode === "merged" ? ["video", "audio"] as const : [mode];
   const checks: QcCheck[] = parsed.success
     ? parsed.data.checks.filter(check => check.domain === "general" || (required.includes(check.domain) && (check.domain !== "audio" || hasAudio)))
-    : [{ domain: "general", result: "unverified", evidence: "模型未返回有效的逐项质检结果。" }];
+    : [{ domain: "general", result: "unverified", evidence: `${diagnostic}原始正文 ${text.length} 字符，未认定通过。` }];
   for (const domain of required) {
     if (checks.some(check => check.domain === domain)) continue;
     const evidence = domain === "video" ? "模型未给出画面判定。"

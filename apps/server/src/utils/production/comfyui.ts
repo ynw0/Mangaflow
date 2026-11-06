@@ -170,12 +170,25 @@ export async function freeComfyMemory(baseUrl: string) {
   }
 }
 
-export async function readNodeChoices(baseUrl: string, classType: string, inputName: string, signal?: AbortSignal) {
+async function readNodeInput(baseUrl: string, classType: string, inputName: string, signal?: AbortSignal) {
   const response = await comfyFetch(baseUrl, `/object_info/${encodeURIComponent(classType)}`, { method: "GET" }, signal);
   if (!response.ok) fail(`无法读取 ComfyUI 节点 ${classType}`, 502);
   const data = await response.json() as Record<string, { input?: { required?: Record<string, unknown>; optional?: Record<string, unknown> } }>;
   const input = data[classType]?.input;
-  return [...comboOptions(input?.required?.[inputName]), ...comboOptions(input?.optional?.[inputName])];
+  return input?.required?.[inputName] ?? input?.optional?.[inputName];
+}
+
+export async function readNodeChoices(baseUrl: string, classType: string, inputName: string, signal?: AbortSignal) {
+  return comboOptions(await readNodeInput(baseUrl, classType, inputName, signal));
+}
+
+export async function readNodeIntegerRange(baseUrl: string, classType: string, inputName: string, signal?: AbortSignal) {
+  const input = await readNodeInput(baseUrl, classType, inputName, signal);
+  const range = Array.isArray(input) && input[0] === "INT" ? input[1] as { min?: number; max?: number } | undefined : undefined;
+  if (!range || !Number.isSafeInteger(range.min) || !Number.isSafeInteger(range.max) || range.min! < 1 || range.max! < range.min!) {
+    fail(`节点 ${classType}.${inputName} 未公布有效整数范围，无法确定质检输出预算`, 502);
+  }
+  return { min: range.min!, max: range.max! };
 }
 
 export async function cancelPrompt(baseUrl: string, promptId: string) {

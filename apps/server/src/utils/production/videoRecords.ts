@@ -54,7 +54,7 @@ function newRecord(video: VideoIdentity, qc: VideoQcState): VideoRecord {
 }
 
 function qcPolicy({ qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost }: ProductionConfig): QcPolicy {
-  return { qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost, contractVersion: 1 };
+  return { qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost, contractVersion: 2 };
 }
 
 async function saveRecord(video: VideoIdentity, record: VideoRecord, exclusive = false) {

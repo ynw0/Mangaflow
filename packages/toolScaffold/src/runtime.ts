@@ -175,6 +175,8 @@ export type QcCheck = {
 export type QcRequirement = { id: string; source: string; text: string };
 
 export interface QcVideoResult {
+  /** 本次 Gemma 工作流实际提交的输出 Token 预算 */
+  maxOutputTokens?: number;
   status: "ok" | "rejected" | "unverified";
   checks: QcCheck[];
   technical?: { width?: number; height?: number; duration?: number; fps?: number; frameCount?: number; hasAudio: boolean };

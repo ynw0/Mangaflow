@@ -7,7 +7,7 @@ import type { FfmpegCommand } from "@toonflow/ffmpeg/types";
 import { createWorkspaceFfmpeg } from "@/utils/ffmpeg";
 import { resolveComfyBaseUrl } from "@/utils/production/autodl";
 import { findWorkflow } from "@/utils/production/catalog";
-import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, submitWorkflow, uploadInput, waitForText } from "@/utils/production/comfyui";
+import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, readNodeIntegerRange, submitWorkflow, uploadInput, waitForText } from "@/utils/production/comfyui";
 import { fail, isWorkflowEnabled, readProduction, type ProductionConfig } from "@/utils/production/config";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { parseQcPayload, summarizeQc, type QcMode } from "@/utils/production/qcResult";
@@ -123,7 +123,7 @@ async function resolveGemmaClip(baseUrl: string, variant: GemmaQcVariant, signal
   return model;
 }
 
-async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string, variant: GemmaQcVariant, hearAudio: boolean, signal?: AbortSignal) {
+async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string, variant: GemmaQcVariant, hearAudio: boolean, requirements: QcRequirement[], signal?: AbortSignal) {
   await probeComfy(baseUrl, signal);
   const entry = await findWorkflow(gemmaQcWorkflowIds[variant]);
   if (!isWorkflowEnabled(entry.id)) fail(`${entry.label} 已在设置中关闭`);
@@ -133,6 +133,13 @@ async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string
   const clip = workflow["4"]?.inputs;
   const generate = workflow["5"]?.inputs;
   if (!loader || !clip || !generate) fail("质检工作流节点不完整");
+  const range = await readNodeIntegerRange(baseUrl, "TextGenerate", "max_length", signal);
+  // 按完整 JSON、实际编号和每项证据容量估算，并留出排版余量；额度不是固定 Token 数。
+  const sampleChecks = [...requirements.map(item => ({ requirementId: item.id, domain: "video", result: "unverified", time: "00:00.000-00:00.000", evidence: "证".repeat(48) })),
+    ...["video", ...(hearAudio ? ["audio"] : [])].map(domain => ({ domain, result: "unverified", evidence: "证".repeat(48), time: "00:00.000-00:00.000" }))];
+  const maxOutputTokens = Math.max(range.min, Math.ceil(Buffer.byteLength(JSON.stringify({ checks: sampleChecks }), "utf8") * 1.25));
+  if (maxOutputTokens > range.max) fail(`本次 ${requirements.length} 项验收估算需要 ${maxOutputTokens} 个输出 Token，当前节点上限 ${range.max} 不足，请拆分镜头或选择支持更长输出的质检模型`);
+  generate.max_length = maxOutputTokens;
   const model = await resolveGemmaClip(baseUrl, variant, signal);
   await waitForFreeVram(baseUrl, gemmaVramBudget(model), signal);
   clip.device = "default";
@@ -144,7 +151,7 @@ async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string
   const promptId = await submitWorkflow(baseUrl, workflow, signal);
   await freeComfyMemory(baseUrl);
   try {
-    return await waitForText(baseUrl, promptId, signal);
+    return { text: await waitForText(baseUrl, promptId, signal), maxOutputTokens };
   } catch (error) {
     if (cudaDeviceMismatch(error)) fail(vramShortMessage, 502);
     throw error;
@@ -314,7 +321,11 @@ function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "vi
     : kind === "video" ? "仅审核画面，domain 用 video。" : "仅审核音轨，domain 用 audio。";
   const lines = [
     `你是 MangaFlow 成片质检员。根据${inputs}给出可观察证据。`,
-    '只输出一个 JSON 对象，格式为 {"checks":[{"domain":"video|audio|general","result":"pass|fail|unverified","evidence":"观察到的事实","time":"可选的时间点或区间"}]}。',
+    `只输出一个 JSON 对象。合法格式示例（内容须替换为真实观察）：${JSON.stringify({ checks: [
+      ...(requirements.length ? [{ requirementId: requirements[0]!.id, domain: "video", result: "unverified", evidence: "填写该项可观察事实", time: "00:00.000-00:01.000" }] : []),
+      ...[...(kind !== "audio" ? ["video"] : []), ...(kind !== "video" ? ["audio"] : [])].map(domain => ({ domain, result: "unverified", evidence: "填写实际观察事实" })),
+    ] })}。`,
+    "domain 只能填 video、audio、general 中的一个；result 只能填 pass、fail、unverified 中的一个，不能填带竖线的组合字符串。每条 evidence 简洁描述，最多 48 个汉字左右；不输出思考过程、Markdown 或额外解释。",
     domains,
     "分别检查本轮域内的验收要点。可确认符合用 pass，能指出具体偏差用 fail，证据不足用 unverified。时间无法核实时省略 time。",
     "画面检查主体、场景、动作和连续性。音轨检查对白、与画面对齐的音效和声景，以及音量遮盖。",
@@ -381,11 +392,12 @@ export async function runProductionQc(input: {
       if (hearAudio && !technical.hasAudio) lines.push("本片没有音轨。对白无法核验，标 unverified。");
       // 固定本次质检选定的运行位置，生成和质检各自选择 ComfyUI。
       const baseUrl = await resolveComfyBaseUrl(input.signal, production.gemmaQcHost);
-      const text = await runGemmaQc(baseUrl, localVideo, lines.join("\n"), gemmaVariant, hearAudio, input.signal);
+      const { text, maxOutputTokens } = await runGemmaQc(baseUrl, localVideo, lines.join("\n"), gemmaVariant, hearAudio, input.requirements ?? [], input.signal);
       const parsed = parseQcPayload(remember(text), hearAudio ? "merged" : "video", technical.hasAudio, input.requirements);
       return {
         ...parsed,
         technical,
+        maxOutputTokens,
         videoModelId: usedId,
         audioModelId: hearAudio ? usedId : "",
         merged: hearAudio,

@@ -52,8 +52,8 @@
             @pointerdown="dragThinking"
             @pointermove="moveThinking"
             @keydown="keyThinking">
-            <span v-for="gear in thinkingGears" :key="gear.value" class="thinkingGear" :class="{ reached: gear.reached }" :style="{ '--gear': gear.color }" />
-            <span class="thinkingThumb" :style="{ left: thumbLeft, '--thumb': thinkingGears[thinkingIndex]?.color }" />
+            <span v-for="gear in thinkingGears" :key="gear.value" class="thinkingGear" :class="{ reached: gear.reached }" />
+            <span class="thinkingThumb" :style="{ left: thumbLeft }" />
           </div>
         </el-form-item>
       </el-form>
@@ -83,19 +83,7 @@ const thinkingIndex = computed(() => {
   return index < 0 ? 0 : index;
 });
 const thinkingLabel = computed(() => thinkingOptions.value[thinkingIndex.value]?.label ?? "关闭思考");
-// 关闭思考是灰色。其余档位按从冷到暖铺开，模型和自定义档位都沿这条色带取色。
-const thinkingGears = computed(() => {
-  const colored = thinkingOptions.value.filter(item => item.value !== "off");
-  return thinkingOptions.value.map((option, index) => {
-    let color = "#c5cad3";
-    if (option.value !== "off") {
-      const place = Math.max(colored.findIndex(item => item.value === option.value), 0);
-      const span = Math.max(colored.length - 1, 1);
-      color = `hsl(${Math.round(214 - (place / span) * 214)} 76% 52%)`;
-    }
-    return { ...option, color, reached: index <= thinkingIndex.value };
-  });
-});
+const thinkingGears = computed(() => thinkingOptions.value.map((option, index) => ({ ...option, reached: index <= thinkingIndex.value })));
 const thumbLeft = computed(() => {
   const count = Math.max(thinkingGears.value.length, 1);
   return `${((thinkingIndex.value + 0.5) / count) * 100}%`;
@@ -204,19 +192,36 @@ watch(() => !props.active || props.disabled, close => { if (close) visible.value
     }
 
     .thinkingCurrent {
-      font-weight: 400;
-      color: var(--el-text-color-secondary);
+      padding: 2px 9px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 12px;
+      color: #9255ed;
+      background: color-mix(in srgb, #9255ed 9%, transparent);
     }
 
     .thinkingSlider {
       position: relative;
       display: flex;
       width: 100%;
-      height: 10px;
+      height: 32px;
       border-radius: 999px;
+      background: linear-gradient(105deg, #4648df 0%, #8160fa 42%, #b875f5 68%, #8244ed 100%);
+      box-shadow: inset 0 1px 2px rgb(255 255 255 / 22%), 0 4px 12px rgb(112 72 220 / 12%);
       cursor: pointer;
       touch-action: none;
       outline: none;
+      isolation: isolate;
+
+      // 星点只做装饰，指针事件始终交给原有滑杆。
+      &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        background-image: radial-gradient(circle at 8% 46%, #fff9 0 1px, transparent 2px), radial-gradient(circle at 27% 29%, #fff8 0 1px, transparent 2px), radial-gradient(circle at 43% 70%, #fffb 0 1.5px, transparent 2.5px), radial-gradient(circle at 61% 45%, #fff9 0 1px, transparent 2px), radial-gradient(circle at 78% 26%, #fffa 0 1.5px, transparent 2.5px), radial-gradient(circle at 90% 72%, #fff7 0 1px, transparent 2px);
+      }
 
       &:focus-visible {
         box-shadow: 0 0 0 3px var(--el-color-primary-light-8);
@@ -231,25 +236,26 @@ watch(() => !props.active || props.disabled, close => { if (close) visible.value
     .thinkingGear {
       flex: 1;
       height: 100%;
-      background: var(--gear);
-      opacity: 0.38;
+      background: rgb(255 255 255 / 38%);
+      transition: background 160ms ease;
 
       &:first-child { border-radius: 999px 0 0 999px; }
       &:last-child { border-radius: 0 999px 999px 0; }
       &:only-child { border-radius: 999px; }
 
-      &.reached { opacity: 1; }
+      &.reached { background: transparent; }
     }
 
     .thinkingThumb {
       position: absolute;
       top: 50%;
-      width: 18px;
-      height: 18px;
-      border: 2px solid var(--thumb, #8d93a0);
+      width: 36px;
+      height: 36px;
+      box-sizing: border-box;
+      border: 1px solid rgb(115 92 155 / 18%);
       border-radius: 50%;
       background: #fff;
-      box-shadow: 0 1px 4px rgb(0 0 0 / 28%);
+      box-shadow: 0 2px 7px rgb(55 31 93 / 18%), 0 0 0 3px rgb(255 255 255 / 14%);
       transform: translate(-50%, -50%);
       pointer-events: none;
     }

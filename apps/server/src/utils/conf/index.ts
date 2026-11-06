@@ -15,7 +15,7 @@ const configDirectory = realpathSync(dataDirectory);
 process.env.TOONFLOW_DATA_DIR = configDirectory;
 
 const config = new conf<{ settings: Record<string, unknown>; disabledSkills: string[]; toolConfigs: Record<string, Record<string, unknown>>; nodeConfigs: Record<string, Record<string, unknown>>; extConfigs: Record<string, Record<string, unknown>>; remoteConnections: Record<string, RemoteTeam>; a2a: A2aSettings; desktopUpdateAttempt: desktopUpdateAttempt; mobileLink: MobileLinkConfig;
-  mcpTunnel: { managed: boolean; publicUrl: string; token: string; publicAccess: { mcp: boolean; management: boolean; files: boolean; api: boolean } } }>({
+  mcpTunnel: { managed: boolean; publicUrl: string; token: string; port?: number; publicAccess: { mcp: boolean; management: boolean; files: boolean; api: boolean } } }>({
   cwd: configDirectory,
   configName: "settings",
   configFileMode: 0o600,

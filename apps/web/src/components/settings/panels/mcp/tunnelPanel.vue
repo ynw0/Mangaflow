@@ -17,6 +17,13 @@
       <p v-else class="hint">内置隧道管理当前仅支持 Windows 本机连接。</p>
       <p v-if="status.received !== undefined" class="hint">已下载 {{ (status.received / 1024 / 1024).toFixed(1) }} MB<template v-if="status.total"> / {{ (status.total / 1024 / 1024).toFixed(1) }} MB</template></p>
       <el-input v-if="status.publicUrl" :modelValue="status.publicUrl" readonly dir="ltr" aria-label="隧道公网地址" />
+      <div v-if="status.supported" class="portOptions">
+        <label for="publicTunnelPort">公网 HTTPS 端口</label>
+        <el-select id="publicTunnelPort" v-model="publicPort" :disabled="working || status.busy" aria-label="公网 HTTPS 端口">
+          <el-option v-for="port in status.ports" :key="port" :value="port" :label="String(port)" />
+        </el-select>
+        <el-button :disabled="working || status.busy || publicPort === status.port" @click="savePort">保存端口</el-button>
+      </div>
       <div class="accessOptions">
         <el-checkbox v-model="access.mcp" :disabled="working">MCP</el-checkbox>
         <el-checkbox v-model="access.management" :disabled="working">管理页面</el-checkbox>
@@ -40,6 +47,7 @@ import { isDesktop } from "@/lib/platform";
 type PublicAccess = { mcp: boolean; management: boolean; files: boolean; api: boolean };
 type TunnelStatus = { phase: "idle" | "downloading" | "installing" | "loggingIn" | "starting" | "running" | "error";
   supported: boolean; installed: boolean; connected: boolean; busy: boolean; publicAccess: PublicAccess;
+  port: number; ports: number[];
   authUrl?: string; publicUrl?: string; error?: string; clientError?: string; received?: number; total?: number };
 const emit = defineEmits<{ changed: [running: boolean] }>();
 const headers = { "x-toonflow-workspace": "1" };
@@ -47,6 +55,7 @@ const status = ref<TunnelStatus>();
 const error = ref("");
 const loading = ref(false);
 const working = ref(false);
+const publicPort = ref(443);
 const access = reactive<PublicAccess>({ mcp: true, management: false, files: false, api: false });
 const phaseLabel = computed(() => {
   if (!status.value) return "";
@@ -68,7 +77,7 @@ async function refresh() {
     const { data } = await axios.get<{ data: TunnelStatus }>("/api/mcp/tunnel/status", { headers, signal: controller.signal });
     const wasRunning = status.value?.phase === "running";
     status.value = data.data;
-    if (!initialized) { Object.assign(access, data.data.publicAccess); initialized = true; }
+    if (!initialized) { Object.assign(access, data.data.publicAccess); publicPort.value = data.data.port; initialized = true; }
     error.value = "";
     if (wasRunning !== (data.data.phase === "running")) emit("changed", data.data.phase === "running");
   } catch (cause) { if (!disposed) error.value = message(cause); }
@@ -90,6 +99,15 @@ async function saveAccess() {
   working.value = true;
   try { await axios.put("/api/mcp/tunnel/access", { ...access }, { headers, signal: controller.signal }); ElMessage.success("开放范围已保存"); }
   catch (cause) { error.value = message(cause); }
+  finally { working.value = false; }
+}
+async function savePort() {
+  working.value = true;
+  try {
+    await axios.put("/api/mcp/tunnel/port", { port: publicPort.value }, { headers, signal: controller.signal });
+    await refresh();
+    ElMessage.success("公网端口已保存");
+  } catch (cause) { error.value = message(cause); }
   finally { working.value = false; }
 }
 async function copyCredential() {
@@ -121,6 +139,7 @@ onUnmounted(() => { disposed = true; clearTimeout(timer); controller.abort(); })
   gap: 12px;
   .panelHeader { display: flex; align-items: center; justify-content: space-between; h3 { margin: 0; font-size: 14px; } }
   .actions, .accessOptions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .portOptions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; .el-select { width: 110px; } }
   .actions { .el-button { margin-left: 0; } }
   .hint { margin: 0; color: var(--el-text-color-secondary); font-size: 12px; }
   .el-tag { align-self: flex-start; }

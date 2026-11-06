@@ -41,7 +41,8 @@ const builtinModels = getBuiltinProviders().flatMap(provider => getBuiltinModels
 export function getModelLimits(providerId: string, model: z.infer<typeof providerSchema>["models"][number]) {
   const limits = modelContextLimits.find(item => item.id === model.id)
     ?? modelContextLimits.find(item => item.id instanceof RegExp && model.id.search(item.id) !== -1);
-  if (limits) return { contextWindow: limits.contextWindow, maxTokens: limits.maxTokens };
+  // 通道可能低于模型官方上限，显式填写的每项限制优先生效。
+  if (limits) return { contextWindow: model.contextWindow ?? limits.contextWindow, maxTokens: model.maxOutputTokens ?? limits.maxTokens };
   if (model.contextWindow != null && model.maxOutputTokens != null) {
     return { contextWindow: model.contextWindow, maxTokens: model.maxOutputTokens };
   }

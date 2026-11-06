@@ -17,6 +17,8 @@ let child: Awaited<ReturnType<typeof spawnTailscale>> | undefined;
 let ownedUrl: string | undefined;
 let clientQuery: Promise<{ connected: boolean; clientError?: string }> | undefined;
 const statusSchema = z.object({ BackendState: z.string(), AuthURL: z.string().optional(), Self: z.object({ DNSName: z.string() }).nullish() });
+export const tunnelPortSchema = z.union([z.literal(443), z.literal(8443), z.literal(10000)]);
+function readTunnelPort() { return tunnelPortSchema.parse(conf.get("mcpTunnel.port", 443)); }
 
 export function requireLocalTunnelRequest(req: Request, windowsOnly = true) {
   if ((windowsOnly && process.platform !== "win32") || isPublicRequest(req) || !isLocalWorkspaceRequest(req)) {
@@ -38,7 +40,7 @@ export async function getTunnelStatus() {
   }
   const client = clientQuery ? await clientQuery : { connected: false };
   return { ...state, ...client, supported: process.platform === "win32",
-    installed, busy: Boolean(controller), publicAccess: readPublicAccess() };
+    installed, busy: Boolean(controller), publicAccess: readPublicAccess(), port: readTunnelPort(), ports: [443, 8443, 10000] };
 }
 
 function begin(phase: TunnelState["phase"], action: (signal: AbortSignal) => Promise<void>) {
@@ -118,12 +120,13 @@ export function startPublicTunnel() {
     const dnsName = current.Self?.DNSName.replace(/\.$/, "");
     if (!dnsName || !/^[a-z0-9.-]+\.ts\.net$/i.test(dnsName)) throw new Error("未取得 Tailscale HTTPS 域名");
     const existing = JSON.parse(await runTailscale(["funnel", "status", "--json"], signal));
-    if (hasPort(existing, "8443")) throw new Error("Tailscale 的 8443 端口已有配置，未进行覆盖");
+    const port = readTunnelPort();
+    if (hasPort(existing, String(port))) throw new Error(`Tailscale 的 ${port} 端口已有配置，未进行覆盖`);
     if (!conf.get("mcpTunnel.token")) conf.set("mcpTunnel.token", oauthOwnerToken() || crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", ""));
     const gateway = await openPublicGateway(getMcpHostApp());
     let timer: ReturnType<typeof setInterval> | undefined;
     try {
-      child = await spawnTailscale(["funnel", "--https=8443", gateway.target], signal);
+      child = await spawnTailscale(["funnel", `--https=${port}`, gateway.target], signal);
       const running = child;
       let checking = false;
       // ACT: 每五秒核对一次真实状态；客户端断开或域名改变时关闭本次隧道，不自动重连。
@@ -140,8 +143,9 @@ export function startPublicTunnel() {
       }, 5000);
       await watchProcess(running, output => {
         if (state.phase !== "starting" || !output.includes("Available on the internet")) return;
-        ownedUrl = `https://${dnsName}:8443`;
-        conf.set("mcpTunnel", { managed: true, publicUrl: ownedUrl, token: conf.get("mcpTunnel.token", ""), publicAccess: readPublicAccess() });
+        // 标准 HTTPS 端口不出现在公网地址中，其他端口与实际启动参数保持一致。
+        ownedUrl = `https://${dnsName}${port === 443 ? "" : `:${port}`}`;
+        conf.set("mcpTunnel", { managed: true, publicUrl: ownedUrl, port, token: conf.get("mcpTunnel.token", ""), publicAccess: readPublicAccess() });
         state = { phase: "running", publicUrl: ownedUrl };
       });
       if (!signal.aborted) throw new Error("公网隧道已退出");
@@ -172,6 +176,13 @@ export async function stopTunnelOnHostClose() {
 export function saveTunnelAccess(input: z.infer<typeof publicAccessSchema>) {
   conf.set("mcpTunnel.publicAccess", publicAccessSchema.parse(input));
   return readPublicAccess();
+}
+
+export function saveTunnelPort(port: number) {
+  if (controller) throw Object.assign(new Error("请先关闭当前隧道或任务，再修改公网端口"), { status: 409 });
+  const selected = tunnelPortSchema.parse(port);
+  conf.set("mcpTunnel.port", selected);
+  return selected;
 }
 
 export function useManualPublicUrl() {

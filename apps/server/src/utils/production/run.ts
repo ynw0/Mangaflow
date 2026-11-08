@@ -242,7 +242,7 @@ export type PreparedComfyWorkflow = Awaited<ReturnType<typeof prepareComfyWorkfl
 
 export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWorkflow>[0] & {
   resume?: VideoExecution;
-  onSubmitting?: () => Promise<void>;
+  onSubmitting?: (submission: Omit<VideoExecution, "promptId">) => Promise<void>;
   onSubmitted?: (execution: VideoExecution) => Promise<void>;
 }) {
   const { directory, mediaType, request, signal } = options;
@@ -274,15 +274,17 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     const uploaded = await uploadInput(baseUrl, path, `${uploadDirectory}/${index}`, signal, bytes);
     writePath(workflow, binding.target, uploaded);
   }
-  // 先持久化 submitting，再 POST；如果中途崩溃，绝不猜测是否提交成功后再次 POST。
-  await options.onSubmitting?.();
-  const promptId = await submitWorkflow(baseUrl, workflow, signal);
-  const execution: VideoExecution = {
-    promptId, host,
-    seed: entry.bindings.bindings.some(item => item.source === "seed") ? context.seed : undefined,
+  const submission: Omit<VideoExecution, "promptId"> = {
+    host, seed: entry.bindings.bindings.some(item => item.source === "seed") ? context.seed : undefined,
     megapixels: context.megapixels, upscale: context.upscale,
     firstPassSteps: context.first_pass_steps, secondPassSteps: context.second_pass_steps,
   };
+  // 提交前存主机与真实采样参数，恢复只寻找同一 generationId 的远端任务。
+  const promptId = await submitWorkflow(baseUrl, workflow, signal, {
+    clientId: request.generationId,
+    onSubmitting: options.onSubmitting ? () => options.onSubmitting!(submission) : undefined,
+  });
+  const execution: VideoExecution = { ...submission, promptId };
   await options.onSubmitted?.(execution);
   const outputs = await waitForOutput(baseUrl, promptId, mediaType, signal, options.onSubmitted === undefined);
   const files = [];

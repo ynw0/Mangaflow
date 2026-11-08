@@ -115,9 +115,9 @@
             <el-button
               class="sendButton"
               :icon="generating ? IconPlayerStop : IconArrowUp"
-              :disabled="deleting || uploading || (!generating && (data.activeGenerationRequest || detachedGenerationId) && (!persistentPhase || persistentChecking || ['submitting', 'failed', 'cancelled'].includes(persistentPhase))) || (!generating && !data.activeGenerationRequest && !detachedGenerationId && (discoveringRecovery || !generationPrompt || !selectedModel))"
-              :title="generating ? '停止生成' : data.activeGenerationRequest || detachedGenerationId ? '恢复原视频任务' : '生成视频'"
-              :aria-label="generating ? '停止生成' : data.activeGenerationRequest || detachedGenerationId ? '恢复原视频任务' : '生成视频'"
+              :disabled="deleting || uploading || (!generating && (data.activeGenerationRequest || detachedGenerationId) && (!persistentPhase || persistentChecking || ['failed', 'cancelled'].includes(persistentPhase))) || (!generating && !data.activeGenerationRequest && !detachedGenerationId && (discoveringRecovery || !generationPrompt || !selectedModel))"
+              :title="generating ? '停止生成' : persistentPhase === 'submitting' ? '核对并恢复原任务（不会重新提交）' : data.activeGenerationRequest || detachedGenerationId ? '恢复原视频任务' : '生成视频'"
+              :aria-label="generating ? '停止生成' : persistentPhase === 'submitting' ? '核对并恢复原任务（不会重新提交）' : data.activeGenerationRequest || detachedGenerationId ? '恢复原视频任务' : '生成视频'"
               @click="generating ? requestStop().catch((error) => showNodeError(error, '取消视频失败')) : startGeneration().catch((error) => showNodeError(error, '视频生成失败'))" />
           </div>
         </div>
@@ -203,7 +203,7 @@ const detachedGenerationId = ref("");
 const discoveringRecovery = ref(false);
 const persistentPhaseLabels: Record<string, string> = {
   preparing: "准备中 · 可以恢复原任务",
-  submitting: "提交状态不明 · 需要先核对 ComfyUI 队列，禁止重新提交",
+  submitting: "提交状态不明 · 点击恢复只核对原任务，绝不重新提交",
   submitted: "已提交 · 可以继续等待或取回原任务",
   saved: "已保存视频 · 可以恢复成片记录",
   completed: "原任务已完成 · 点击恢复结果",
@@ -492,9 +492,9 @@ async function discoverRecovery() {
 
 /** 画布丢失活动任务参数后，用服务端原始请求恢复；不会构造新工作流或种子。 */
 async function resumeDetachedGeneration() {
-  const generationId = detachedGenerationId.value;
+  const generationId = detachedGenerationId.value || (persistentPhase.value === "submitting" ? data.value.activeGenerationRequest?.generationId : undefined);
   if (!generationId) throw new Error("没有可恢复的任务");
-  if (!["preparing", "submitted", "saved", "completed"].includes(persistentPhase.value)) {
+  if (!["preparing", "submitting", "submitted", "saved", "completed"].includes(persistentPhase.value)) {
     throw new Error("当前 ComfyUI 任务状态不允许恢复；请先查询原队列");
   }
   const controller = new AbortController();
@@ -513,6 +513,7 @@ async function resumeDetachedGeneration() {
       if (!video?.path || !video.mimeType) throw new Error("已恢复的任务缺少生成视频");
       if (!disposed) {
         outputs.value.video = { dataType: "VIDEO", value: { url: video.path, mimeType: video.mimeType } };
+        data.value.activeGenerationRequest = undefined;
         detachedGenerationId.value = "";
         persistentPhase.value = "";
         persistentError.value = "";
@@ -520,7 +521,7 @@ async function resumeDetachedGeneration() {
     })
     .catch(error => {
       if (!disposed) showNodeError(error, "恢复原任务失败");
-      if (!disposed && detachedGenerationId.value)
+      if (!disposed && (detachedGenerationId.value || data.value.activeGenerationRequest))
         void refreshPersistentStatus().catch(() => { /* 服务端任务编号仍保留 */ });
     })
     .finally(() => { generationController = undefined; }));
@@ -534,7 +535,7 @@ async function startGeneration() {
   if (generating.value) throw new Error("视频正在生成，请等待完成");
   if (uploading.value) throw new Error("视频正在替换，请等待完成");
   if (deleting.value) throw new Error("节点正在删除");
-  if (detachedGenerationId.value) return resumeDetachedGeneration();
+  if (detachedGenerationId.value || (current && persistentPhase.value === "submitting")) return resumeDetachedGeneration();
   if (!current) {
     if (!choice || !input) throw new Error("请先选择视频模型");
     if (!generationPrompt.value) throw new Error("请输入生成提示词");

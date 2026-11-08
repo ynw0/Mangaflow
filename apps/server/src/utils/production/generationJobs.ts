@@ -6,7 +6,7 @@ import type { GeneratedMedia, MediaGenerationRequest, VideoExecution } from "@to
 import conf from "@/utils/conf";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { resolveComfyBaseUrl } from "@/utils/production/autodl";
-import { cancelPrompt } from "@/utils/production/comfyui";
+import { cancelPrompt, findSubmittedPromptByClientId } from "@/utils/production/comfyui";
 
 type Phase = "preparing" | "submitting" | "submitted" | "saved" | "completed" | "cancelled" | "failed";
 type Job = {
@@ -19,6 +19,7 @@ type Job = {
   createdAt: string;
   updatedAt: string;
   execution?: VideoExecution;
+  submission?: Omit<VideoExecution, "promptId">;
   files?: GeneratedMedia[];
   error?: string;
 };
@@ -28,7 +29,7 @@ type RunOptions = {
   generate: (options: {
     signal: AbortSignal;
     resume?: VideoExecution;
-    submitting: () => Promise<void>;
+    submitting: (submission: Omit<VideoExecution, "promptId">) => Promise<void>;
     submitted: (execution: VideoExecution) => Promise<void>;
   }) => Promise<{ files: { bytes: Uint8Array; mimeType: string }[]; execution: VideoExecution }>;
   save: (files: { bytes: Uint8Array; mimeType: string }[], id: string, signal: AbortSignal) => Promise<GeneratedMedia[]>;
@@ -75,10 +76,25 @@ async function validFiles(directory: string, files: GeneratedMedia[]) {
 function publicStatus(job: Job) {
   const phaseReady = ["preparing", "submitted", "saved", "completed"].includes(job.phase);
   return { generationId: job.id, phase: job.phase, promptId: job.execution?.promptId,
-    host: job.execution?.host, outputDirectory: job.request?.outputDirectory, files: job.files,
+    host: job.execution?.host ?? job.submission?.host, outputDirectory: job.request?.outputDirectory, files: job.files,
     error: job.error, createdAt: job.createdAt, updatedAt: job.updatedAt,
     live: running.has(job.id), canResume: ["submitted", "saved"].includes(job.phase),
     canResumeById: phaseReady && Boolean(job.request) };
+}
+
+/** 只以已落盘的 client_id 对账；查不到保持锁定，绝不再次 POST。 */
+async function reconcileSubmission(job: Job) {
+  if (job.phase !== "submitting") return;
+  if (!job.submission) throw Object.assign(new Error("旧任务缺少提交主机和关联编号，无法自动核对，仍禁止重提"), { status: 409 });
+  const baseUrl = await resolveComfyBaseUrl(undefined, job.submission.host);
+  const promptId = await findSubmittedPromptByClientId(baseUrl, job.id);
+  if (!promptId) {
+    throw Object.assign(new Error("远端队列与最近 500 条历史未找到原任务，提交是否成功仍不确定；未重新提交"), { status: 409 });
+  }
+  job.execution = { ...job.submission, promptId };
+  job.phase = "submitted";
+  job.error = undefined;
+  await saveJob(job);
 }
 
 /** 使用已落盘的原始参数恢复同一个任务，不允许调用方猜测提示词或模型配置。 */
@@ -86,13 +102,14 @@ export async function getStoredGenerationRequest(cwd: string, id: string): Promi
   const directory = await realpath(cwd);
   const job = await checkedJob(directory, id);
   if (!job) throw Object.assign(new Error("生成任务不存在"), { status: 404 });
-  if (["submitting", "cancelled", "failed"].includes(job.phase)) {
-    throw Object.assign(new Error("原任务状态不允许恢复；提交状态不明时必须先核对 ComfyUI 队列"), { status: 409 });
+  if (["cancelled", "failed"].includes(job.phase)) {
+    throw Object.assign(new Error("原任务已终止，禁止使用旧任务编号恢复"), { status: 409 });
   }
   if (!job.request || job.request.generationId !== id || signature(directory, job.request) !== job.fingerprint) {
     throw Object.assign(new Error("旧任务缺少可信原始生成参数，不能只凭任务 ID 重新生成"), { status: 409 });
   }
   if (job.request.providerId !== "comfyui") throw Object.assign(new Error("只有 ComfyUI 视频任务支持持久化恢复"), { status: 400 });
+  if (job.phase === "submitting" && !running.has(id)) await reconcileSubmission(job);
   return job.request;
 }
 export async function generationJobStatus(cwd: string, id: string) {
@@ -171,9 +188,7 @@ export async function runGenerationJob(options: RunOptions) {
         await validFiles(directory, job.files ?? []);
         return job.files ?? [];
       }
-      if (job.phase === "submitting") {
-        throw new Error("服务器在 ComfyUI 提交阶段中断，无法判定是否已提交。请先核对远端队列，不会自动重复提交");
-      }
+      if (job.phase === "submitting") await reconcileSubmission(job);
       if (job.phase === "submitted" && !job.execution?.promptId) {
         throw new Error("任务已提交但缺少 promptId；禁止重新提交工作流");
       }
@@ -183,7 +198,7 @@ export async function runGenerationJob(options: RunOptions) {
       if (job.phase !== "saved") {
         const output = await options.generate({
           signal: controller.signal, resume: job.phase === "submitted" ? execution : undefined,
-          submitting: () => persist("submitting"),
+          submitting: submission => persist("submitting", { submission }),
           submitted: item => persist("submitted", { execution: item }),
         });
         controller.signal.throwIfAborted();

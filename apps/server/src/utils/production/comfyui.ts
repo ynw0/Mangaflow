@@ -243,13 +243,51 @@ function formatPromptError(data: { error?: { type?: unknown; message?: unknown; 
   return parts.join("：") || `提交工作流失败：HTTP ${status}`;
 }
 
-export async function submitWorkflow(baseUrl: string, workflow: Record<string, unknown>, signal?: AbortSignal) {
+/** 只核对已经进入 ComfyUI 队列或历史记录的请求；未找到不允许重提。 */
+export async function findSubmittedPromptByClientId(baseUrl: string, clientId: string) {
+  const matches = new Set<string>();
+  const matchRow = (row: unknown) => {
+    if (!Array.isArray(row) || typeof row[1] !== "string") return;
+    const extra = row[3];
+    if (extra && typeof extra === "object" && !Array.isArray(extra) &&
+      (extra as { client_id?: unknown }).client_id === clientId) matches.add(row[1]);
+  };
+  const queueResponse = await comfyFetch(baseUrl, "/queue", { method: "GET" }, AbortSignal.timeout(10000));
+  if (!queueResponse.ok) fail("ComfyUI 队列查询失败：HTTP " + queueResponse.status, 502);
+  const queue = await queueResponse.json() as { queue_running?: unknown; queue_pending?: unknown };
+  for (const rows of [queue.queue_running, queue.queue_pending]) {
+    if (!Array.isArray(rows)) fail("ComfyUI 队列返回格式异常", 502);
+    rows.forEach(matchRow);
+  }
+  const historyResponse = await comfyFetch(baseUrl, "/history?max_items=500", { method: "GET" }, AbortSignal.timeout(12000));
+  if (!historyResponse.ok) fail("ComfyUI 历史查询失败：HTTP " + historyResponse.status, 502);
+  const history = await historyResponse.json() as Record<string, { prompt?: unknown }>;
+  if (!history || typeof history !== "object" || Array.isArray(history)) fail("ComfyUI 历史返回格式异常", 502);
+  for (const [promptId, item] of Object.entries(history)) {
+    const prompt = item?.prompt;
+    const extra = Array.isArray(prompt) ? prompt[3]
+      : prompt && typeof prompt === "object" ? (prompt as { extra_data?: unknown }).extra_data : undefined;
+    if (extra && typeof extra === "object" && !Array.isArray(extra) &&
+      (extra as { client_id?: unknown }).client_id === clientId) matches.add(promptId);
+  }
+  if (matches.size > 1) fail("ComfyUI 检测到多个相同任务编号，必须人工核对，禁止自动恢复", 409);
+  const promptId = matches.values().next().value;
+  if (promptId && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(promptId)) {
+    fail("ComfyUI 返回的任务编号不是有效 UUID", 502);
+  }
+  return promptId as string | undefined;
+}
+
+export async function submitWorkflow(baseUrl: string, workflow: Record<string, unknown>, signal?: AbortSignal,
+  options?: { clientId?: string; onSubmitting?: () => Promise<void> }) {
   alignReferenceInputs(workflow);
   await alignModelNames(baseUrl, workflow, signal);
+  // 模型匹配结束后才持久化 submitting，随后才可能发起远端 POST。
+  await options?.onSubmitting?.();
   const response = await comfyFetch(baseUrl, "/prompt", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt: workflow, client_id: crypto.randomUUID() }),
+    body: JSON.stringify({ prompt: workflow, client_id: options?.clientId ?? crypto.randomUUID() }),
   }, signal);
   const data = await response.json().catch(() => undefined) as {
     prompt_id?: string;

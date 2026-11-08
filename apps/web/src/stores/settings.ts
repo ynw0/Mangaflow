@@ -106,13 +106,14 @@ export function normalizeThinkingLevels(value: unknown): string[] {
 }
 
 export function thinkingLevelOptionsFor(levels: string[]) {
-  return [{ label: "关闭思考", value: "off" }, ...levels.map(level => ({ label: level, value: level }))];
+  const names: Record<string, string> = { minimal: "极简", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最高" };
+  return [{ label: "关闭", value: "off" }, ...levels.map(level => ({ label: names[level] ?? level, value: level }))];
 }
 
 export function modelThinkingLevels(model: { thinkingLevels?: string[] } | undefined): string[] {
-  // 旧数据未写该字段时保留六档可选，显式空数组则只有关闭思考。
-  if (!model || model.thinkingLevels === undefined) return [...presetThinkingLevels];
-  return normalizeThinkingLevels(model.thinkingLevels);
+  // 严格按模型设置中明确声明的档位；未知能力不能自动当作支持全部档位。
+  if (!model || model.thinkingLevels === undefined) return [];
+  return normalizeThinkingLevels(model.thinkingLevels).filter(level => (presetThinkingLevels as readonly string[]).includes(level));
 }
 
 function thinkingLevelByModel() {

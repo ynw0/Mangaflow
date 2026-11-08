@@ -282,7 +282,7 @@ function addSelectedModels() {
 
 function addManualModel() {
   const key = crypto.randomUUID();
-  models.value.push({ key, id: "", label: "", inputs: modelInputs(undefined), thinkingLevels: [...presetThinkingLevels] });
+  models.value.push({ key, id: "", label: "", inputs: modelInputs(undefined), thinkingLevels: [] });
 }
 
 async function addProvider() {

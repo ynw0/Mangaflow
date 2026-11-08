@@ -4,59 +4,49 @@
       v-model:visible="visible"
       trigger="click"
       placement="top-start"
-      :width="360"
+      :width="390"
       :offset="10"
       :showArrow="false"
       popperClass="agentModelPopover"
-      :popperStyle="{ padding: '20px', maxWidth: 'calc(100vw - 24px)' }">
+      :popperStyle="{ padding: '18px', maxWidth: 'calc(100vw - 24px)' }">
       <template #reference>
-        <el-button class="modelButton" text :disabled="disabled" aria-label="选择模型">
+        <el-button class="modelButton" text :disabled="disabled" aria-label="选择模型与思考等级">
           <modelIcon v-if="selectedModelChoice" :model="selectedModelChoice.modelId" :size="14" />
           <span class="modelName">{{ selectedModelChoice?.label ?? "选择模型" }}</span>
           <component :is="visible ? IconChevronUp : IconChevronDown" :size="14" aria-hidden="true" />
         </el-button>
       </template>
-      <el-form class="modelOptions" labelPosition="top">
-        <el-form-item label="模型">
-          <el-select v-model="selectedModel" filterable :disabled="disabled" :teleported="false" placeholder="选择模型" aria-label="选择模型" noDataText="请先在设置中添加模型">
-            <template #prefix><modelIcon v-if="selectedModelChoice" :model="selectedModelChoice.modelId" :size="18" /></template>
-            <el-option-group v-for="provider in modelGroups" :key="provider.id" :label="provider.label">
-              <el-option v-for="model in provider.models" :key="model.id" :label="model.label" :value="JSON.stringify([provider.id, model.id])">
-                <el-space :size="8">
-                  <modelIcon :model="model.id" :size="16" />
-                  <span>{{ model.label }}</span>
-                </el-space>
-              </el-option>
-            </el-option-group>
-          </el-select>
-        </el-form-item>
-        <el-form-item class="thinkingItem">
-          <template #label>
-            <span class="thinkingHead">
-              <span>思考等级</span>
-              <span class="thinkingCurrent">{{ thinkingLabel }}</span>
-            </span>
-          </template>
-          <div
-            ref="thinkingTrack"
-            class="thinkingSlider"
-            role="slider"
-            :tabindex="disabled || !selectedModelChoice ? -1 : 0"
-            :aria-disabled="disabled || !selectedModelChoice"
-            aria-label="思考等级"
-            aria-orientation="horizontal"
-            :aria-valuemin="0"
-            :aria-valuemax="Math.max(thinkingGears.length - 1, 0)"
-            :aria-valuenow="thinkingIndex"
-            :aria-valuetext="thinkingLabel"
-            @pointerdown="dragThinking"
-            @pointermove="moveThinking"
-            @keydown="keyThinking">
-            <span v-for="gear in thinkingGears" :key="gear.value" class="thinkingGear" :class="{ reached: gear.reached }" />
-            <span class="thinkingThumb" :style="{ left: thumbLeft }" />
-          </div>
-        </el-form-item>
-      </el-form>
+      <div class="modelPanel">
+        <div class="panelHeader">
+          <span>对话模型</span>
+          <span class="panelHint">当前会话</span>
+        </div>
+        <el-select v-model="selectedModel" filterable :disabled="disabled" placeholder="选择模型" aria-label="选择模型" noDataText="请先在设置中添加文本模型">
+          <el-option-group v-for="provider in modelGroups" :key="provider.id" :label="provider.label">
+            <el-option v-for="model in provider.models" :key="model.id" :label="model.label" :value="JSON.stringify([provider.id, model.id])" />
+          </el-option-group>
+        </el-select>
+        <div class="thinkingHeader">
+          <span>思考等级</span>
+          <span class="levelCurrent">{{ thinkingLabel }}</span>
+        </div>
+        <div class="thinkingOptions" role="group" aria-label="当前模型思考等级">
+          <button
+            v-for="option in thinkingOptions"
+            :key="option.value"
+            type="button"
+            class="thinkingOption"
+            :class="{ selected: thinkingLevel === option.value }"
+            :disabled="disabled || !selectedModelChoice"
+            :aria-pressed="thinkingLevel === option.value"
+            :title="option.value"
+            @click="setThinking(option.value)">
+            {{ option.label }}
+          </button>
+        </div>
+        <p v-if="!selectedModelChoice?.thinkingLevels?.length" class="levelTip">该模型没有声明可用思考档位；如需启用，请在文本模型设置中维护实际支持的等级。</p>
+        <p v-else class="levelTip">仅显示所选模型声明支持的等级。</p>
+      </div>
     </el-popover>
   </div>
 </template>
@@ -72,55 +62,11 @@ const props = withDefaults(defineProps<{ active?: boolean; disabled?: boolean }>
 const visible = ref(false);
 const modelGroups = computed(() => customProviders.value.toSorted((left, right) => Number(right.id === "tfRouter") - Number(left.id === "tfRouter")));
 const selectedModelChoice = computed(() => modelChoices.value.find(item => item.value === selectedModel.value));
-const thinkingTrack = ref<HTMLElement>();
 const thinkingOptions = computed(() => thinkingLevelOptionsFor(selectedModelChoice.value?.thinkingLevels ?? []));
-const thinkingLevel = computed({
-  get: () => thinkingLevelForModel(selectedModelChoice.value),
-  set: (value: string) => { if (selectedModel.value) setModelThinkingLevel(selectedModel.value, value); },
-});
-const thinkingIndex = computed(() => {
-  const index = thinkingOptions.value.findIndex(item => item.value === thinkingLevel.value);
-  return index < 0 ? 0 : index;
-});
-const thinkingLabel = computed(() => thinkingOptions.value[thinkingIndex.value]?.label ?? "关闭思考");
-const thinkingGears = computed(() => thinkingOptions.value.map((option, index) => ({ ...option, reached: index <= thinkingIndex.value })));
-const thumbLeft = computed(() => {
-  const count = Math.max(thinkingGears.value.length, 1);
-  return `${((thinkingIndex.value + 0.5) / count) * 100}%`;
-});
-
-function pickThinking(index: number) {
-  const option = thinkingOptions.value[index];
-  if (!option || props.disabled || !selectedModel.value) return;
-  thinkingLevel.value = option.value;
-}
-
-function indexFromPointer(event: PointerEvent) {
-  const rect = thinkingTrack.value?.getBoundingClientRect();
-  const count = thinkingOptions.value.length;
-  if (!rect || rect.width <= 0 || count < 1) return 0;
-  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-  return Math.min(count - 1, Math.floor(ratio * count));
-}
-
-function dragThinking(event: PointerEvent) {
-  if (props.disabled || !selectedModelChoice.value || event.button !== 0) return;
-  thinkingTrack.value?.focus();
-  pickThinking(indexFromPointer(event));
-  thinkingTrack.value?.setPointerCapture(event.pointerId);
-}
-
-function moveThinking(event: PointerEvent) {
-  if (!thinkingTrack.value?.hasPointerCapture(event.pointerId)) return;
-  pickThinking(indexFromPointer(event));
-}
-
-function keyThinking(event: KeyboardEvent) {
-  const last = thinkingOptions.value.length - 1;
-  if (event.key === "ArrowRight" || event.key === "ArrowUp") { event.preventDefault(); pickThinking(thinkingIndex.value + 1); }
-  else if (event.key === "ArrowLeft" || event.key === "ArrowDown") { event.preventDefault(); pickThinking(thinkingIndex.value - 1); }
-  else if (event.key === "Home") { event.preventDefault(); pickThinking(0); }
-  else if (event.key === "End") { event.preventDefault(); pickThinking(last); }
+const thinkingLevel = computed(() => thinkingLevelForModel(selectedModelChoice.value));
+const thinkingLabel = computed(() => thinkingOptions.value.find(item => item.value === thinkingLevel.value)?.label ?? "关闭");
+function setThinking(level: string) {
+  if (!props.disabled && selectedModel.value) setModelThinkingLevel(selectedModel.value, level);
 }
 watch(modelChoices, items => {
   if (!selectedModel.value) selectedModel.value = items[0]?.value ?? "";
@@ -137,128 +83,33 @@ watch(() => !props.active || props.disabled, close => { if (close) visible.value
   display: inline-flex;
   min-width: 0;
   max-width: 100%;
-
   .modelButton {
     max-width: 100%;
     min-width: 0;
     height: 28px;
     padding: 0 8px;
     color: var(--el-text-color-regular);
-
-    > span {
-      display: flex;
-      gap: 6px;
-      min-width: 0;
-    }
-    svg {
-      flex-shrink: 0;
-    }
-
-    .modelName {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      text-align: left;
-    }
+    > span { display: flex; gap: 6px; min-width: 0; }
+    svg { flex-shrink: 0; }
+    .modelName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
   }
 }
-
 .agentModelPopover {
-  .modelOptions {
-    .el-form-item {
-      margin-bottom: 24px;
-
-      &:last-child {
-        margin-bottom: 0;
-      }
-      .el-form-item__label {
-        margin-bottom: 10px;
-        font-weight: 500;
-        color: var(--el-text-color-primary);
-      }
-    }
-
-    .thinkingItem .el-form-item__label {
-      display: flex;
-      width: 100%;
-      padding-right: 0;
-    }
-
-    .thinkingHead {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      width: 100%;
-    }
-
-    .thinkingCurrent {
-      padding: 2px 9px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 12px;
-      color: #9255ed;
-      background: color-mix(in srgb, #9255ed 9%, transparent);
-    }
-
-    .thinkingSlider {
-      position: relative;
-      display: flex;
-      width: 100%;
-      height: 32px;
-      border-radius: 999px;
-      background: linear-gradient(105deg, #4648df 0%, #8160fa 42%, #b875f5 68%, #8244ed 100%);
-      box-shadow: inset 0 1px 2px rgb(255 255 255 / 22%), 0 4px 12px rgb(112 72 220 / 12%);
-      cursor: pointer;
-      touch-action: none;
-      outline: none;
-      isolation: isolate;
-
-      // 星点只做装饰，指针事件始终交给原有滑杆。
-      &::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        pointer-events: none;
-        background-image: radial-gradient(circle at 8% 46%, #fff9 0 1px, transparent 2px), radial-gradient(circle at 27% 29%, #fff8 0 1px, transparent 2px), radial-gradient(circle at 43% 70%, #fffb 0 1.5px, transparent 2.5px), radial-gradient(circle at 61% 45%, #fff9 0 1px, transparent 2px), radial-gradient(circle at 78% 26%, #fffa 0 1.5px, transparent 2.5px), radial-gradient(circle at 90% 72%, #fff7 0 1px, transparent 2px);
-      }
-
-      &:focus-visible {
-        box-shadow: 0 0 0 3px var(--el-color-primary-light-8);
-      }
-
-      &[aria-disabled="true"] {
-        cursor: not-allowed;
-        opacity: 0.5;
-      }
-    }
-
-    .thinkingGear {
-      flex: 1;
-      height: 100%;
-      background: rgb(255 255 255 / 38%);
-      transition: background 160ms ease;
-
-      &:first-child { border-radius: 999px 0 0 999px; }
-      &:last-child { border-radius: 0 999px 999px 0; }
-      &:only-child { border-radius: 999px; }
-
-      &.reached { background: transparent; }
-    }
-
-    .thinkingThumb {
-      position: absolute;
-      top: 50%;
-      width: 36px;
-      height: 36px;
-      box-sizing: border-box;
-      border: 1px solid rgb(115 92 155 / 18%);
-      border-radius: 50%;
-      background: #fff;
-      box-shadow: 0 2px 7px rgb(55 31 93 / 18%), 0 0 0 3px rgb(255 255 255 / 14%);
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-    }
+  .modelPanel { display: flex; flex-direction: column; gap: 12px; }
+  .panelHeader, .thinkingHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--el-text-color-primary); font-size: 13px; font-weight: 600; }
+  .panelHint, .levelTip { color: var(--el-text-color-secondary); font-size: 11px; font-weight: 400; }
+  .thinkingHeader { margin-top: 4px; }
+  .levelCurrent { padding: 2px 9px; border-radius: 999px; background: var(--el-color-primary-light-9); color: var(--el-color-primary); font-size: 12px; }
+  .thinkingOptions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .thinkingOption {
+    min-width: 0; min-height: 34px; padding: 6px 5px; border: 1px solid var(--el-border-color);
+    border-radius: 9px; background: var(--el-fill-color-blank); color: var(--el-text-color-regular);
+    font: inherit; font-size: 12px; cursor: pointer; transition: background 120ms ease, border-color 120ms ease;
+    &:hover:not(:disabled) { background: var(--el-fill-color-light); border-color: var(--el-color-primary-light-5); }
+    &.selected { color: var(--el-color-primary); border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); font-weight: 600; }
+    &:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+    &:disabled { cursor: not-allowed; opacity: 0.5; }
   }
+  .levelTip { margin: 0; line-height: 1.5; }
 }
 </style>

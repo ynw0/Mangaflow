@@ -51,6 +51,7 @@ import {
   IconDevices,
   IconRoute,
   IconMovie,
+  IconUsersGroup,
 } from "@tabler/icons-vue";
 
 const settingsPanels = [
@@ -63,6 +64,7 @@ const settingsPanels = [
     groupLabel: "模型",
     component: defineAsyncComponent(() => import("./panels/languageModel/index.vue")),
   },
+  { id: "agentProfiles", label: "Agent 分工", icon: IconUsersGroup, component: defineAsyncComponent(() => import("./panels/languageModel/agentProfiles.vue")) },
   { id: "mediaModel", label: "媒体模型", icon: IconPhotoVideo, component: defineAsyncComponent(() => import("./panels/mediaModel/index.vue")) },
   { id: "videoModel", label: "视频模型", icon: IconMovie, component: defineAsyncComponent(() => import("./panels/videoModel/index.vue")) },
   { id: "workflow", label: "工作流", icon: IconRoute, component: defineAsyncComponent(() => import("./panels/workflow/index.vue")) },

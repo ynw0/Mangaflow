@@ -196,7 +196,7 @@ const { generating } = generationState;
 const persistentPhase = ref("");
 const persistentError = ref("");
 const persistentChecking = ref(false);
-const persistentPhaseLabel = computed(() => ({
+const persistentPhaseLabels: Record<string, string> = {
   preparing: "准备中 · 可以恢复原任务",
   submitting: "提交状态不明 · 需要先核对 ComfyUI 队列，禁止重新提交",
   submitted: "已提交 · 可以继续等待或取回原任务",
@@ -204,7 +204,9 @@ const persistentPhaseLabel = computed(() => ({
   completed: "原任务已完成 · 点击恢复结果",
   cancelled: "已取消 · 放弃旧任务后才能新建",
   failed: "生成失败 · 需要放弃旧任务后重新开始",
-}[persistentPhase.value] ?? "正在查询服务端任务状态");
+};
+const persistentPhaseLabel = computed(() =>
+  persistentPhaseLabels[persistentPhase.value] ?? "正在查询服务端任务状态");
 let generation: Promise<void> | undefined;
 let modelsRequest: Promise<void> | undefined;
 // ACT: 供应商未声明视频比例范围，沿用界面的通用比例，具体支持范围由供应商校验。

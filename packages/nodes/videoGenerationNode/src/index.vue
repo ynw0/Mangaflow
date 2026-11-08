@@ -42,6 +42,17 @@
     </div>
     <template #bottom>
       <el-card class="promptCard" shadow="never" :bodyStyle="{ padding: '14px 16px 12px' }">
+        <div v-if="data.activeGenerationRequest" class="pendingTask" role="status">
+          <div class="pendingTaskText">
+            <strong>未完成视频任务 · {{ data.activeGenerationRequest.generationId?.slice(0, 8) }}</strong>
+            <span>{{ persistentPhaseLabel }}</span>
+            <small v-if="persistentError">{{ persistentError }}</small>
+          </div>
+          <el-button text size="small" :loading="persistentChecking"
+            aria-label="查询原视频任务状态" @click="refreshPersistentStatus().catch(error => showNodeError(error, '任务状态查询失败'))">
+            刷新状态
+          </el-button>
+        </div>
         <referenceItem
           v-if="refList.length"
           v-model="refList"
@@ -96,12 +107,12 @@
             <mediaPrice v-if="generationInput" :input="{ ...generationInput, mediaType: 'video' }" :supported="selectedModel?.supportsPrice === true" />
             <el-button
               v-if="data.activeGenerationRequest && !generating"
-              text size="small" :disabled="deleting || uploading" title="取消或放弃旧任务（不会重新生成）"
+              text size="small" :disabled="deleting || uploading || persistentPhase === 'submitting'" title="取消或放弃旧任务（不会重新生成）"
               @click="requestStop().catch(error => showNodeError(error, '放弃旧任务失败'))">放弃旧任务</el-button>
             <el-button
               class="sendButton"
               :icon="generating ? IconPlayerStop : IconArrowUp"
-              :disabled="deleting || uploading || (!generating && !data.activeGenerationRequest && (!generationPrompt || !selectedModel))"
+              :disabled="deleting || uploading || (!generating && data.activeGenerationRequest && ['submitting', 'failed', 'cancelled'].includes(persistentPhase)) || (!generating && !data.activeGenerationRequest && (!generationPrompt || !selectedModel))"
               :title="generating ? '停止生成' : data.activeGenerationRequest ? '恢复原视频任务' : '生成视频'"
               :aria-label="generating ? '停止生成' : data.activeGenerationRequest ? '恢复原视频任务' : '生成视频'"
               @click="generating ? requestStop().catch((error) => showNodeError(error, '取消视频失败')) : startGeneration().catch((error) => showNodeError(error, '视频生成失败'))" />
@@ -182,6 +193,18 @@ const videoWidth = ref(0);
 let generationController: AbortController | undefined;
 const generationState = useNodeGeneration(outputs, () => { void requestStop().catch(error => showNodeError(error, "取消视频失败")); });
 const { generating } = generationState;
+const persistentPhase = ref("");
+const persistentError = ref("");
+const persistentChecking = ref(false);
+const persistentPhaseLabel = computed(() => ({
+  preparing: "准备中 · 可以恢复原任务",
+  submitting: "提交状态不明 · 需要先核对 ComfyUI 队列，禁止重新提交",
+  submitted: "已提交 · 可以继续等待或取回原任务",
+  saved: "已保存视频 · 可以恢复成片记录",
+  completed: "原任务已完成 · 点击恢复结果",
+  cancelled: "已取消 · 放弃旧任务后才能新建",
+  failed: "生成失败 · 需要放弃旧任务后重新开始",
+}[persistentPhase.value] ?? "正在查询服务端任务状态");
 let generation: Promise<void> | undefined;
 let modelsRequest: Promise<void> | undefined;
 // ACT: 供应商未声明视频比例范围，沿用界面的通用比例，具体支持范围由供应商校验。
@@ -301,6 +324,9 @@ onMounted(() => {
   window.addEventListener("toonflow:plugin-installed", refreshProviderModels);
   window.addEventListener("toonflow:provider-config-changed", refreshProviderModels);
   void loadModels().catch(error => { if (!disposed) showNodeError(error, "模型读取失败"); });
+  if (data.value.activeGenerationRequest) void refreshPersistentStatus().catch(error => {
+    if (!disposed) persistentError.value = error instanceof Error ? error.message : "无法查询历史任务";
+  });
 });
 onScopeDispose(() => {
   disposed = true;
@@ -388,6 +414,8 @@ async function requestStop() {
   const result = await response.json();
   if (!response.ok || result.code !== 200) throw new Error(result.message || "无法确认远端任务已停止");
   data.value.activeGenerationRequest = undefined;
+  persistentPhase.value = "cancelled";
+  persistentError.value = "";
 }
 
 async function persistentGenerationStatus() {
@@ -401,6 +429,19 @@ async function persistentGenerationStatus() {
   const result = await response.json();
   if (!response.ok || result.code !== 200) throw new Error(result.message || "无法读取历史生成任务");
   return result.data;
+}
+
+async function refreshPersistentStatus() {
+  if (persistentChecking.value || !data.value.activeGenerationRequest) return;
+  persistentChecking.value = true;
+  try {
+    const status = await persistentGenerationStatus() as { phase: string; error?: string };
+    if (disposed) return;
+    persistentPhase.value = status.phase;
+    persistentError.value = status.error ?? "";
+  } finally {
+    persistentChecking.value = false;
+  }
 }
 
 async function startGeneration() {
@@ -421,7 +462,11 @@ async function startGeneration() {
   const request: Omit<NodeVideoRequest, "directory"> = current ?? {
     ...input!, seed, ...(choice?.providerId === "comfyui" ? { generationId: crypto.randomUUID() } : {}),
   };
-  if (request.generationId && !current) data.value.activeGenerationRequest = request;
+  if (request.generationId && !current) {
+    data.value.activeGenerationRequest = request;
+    persistentPhase.value = "preparing";
+    persistentError.value = "";
+  }
   const usedRandomSeed = seed !== undefined && request.seedMode === "random";
   const workspace = files.getWorkspaceFiles();
   const controller = new AbortController();
@@ -440,7 +485,12 @@ async function startGeneration() {
       outputs.value.video = { dataType: "VIDEO", value: { url: result.path, mimeType: result.mimeType } };
       if (request.generationId) data.value.activeGenerationRequest = undefined;
     }))
-    .catch((error) => { if (!disposed) showNodeError(error, "视频生成失败"); })
+    .catch((error) => {
+      if (!disposed) showNodeError(error, "视频生成失败");
+      if (!disposed && data.value.activeGenerationRequest) {
+        void refreshPersistentStatus().catch(() => { /* 任务 ID 保留，用户仍可稍后手动查询 */ });
+      }
+    })
     .finally(() => {
       generationController = undefined;
     });
@@ -693,6 +743,27 @@ nodeTools.register({
 }
 
 .promptCard {
+  .pendingTask {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 9px 11px;
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 9px;
+    background: var(--el-fill-color-light);
+    .pendingTaskText {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 11px;
+      color: var(--el-text-color-regular);
+      strong { color: var(--el-text-color-primary); }
+      small { color: var(--el-color-warning); line-height: 1.5; }
+    }
+  }
   .referenceHint {
     margin: 8px 0;
     color: var(--el-text-color-secondary);

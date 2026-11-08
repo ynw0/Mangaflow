@@ -97,10 +97,10 @@
             <el-button
               class="sendButton"
               :icon="generating ? IconPlayerStop : IconArrowUp"
-              :disabled="deleting || uploading || (!generating && (!generationPrompt || !selectedModel))"
-              :title="generating ? '停止生成' : '生成视频'"
-              :aria-label="generating ? '停止生成' : '生成视频'"
-              @click="generating ? generationController?.abort() : startGeneration().catch((error) => showNodeError(error, '视频生成失败'))" />
+              :disabled="deleting || uploading || (!generating && !data.activeGenerationRequest && (!generationPrompt || !selectedModel))"
+              :title="generating ? '停止生成' : data.activeGenerationRequest ? '恢复原视频任务' : '生成视频'"
+              :aria-label="generating ? '停止生成' : data.activeGenerationRequest ? '恢复原视频任务' : '生成视频'"
+              @click="generating ? requestStop().catch((error) => showNodeError(error, '取消视频失败')) : startGeneration().catch((error) => showNodeError(error, '视频生成失败'))" />
           </div>
         </div>
       </el-card>
@@ -141,7 +141,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number });
+const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory"> });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -176,7 +176,7 @@ const player = ref<InstanceType<typeof videoPlayer>>();
 const actions = ref<InstanceType<typeof videoActions>>();
 const videoWidth = ref(0);
 let generationController: AbortController | undefined;
-const generationState = useNodeGeneration(outputs, () => generationController?.abort());
+const generationState = useNodeGeneration(outputs, () => { void requestStop().catch(error => showNodeError(error, "取消视频失败")); });
 const { generating } = generationState;
 let generation: Promise<void> | undefined;
 let modelsRequest: Promise<void> | undefined;
@@ -372,40 +372,75 @@ function resolveSeed() {
   return randomSeed();
 }
 
+async function requestStop() {
+  generationController?.abort();
+  const current = data.value.activeGenerationRequest;
+  if (!current?.generationId) return;
+  const { directory } = await files.getWorkspaceFiles().list();
+  const response = await fetch("/api/production/generation/cancel", {
+    method: "POST", headers: { "Content-Type": "application/json", "x-toonflow-workspace": "1" },
+    body: JSON.stringify({ directory, generationId: current.generationId }),
+  });
+  const result = await response.json();
+  if (!response.ok || result.code !== 200) throw new Error(result.message || "无法确认远端任务已停止");
+  data.value.activeGenerationRequest = undefined;
+}
+
+async function persistentGenerationStatus() {
+  const request = data.value.activeGenerationRequest;
+  if (!request?.generationId) return { phase: "idle" };
+  const { directory } = await files.getWorkspaceFiles().list();
+  const query = new URLSearchParams({ directory, generationId: request.generationId });
+  const response = await fetch(`/api/production/generation/status?${query}`, {
+    headers: { "x-toonflow-workspace": "1" }, cache: "no-store",
+  });
+  const result = await response.json();
+  if (!response.ok || result.code !== 200) throw new Error(result.message || "无法读取历史生成任务");
+  return result.data;
+}
+
 async function startGeneration() {
+  const current = data.value.activeGenerationRequest;
   const choice = selectedModel.value;
   const input = generationInput.value;
   if (generating.value) throw new Error("视频正在生成，请等待完成");
   if (uploading.value) throw new Error("视频正在替换，请等待完成");
   if (deleting.value) throw new Error("节点正在删除");
-  if (!choice || !input) throw new Error("请先选择视频模型");
-  if (!generationPrompt.value) throw new Error("请输入生成提示词");
-  if (refList.value.some(item => item.value === undefined)) throw new Error("引用节点暂无内容，请先补充引用内容");
-  if (choice.mode?.length && !matchingModes.value.length) throw new Error("当前模型没有适合这些参考素材的生成模式，请更换模型或调整引用");
-  // 启动时固定本次种子，随机记录随成功输出更新，保留用户输入的固定种子。
-  const seed = choice.supportsSeed ? resolveSeed() : undefined;
-  const usedRandomSeed = seed !== undefined && data.value.seedMode === "random";
+  if (!current) {
+    if (!choice || !input) throw new Error("请先选择视频模型");
+    if (!generationPrompt.value) throw new Error("请输入生成提示词");
+    if (refList.value.some(item => item.value === undefined)) throw new Error("引用节点暂无内容，请先补充引用内容");
+    if (choice.mode?.length && !matchingModes.value.length) throw new Error("当前模型没有适合这些参考素材的生成模式，请更换模型或调整引用");
+  }
+  // 恢复时必须沿用原模型、参考、审核编号与随机种子，不能取节点后来修改的参数。
+  const seed = current?.seed ?? (choice?.supportsSeed ? resolveSeed() : undefined);
+  const request: Omit<NodeVideoRequest, "directory"> = current ?? {
+    ...input!, seed, ...(choice?.providerId === "comfyui" ? { generationId: crypto.randomUUID() } : {}),
+  };
+  if (request.generationId && !current) data.value.activeGenerationRequest = request;
+  const usedRandomSeed = seed !== undefined && request.seedMode === "random";
   const workspace = files.getWorkspaceFiles();
   const controller = new AbortController();
   generationController = controller;
-  // ACT: 工具立即返回，任务由节点持有，停止或卸载时取消。
+  // 本地刷新仅中止等待；服务端任务由 generationId 继续追踪，主动停止必须请求 /cancel。
   generation = generationState.run(() => workspace
     .list()
     .then(({ directory }) => {
       controller.signal.throwIfAborted();
-      return ai.generateVideo({ ...input, directory, seed }, controller.signal);
+      return ai.generateVideo({ ...request, directory }, controller.signal);
     })
     .then(([result]) => {
       controller.signal.throwIfAborted();
       if (!result) throw new Error("供应商未返回视频");
       if (usedRandomSeed) data.value.lastSeed = seed;
       outputs.value.video = { dataType: "VIDEO", value: { url: result.path, mimeType: result.mimeType } };
+      if (request.generationId) data.value.activeGenerationRequest = undefined;
     }))
-    .catch((error) => showNodeError(error, "视频生成失败"))
+    .catch((error) => { if (!disposed) showNodeError(error, "视频生成失败"); })
     .finally(() => {
       generationController = undefined;
     });
-  return { status: "generating", seed };
+  return { status: "generating", seed, generationId: request.generationId, resumed: !!current };
 }
 
 nodeEvent.on("save", (reason) => {
@@ -414,7 +449,8 @@ nodeEvent.on("save", (reason) => {
 nodeEvent.on("delete", async () => {
   if (uploading.value) throw new Error("视频正在替换，请稍后删除节点");
   deleting.value = true;
-  generationController?.abort();
+  if (data.value.activeGenerationRequest) await requestStop();
+  else generationController?.abort();
   try {
     await generation;
     await files.removeNodeFiles();
@@ -602,8 +638,15 @@ nodeTools.register({
 });
 
 nodeTools.register({
+  name: "getPersistentGenerationStatus",
+  description: "查询此节点上次 ComfyUI 任务的持久化状态与 promptId，不启动任何生成；重新打开节点后优先调用此工具判定是否需要恢复。",
+  parameters: z.strictObject({}),
+  async execute() { return persistentGenerationStatus(); },
+});
+
+nodeTools.register({
   name: "generateVideo",
-  description: "启动此节点的后台视频生成，使用当前提示词、模型、模式、时长、分辨率、比例、种子和参考素材；立即返回已开始，用 getGenerationStatus 查询完成结果，cancelGeneration 停止生成",
+  description: "首次生成会持久化 generationId 和原始参数；刷新后再次调用只恢复原 ComfyUI 任务，不重新提交。用 getGenerationStatus 查询当前节点执行状态、getPersistentGenerationStatus 查询持久化状态，cancelGeneration 显式停止",
   parameters: z.strictObject({}),
   execute(_args, { signal }) {
     signal?.throwIfAborted();

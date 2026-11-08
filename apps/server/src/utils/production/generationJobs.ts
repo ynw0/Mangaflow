@@ -13,6 +13,8 @@ type Job = {
   id: string;
   directory: string;
   fingerprint: string;
+  /** 原始请求只保存在用户本机的 0600 任务记录里，列表 API 不返回提示词或参考图。 */
+  request?: MediaGenerationRequest;
   phase: Phase;
   createdAt: string;
   updatedAt: string;
@@ -71,9 +73,27 @@ async function validFiles(directory: string, files: GeneratedMedia[]) {
   }
 }
 function publicStatus(job: Job) {
+  const phaseReady = ["preparing", "submitted", "saved", "completed"].includes(job.phase);
   return { generationId: job.id, phase: job.phase, promptId: job.execution?.promptId,
-    host: job.execution?.host, files: job.files, error: job.error, createdAt: job.createdAt, updatedAt: job.updatedAt,
-    live: running.has(job.id), canResume: ["submitted", "saved"].includes(job.phase) };
+    host: job.execution?.host, outputDirectory: job.request?.outputDirectory, files: job.files,
+    error: job.error, createdAt: job.createdAt, updatedAt: job.updatedAt,
+    live: running.has(job.id), canResume: ["submitted", "saved"].includes(job.phase),
+    canResumeById: phaseReady && Boolean(job.request) };
+}
+
+/** 使用已落盘的原始参数恢复同一个任务，不允许调用方猜测提示词或模型配置。 */
+export async function getStoredGenerationRequest(cwd: string, id: string): Promise<MediaGenerationRequest> {
+  const directory = await realpath(cwd);
+  const job = await checkedJob(directory, id);
+  if (!job) throw Object.assign(new Error("生成任务不存在"), { status: 404 });
+  if (["submitting", "cancelled", "failed"].includes(job.phase)) {
+    throw Object.assign(new Error("原任务状态不允许恢复；提交状态不明时必须先核对 ComfyUI 队列"), { status: 409 });
+  }
+  if (!job.request || job.request.generationId !== id || signature(directory, job.request) !== job.fingerprint) {
+    throw Object.assign(new Error("旧任务缺少可信原始生成参数，不能只凭任务 ID 重新生成"), { status: 409 });
+  }
+  if (job.request.providerId !== "comfyui") throw Object.assign(new Error("只有 ComfyUI 视频任务支持持久化恢复"), { status: 400 });
+  return job.request;
 }
 export async function generationJobStatus(cwd: string, id: string) {
   const directory = await realpath(cwd);
@@ -139,7 +159,7 @@ export async function runGenerationJob(options: RunOptions) {
     let job = await checkedJob(directory, id, request);
     if (!job) {
       const now = new Date().toISOString();
-      job = { id, directory, fingerprint: signature(directory, request), phase: "preparing", createdAt: now, updatedAt: now };
+      job = { id, directory, fingerprint, request, phase: "preparing", createdAt: now, updatedAt: now };
       await saveJob(job, true);
     }
     const persist = async (phase: Phase, patch: Partial<Job> = {}) => {

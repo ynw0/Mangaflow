@@ -4,6 +4,7 @@ import { z } from "zod";
 import { success, errorFromCause } from "@/lib/responseFormat";
 import { validationOptions } from "@/lib/i18n";
 import { generationJobStatus, listGenerationJobs, cancelGenerationJob } from "@/utils/production/generationJobs";
+import { resumeStoredVideoGeneration } from "@/utils/media/generation";
 import u from "@/utils";
 
 const readInput = z.object({ directory: z.string().min(1).max(4096), generationId: z.uuid() });
@@ -27,6 +28,17 @@ export default Router()
       const input = listInput.parse(req.query, validationOptions());
       const cwd = await u.workspace.resolveWorkspace(req, input.directory);
       res.set("Cache-Control", "no-store").json(success(await listGenerationJobs(cwd)));
+    } catch (cause) {
+      const response = errorFromCause(cause);
+      res.status(response.code >= 400 && response.code < 600 ? response.code : 500).json(response);
+    }
+  })
+  .post("/resume", async (req, res) => {
+    u.mcpControl.assertAppRequest(req);
+    try {
+      const input = readInput.parse(req.body, validationOptions());
+      const cwd = await u.workspace.resolveWorkspace(req, input.directory);
+      res.set("Cache-Control", "no-store").json(success(await resumeStoredVideoGeneration(cwd, input.generationId)));
     } catch (cause) {
       const response = errorFromCause(cause);
       res.status(response.code >= 400 && response.code < 600 ? response.code : 500).json(response);

@@ -12,7 +12,7 @@ import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/
 import { getProviderPrice } from "@/utils/media/billing";
 import { detectMimeType, readPriceReference } from "@/utils/media/priceReference";
 import { recordVideoOutputs } from "@/utils/production/videoRecords";
-import { runGenerationJob } from "@/utils/production/generationJobs";
+import { getStoredGenerationRequest, runGenerationJob } from "@/utils/production/generationJobs";
 
 const maxMediaSize = 100 * 1024 * 1024;
 const mediaExtensions: Record<string, string> = {
@@ -251,6 +251,12 @@ async function writeTrackedVideos(directory: string, outputDirectory: string,
     }
     return saved;
   } finally { release(); }
+}
+
+/** 只依据受工作区保护的持久化请求恢复已有任务，绝不重建随机种子或参考图。 */
+export async function resumeStoredVideoGeneration(cwd: string, id: string): Promise<GeneratedMedia[]> {
+  const request = await getStoredGenerationRequest(cwd, id);
+  return generateMedia(cwd, "video", request);
 }
 
 export async function generateMedia(

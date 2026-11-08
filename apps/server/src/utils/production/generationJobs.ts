@@ -7,6 +7,7 @@ import conf from "@/utils/conf";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { resolveComfyBaseUrl } from "@/utils/production/autodl";
 import { cancelPrompt, findSubmittedPromptByClientId } from "@/utils/production/comfyui";
+import { getVideoQcStatus } from "@/utils/production/videoRecords";
 
 type Phase = "preparing" | "submitting" | "submitted" | "saved" | "completed" | "cancelled" | "failed";
 type Job = {
@@ -118,7 +119,14 @@ export async function generationJobStatus(cwd: string, id: string) {
   const directory = await realpath(cwd);
   const job = await checkedJob(directory, id);
   if (!job) throw Object.assign(new Error("生成任务不存在"), { status: 404 });
-  return publicStatus(job);
+  const status = publicStatus(job);
+  // 已完成的记录才有可信 QC 登记；生成/保存中的视频不能误判为人工免检。
+  if (job.phase !== "completed" || !job.files?.length) return status;
+  const videoQc = await Promise.all(job.files.filter(file => file.mediaType === "video").map(async file => ({
+    path: file.path,
+    ...(await getVideoQcStatus(directory, file.path)),
+  })));
+  return { ...status, videoQc };
 }
 export async function listGenerationJobs(cwd: string) {
   const directory = await realpath(cwd);

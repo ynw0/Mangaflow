@@ -53,6 +53,13 @@
             刷新状态
           </el-button>
         </div>
+        <div v-if="outputFile && data.lastGenerationId && !data.activeGenerationRequest && !detachedGenerationId" class="pendingTask" role="status">
+          <div class="pendingTaskText"><strong>最近一次视频任务</strong><span>{{ completedQcLabel }}</span>
+            <small v-if="completedQc.find(item => item.path === outputFile?.url)?.message">{{ completedQc.find(item => item.path === outputFile?.url)?.message }}</small>
+          </div>
+          <el-button text size="small" :loading="completedQcChecking" :disabled="generating || deleting"
+            @click="refreshCompletedQc().catch(error => showNodeError(error, '质检状态查询失败'))">刷新质检</el-button>
+        </div>
         <referenceItem
           v-if="refList.length"
           v-model="refList"
@@ -159,7 +166,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory"> });
+const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -197,6 +204,22 @@ let generationController: AbortController | undefined;
 const generationState = useNodeGeneration(outputs, () => { void requestStop().catch(error => showNodeError(error, "取消视频失败")); });
 const { generating } = generationState;
 const persistentPhase = ref("");
+const completedQc = ref<{ path: string; status: string; result?: { status: string }; message?: string }[]>([]);
+const completedQcChecking = ref(false);
+const completedQcLabel = computed(() => {
+  const current = completedQc.value.find(item => item.path === outputFile.value?.url);
+  if (!current) return "已生成视频 · 待查询质检状态";
+  if (current.status === "completed") {
+    if (current.result?.status === "ok") return "质检通过 · 可提交用户采用";
+    if (current.result?.status === "rejected") return "质检未通过 · 查看问题并定向返工";
+    return "质检证据不足 · 需人工核验";
+  }
+  const labels: Record<string, string> = {
+    queued: "质检排队中", running: "质检进行中", notRequested: "未自动质检 · 等待手动审核",
+    failed: "质检失败 · 查看错误", interrupted: "质检中断 · 需要恢复",
+  };
+  return labels[current.status] ?? "质检状态待确认";
+});
 const persistentError = ref("");
 const persistentChecking = ref(false);
 const detachedGenerationId = ref("");
@@ -337,6 +360,9 @@ onMounted(() => {
   else if (!outputFile.value) void discoverRecovery().catch(error => {
     if (!disposed) showNodeError(error, "历史任务查询失败");
   });
+  if (outputFile.value && data.value.lastGenerationId) void refreshCompletedQc().catch(error => {
+    if (!disposed) showNodeError(error, "质检状态查询失败");
+  });
 });
 onScopeDispose(() => {
   disposed = true;
@@ -437,7 +463,8 @@ async function requestStop() {
 }
 
 async function persistentGenerationStatus() {
-  const generationId = data.value.activeGenerationRequest?.generationId || detachedGenerationId.value;
+  const activeId = data.value.activeGenerationRequest?.generationId || detachedGenerationId.value;
+  const generationId = activeId || data.value.lastGenerationId;
   if (!generationId) return { phase: "idle" };
   const { directory } = await files.getWorkspaceFiles().list();
   const query = new URLSearchParams({ directory, generationId });
@@ -446,7 +473,20 @@ async function persistentGenerationStatus() {
   });
   const result = await response.json();
   if (!response.ok || result.code !== 200) throw new Error(result.message || "无法读取历史生成任务");
+  // 最近一次已完成任务必须仍对应当前播放的视频，避免误报用户后来替换的成片。
+  if (!activeId && !result.data?.files?.some((file: { path?: string }) => file.path === outputFile.value?.url)) return { phase: "idle" };
   return result.data;
+}
+
+async function refreshCompletedQc() {
+  if (completedQcChecking.value || !data.value.lastGenerationId || !outputFile.value) return;
+  completedQcChecking.value = true;
+  try {
+    const status = await persistentGenerationStatus() as { videoQc?: typeof completedQc.value };
+    if (!disposed) completedQc.value = status.videoQc ?? [];
+  } finally {
+    completedQcChecking.value = false;
+  }
 }
 
 async function refreshPersistentStatus() {
@@ -513,6 +553,8 @@ async function resumeDetachedGeneration() {
       if (!video?.path || !video.mimeType) throw new Error("已恢复的任务缺少生成视频");
       if (!disposed) {
         outputs.value.video = { dataType: "VIDEO", value: { url: video.path, mimeType: video.mimeType } };
+        data.value.lastGenerationId = generationId;
+        void refreshCompletedQc().catch(error => { if (!disposed) showNodeError(error, "质检状态查询失败"); });
         data.value.activeGenerationRequest = undefined;
         detachedGenerationId.value = "";
         persistentPhase.value = "";
@@ -568,7 +610,11 @@ async function startGeneration() {
       if (!result) throw new Error("供应商未返回视频");
       if (usedRandomSeed) data.value.lastSeed = seed;
       outputs.value.video = { dataType: "VIDEO", value: { url: result.path, mimeType: result.mimeType } };
-      if (request.generationId) data.value.activeGenerationRequest = undefined;
+      if (request.generationId) {
+        data.value.lastGenerationId = request.generationId;
+        data.value.activeGenerationRequest = undefined;
+        void refreshCompletedQc().catch(error => { if (!disposed) showNodeError(error, "质检状态查询失败"); });
+      }
     }))
     .catch((error) => {
       if (!disposed) showNodeError(error, "视频生成失败");
@@ -778,7 +824,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "getPersistentGenerationStatus",
-  description: "查询此节点上次 ComfyUI 任务的持久化状态与 promptId，不启动任何生成；重新打开节点后优先调用此工具判定是否需要恢复。",
+  description: "查询此节点正在执行或最近已完成的 ComfyUI 任务状态、promptId、成片与 videoQc 质检状态。视频已完成时返回每段成片的 queued/running/completed/failed/interrupted 及 QC 结论，不启动生成或质检。",
   parameters: z.strictObject({}),
   async execute() { return persistentGenerationStatus(); },
 });

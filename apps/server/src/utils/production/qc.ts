@@ -187,10 +187,11 @@ function qcSourceName(videoPath: string) {
   return `qcSource${crypto.randomUUID()}${/^\.[a-z0-9]{1,8}$/.test(extension) ? extension : ".mp4"}`;
 }
 
-async function extractEvidence(absoluteVideo: string, workDir: string, signal?: AbortSignal) {
+async function extractEvidence(absoluteVideo: string, workDir: string, detailed: boolean, signal?: AbortSignal) {
   const ffmpeg = await createWorkspaceFfmpeg(workDir, signal);
   const audioPath = join(workDir, "qc-audio.mp3");
-  const framePaths = [0.15, 0.5, 0.85].map((ratio, index) => join(workDir, `qc-frame-${index}.jpg`));
+  const framePaths: string[] = [];
+  const frameTimes: number[] = [];
 
   const probe = await new Promise<{ streams?: { codec_type?: string; disposition?: { attached_pic?: number }; width?: number; height?: number; nb_frames?: string | number; avg_frame_rate?: string; r_frame_rate?: string }[]; format?: { duration?: string | number } }>((resolve, reject) => {
     const command = ffmpeg(absoluteVideo);
@@ -209,9 +210,15 @@ async function extractEvidence(absoluteVideo: string, workDir: string, signal?: 
   const duration = Number(probe.format?.duration) || 0;
   const hasAudio = probe.streams?.some(stream => stream.codec_type === "audio") === true;
 
-  for (let index = 0; index < framePaths.length; index++) {
-    const path = framePaths[index]!;
-    const stamp = Number.isFinite(duration) && duration > 0 ? Math.min(duration * [0.15, 0.5, 0.85][index]!, Math.max(duration - 0.05, 0)) : index;
+  // 镜头合同密集抽帧，普通检查限制图片数量；每一帧都保留真实时间戳。
+  const usableDuration = Math.max(0, duration - 0.05);
+  const count = detailed ? Math.min(21, Math.max(2, Math.ceil(duration * 2) + 1))
+    : Math.min(7, Math.max(2, Math.ceil(duration / 2) + 1));
+  for (let index = 0; index < count; index++) {
+    const stamp = Number((usableDuration * index / (count - 1)).toFixed(3));
+    const path = join(workDir, `qc-frame-${index}.jpg`);
+    framePaths.push(path);
+    frameTimes.push(stamp);
     const command = ffmpeg(absoluteVideo).seekInput(stamp).frames(1).output(path).outputOptions("-q:v", "3");
     await runCommand(command, signal);
   }
@@ -234,7 +241,10 @@ async function extractEvidence(absoluteVideo: string, workDir: string, signal?: 
   const fps = readFrameRate(videoStream);
   const frameCount = Number(videoStream.nb_frames) || undefined;
   const technical = { width: videoStream.width, height: videoStream.height, duration: duration || undefined, fps, frameCount, hasAudio };
-  return { frames, audioBase64: audioBytes ? audioBytes.toString("base64") : undefined, technical };
+  // 密度足够才允许时间序列验收；无法观察的帧间事件仍必须标 unverified。
+  const timelineCoverage = detailed && duration > 0 && frameTimes.length > 1
+    && frameTimes.every((stamp, index) => index === 0 || stamp - frameTimes[index - 1]! <= 0.55);
+  return { frames, frameTimes, timelineCoverage, audioBase64: audioBytes ? audioBytes.toString("base64") : undefined, technical };
 }
 
 async function completeMultimodal(configured: ReturnType<typeof getConfiguredModel>, parts: ContentPart[], signal?: AbortSignal) {
@@ -306,8 +316,11 @@ function videoMime(path: string) {
   return "video/mp4";
 }
 
-async function visualParts(absoluteVideo: string, inputs: ModelInputs, frames: string[]): Promise<ContentPart[]> {
-  if (inputs.image) return frames.map(url => ({ type: "image_url" as const, image_url: { url } }));
+async function visualParts(absoluteVideo: string, inputs: ModelInputs, frames: string[], frameTimes: number[]): Promise<ContentPart[]> {
+  if (inputs.image) return frames.flatMap((url, index): ContentPart[] => [
+    { type: "text", text: `第 ${index + 1}/${frames.length} 帧，视频时间 ${frameTimes[index]?.toFixed(3) ?? "?"} 秒（这是离散帧证据）` },
+    { type: "image_url", image_url: { url } },
+  ]);
   const bytes = await readFile(absoluteVideo);
   if (bytes.length > videoBytesLimit) {
     fail("成片超过 32MB，当前质检模型只接受整段视频。请改用勾选了图像输入的模型，或缩短成片。");
@@ -327,7 +340,7 @@ function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "vi
     ] })}。`,
     "domain 只能填 video、audio、general 中的一个；result 只能填 pass、fail、unverified 中的一个，不能填带竖线的组合字符串。每条 evidence 简洁描述，最多 48 个汉字左右；不输出思考过程、Markdown 或额外解释。",
     domains,
-    "分别检查本轮域内的验收要点。可确认符合用 pass，能指出具体偏差用 fail，证据不足用 unverified。时间无法核实时省略 time。",
+    "分别检查本轮域内的验收要点。可确认符合用 pass，能指出具体偏差用 fail，证据不足用 unverified。时间无法核实时省略 time。离散帧不能证明帧间没有错误；细微接触、短暂形变、禁止项如不能确定须标 unverified。",
     "画面检查主体、场景、动作和连续性。音轨检查对白、与画面对齐的音效和声景，以及音量遮盖。",
   ];
   if (checklist?.trim()) lines.push("本镜验收要点", checklist.trim());
@@ -375,7 +388,7 @@ export async function runProductionQc(input: {
     const gemmaVariant = videoVariant || audioVariant;
     const localVideo = join(workDir, qcSourceName(absoluteVideo));
     await copyFile(absoluteVideo, localVideo);
-    const evidence = await extractEvidence(localVideo, workDir, input.signal);
+    const evidence = await extractEvidence(localVideo, workDir, Boolean(input.requirements?.length), input.signal);
     const { technical } = evidence;
     if (gemmaVariant) {
       const hearAudio = production.qcLevel !== "video";
@@ -411,9 +424,9 @@ export async function runProductionQc(input: {
       const visual = videoResolved.inputs.image ? "frames" : "video";
       const videoText = await completeMultimodal(videoResolved.configured, [
         { type: "text", text: systemContract("video", input.checklist, visual, input.generation, input.requirements) },
-        ...await visualParts(localVideo, videoResolved.inputs, evidence.frames),
+        ...await visualParts(localVideo, videoResolved.inputs, evidence.frames, evidence.frameTimes),
       ], input.signal);
-      const parsed = parseQcPayload(remember(videoText), "video", true, input.requirements, visual === "video");
+      const parsed = parseQcPayload(remember(videoText), "video", true, input.requirements, visual === "video" || evidence.timelineCoverage);
       return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: "", merged: false };
     }
     const audioResolved = resolveQcModel(audioModelId);
@@ -430,7 +443,7 @@ export async function runProductionQc(input: {
     if (merged) {
       const parts: ContentPart[] = [
         { type: "text", text: systemContract("merged", input.checklist, visual, input.generation, input.requirements) },
-        ...await visualParts(localVideo, videoResolved.inputs, evidence.frames),
+        ...await visualParts(localVideo, videoResolved.inputs, evidence.frames, evidence.frameTimes),
       ];
       if (evidence.audioBase64) {
         parts.push({
@@ -441,13 +454,13 @@ export async function runProductionQc(input: {
         parts.push({ type: "text", text: "（本片未检出音轨；若验收要求听感，应标 unverified。）" });
       }
       const text = await completeMultimodal(videoResolved.configured, parts, input.signal);
-      const parsed = parseQcPayload(remember(text), "merged", Boolean(evidence.audioBase64), input.requirements, visual === "video");
+      const parsed = parseQcPayload(remember(text), "merged", Boolean(evidence.audioBase64), input.requirements, visual === "video" || evidence.timelineCoverage);
       return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: videoResolved.modelId, merged: true };
     }
 
     const videoText = await completeMultimodal(videoResolved.configured, [
       { type: "text", text: systemContract("video", input.checklist, visual, input.generation, input.requirements) },
-      ...await visualParts(localVideo, videoResolved.inputs, evidence.frames),
+      ...await visualParts(localVideo, videoResolved.inputs, evidence.frames, evidence.frameTimes),
     ], input.signal);
     remember(videoText);
     const audioParts: ContentPart[] = [{ type: "text", text: systemContract("audio", input.checklist, "frames", input.generation) }];

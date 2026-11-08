@@ -41,10 +41,11 @@ export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requ
   const parsed = qcPayload.safeParse(extracted.value);
   const diagnostic = extracted.error ?? (!parsed.success
     ? `质检 JSON 字段不符合约定：${parsed.error.issues.map(issue => `${issue.path.join(".") || "根对象"}（${issue.code}）`).join("；")}。` : "");
+  // 模型输出非合法 JSON 属于质检执行失败，不能误判为成片已审。
+  if (!parsed.success) throw new Error(`质检输出无效：${diagnostic}`);
   const required = mode === "merged" ? ["video", "audio"] as const : [mode];
-  const checks: QcCheck[] = parsed.success
-    ? parsed.data.checks.filter(check => check.domain === "general" || (required.includes(check.domain) && (check.domain !== "audio" || hasAudio)))
-    : [{ domain: "general", result: "unverified", evidence: `${diagnostic}原始正文 ${text.length} 字符，未认定通过。` }];
+  const checks: QcCheck[] = parsed.data.checks.filter(check =>
+    check.domain === "general" || (required.includes(check.domain) && (check.domain !== "audio" || hasAudio)));
   for (const domain of required) {
     if (checks.some(check => check.domain === domain)) continue;
     const evidence = domain === "video" ? "模型未给出画面判定。"

@@ -35,8 +35,9 @@ export async function runSubAgent(options: SubAgentModel & {
   onTool?: (tool: ToolCall) => void;
   onProgress?: (message: string) => void;
   responseFormat?: "json";
+  specialist?: boolean;
 }) {
-  const { cwd, name, task, tools, instructions, signal = new AbortController().signal, history, inputRequired, onTool, onProgress, responseFormat, ...modelOptions } = options;
+  const { cwd, name, task, tools, instructions, signal = new AbortController().signal, history, inputRequired, onTool, onProgress, responseFormat, specialist = false, ...modelOptions } = options;
   const result: SubAgentResult = { name, status: "running", result: "准备执行" };
   const usage = emptyUsage();
   let session: AgentSession | undefined;
@@ -69,7 +70,7 @@ export async function runSubAgent(options: SubAgentModel & {
     const resources = await createAgentResources(cwd, activeTools, SettingsManager.inMemory({
       compaction: { enabled: false },
       retry: { enabled: false, provider: { maxRetries: 0 } },
-    }), instructions);
+    }), instructions, false, specialist && activeTools.length === 0);
     signal.throwIfAborted();
     ({ session } = await createAgentSession({
       ...modelOptions, ...resources, cwd,

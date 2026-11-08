@@ -29,7 +29,7 @@ type RunOptions = {
   generate: (options: {
     signal: AbortSignal;
     resume?: VideoExecution;
-    submitting: (submission: Omit<VideoExecution, "promptId">) => Promise<void>;
+    submitting: (submission?: Omit<VideoExecution, "promptId">) => Promise<void>;
     submitted: (execution: VideoExecution) => Promise<void>;
   }) => Promise<{ files: { bytes: Uint8Array; mimeType: string }[]; execution: VideoExecution }>;
   save: (files: { bytes: Uint8Array; mimeType: string }[], id: string, signal: AbortSignal) => Promise<GeneratedMedia[]>;
@@ -86,7 +86,9 @@ function publicStatus(job: Job) {
 async function reconcileSubmission(job: Job) {
   if (job.phase !== "submitting") return;
   if (!job.submission) throw Object.assign(new Error("旧任务缺少提交主机和关联编号，无法自动核对，仍禁止重提"), { status: 409 });
-  const baseUrl = await resolveComfyBaseUrl(undefined, job.submission.host);
+  const host = job.submission.host;
+  if (host !== "local" && host !== "autodl") throw Object.assign(new Error("任务提交主机记录无效"), { status: 409 });
+  const baseUrl = await resolveComfyBaseUrl(undefined, host);
   const promptId = await findSubmittedPromptByClientId(baseUrl, job.id);
   if (!promptId) {
     throw Object.assign(new Error("远端队列与最近 500 条历史未找到原任务，提交是否成功仍不确定；未重新提交"), { status: 409 });

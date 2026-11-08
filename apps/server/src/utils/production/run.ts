@@ -250,7 +250,7 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     if (mediaType !== "video" || !["local", "autodl"].includes(options.resume.host)) throw new Error("生成任务恢复记录无效");
     const baseUrl = await resolveComfyBaseUrl(signal, options.resume.host as "local" | "autodl");
     await probeComfy(baseUrl, signal);
-    const outputs = await waitForOutput(baseUrl, options.resume.promptId, "video", signal);
+    const outputs = await waitForOutput(baseUrl, options.resume.promptId, "video", signal, options.onSubmitted === undefined);
     const files = [];
     for (const output of outputs) files.push(await downloadOutput(baseUrl, output, signal));
     return { files, execution: options.resume };
@@ -284,7 +284,7 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     firstPassSteps: context.first_pass_steps, secondPassSteps: context.second_pass_steps,
   };
   await options.onSubmitted?.(execution);
-  const outputs = await waitForOutput(baseUrl, promptId, mediaType, signal);
+  const outputs = await waitForOutput(baseUrl, promptId, mediaType, signal, options.onSubmitted === undefined);
   const files = [];
   for (const output of outputs) files.push(await downloadOutput(baseUrl, output, signal));
   return { files, execution };

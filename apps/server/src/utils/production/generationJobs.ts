@@ -98,16 +98,23 @@ export async function cancelGenerationJob(cwd: string, id: string) {
   const directory = await realpath(cwd);
   const job = await checkedJob(directory, id);
   if (!job) throw Object.assign(new Error("生成任务不存在"), { status: 404 });
-  if (job.phase === "completed" || job.phase === "cancelled" || job.phase === "failed") return publicStatus(job);
+  // 成片已经保存后不再撤销视频/QC 登记；调用方可直接取回已有结果。
+  if (["saved", "completed", "cancelled", "failed"].includes(job.phase)) return publicStatus(job);
   if (job.phase === "submitting") throw Object.assign(new Error("远端提交状态未知，暂不能安全取消；请先核对 ComfyUI 队列"), { status: 409 });
-  running.get(id)?.controller.abort(new Error("用户取消了视频生成任务"));
+  const active = running.get(id);
+  if (active && active.directory !== directory) throw Object.assign(new Error("任务工作区不匹配"), { status: 403 });
+  active?.controller.abort(new Error("用户取消了视频生成任务"));
   if (job.execution && job.phase === "submitted") {
     const host = job.execution.host;
     if (host !== "local" && host !== "autodl") throw new Error("任务记录的 ComfyUI 主机无效");
     await cancelPrompt(await resolveComfyBaseUrl(undefined, host), job.execution.promptId);
   }
+  // 等运行协程收尾之后再落取消状态，避免旧协程把 cancelled 覆盖成 submitted/saved。
+  await active?.promise.catch(() => undefined);
   const latest = await checkedJob(directory, id);
-  if (latest && latest.phase !== "completed") {
+  if (!latest) throw new Error("取消时未找到持久化任务记录");
+  if (latest.phase === "submitting") throw Object.assign(new Error("远端提交状态未知，请先核对 ComfyUI 队列"), { status: 409 });
+  if (!["saved", "completed", "cancelled"].includes(latest.phase)) {
     latest.phase = "cancelled";
     latest.error = "用户已请求停止；远端中断可能需要时间生效";
     await saveJob(latest);

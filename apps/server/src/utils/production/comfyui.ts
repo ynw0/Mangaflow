@@ -192,18 +192,25 @@ export async function readNodeIntegerRange(baseUrl: string, classType: string, i
 }
 
 export async function cancelPrompt(baseUrl: string, promptId: string) {
+  // ComfyUI 的两个端点分别删除排队任务、定向中断运行任务。
+  // 如果远端拒绝请求，必须把失败交给调用方，不能谎报取消成功。
   const headers = { "Content-Type": "application/json" };
-  await comfyFetch(baseUrl, "/queue", {
+  const pending = await comfyFetch(baseUrl, "/queue", {
     method: "POST", headers, body: JSON.stringify({ delete: [promptId] }),
-  }, AbortSignal.timeout(8000)).catch(() => undefined);
-  await comfyFetch(baseUrl, "/interrupt", {
+  }, AbortSignal.timeout(8000));
+  if (!pending.ok) fail(`ComfyUI 删除队列任务失败：HTTP ${pending.status}`, 502);
+  const running = await comfyFetch(baseUrl, "/interrupt", {
     method: "POST", headers, body: JSON.stringify({ prompt_id: promptId }),
-  }, AbortSignal.timeout(8000)).catch(() => undefined);
+  }, AbortSignal.timeout(8000));
+  if (!running.ok) fail(`ComfyUI 中断任务失败：HTTP ${running.status}`, 502);
 }
 
 function trackPrompt(baseUrl: string, promptId: string, signal?: AbortSignal) {
   if (!signal) return () => {};
-  const cancel = () => { void cancelPrompt(baseUrl, promptId); };
+  const cancel = () => {
+    void cancelPrompt(baseUrl, promptId).catch(error =>
+      console.error("ComfyUI 请求取消失败", promptId, error));
+  };
   if (signal.aborted) cancel();
   else signal.addEventListener("abort", cancel, { once: true });
   return () => signal.removeEventListener("abort", cancel);
@@ -274,11 +281,11 @@ function collectOutputs(value: unknown, extensions: Set<string>, found: ComfyOut
   Object.values(record).forEach(item => collectOutputs(item, extensions, found, seen));
 }
 
-export async function waitForOutput(baseUrl: string, promptId: string, kind: "image" | "video", signal?: AbortSignal) {
-  // 本机 Comfy 视频含排队经常超过 10 分钟，轮询上限放到 60 分钟。
+export async function waitForOutput(baseUrl: string, promptId: string, kind: "image" | "video", signal?: AbortSignal, cancelOnAbort = true) {
+  // 持久化视频任务的远端取消只由显式取消接口发起，避免等待协程退出时重复中断。
   const deadline = Date.now() + (kind === "video" ? 60 : 10) * 60_000;
   const extensions = kind === "video" ? videoExtensions : imageExtensions;
-  const stop = trackPrompt(baseUrl, promptId, signal);
+  const stop = cancelOnAbort ? trackPrompt(baseUrl, promptId, signal) : () => {};
   try {
     while (Date.now() < deadline) {
       signal?.throwIfAborted();

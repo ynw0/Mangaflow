@@ -5,7 +5,7 @@ describe("ComfyUI 定向取消", () => {
   test("远端拒绝删除队列任务时，不会声称取消成功", async () => {
     const original = globalThis.fetch;
     const urls: string[] = [];
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
       urls.push(String(input));
       return new Response("unavailable", { status: 503 });
     }) as typeof fetch;
@@ -20,7 +20,7 @@ describe("ComfyUI 定向取消", () => {
   test("只向指定的 promptId 发出排队删除和运行中断", async () => {
     const original = globalThis.fetch;
     const calls: { url: string; body: string }[] = [];
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
       calls.push({ url: String(input), body: String(init?.body ?? "") });
       return new Response("", { status: 200 });
     }) as typeof fetch;

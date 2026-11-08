@@ -33,7 +33,7 @@ type RunOptions = {
   record: (files: GeneratedMedia[], execution: VideoExecution) => Promise<void>;
 };
 
-const running = new Map<string, { promise: Promise<GeneratedMedia[]>; controller: AbortController }>();
+const running = new Map<string, { promise: Promise<GeneratedMedia[]>; controller: AbortController; directory: string; fingerprint: string }>();
 const directoryPath = join(dirname(conf.path), "generationJobs");
 
 function pathOf(id: string) {
@@ -118,11 +118,17 @@ export async function runGenerationJob(options: RunOptions) {
   const { request } = options;
   if (!request.generationId) throw new Error("持久化生成必须有 generationId");
   const id = request.generationId;
+  const directory = await realpath(options.directory);
+  const fingerprint = signature(directory, request);
   const active = running.get(id);
-  if (active) return active.promise;
+  if (active) {
+    if (active.directory !== directory || active.fingerprint !== fingerprint) {
+      throw Object.assign(new Error("任务 ID 已绑定其他工作区或参数，禁止合并执行"), { status: 409 });
+    }
+    return active.promise;
+  }
   const controller = new AbortController();
   const promise = (async () => {
-    const directory = await realpath(options.directory);
     let job = await checkedJob(directory, id, request);
     if (!job) {
       const now = new Date().toISOString();
@@ -173,6 +179,6 @@ export async function runGenerationJob(options: RunOptions) {
       throw error;
     }
   })().finally(() => running.delete(id));
-  running.set(id, { promise, controller });
+  running.set(id, { promise, controller, directory, fingerprint });
   return promise;
 }

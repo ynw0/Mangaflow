@@ -426,7 +426,7 @@ export async function runProductionQc(input: {
         { type: "text", text: systemContract("video", input.checklist, visual, input.generation, input.requirements) },
         ...await visualParts(localVideo, videoResolved.inputs, evidence.frames, evidence.frameTimes),
       ], input.signal);
-      const parsed = parseQcPayload(remember(videoText), "video", true, input.requirements, visual === "video" || evidence.timelineCoverage);
+      const parsed = parseQcPayload(remember(videoText), "video", true, input.requirements, visual === "video" || evidence.timelineCoverage, visual === "video");
       return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: "", merged: false };
     }
     const audioResolved = resolveQcModel(audioModelId);
@@ -454,7 +454,7 @@ export async function runProductionQc(input: {
         parts.push({ type: "text", text: "（本片未检出音轨；若验收要求听感，应标 unverified。）" });
       }
       const text = await completeMultimodal(videoResolved.configured, parts, input.signal);
-      const parsed = parseQcPayload(remember(text), "merged", Boolean(evidence.audioBase64), input.requirements, visual === "video" || evidence.timelineCoverage);
+      const parsed = parseQcPayload(remember(text), "merged", Boolean(evidence.audioBase64), input.requirements, visual === "video" || evidence.timelineCoverage, visual === "video");
       return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: videoResolved.modelId, merged: true };
     }
 
@@ -473,7 +473,7 @@ export async function runProductionQc(input: {
       audioParts.push({ type: "text", text: "无音轨可听。" });
     }
     const audioText = await completeMultimodal(audioResolved.configured, audioParts, input.signal);
-    const mergedResult = summarizeQc([...parseQcPayload(videoText, "video", true, input.requirements, visual === "video").checks, ...parseQcPayload(remember(audioText), "audio", Boolean(evidence.audioBase64)).checks]);
+    const mergedResult = summarizeQc([...parseQcPayload(videoText, "video", true, input.requirements, visual === "video" || evidence.timelineCoverage, visual === "video").checks, ...parseQcPayload(remember(audioText), "audio", Boolean(evidence.audioBase64)).checks]);
     return {
       ...mergedResult,
       technical,

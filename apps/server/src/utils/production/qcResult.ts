@@ -36,7 +36,7 @@ export function summarizeQc(checks: QcCheck[]): Pick<QcVideoResult, "status" | "
   return { status, checks, findings };
 }
 
-export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requirements: QcRequirement[] = [], timelineEvidence = true) {
+export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requirements: QcRequirement[] = [], timelineEvidence = true, fullVideoEvidence = timelineEvidence) {
   const extracted = extractJsonObject(text);
   const parsed = qcPayload.safeParse(extracted.value);
   const diagnostic = extracted.error ?? (!parsed.success
@@ -64,9 +64,13 @@ export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requ
     check.requirement = requirement.text;
     const duplicates = checks.filter(item => item.requirementId === requirement.id).length > 1;
     // 抽取三帧不能证明完整剧情或镜尾动作；缺时间证据、重复项同样不能算通过。
-    if (check.result === "pass" && (duplicates || !timelineEvidence || !check.time)) {
+    // 离散帧即使密集，也不能证明整段视频“从未出现”被禁止的内容。
+    const negativeEvidence = requirement.source.startsWith("mustNotHave") && !fullVideoEvidence;
+    if (check.result === "pass" && (duplicates || !timelineEvidence || !check.time || negativeEvidence)) {
       check.result = "unverified";
-      check.evidence = `${duplicates ? "验收编号重复" : !timelineEvidence ? "仅有稀疏抽帧，无法确认完整动作和镜尾状态" : "缺少可定位的时间证据"}。${check.evidence}`;
+      const why = duplicates ? "验收编号重复" : !timelineEvidence ? "抽帧不足以确认完整时序" : !check.time
+        ? "缺少可定位的时间证据" : "离散帧不能证明整段视频未出现禁止项";
+      check.evidence = `${why}。${check.evidence}`;
     }
   }
   for (const requirement of requirements) {

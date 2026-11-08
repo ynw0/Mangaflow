@@ -649,6 +649,17 @@ nodeTools.register({
 });
 
 nodeTools.register({
+  name: "cancelPersistentGeneration",
+  description: "显式停止或放弃当前记录的 ComfyUI 视频任务；仅用于用户授权停止生成时，不会启动新任务。",
+  parameters: z.strictObject({}),
+  async execute() {
+    if (!data.value.activeGenerationRequest) return { cancellationRequested: false };
+    await requestStop();
+    return { cancellationRequested: true };
+  },
+});
+
+nodeTools.register({
   name: "generateVideo",
   description: "首次生成会持久化 generationId 和原始参数；刷新后再次调用只恢复原 ComfyUI 任务，不重新提交。用 getGenerationStatus 查询当前节点执行状态、getPersistentGenerationStatus 查询持久化状态，cancelGeneration 显式停止",
   parameters: z.strictObject({}),

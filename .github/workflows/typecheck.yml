@@ -22,5 +22,10 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
-      - name: 核对生产链路 TypeScript 和 Vue 类型
-        run: bun run --filter '@toonflow/server' --filter '@toonflow/node-video-generation' --filter '@toonflow/tools-scaffold' --filter '@toonflow/tool-media-generation' typecheck
+      - name: 核对服务端类型
+        run: bun run --cwd apps/server typecheck
+      - name: 核对节点及媒体工具类型
+        run: |
+          bun run --cwd packages/toolScaffold typecheck
+          bun run --cwd packages/tools/mediaGeneration typecheck
+          bun run --cwd packages/nodes/videoGenerationNode typecheck

@@ -282,7 +282,6 @@ export async function generateMedia(
     const result: GeneratedMedia[] = [];
     try {
       for (const file of files) result.push(...await writeGenerated(directory, outputDirectory, mediaType, file.bytes, file.mimeType, signal));
-      if (mediaType === "video") await recordVideoOutputs(directory, result, request, execution);
       return result;
     } catch (error) {
       await Promise.all(result.map(item => unlink(join(directory, item.path)).catch((cause: NodeJS.ErrnoException) => { if (cause.code !== "ENOENT") throw cause; })));

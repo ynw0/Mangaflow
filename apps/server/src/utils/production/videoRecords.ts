@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, realpath, stat, unlink, writeAtomic } from "@toonflow/file";
+import { mkdir, readFile, readdir, realpath, stat, unlink, writeAtomic } from "@toonflow/file";
 import { dirname, join, relative } from "node:path";
 import type { GeneratedMedia, MediaGenerationRequest, QcVideoResult, VideoExecution, VideoQcReport, VideoQcState } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
@@ -11,6 +11,7 @@ import type { QcRequirement } from "@toonflow/tools-scaffold/runtime";
 
 type VideoIdentity = Awaited<ReturnType<typeof videoIdentity>>;
 type VideoRecord = {
+  workspaceDirectory?: string; // 新版记录持久化工作区，供服务重启后重新入队 QC
   videoPath: string;
   size: number;
   mtimeMs: number;
@@ -50,7 +51,7 @@ async function loadRecord(video: VideoIdentity) {
 }
 
 function newRecord(video: VideoIdentity, qc: VideoQcState): VideoRecord {
-  return { videoPath: video.videoPath, size: video.size, mtimeMs: video.mtimeMs, createdAt: new Date().toISOString(), qc };
+  return { workspaceDirectory: video.directory, videoPath: video.videoPath, size: video.size, mtimeMs: video.mtimeMs, createdAt: new Date().toISOString(), qc };
 }
 
 function qcPolicy({ qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost }: ProductionConfig): QcPolicy {
@@ -67,6 +68,7 @@ export async function recordVideoOutputs(directory: string, assets: GeneratedMed
   const production = readProduction();
   const auto = production.qcTrigger === "auto" && production.qcLevel !== "none";
   const written: string[] = [];
+  const pendingQc: VideoIdentity[] = [];
   try {
     for (const video of videos) {
       const previous = await loadRecord(video);
@@ -77,16 +79,19 @@ export async function recordVideoOutputs(directory: string, assets: GeneratedMed
           || JSON.stringify(previous.generation?.request) !== JSON.stringify(request)) {
           throw new Error("成片已存在其他生成或质检记录，禁止覆盖");
         }
+        // 崩溃后可能已登记视频，却尚未启动自动 QC；恢复只重排未完成的记录。
+        if (auto && (previous.qc.status === "queued" || previous.qc.status === "running")) pendingQc.push(video);
         continue;
       }
       await saveRecord(video, { ...newRecord(video, { status: auto ? "queued" : "notRequested" }), generation: { request, execution } }, true);
       written.push(video.recordPath);
+      if (auto) pendingQc.push(video);
     }
   } catch (error) {
     await Promise.all(written.map(path => unlink(path)));
     throw error;
   }
-  if (auto) for (const video of videos.filter(item => written.includes(item.recordPath))) {
+  if (auto) for (const video of pendingQc) {
     // 成片已落盘，自动质检独立于发起生成的画布或对话。
     void scheduleQc(video, undefined, production).catch(error => console.error("自动成片质检失败", video.videoPath, error));
   }
@@ -137,6 +142,36 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, product
   // 共享质检资源按队列执行，单条失败不阻断后续成片。
   queue = job.catch(() => undefined);
   return job;
+}
+
+/** 只恢复已获准自动 QC、并在重启前处于排队/运行中的成片；绝不重新生成视频。 */
+export async function resumePendingAutomaticQc() {
+  const production = readProduction();
+  if (production.qcTrigger !== "auto" || production.qcLevel === "none") return 0;
+  const root = join(dirname(conf.path), "videoRecords");
+  const entries = await readdir(root).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return [] as string[];
+    throw error;
+  });
+  let scheduled = 0;
+  for (const entry of entries) {
+    if (!/^[a-f0-9]{64}\.json$/i.test(entry)) continue;
+    try {
+      const recordPath = join(root, entry);
+      const saved = JSON.parse(await readFile(recordPath, "utf8")) as VideoRecord;
+      if (!saved.workspaceDirectory || !["queued", "running"].includes(saved.qc.status)) continue;
+      const video = await videoIdentity(saved.workspaceDirectory, saved.videoPath);
+      // 视频路径、修改时间、大小和记录哈希必须与原始记录一致。
+      if (video.recordPath !== recordPath || !(await loadRecord(video))) continue;
+      if (active.has(video.recordPath)) continue;
+      void scheduleQc(video, saved.checklist, production).catch(error =>
+        console.error("重启后自动质检失败", video.videoPath, error));
+      scheduled++;
+    } catch (error) {
+      console.warn("跳过无法恢复的成片 QC 记录", entry, error);
+    }
+  }
+  return scheduled;
 }
 
 export async function getVideoQcStatus(directory: string, videoPath: string): Promise<VideoQcReport> {

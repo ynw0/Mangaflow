@@ -164,5 +164,9 @@ export async function createApp({
 
   const { initializeMobileLinkRuntime } = await import("@/utils/mobileLink");
   initializeMobileLinkRuntime(app);
+  const { resumePendingAutomaticQc } = await import("@/utils/production/videoRecords");
+  void resumePendingAutomaticQc().then(count => {
+    if (count) console.info(`已恢复 ${count} 条中断的自动视频 QC 任务`);
+  }).catch(error => console.error("恢复自动视频 QC 任务失败", error));
   return app;
 }

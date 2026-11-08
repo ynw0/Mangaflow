@@ -517,7 +517,7 @@ async function resumeDetachedGeneration() {
         persistentPhase.value = "";
         persistentError.value = "";
       }
-    }))
+    })
     .catch(error => {
       if (!disposed) showNodeError(error, "恢复原任务失败");
       if (!disposed && detachedGenerationId.value)

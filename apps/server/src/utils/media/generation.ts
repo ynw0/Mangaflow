@@ -1,4 +1,5 @@
 import { t, translateMessage } from "@/lib/i18n";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, realpath, stat, unlink } from "@toonflow/file";
 import { join, relative } from "node:path";
 import { mediaProviders, type Provider } from "@toonflow/providers";
@@ -11,6 +12,7 @@ import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/
 import { getProviderPrice } from "@/utils/media/billing";
 import { detectMimeType, readPriceReference } from "@/utils/media/priceReference";
 import { recordVideoOutputs } from "@/utils/production/videoRecords";
+import { runGenerationJob } from "@/utils/production/generationJobs";
 
 const maxMediaSize = 100 * 1024 * 1024;
 const mediaExtensions: Record<string, string> = {
@@ -221,6 +223,36 @@ async function writeGenerated(directory: string, outputDirectory: string, mediaT
   }
 }
 
+
+async function writeTrackedVideos(directory: string, outputDirectory: string,
+  id: string, files: { bytes: Uint8Array; mimeType: string }[], signal: AbortSignal) {
+  const output = await resolveWorkspacePath(directory, outputDirectory, true);
+  const release = lockWorkspaceFiles([output.path]);
+  const saved: GeneratedMedia[] = [];
+  try {
+    await mkdir(output.path, { recursive: true });
+    for (const [index, file] of files.entries()) {
+      signal.throwIfAborted();
+      const suffix = mediaExtensions[file.mimeType];
+      if (!suffix || !file.mimeType.startsWith("video/") || !file.bytes.length) invalid("ComfyUI 返回了无效视频");
+      const name = join(outputDirectory, `video${id}-${index}.${suffix}`);
+      const resolved = await resolveWorkspacePath(directory, name, true);
+      const previous = await readFile(resolved.path).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
+        throw error;
+      });
+      if (previous) {
+        const checksum = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+        if (checksum(previous) !== checksum(file.bytes)) throw new Error("已存在同名生成文件但内容不同，禁止覆盖");
+      } else {
+        await writeWorkspaceFile(resolved.path, file.bytes, true);
+      }
+      saved.push({ path: relative(directory, resolved.path).replaceAll("\\", "/"), mimeType: file.mimeType, mediaType: "video" });
+    }
+    return saved;
+  } finally { release(); }
+}
+
 export async function generateMedia(
   cwd: string,
   mediaType: "image" | "video" | "audio",
@@ -235,6 +267,17 @@ export async function generateMedia(
   await resolveWorkspacePath(directory, outputDirectory, true);
   if (request.providerId === "comfyui") {
     if (mediaType === "audio") invalid("ComfyUI 工作流用于出视频");
+    if (mediaType === "video") {
+      const tracked = { ...request, generationId: request.generationId ?? crypto.randomUUID() };
+      return runGenerationJob({
+        directory, request: tracked,
+        generate: ({ signal: jobSignal, resume, submitting, submitted }) =>
+          runComfyWorkflow({ directory, mediaType, request: tracked, signal: jobSignal, resume,
+            onSubmitting: submitting, onSubmitted: submitted }),
+        save: (files, id, jobSignal) => writeTrackedVideos(directory, outputDirectory, id, files, jobSignal),
+        record: (files, execution) => recordVideoOutputs(directory, files, tracked, execution),
+      });
+    }
     const { files, execution } = await runComfyWorkflow({ directory, mediaType, request, signal });
     const result: GeneratedMedia[] = [];
     try {

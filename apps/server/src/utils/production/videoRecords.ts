@@ -69,6 +69,16 @@ export async function recordVideoOutputs(directory: string, assets: GeneratedMed
   const written: string[] = [];
   try {
     for (const video of videos) {
+      const previous = await loadRecord(video);
+      if (previous) {
+        // 已保存成片的 QC 记录可能早于任务完成标记；相同任务恢复时不可覆盖 QC 结论。
+        if (!request.generationId || previous.generation?.request.generationId !== request.generationId
+          || previous.generation?.execution?.promptId !== execution?.promptId
+          || JSON.stringify(previous.generation?.request) !== JSON.stringify(request)) {
+          throw new Error("成片已存在其他生成或质检记录，禁止覆盖");
+        }
+        continue;
+      }
       await saveRecord(video, { ...newRecord(video, { status: auto ? "queued" : "notRequested" }), generation: { request, execution } }, true);
       written.push(video.recordPath);
     }

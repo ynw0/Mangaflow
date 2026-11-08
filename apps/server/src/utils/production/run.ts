@@ -1,6 +1,6 @@
 // 按所选工作流把提示词和参考绑进 ComfyUI API JSON，再提交并取回文件。
 import { readFile } from "@toonflow/file";
-import type { MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
+import type { MediaGenerationRequest, VideoExecution } from "@toonflow/tools-scaffold/runtime";
 import { resolveComfyBaseUrl } from "@/utils/production/autodl";
 import { downloadOutput, probeComfy, submitWorkflow, uploadInput, waitForOutput } from "@/utils/production/comfyui";
 import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
@@ -240,8 +240,21 @@ export async function prepareComfyWorkflow(options: {
 
 export type PreparedComfyWorkflow = Awaited<ReturnType<typeof prepareComfyWorkflow>>;
 
-export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWorkflow>[0]) {
+export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWorkflow>[0] & {
+  resume?: VideoExecution;
+  onSubmitting?: () => Promise<void>;
+  onSubmitted?: (execution: VideoExecution) => Promise<void>;
+}) {
   const { directory, mediaType, request, signal } = options;
+  if (options.resume) {
+    if (mediaType !== "video" || !["local", "autodl"].includes(options.resume.host)) throw new Error("生成任务恢复记录无效");
+    const baseUrl = await resolveComfyBaseUrl(signal, options.resume.host as "local" | "autodl");
+    await probeComfy(baseUrl, signal);
+    const outputs = await waitForOutput(baseUrl, options.resume.promptId, "video", signal);
+    const files = [];
+    for (const output of outputs) files.push(await downloadOutput(baseUrl, output, signal));
+    return { files, execution: options.resume };
+  }
   const prepared = await prepareComfyWorkflow(options);
   const { entry, workflow, context, host } = prepared;
   // 所有画布、Agent 与 MCP 请求共用此入口，先验审再启动 AutoDL 和上传。
@@ -261,18 +274,18 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     const uploaded = await uploadInput(baseUrl, path, `${uploadDirectory}/${index}`, signal, bytes);
     writePath(workflow, binding.target, uploaded);
   }
+  // 先持久化 submitting，再 POST；如果中途崩溃，绝不猜测是否提交成功后再次 POST。
+  await options.onSubmitting?.();
   const promptId = await submitWorkflow(baseUrl, workflow, signal);
+  const execution: VideoExecution = {
+    promptId, host,
+    seed: entry.bindings.bindings.some(item => item.source === "seed") ? context.seed : undefined,
+    megapixels: context.megapixels, upscale: context.upscale,
+    firstPassSteps: context.first_pass_steps, secondPassSteps: context.second_pass_steps,
+  };
+  await options.onSubmitted?.(execution);
   const outputs = await waitForOutput(baseUrl, promptId, mediaType, signal);
   const files = [];
   for (const output of outputs) files.push(await downloadOutput(baseUrl, output, signal));
-  const execution = {
-    promptId,
-    host,
-    seed: entry.bindings.bindings.some(item => item.source === "seed") ? context.seed : undefined,
-    megapixels: context.megapixels,
-    upscale: context.upscale,
-    firstPassSteps: context.first_pass_steps,
-    secondPassSteps: context.second_pass_steps,
-  };
   return { files, execution };
 }

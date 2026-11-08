@@ -33,6 +33,7 @@ export const imageGenerationSchema = z.strictObject({
 export const videoGenerationSchema = z.strictObject({
   ...sharedFields,
   reviewId: z.uuid().optional(),
+  generationId: z.uuid().optional().describe("单次视频生成的固定任务 ID；用于重连与防止重复提交"),
   seedMode: z.enum(["fixed", "random", "last"]).optional(),
   videos: z.array(videoReference).max(64).optional(),
   audios: z.array(audioReference).max(64).optional(),

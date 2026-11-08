@@ -129,6 +129,8 @@ export interface MediaGenerationRequest {
   seed?: number;
   /** H3 服务端审核记录索引，不能代替服务端校验 */
   reviewId?: string;
+  /** 同一次 ComfyUI 视频任务的唯一 ID。重连必须沿用原始参数与 ID。 */
+  generationId?: string;
   /** 固定上次随机使用 seed 中的具体值 */
   seedMode?: "fixed" | "random" | "last";
   /** 二采节点 8 的百万像素；云视频可忽略 */

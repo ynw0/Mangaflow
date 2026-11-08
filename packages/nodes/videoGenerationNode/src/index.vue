@@ -106,13 +106,13 @@
           <div class="generationActions">
             <mediaPrice v-if="generationInput" :input="{ ...generationInput, mediaType: 'video' }" :supported="selectedModel?.supportsPrice === true" />
             <el-button
-              v-if="data.activeGenerationRequest && !generating"
-              text size="small" :disabled="deleting || uploading || persistentPhase === 'submitting'" title="取消或放弃旧任务（不会重新生成）"
+              v-if="data.activeGenerationRequest && !generating && !['saved', 'completed'].includes(persistentPhase)"
+              text size="small" :disabled="deleting || uploading || persistentPhase === 'submitting' || persistentChecking" title="取消或放弃旧任务（不会重新生成）"
               @click="requestStop().catch(error => showNodeError(error, '放弃旧任务失败'))">放弃旧任务</el-button>
             <el-button
               class="sendButton"
               :icon="generating ? IconPlayerStop : IconArrowUp"
-              :disabled="deleting || uploading || (!generating && data.activeGenerationRequest && ['submitting', 'failed', 'cancelled'].includes(persistentPhase)) || (!generating && !data.activeGenerationRequest && (!generationPrompt || !selectedModel))"
+              :disabled="deleting || uploading || (!generating && data.activeGenerationRequest && (!persistentPhase || persistentChecking || ['submitting', 'failed', 'cancelled'].includes(persistentPhase))) || (!generating && !data.activeGenerationRequest && (!generationPrompt || !selectedModel))"
               :title="generating ? '停止生成' : data.activeGenerationRequest ? '恢复原视频任务' : '生成视频'"
               :aria-label="generating ? '停止生成' : data.activeGenerationRequest ? '恢复原视频任务' : '生成视频'"
               @click="generating ? requestStop().catch((error) => showNodeError(error, '取消视频失败')) : startGeneration().catch((error) => showNodeError(error, '视频生成失败'))" />
@@ -415,8 +415,15 @@ async function requestStop() {
   });
   const result = await response.json();
   if (!response.ok || result.code !== 200) throw new Error(result.message || "无法确认远端任务已停止");
+  const phase = String(result.data?.phase ?? "");
+  if (phase !== "cancelled" && phase !== "failed") {
+    // 远端视频可能恰好已保存，保留 generationId 以便找回成片，不能直接忘记任务。
+    persistentPhase.value = phase;
+    persistentError.value = "视频已保存或任务仍在收尾，请先恢复已有结果";
+    return;
+  }
   data.value.activeGenerationRequest = undefined;
-  persistentPhase.value = "cancelled";
+  persistentPhase.value = phase;
   persistentError.value = "";
 }
 

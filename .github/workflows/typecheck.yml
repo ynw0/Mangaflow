@@ -29,3 +29,6 @@ jobs:
           bun run --cwd packages/toolScaffold typecheck
           bun run --cwd packages/tools/mediaGeneration typecheck
           bun run --cwd packages/nodes/videoGenerationNode typecheck
+      - name: 生产链路回归测试
+        working-directory: apps/server
+        run: bun test src/utils/production/qcResult.test.ts src/utils/production/comfyui.test.ts

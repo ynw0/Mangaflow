@@ -81,8 +81,6 @@
                   v-model="item.thinkingLevels"
                   multiple
                   filterable
-                  allowCreate
-                  defaultFirstOption
                   collapseTags
                   collapseTagsTooltip
                   :maxCollapseTags="4"
@@ -90,6 +88,7 @@
                   aria-label="思考等级">
                   <el-option v-for="level in presetThinkingLevels" :key="level" :label="level" :value="level" />
                 </el-select>
+                <div class="levelHint">仅选择该模型接口实际支持的档位；未确认时保持空白。</div>
               </el-form-item>
             </div>
           </div>

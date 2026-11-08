@@ -141,7 +141,8 @@ export function createVideoPromptTool(options: SubAgentModel & {
         const cacheKey = JSON.stringify([selected.providerId, selected.modelId, selected.thinkingLevel]);
         let specialistModel = specialistModels.get(cacheKey);
         if (!specialistModel) {
-          if (selected.providerId === primaryModel.providerId && selected.modelId === primaryModel.modelId) {
+          if (selected.providerId === primaryModel.providerId && selected.modelId === primaryModel.modelId
+            && selected.thinkingLevel === primaryModel.thinkingLevel) {
             specialistModel = { ...model, thinkingLevel };
           } else {
             const { runtime } = await createAgentModel(selected.providerId, selected.modelId, selected.thinkingLevel);

@@ -56,7 +56,8 @@ export async function createSubAgentTool({ cwd, tools, canvas, runTask, primaryM
             : task.team
               ? await (async () => {
                 const chosen = resolveAgentProfile("team", primaryModel);
-                const same = chosen.providerId === primaryModel.providerId && chosen.modelId === primaryModel.modelId;
+                const same = chosen.providerId === primaryModel.providerId && chosen.modelId === primaryModel.modelId
+                  && chosen.thinkingLevel === primaryModel.thinkingLevel;
                 const selected = same
                   ? { ...modelOptions, thinkingLevel: toSdkThinkingLevel(chosen.thinkingLevel) }
                   : await (async () => {

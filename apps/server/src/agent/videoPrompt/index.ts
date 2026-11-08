@@ -40,9 +40,8 @@ function guideRules(text: string, format: "h3Ref2va" | "h3Frames" | "h3Text", re
   const exampleHeading = format === "h3Ref2va" ? "\n## 7. Complete Example" : "\n## 5. Cases";
   const rules = text.split(exampleHeading)[0]!;
   if (!reviewOnly) return rules;
-  // 独立审核侧重语义与执行质量，结构和标签由 inspectDraft 确定性预检。
-  const referenceHeading = format === "h3Ref2va" ? "\n## 3. `summary`" : "\n## 4. How to Write the Three Shared Core Sections";
-  return rules.split(referenceHeading)[0]!;
+  // 审核保留 retention、动作时间轴、说话人和音轨规则，仅省略教学代码范例。
+  return rules.replace(/```[^\n]*\n[\s\S]*?```/g, "").replace(/\n{3,}/g, "\n\n");
 }
 
 function videoCommonRules(text: string) {
@@ -65,7 +64,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
   return {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "根据已确认的镜头合同和参考制作 H3 英文提示词与简体中文对照，依次导演、预检、独立审核和返修。通过后返回服务端 reviewId 与 generationRequest，不启动生成。已有节点传 node，禁止同时传 modelId、duration、ratio、sampling、seed、seedMode，先通过节点 setConfig 配置后再 getPromptContext；明确获准修改目标节点时才传 write=true。无节点时必须给 duration、ratio；随机模式不传 seed，fixed/last 必须传 seed。references 必须是真实获准素材及用途，顺序匹配实际输入。",
+    description: "根据已确认的镜头合同和参考制作 H3 英文提示词与简体中文对照，依次导演、预检、独立审核和返修。已写入节点时返回下一步节点操作指引；未写入时返回 reviewId 与 generationRequest，不启动生成。已有节点传 node，禁止同时传 modelId、duration、ratio、sampling、seed、seedMode，先通过节点 setConfig 配置后再 getPromptContext；明确获准修改目标节点时才传 write=true。无节点时必须给 duration、ratio；随机模式不传 seed，fixed/last 必须传 seed。references 必须是真实获准素材及用途，顺序匹配实际输入。",
     promptSnippet: "制作或重写 H3 成片提示词时，准备真实镜头合同后调用 draftVideoPrompt，使用其通过审核的英文和中文稿。",
     parameters: { type: "object", ...z.toJSONSchema(videoPromptParameters, { io: "input", target: "draft-07" }) },
     executionMode: "sequential",
@@ -82,7 +81,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
       });
       const templateMatches = candidates.map(({ id, title, matches }) => ({ id, title, matches }));
       const usage = emptyUsage();
-      const modelCalls: { name: string; elapsedMs: number; status: string; rulesChars: number; taskChars: number; usage: ReturnType<typeof emptyUsage> }[] = [];
+      const modelCalls: { name: string; elapsedMs: number; status: string; thinkingLevel?: SubAgentModel["thinkingLevel"]; rulesChars: number; taskChars: number; usage: ReturnType<typeof emptyUsage> }[] = [];
       const skills: { name: string; scope: string; path: string; version?: string }[] = [];
       const attempts: { stage: "director" | "preflight" | "review"; findings: string[] }[] = [];
       const skillCall = async (args: Record<string, string>) =>
@@ -109,14 +108,21 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const formatRules = guideRules(guide, prepared.format);
       const commonRules = videoCommonRules(common);
       const reviewerFormat = guideRules(guide, prepared.format, true);
-      const update = (text: string) => onUpdate?.({ content: [{ type: "text", text }], details: {} });
+      const update = (stage: string) => {
+        const elapsedMs = Math.round(performance.now() - startedAt);
+        const text = `${stage} · ${modelCalls.length} 次模型调用 · 已统计 ${usage.totalTokens.toLocaleString("en-US")} Token · ${Math.round(elapsedMs / 1000)}s`;
+        onUpdate?.({ content: [{ type: "text", text }], details: { stage, elapsedMs, usage, modelCalls } });
+      };
       const finish = (result: Record<string, unknown>) => {
         const details = { ...result, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, attempts,
           modelCalls, elapsedMs: Math.round(performance.now() - startedAt) };
         // 节点已写回时，主 Agent 只接收审核状态与定位信息，完整稿仍保存在节点和工具详情中。
         const visible = result.status === "ok" && result.written && input.node
           ? { status: result.status, shotId: input.shotId, reviewId: result.reviewId, written: true,
-            node: input.node, attempts, modelCalls, elapsedMs: details.elapsedMs }
+            node: input.node,
+            nextAction: { when: "按当前自动、半自动或目标模式完成相应授权后",
+              tool: "nodeTools", args: { canvasId: input.node.canvasId, nodeId: input.node.nodeId, name: "node:generateVideo", args: {} } },
+            attempts, modelCalls, elapsedMs: details.elapsedMs }
           : result.status === "ok" && result.generationRequest
             ? Object.fromEntries(Object.entries(details).filter(([key]) => key !== "prompt"))
             : details;
@@ -125,10 +131,15 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const taskInput = { shot: prepared.shot, format: prepared.format, workflow: prepared.setup };
       async function specialist<T>(schema: z.ZodType<T>, name: string, task: string, rules: string[]) {
         signal?.throwIfAborted();
-        update(name);
+        const reviewer = name === "独立提示词审核";
+        const thinkingLevel = reviewer
+          ? (model.thinkingLevel === "xhigh" || model.thinkingLevel === "high" ? "medium" : model.thinkingLevel)
+          : (model.thinkingLevel === "xhigh" ? "high" : model.thinkingLevel);
+        update(`${name}中（思考等级 ${thinkingLevel ?? "off"}）`);
         const callStartedAt = performance.now();
         const output = await runSubAgent({
-          ...model, cwd, name, task, tools: [], signal, responseFormat: "json", specialist: true,
+          ...model, thinkingLevel, cwd, name, task, tools: [], signal, responseFormat: "json", specialist: true,
+          onProgress: message => update(`${name}：${message}`),
           instructions: [
             "这是只读的 H3 提示词制作任务。以下为宿主已实际加载的技能正文，直接按适用模式执行；当前任务的实际工作流优先于示例。仅根据传入的已确认剧情、素材用途与描述做判断。",
             ...rules,
@@ -137,7 +148,8 @@ export function createVideoPromptTool(options: SubAgentModel & {
         addUsage(usage, output.usage);
         // 记录实际返回的用量与单次调用耗时，不按轮次推算 Token 消耗。
         modelCalls.push({ name, elapsedMs: Math.round(performance.now() - callStartedAt), status: output.result.status,
-          rulesChars: rules.join("\n\n").length, taskChars: task.length, usage: output.usage });
+          thinkingLevel, rulesChars: rules.join("\n\n").length, taskChars: task.length, usage: output.usage });
+        update(`${name}${output.result.status === "completed" ? "已完成" : "失败"}`);
         signal?.throwIfAborted();
         if (output.result.status !== "completed") throw new Error(`${name}未完成：${output.result.result}`);
         try { return parseReply(schema, output.result.result); }
@@ -150,7 +162,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         const draft = await specialist(draftSchema, round ? "导演返修" : "导演写作", [
           '输出 {"status":"ok","prompt":"英文生成正文","promptZh":"简中对照"}；缺少关键输入或无法在给定时长交付剧情时，输出 {"status":"blocked","reason":"具体原因"}。',
           "先在内部确定镜头要交付的叙事信息，再设计可见的起点、动作、接触或变化、反馈和末态。按实际模式写 H3 正文，稳定设定与逐段变化分开，英文和中文保持同样的可见事实。",
-          "按已确认的剧情和素材取用匹配的拍法。模板片段含占位词、使用条件和验收点，只有条件满足时才采用相关片段，实际正文写真实可观察的事件。",
+          "按已确认的剧情和素材取用匹配的拍法。模板片段含占位词、使用条件和验收点，只有条件满足时才采用相关片段，实际正文写真实可观察的事件。返修时保留已经正确的 Subject、参考绑定及无关段落，优先改动指出的时间段，仍返回完整合法正文。",
           JSON.stringify({ ...taskInput, ...(round ? { previousDraft: lastDraft, findings } : { candidates }) }),
         ].join("\n"), [...directorRules, commonRules, formatRules]);
         if (draft.status === "blocked") {
@@ -161,15 +173,17 @@ export function createVideoPromptTool(options: SubAgentModel & {
         lastDraft = { prompt: draft.prompt, promptZh: draft.promptZh };
         findings = inspectDraft(lastDraft, prepared);
         attempts.push({ stage: "preflight", findings });
+        update(findings.length ? "程序预检未通过，准备定向返修" : "程序预检通过");
         if (findings.length) continue;
 
         const review = await specialist(reviewSchema, "独立提示词审核", [
           '输出 {"status":"ok","findings":[]} 或 {"status":"rejected","findings":["具体时间段或句子的问题及整改目标"]}。只审核当前稿件。',
-          "逐项核对剧情硬要求、动作因果和末态、特效来源及反馈、参考用途、画面与声音可执行性以及中英事实一致性。以实际工作流对应的格式为准。画面已明确的事实不用要求重写，证据不足时明确缺项。",
+          "逐项核对剧情硬要求、动作因果和末态、特效来源及反馈、参考用途、画面与声音可执行性以及中英事实一致性。以实际工作流对应的格式为准。只拒绝影响剧情、真实动作、关键身份/参考或可见声画结果的实质缺陷；固定机位、简洁镜头、合理的创作取舍不构成错误。每条整改意见定位到时间段或句子，说明必须达到的可验证结果。",
           JSON.stringify({ ...taskInput, draft: lastDraft }),
         ].join("\n"), [reviewRules, commonRules, reviewerFormat]);
         findings = review.findings;
         attempts.push({ stage: "review", findings });
+        update(review.status === "ok" ? "独立审核通过，保存审核记录" : "独立审核退回，准备定向返修");
         if (review.status !== "ok") continue;
 
         // 无论是否写回节点，都重新核对审稿期间的实际参数、参考内容与工作流。

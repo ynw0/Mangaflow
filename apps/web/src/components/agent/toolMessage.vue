@@ -7,7 +7,7 @@
       <span class="toolHeader" :data-status="tool.status">
         <icon-tool :size="14" />
         <span class="toolName">{{ renderer ? "操作工具" : tool.name || "工具调用" }}</span>
-        <span class="toolState">{{ tool.name === 'subAgent' && tool.status === 'success' ? '调用已返回' : toolStatusLabels[tool.status] }}</span>
+        <span class="toolState">{{ tool.name === 'draftVideoPrompt' && tool.status === 'running' && typeof tool.result === 'string' ? tool.result : tool.name === 'subAgent' && tool.status === 'success' ? '调用已返回' : toolStatusLabels[tool.status] }}</span>
       </span>
     </template>
     <div v-if="!collapsed" class="toolDetails">
@@ -97,6 +97,10 @@ function formatToolData(value: unknown) {
 
     .toolState {
       flex-shrink: 0;
+      max-width: min(48vw, 460px);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
       font-size: 12px;
     }
 

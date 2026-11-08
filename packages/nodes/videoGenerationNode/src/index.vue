@@ -42,9 +42,9 @@
     </div>
     <template #bottom>
       <el-card class="promptCard" shadow="never" :bodyStyle="{ padding: '14px 16px 12px' }">
-        <div v-if="data.activeGenerationRequest" class="pendingTask" role="status">
+        <div v-if="data.activeGenerationRequest || detachedGenerationId" class="pendingTask" role="status">
           <div class="pendingTaskText">
-            <strong>未完成视频任务 · {{ data.activeGenerationRequest.generationId?.slice(0, 8) }}</strong>
+            <strong>历史视频任务 · {{ (data.activeGenerationRequest?.generationId || detachedGenerationId).slice(0, 8) }}</strong>
             <span>{{ persistentPhaseLabel }}</span>
             <small v-if="persistentError">{{ persistentError }}</small>
           </div>
@@ -105,16 +105,19 @@
             :disabled="generating || deleting || !selectedModel" />
           <div class="generationActions">
             <mediaPrice v-if="generationInput" :input="{ ...generationInput, mediaType: 'video' }" :supported="selectedModel?.supportsPrice === true" />
+            <el-button v-if="!data.activeGenerationRequest && !detachedGenerationId && !generating"
+              text size="small" :loading="discoveringRecovery" aria-label="查找该节点历史生成任务"
+              @click="discoverRecovery().catch(error => showNodeError(error, '历史任务查询失败'))">历史任务</el-button>
             <el-button
-              v-if="data.activeGenerationRequest && !generating && !['saved', 'completed'].includes(persistentPhase)"
+              v-if="(data.activeGenerationRequest || detachedGenerationId) && !generating && !['saved', 'completed'].includes(persistentPhase)"
               text size="small" :disabled="deleting || uploading || persistentPhase === 'submitting' || persistentChecking" title="取消或放弃旧任务（不会重新生成）"
               @click="requestStop().catch(error => showNodeError(error, '放弃旧任务失败'))">放弃旧任务</el-button>
             <el-button
               class="sendButton"
               :icon="generating ? IconPlayerStop : IconArrowUp"
-              :disabled="deleting || uploading || (!generating && data.activeGenerationRequest && (!persistentPhase || persistentChecking || ['submitting', 'failed', 'cancelled'].includes(persistentPhase))) || (!generating && !data.activeGenerationRequest && (!generationPrompt || !selectedModel))"
-              :title="generating ? '停止生成' : data.activeGenerationRequest ? '恢复原视频任务' : '生成视频'"
-              :aria-label="generating ? '停止生成' : data.activeGenerationRequest ? '恢复原视频任务' : '生成视频'"
+              :disabled="deleting || uploading || (!generating && (data.activeGenerationRequest || detachedGenerationId) && (!persistentPhase || persistentChecking || ['submitting', 'failed', 'cancelled'].includes(persistentPhase))) || (!generating && !data.activeGenerationRequest && !detachedGenerationId && (discoveringRecovery || !generationPrompt || !selectedModel))"
+              :title="generating ? '停止生成' : data.activeGenerationRequest || detachedGenerationId ? '恢复原视频任务' : '生成视频'"
+              :aria-label="generating ? '停止生成' : data.activeGenerationRequest || detachedGenerationId ? '恢复原视频任务' : '生成视频'"
               @click="generating ? requestStop().catch((error) => showNodeError(error, '取消视频失败')) : startGeneration().catch((error) => showNodeError(error, '视频生成失败'))" />
           </div>
         </div>
@@ -196,6 +199,8 @@ const { generating } = generationState;
 const persistentPhase = ref("");
 const persistentError = ref("");
 const persistentChecking = ref(false);
+const detachedGenerationId = ref("");
+const discoveringRecovery = ref(false);
 const persistentPhaseLabels: Record<string, string> = {
   preparing: "准备中 · 可以恢复原任务",
   submitting: "提交状态不明 · 需要先核对 ComfyUI 队列，禁止重新提交",
@@ -329,6 +334,9 @@ onMounted(() => {
   if (data.value.activeGenerationRequest) void refreshPersistentStatus().catch(error => {
     if (!disposed) persistentError.value = error instanceof Error ? error.message : "无法查询历史任务";
   });
+  else if (!outputFile.value) void discoverRecovery().catch(error => {
+    if (!disposed) showNodeError(error, "历史任务查询失败");
+  });
 });
 onScopeDispose(() => {
   disposed = true;
@@ -406,12 +414,12 @@ function resolveSeed() {
 
 async function requestStop() {
   generationController?.abort();
-  const current = data.value.activeGenerationRequest;
-  if (!current?.generationId) return;
+  const generationId = data.value.activeGenerationRequest?.generationId || detachedGenerationId.value;
+  if (!generationId) return;
   const { directory } = await files.getWorkspaceFiles().list();
   const response = await fetch("/api/production/generation/cancel", {
     method: "POST", headers: { "Content-Type": "application/json", "x-toonflow-workspace": "1" },
-    body: JSON.stringify({ directory, generationId: current.generationId }),
+    body: JSON.stringify({ directory, generationId }),
   });
   const result = await response.json();
   if (!response.ok || result.code !== 200) throw new Error(result.message || "无法确认远端任务已停止");
@@ -423,15 +431,16 @@ async function requestStop() {
     return;
   }
   data.value.activeGenerationRequest = undefined;
+  detachedGenerationId.value = "";
   persistentPhase.value = phase;
   persistentError.value = "";
 }
 
 async function persistentGenerationStatus() {
-  const request = data.value.activeGenerationRequest;
-  if (!request?.generationId) return { phase: "idle" };
+  const generationId = data.value.activeGenerationRequest?.generationId || detachedGenerationId.value;
+  if (!generationId) return { phase: "idle" };
   const { directory } = await files.getWorkspaceFiles().list();
-  const query = new URLSearchParams({ directory, generationId: request.generationId });
+  const query = new URLSearchParams({ directory, generationId });
   const response = await fetch(`/api/production/generation/status?${query}`, {
     headers: { "x-toonflow-workspace": "1" }, cache: "no-store",
   });
@@ -441,7 +450,7 @@ async function persistentGenerationStatus() {
 }
 
 async function refreshPersistentStatus() {
-  if (persistentChecking.value || !data.value.activeGenerationRequest) return;
+  if (persistentChecking.value || !(data.value.activeGenerationRequest || detachedGenerationId.value)) return;
   persistentChecking.value = true;
   try {
     const status = await persistentGenerationStatus() as { phase: string; error?: string };
@@ -453,6 +462,71 @@ async function refreshPersistentStatus() {
   }
 }
 
+
+async function discoverRecovery() {
+  if (discoveringRecovery.value || data.value.activeGenerationRequest || detachedGenerationId.value) return;
+  discoveringRecovery.value = true;
+  try {
+    const { directory } = await files.getWorkspaceFiles().list();
+    const query = new URLSearchParams({ directory });
+    const response = await fetch(`/api/production/generation/list?${query}`, {
+      headers: { "x-toonflow-workspace": "1" }, cache: "no-store",
+    });
+    const result = await response.json();
+    if (!response.ok || result.code !== 200 || !Array.isArray(result.data)) {
+      throw new Error(result.message || "无法查询工作区任务列表");
+    }
+    const matching = (result.data as {
+      generationId: string; outputDirectory?: string; phase: string; canResumeById?: boolean; error?: string;
+    }[]).find(job => job.outputDirectory === `assets/${id}`
+      && (job.canResumeById === true || job.phase === "submitting")
+      && ["preparing", "submitting", "submitted", "saved", "completed"].includes(job.phase));
+    if (disposed || !matching || data.value.activeGenerationRequest) return;
+    detachedGenerationId.value = matching.generationId;
+    persistentPhase.value = matching.phase;
+    persistentError.value = matching.error ?? "";
+  } finally {
+    discoveringRecovery.value = false;
+  }
+}
+
+/** 画布丢失活动任务参数后，用服务端原始请求恢复；不会构造新工作流或种子。 */
+async function resumeDetachedGeneration() {
+  const generationId = detachedGenerationId.value;
+  if (!generationId) throw new Error("没有可恢复的任务");
+  if (!["preparing", "submitted", "saved", "completed"].includes(persistentPhase.value)) {
+    throw new Error("当前 ComfyUI 任务状态不允许恢复；请先查询原队列");
+  }
+  const controller = new AbortController();
+  generationController = controller;
+  generation = generationState.run(() => files.getWorkspaceFiles().list()
+    .then(async ({ directory }) => {
+      const response = await fetch("/api/production/generation/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-toonflow-workspace": "1" },
+        body: JSON.stringify({ directory, generationId }), signal: controller.signal,
+      });
+      const result = await response.json();
+      if (!response.ok || result.code !== 200) throw new Error(result.message || "无法恢复原任务");
+      controller.signal.throwIfAborted();
+      const video = result.data?.[0] as { path?: string; mimeType?: string } | undefined;
+      if (!video?.path || !video.mimeType) throw new Error("已恢复的任务缺少生成视频");
+      if (!disposed) {
+        outputs.value.video = { dataType: "VIDEO", value: { url: video.path, mimeType: video.mimeType } };
+        detachedGenerationId.value = "";
+        persistentPhase.value = "";
+        persistentError.value = "";
+      }
+    }))
+    .catch(error => {
+      if (!disposed) showNodeError(error, "恢复原任务失败");
+      if (!disposed && detachedGenerationId.value)
+        void refreshPersistentStatus().catch(() => { /* 服务端任务编号仍保留 */ });
+    })
+    .finally(() => { generationController = undefined; }));
+  return { status: "generating", generationId, resumed: true };
+}
+
 async function startGeneration() {
   const current = data.value.activeGenerationRequest;
   const choice = selectedModel.value;
@@ -460,6 +534,7 @@ async function startGeneration() {
   if (generating.value) throw new Error("视频正在生成，请等待完成");
   if (uploading.value) throw new Error("视频正在替换，请等待完成");
   if (deleting.value) throw new Error("节点正在删除");
+  if (detachedGenerationId.value) return resumeDetachedGeneration();
   if (!current) {
     if (!choice || !input) throw new Error("请先选择视频模型");
     if (!generationPrompt.value) throw new Error("请输入生成提示词");
@@ -513,7 +588,7 @@ nodeEvent.on("delete", async () => {
   if (uploading.value) throw new Error("视频正在替换，请稍后删除节点");
   deleting.value = true;
   try {
-    if (data.value.activeGenerationRequest) await requestStop();
+    if (data.value.activeGenerationRequest || detachedGenerationId.value) await requestStop();
     else generationController?.abort();
     await generation;
     await files.removeNodeFiles();
@@ -712,7 +787,7 @@ nodeTools.register({
   description: "显式停止或放弃当前记录的 ComfyUI 视频任务；仅用于用户授权停止生成时，不会启动新任务。",
   parameters: z.strictObject({}),
   async execute() {
-    if (!data.value.activeGenerationRequest) return { cancellationRequested: false };
+    if (!data.value.activeGenerationRequest && !detachedGenerationId.value) return { cancellationRequested: false };
     await requestStop();
     return { cancellationRequested: true };
   },

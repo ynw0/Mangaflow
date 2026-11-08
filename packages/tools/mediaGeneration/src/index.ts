@@ -64,14 +64,26 @@ const plugin: ToolPlugin = {
       executionMode: "sequential" as const,
       async execute(_id, params, signal) {
         signal?.throwIfAborted();
-        const request = operation.parameters.parse(params);
-        const result = await media[operation.name](request, signal);
+        const parsed = operation.parameters.parse(params);
+        // Agent 委派的 ComfyUI 视频也必须有固定 ID，失败后不能无意重复提交。
+        const request = operation.mediaType === "video" && parsed.providerId === "comfyui"
+          ? { ...parsed, generationId: ("generationId" in parsed && typeof parsed.generationId === "string")
+            ? parsed.generationId : crypto.randomUUID() }
+          : parsed;
+        const jobId = "generationId" in request && typeof request.generationId === "string" ? request.generationId : undefined;
+        let result: Awaited<ReturnType<typeof media.generateVideo>>;
+        try {
+          result = await media[operation.name](request, signal);
+        } catch (error) {
+          if (jobId) throw new Error(`${error instanceof Error ? error.message : String(error)}。原任务 generationId=${jobId}；若需恢复，必须沿用同一 ID 和完全相同的参数，不得直接新建请求。`);
+          throw error;
+        }
         const text = result.map(asset => {
           const url = asset.path.replaceAll("\\", "/").split("/").map(encodeURIComponent).join("/");
           const preview = asset.mediaType === "image" ? `![生成图片](<${url}>)` : `[${asset.mediaType === "audio" ? "播放生成音频" : "查看生成视频"}](<${url}>)`;
           return `${preview}\n工作区文件：${asset.path}`;
         }).join("\n\n");
-        return { content: [{ type: "text", text }], details: result };
+        return { content: [{ type: "text", text: jobId ? `generationId=${jobId}\n${text}` : text }], details: result };
       },
     }))];
   },

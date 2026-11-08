@@ -152,6 +152,7 @@ import route149 from "./routes/workspaces/files/reveal";
 import route150 from "./routes/workspaces/files/write";
 import route151 from "./routes/workspaces/list";
 import route152 from "./routes/workspaces/selectDirectory";
+import route153 from "./routes/production/generation";
 
 export default (app: Express) => {
   app.use("/api/agent", route1);
@@ -306,4 +307,5 @@ export default (app: Express) => {
   app.use("/api/workspaces/files/write", route150);
   app.use("/api/workspaces/list", route151);
   app.use("/api/workspaces/selectDirectory", route152);
+  app.use("/api/production/generation", route153);
 }

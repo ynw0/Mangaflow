@@ -28,7 +28,10 @@ export default Router().post("/", validateFields({
     res.flushHeaders();
     // ACT: JSON 允许前导空白，保活时保留现有 response.json() 契约。
     heartbeat = setInterval(() => { if (!res.destroyed && !res.writableEnded && !res.writableNeedDrain) res.write("\n"); }, 5000);
-    const files = await u.mediaGeneration.generateMedia(cwd, mediaType, parsed.data, controller.signal);
+    // ComfyUI 视频任务由持久化任务控制器维护；断开 HTTP 不等于取消远端算力任务。
+    // 需要取消时调用 /api/production/generation/cancel。
+    const durable = mediaType === "video" && parsed.data.providerId === "comfyui";
+    const files = await u.mediaGeneration.generateMedia(cwd, mediaType, parsed.data, durable ? undefined : controller.signal);
     if (!res.destroyed) res.write(JSON.stringify(success(files)));
   } catch (err) {
     if (!res.destroyed) res.write(JSON.stringify(errorFromCause(err)));

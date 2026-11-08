@@ -5,6 +5,7 @@ import { validateFields } from "@/lib/middleware";
 import { restoreSettingsSecrets } from "@/lib/secrets";
 import { success } from "@/lib/responseFormat";
 import { maxSystemPromptLength } from "@/agent/runtime/prompt";
+import { agentProfilesSchema } from "@/agent/runtime/profiles";
 import { t } from "@/lib/i18n";
 
 const router = Router();
@@ -15,6 +16,7 @@ export default router.put("/", validateFields({ settings: z.record(z.string(), z
   desktopUpdateCustomUrl: z.string().max(2048).refine(value => !value || u.desktop.isValidUpdateUrl(value),
     "自定义更新源必须是不含账号、查询参数或锚点的 HTTP(S) 地址").optional(),
   mcp: u.mcpOauth.mcpSettingsSchema.optional(),
+  agentProfiles: agentProfilesSchema.optional(),
 })).refine(value => value.desktopUpdateSource !== "custom" || !!value.desktopUpdateCustomUrl, {
   path: ["desktopUpdateCustomUrl"], message: "选择自定义更新源前，请先填写有效地址",
 }) }), async (req, res) => {

@@ -4,6 +4,8 @@ import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import { teamNameSchema } from "@toonflow/teams-scaffold/runtime";
 import { addUsage, emptyUsage, type SubAgentModel, type SubAgentResult } from "@/agent/runtime/subAgent";
 import { createTeamRunner } from "@/agent/teams";
+import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
+import { resolveAgentProfile, type AgentModelSelection, type AgentProfileRole } from "@/agent/runtime/profiles";
 import { runRemoteTeam } from "@/agent/teams/remote";
 import { listTeams, getRemoteTeam } from "@/utils/teams";
 
@@ -12,14 +14,15 @@ const parameters = z.strictObject({
     name: z.string().trim().min(1).max(80).describe("本次任务名称"),
     task: z.string().trim().min(1).max(24000).describe("完整任务、必要背景、相对路径、已获授权和预期交付；不继承主对话历史"),
     team: teamNameSchema.optional().describe("已安装团队或远端 A2A 连接名；省略则创建临时子 Agent"),
+    role: z.enum(["story", "character", "scene", "prop"]).optional().describe("资源专职：编剧、角色、场景、道具；不指定使用通用子代理配置"),
     taskId: z.string().min(1).max(512).optional().describe("继续远端等待补充的 A2A task 时原样传回"),
     contextId: z.string().min(1).max(512).optional().describe("继续远端 A2A 会话时原样传回"),
   })).min(1),
 });
 
-export async function createSubAgentTool({ cwd, tools, canvas, runTask, ...modelOptions }: SubAgentModel & {
-  cwd: string; tools: ToolDefinition[]; canvas?: CanvasContext;
-  runTask: (name: string, task: string, signal?: AbortSignal, onProgress?: (text: string) => void) => Promise<{ result: SubAgentResult; usage: ReturnType<typeof emptyUsage> }>;
+export async function createSubAgentTool({ cwd, tools, canvas, runTask, primaryModel, ...modelOptions }: SubAgentModel & {
+  cwd: string; tools: ToolDefinition[]; canvas?: CanvasContext; primaryModel: AgentModelSelection;
+  runTask: (name: string, task: string, signal?: AbortSignal, onProgress?: (text: string) => void, role?: AgentProfileRole) => Promise<{ result: SubAgentResult; usage: ReturnType<typeof emptyUsage> }>;
 }): Promise<ToolDefinition> {
   if (tools.some(tool => tool.name === "subAgent")) throw new Error("工具名称 subAgent 已被内置子任务工具占用");
   const teams = (await listTeams()).filter(team => team.enabled && !team.loadError);
@@ -51,8 +54,19 @@ export async function createSubAgentTool({ cwd, tools, canvas, runTask, ...model
           const output = remote
             ? await runRemoteTeam({ ...task, name: task.team!, signal, onProgress })
             : task.team
-              ? await (await createTeamRunner({ ...modelOptions, cwd, tools: inheritedTools, canvas, name: task.team })).run(task.task, signal, onProgress)
-              : await runTask(task.name, task.task, signal, onProgress);
+              ? await (async () => {
+                const chosen = resolveAgentProfile("team", primaryModel);
+                const same = chosen.providerId === primaryModel.providerId && chosen.modelId === primaryModel.modelId;
+                const selected = same
+                  ? { ...modelOptions, thinkingLevel: toSdkThinkingLevel(chosen.thinkingLevel) }
+                  : await (async () => {
+                    const { runtime } = await createAgentModel(chosen.providerId, chosen.modelId, chosen.thinkingLevel);
+                    return { modelRuntime: runtime, model: runtime.getModel(chosen.providerId, chosen.modelId),
+                      thinkingLevel: toSdkThinkingLevel(chosen.thinkingLevel) };
+                  })();
+                return (await createTeamRunner({ ...selected, cwd, tools: inheritedTools, canvas, name: task.team! })).run(task.task, signal, onProgress);
+              })()
+              : await runTask(task.name, task.task, signal, onProgress, task.role);
           results[index] = { ...output.result, name: task.name };
           addUsage(usage, output.usage);
         } catch (error) {

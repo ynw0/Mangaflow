@@ -16,6 +16,7 @@ import { readAiReferences, referenceContent } from "@/utils/ai";
 import { createAgentTools } from "@/agent/tools";
 import { createAgentResources } from "@/agent/runtime/resources";
 import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
+import { resolveAgentProfile } from "@/agent/runtime/profiles";
 import { configureAgentRequests } from "@/agent/runtime/requests";
 import { getAgentImageReference, getOffloadedImageText, readAgentImage } from "@/agent/runtime/imageAttachments";
 import { createSubAgentTool } from "@/agent/tools/subAgent";
@@ -213,6 +214,7 @@ export async function run(
       tools.push(createVideoPromptTool({
         cwd, canvas, skillOperator, modelRuntime: runtime, model: runtime.getModel(providerId, modelId),
         thinkingLevel: toSdkThinkingLevel(thinkingLevel),
+        primaryModel: { providerId, modelId, thinkingLevel },
       }));
     }
     if (isMemoryEnabled()) {
@@ -230,9 +232,13 @@ export async function run(
     }
     tools.push(await createSubAgentTool({
       cwd, tools, canvas, modelRuntime: runtime, model: runtime.getModel(providerId, modelId), thinkingLevel: toSdkThinkingLevel(thinkingLevel),
-      runTask: (name, task, taskSignal, onProgress) => runDelegatedAgent({
-        cwd, parentFile: file, name, task, providerId, modelId, thinkingLevel, canvas, signal: taskSignal, send, onProgress, goal,
-      }),
+      primaryModel: { providerId, modelId, thinkingLevel },
+      runTask: (name, task, taskSignal, onProgress, role) => {
+        const selected = resolveAgentProfile(role ?? "subAgent", { providerId, modelId, thinkingLevel });
+        return runDelegatedAgent({
+          cwd, parentFile: file, name, task, ...selected, canvas, signal: taskSignal, send, onProgress, goal,
+        });
+      },
     }));
     let goalDone = false;
     if (goal && !child) tools.push(createCompleteGoalTool(() => { goalDone = true; }));

@@ -8,6 +8,8 @@ import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { requireSameVideoReview, saveVideoReview } from "@/utils/production/videoReviews";
+import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
+import { resolveAgentProfile, type AgentModelSelection } from "@/agent/runtime/profiles";
 
 const directorReferences = {
   dialogue: ["characterPerformance.md", "soundDesign.md"],
@@ -59,8 +61,9 @@ export function createVideoPromptTool(options: SubAgentModel & {
   cwd: string;
   skillOperator: ToolDefinition;
   canvas?: CanvasContext;
+  primaryModel: AgentModelSelection;
 }): ToolDefinition {
-  const { cwd, skillOperator, canvas, ...model } = options;
+  const { cwd, skillOperator, canvas, primaryModel, ...model } = options;
   return {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
@@ -81,7 +84,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
       });
       const templateMatches = candidates.map(({ id, title, matches }) => ({ id, title, matches }));
       const usage = emptyUsage();
-      const modelCalls: { name: string; elapsedMs: number; status: string; thinkingLevel?: SubAgentModel["thinkingLevel"]; rulesChars: number; taskChars: number; usage: ReturnType<typeof emptyUsage> }[] = [];
+      const modelCalls: { name: string; elapsedMs: number; status: string; providerId?: string; modelId?: string; thinkingLevel?: SubAgentModel["thinkingLevel"]; rulesChars: number; taskChars: number; usage: ReturnType<typeof emptyUsage> }[] = [];
       const skills: { name: string; scope: string; path: string; version?: string }[] = [];
       const attempts: { stage: "director" | "preflight" | "review"; findings: string[] }[] = [];
       const skillCall = async (args: Record<string, string>) =>
@@ -129,16 +132,27 @@ export function createVideoPromptTool(options: SubAgentModel & {
         return { details, content: [{ type: "text" as const, text: JSON.stringify(visible) }], usage };
       };
       const taskInput = { shot: prepared.shot, format: prepared.format, workflow: prepared.setup };
+      const specialistModels = new Map<string, SubAgentModel>();
       async function specialist<T>(schema: z.ZodType<T>, name: string, task: string, rules: string[]) {
         signal?.throwIfAborted();
         const reviewer = name === "独立提示词审核";
-        const thinkingLevel = reviewer
-          ? (model.thinkingLevel === "xhigh" || model.thinkingLevel === "high" ? "medium" : model.thinkingLevel)
-          : (model.thinkingLevel === "xhigh" ? "high" : model.thinkingLevel);
-        update(`${name}中（思考等级 ${thinkingLevel ?? "off"}）`);
+        const selected = resolveAgentProfile(reviewer ? "videoReviewer" : "videoDirector", primaryModel);
+        const thinkingLevel = toSdkThinkingLevel(selected.thinkingLevel);
+        const cacheKey = JSON.stringify([selected.providerId, selected.modelId, selected.thinkingLevel]);
+        let specialistModel = specialistModels.get(cacheKey);
+        if (!specialistModel) {
+          if (selected.providerId === primaryModel.providerId && selected.modelId === primaryModel.modelId) {
+            specialistModel = { ...model, thinkingLevel };
+          } else {
+            const { runtime } = await createAgentModel(selected.providerId, selected.modelId, selected.thinkingLevel);
+            specialistModel = { modelRuntime: runtime, model: runtime.getModel(selected.providerId, selected.modelId), thinkingLevel };
+          }
+          specialistModels.set(cacheKey, specialistModel);
+        }
+        update(`${name}中（${selected.modelId} / ${thinkingLevel}）`);
         const callStartedAt = performance.now();
         const output = await runSubAgent({
-          ...model, thinkingLevel, cwd, name, task, tools: [], signal, responseFormat: "json", specialist: true,
+          ...specialistModel, cwd, name, task, tools: [], signal, responseFormat: "json", specialist: true,
           onProgress: message => update(`${name}：${message}`),
           instructions: [
             "这是只读的 H3 提示词制作任务。以下为宿主已实际加载的技能正文，直接按适用模式执行；当前任务的实际工作流优先于示例。仅根据传入的已确认剧情、素材用途与描述做判断。",
@@ -148,7 +162,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         addUsage(usage, output.usage);
         // 记录实际返回的用量与单次调用耗时，不按轮次推算 Token 消耗。
         modelCalls.push({ name, elapsedMs: Math.round(performance.now() - callStartedAt), status: output.result.status,
-          thinkingLevel, rulesChars: rules.join("\n\n").length, taskChars: task.length, usage: output.usage });
+          providerId: selected.providerId, modelId: selected.modelId, thinkingLevel, rulesChars: rules.join("\n\n").length, taskChars: task.length, usage: output.usage });
         update(`${name}${output.result.status === "completed" ? "已完成" : "失败"}`);
         signal?.throwIfAborted();
         if (output.result.status !== "completed") throw new Error(`${name}未完成：${output.result.result}`);

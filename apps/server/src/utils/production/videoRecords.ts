@@ -86,7 +86,7 @@ export async function recordVideoOutputs(directory: string, assets: GeneratedMed
     await Promise.all(written.map(path => unlink(path)));
     throw error;
   }
-  if (auto) for (const video of videos) {
+  if (auto) for (const video of videos.filter(item => written.includes(item.recordPath))) {
     // 成片已落盘，自动质检独立于发起生成的画布或对话。
     void scheduleQc(video, undefined, production).catch(error => console.error("自动成片质检失败", video.videoPath, error));
   }

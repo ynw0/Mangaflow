@@ -141,6 +141,9 @@ export async function runGenerationJob(options: RunOptions) {
       if (job.phase === "submitting") {
         throw new Error("服务器在 ComfyUI 提交阶段中断，无法判定是否已提交。请先核对远端队列，不会自动重复提交");
       }
+      if (job.phase === "submitted" && !job.execution?.promptId) {
+        throw new Error("任务已提交但缺少 promptId；禁止重新提交工作流");
+      }
       if (["cancelled", "failed"].includes(job.phase)) throw new Error("任务已终止；如要重新生成，请明确新建 generationId");
       let files = job.files;
       let execution = job.execution;
@@ -164,7 +167,7 @@ export async function runGenerationJob(options: RunOptions) {
       const message = error instanceof Error ? error.message : String(error);
       // 取消可能来自另一条 HTTP 请求。重新检查持久化状态，防止运行协程覆盖取消结果。
       const latest = await checkedJob(directory, id);
-      if (latest?.phase === "cancelled") return Promise.reject(error);
+      if (latest?.phase === "cancelled") throw error;
       if (job!.phase === "preparing") await persist("failed", { error: message });
       else if (job!.phase !== "completed" && job!.phase !== "cancelled") await persist(job!.phase, { error: message });
       throw error;

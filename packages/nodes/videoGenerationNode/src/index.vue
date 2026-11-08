@@ -95,6 +95,10 @@
           <div class="generationActions">
             <mediaPrice v-if="generationInput" :input="{ ...generationInput, mediaType: 'video' }" :supported="selectedModel?.supportsPrice === true" />
             <el-button
+              v-if="data.activeGenerationRequest && !generating"
+              text size="small" :disabled="deleting || uploading" title="取消或放弃旧任务（不会重新生成）"
+              @click="requestStop().catch(error => showNodeError(error, '放弃旧任务失败'))">放弃旧任务</el-button>
+            <el-button
               class="sendButton"
               :icon="generating ? IconPlayerStop : IconArrowUp"
               :disabled="deleting || uploading || (!generating && !data.activeGenerationRequest && (!generationPrompt || !selectedModel))"
@@ -449,9 +453,9 @@ nodeEvent.on("save", (reason) => {
 nodeEvent.on("delete", async () => {
   if (uploading.value) throw new Error("视频正在替换，请稍后删除节点");
   deleting.value = true;
-  if (data.value.activeGenerationRequest) await requestStop();
-  else generationController?.abort();
   try {
+    if (data.value.activeGenerationRequest) await requestStop();
+    else generationController?.abort();
     await generation;
     await files.removeNodeFiles();
   } finally {

@@ -388,7 +388,7 @@ export async function runProductionQc(input: {
     const gemmaVariant = videoVariant || audioVariant;
     const localVideo = join(workDir, qcSourceName(absoluteVideo));
     await copyFile(absoluteVideo, localVideo);
-    const evidence = await extractEvidence(localVideo, workDir, Boolean(input.requirements?.length), input.signal);
+    const evidence = await extractEvidence(localVideo, workDir, Boolean(input.requirements?.length) && !gemmaVariant, input.signal);
     const { technical } = evidence;
     if (gemmaVariant) {
       const hearAudio = production.qcLevel !== "video";

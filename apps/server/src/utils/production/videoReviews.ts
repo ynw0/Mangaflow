@@ -83,17 +83,45 @@ export function requireSameVideoReview(approved: VideoReviewSnapshot, current: V
   if (changed.length) fail(`审核已过期：${changed.join("、")}已变化，请按变化重新审核`, 409);
 }
 
+function cachePath(key: string) {
+  if (!/^[a-f0-9]{64}$/.test(key)) fail("视频提示词缓存编号无效", 400);
+  return join(dirname(conf.path), "videoReviews", "cache", key + ".json");
+}
+
+/** 相同镜头合同与已验素材只复用已获服务端审核许可的结果。 */
+export async function findReusableVideoReview(key: string, snapshot: VideoReviewSnapshot) {
+  const text = await readFile(cachePath(key), "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (!text) return;
+  const { reviewId } = JSON.parse(text) as { reviewId?: string };
+  if (!reviewId) fail("视频提示词缓存缺少审核编号", 409);
+  const record = await readApprovedVideoReview(reviewId);
+  requireSameVideoReview(record.snapshot, { ...snapshot, prompt: record.snapshot.prompt });
+  const promptZh = record.audit.promptZh;
+  if (!record.snapshot.prompt || typeof promptZh !== "string" || !promptZh.trim()) {
+    fail("已存审核记录缺少完整中英文提示词", 409);
+  }
+  return { reviewId, prompt: record.snapshot.prompt, promptZh };
+}
+
 function reviewPath(reviewId: string) {
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(reviewId)) fail("审核编号无效，请重新审核", 409);
   return join(dirname(conf.path), "videoReviews", `${reviewId}.json`);
 }
 
-export async function saveVideoReview(snapshot: VideoReviewSnapshot, audit: Record<string, unknown>) {
+export async function saveVideoReview(snapshot: VideoReviewSnapshot, audit: Record<string, unknown>, cacheKey?: string) {
   const reviewId = crypto.randomUUID();
   const path = reviewPath(reviewId);
   await mkdir(dirname(path), { recursive: true });
   // 编号仅为服务端记录索引；审核成功的宿主链路是唯一写入入口。
   await writeAtomic(path, JSON.stringify({ status: "approved", createdAt: new Date().toISOString(), snapshot, audit }), { exclusive: true, mode: 0o600 });
+  if (cacheKey) {
+    const target = cachePath(cacheKey);
+    await mkdir(dirname(target), { recursive: true });
+    await writeAtomic(target, JSON.stringify({ reviewId }), { mode: 0o600 });
+  }
   return reviewId;
 }
 

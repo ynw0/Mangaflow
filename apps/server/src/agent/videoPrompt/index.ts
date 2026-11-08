@@ -1,4 +1,5 @@
 import { parseFrontmatter, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { createHash } from "node:crypto";
 import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import { z } from "zod";
 import { addUsage, emptyUsage, runSubAgent, type SubAgentModel } from "@/agent/runtime/subAgent";
@@ -7,7 +8,7 @@ import { draftSchema, inspectDraft, reviewSchema } from "@/agent/videoPrompt/for
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
-import { requireSameVideoReview, saveVideoReview } from "@/utils/production/videoReviews";
+import { findReusableVideoReview, requireSameVideoReview, saveVideoReview } from "@/utils/production/videoReviews";
 import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { resolveAgentProfile, type AgentModelSelection } from "@/agent/runtime/profiles";
 
@@ -67,8 +68,8 @@ export function createVideoPromptTool(options: SubAgentModel & {
   return {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "根据已确认的镜头合同和参考制作 H3 英文提示词与简体中文对照，依次导演、预检、独立审核和返修。已写入节点时返回下一步节点操作指引；未写入时返回 reviewId 与 generationRequest，不启动生成。已有节点传 node，禁止同时传 modelId、duration、ratio、sampling、seed、seedMode，先通过节点 setConfig 配置后再 getPromptContext；明确获准修改目标节点时才传 write=true。无节点时必须给 duration、ratio；随机模式不传 seed，fixed/last 必须传 seed。references 必须是真实获准素材及用途，顺序匹配实际输入。",
-    promptSnippet: "制作或重写 H3 成片提示词时，准备真实镜头合同后调用 draftVideoPrompt，使用其通过审核的英文和中文稿。",
+    description: "根据已确认的镜头合同与真实参考制作 H3 中英文提示词，导演预检、独立审核、最多一次返修。同一镜头合同、参考内容、工作流、技能和模型配置不变时直接复用服务端已审结果，不重复消耗模型 Token；明确要重写时传 regenerate=true。返回审核 ID 与下一步节点操作，不启动生成。已有节点传 node，不传 modelId、duration、ratio、sampling、seed、seedMode；先通过节点 setConfig 配置后再 getPromptContext，获准写回时传 node.write=true。新镜头必须传 duration、ratio。references 必须匹配实际输入。",
+    promptSnippet: "制作 H3 镜头时调用 draftVideoPrompt；合同和素材未变可复用已审稿，用户要求重新创作才传 regenerate=true。",
     parameters: { type: "object", ...z.toJSONSchema(videoPromptParameters, { io: "input", target: "draft-07" }) },
     executionMode: "sequential",
     async execute(_id, params, signal, onUpdate, ctx) {
@@ -111,6 +112,11 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const formatRules = guideRules(guide, prepared.format);
       const commonRules = videoCommonRules(common);
       const reviewerFormat = guideRules(guide, prepared.format, true);
+      const cacheKey = createHash("sha256").update(JSON.stringify({
+        input: { ...input, regenerate: undefined, node: input.node ? { canvasId: input.node.canvasId, nodeId: input.node.nodeId } : undefined },
+        snapshot: prepared.snapshot, directorRules, guide, common, reviewRules, candidates,
+        models: [resolveAgentProfile("videoDirector", primaryModel), resolveAgentProfile("videoReviewer", primaryModel)],
+      })).digest("hex");
       const update = (stage: string) => {
         const elapsedMs = Math.round(performance.now() - startedAt);
         const text = `${stage} · ${modelCalls.length} 次模型调用 · 已统计 ${usage.totalTokens.toLocaleString("en-US")} Token · ${Math.round(elapsedMs / 1000)}s`;
@@ -131,6 +137,36 @@ export function createVideoPromptTool(options: SubAgentModel & {
             : details;
         return { details, content: [{ type: "text" as const, text: JSON.stringify(visible) }], usage };
       };
+      async function writePrompt(draft: { prompt: string; promptZh: string }, reviewId: string) {
+        let written = false;
+        let writeError: string | undefined;
+        if (input.node?.write && canvas && prepared.revision) {
+          try {
+            await canvas.call({
+              name: "nodeTools",
+              args: { canvasId: input.node.canvasId, nodeId: input.node.nodeId, name: "node:setPrompt",
+                args: { ...draft, reviewId, expectedRevision: prepared.revision } },
+            }, signal);
+            written = true;
+          } catch (error) {
+            signal?.throwIfAborted();
+            writeError = error instanceof Error ? error.message : String(error);
+          }
+        }
+        return { written, writeError };
+      }
+      if (!input.regenerate) {
+        const existing = await findReusableVideoReview(cacheKey, prepared.snapshot);
+        if (existing && !inspectDraft(existing, prepared).length) {
+          const refreshed = await prepareVideoPrompt(cwd, input, canvas, signal);
+          requireSameVideoReview(prepared.snapshot, refreshed.snapshot);
+          if (input.node && refreshed.revision !== prepared.revision) throw new Error("视频节点在审稿期间已变化，请重新制作提示词");
+          const generationRequest = videoGenerationSchema.parse({ ...refreshed.generationRequest,
+            prompt: existing.prompt, reviewId: existing.reviewId });
+          const write = await writePrompt(existing, existing.reviewId);
+          return finish({ status: "ok", ...existing, generationRequest, ...write, reused: true });
+        }
+      }
       const taskInput = { shot: prepared.shot, format: prepared.format, workflow: prepared.setup };
       const specialistModels = new Map<string, SubAgentModel>();
       async function specialist<T>(schema: z.ZodType<T>, name: string, task: string, rules: string[]) {
@@ -211,23 +247,10 @@ export function createVideoPromptTool(options: SubAgentModel & {
         const reviewId = await saveVideoReview({ ...refreshed.snapshot, prompt: generationRequest.prompt }, {
           shot: prepared.shot, request: generationRequest, promptZh: lastDraft.promptZh, review, skills, templateMatches, attempts,
           modelCalls, usage, reviewElapsedMs: Math.round(performance.now() - startedAt),
-        });
+        }, cacheKey);
         generationRequest.reviewId = reviewId;
-        let written = false;
-        let writeError: string | undefined;
-        if (input.node?.write && canvas && prepared.revision) {
-          try {
-            await canvas.call({
-              name: "nodeTools",
-              args: { canvasId: input.node.canvasId, nodeId: input.node.nodeId, name: "node:setPrompt", args: { ...lastDraft, reviewId, expectedRevision: prepared.revision } },
-            }, signal);
-            written = true;
-          } catch (error) {
-            signal?.throwIfAborted();
-            writeError = error instanceof Error ? error.message : String(error);
-          }
-        }
-        return finish({ status: "ok", ...lastDraft, reviewId, generationRequest, written, writeError });
+        const write = await writePrompt(lastDraft, reviewId);
+        return finish({ status: "ok", ...lastDraft, reviewId, generationRequest, ...write, reused: false });
       }
       return finish({ status: "rejected", findings, written: false });
     },

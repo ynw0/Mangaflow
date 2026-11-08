@@ -38,6 +38,7 @@ const shotFields = {
   mustNotHave: requirements.describe("禁止出现的事实，逐条填写字符串数组；无内容传 []"),
   intent: z.enum(["dialogue", "action", "effects", "mechanical", "reveal", "environment"]),
   adjacentShots: z.string().trim().max(6000).optional(),
+  regenerate: z.boolean().optional().describe("明确要求重新创作时传 true；省略则相同已审镜头直接复用审核结果"),
   templateTags: templateTagSchema.optional(),
   templateConditions: templateConditions.pick({ subjectCount: true, anchors: true }).optional(),
   references: z.array(reference).max(24),
@@ -84,7 +85,7 @@ export type VideoPromptInput = z.infer<typeof videoPromptParameters>;
 export type VideoPromptFormat = "h3Ref2va" | "h3Frames" | "h3Text";
 
 export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, canvas?: CanvasContext, signal?: AbortSignal) {
-  const { node, modelId, duration, ratio, references, sampling: requestedSampling, seed, seedMode, templateTags, templateConditions, ...shot } = input;
+  const { node, modelId, duration, ratio, references, sampling: requestedSampling, seed, seedMode, templateTags, templateConditions, regenerate: _regenerate, ...shot } = input;
   const production = readProduction();
   if (node && !canvas) throw new Error("请先打开目标视频节点所在的画布");
   const current = node && canvas ? nodeContext.parse(await canvas.call({

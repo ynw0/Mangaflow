@@ -22,6 +22,7 @@ export type McpOptions = {
   authorize(request: Request): boolean | Promise<boolean>;
   challenge?(): string;
   authorizationVersion?(): string;
+  jsonResponse?(request: Request): boolean;
   runInRequest?<T>(request: Request, operation: () => T): T;
   translate?(message: string | MessageDescriptor): string;
   translateError?(error: unknown): string;
@@ -107,9 +108,14 @@ export function createMcpRouter(options: McpOptions) {
         return;
       }
       const sessionId = request.get("mcp-session-id");
+      if (options.jsonResponse?.(request) && request.method === "GET") {
+        response.set("Allow", "POST, DELETE").sendStatus(405);
+        return;
+      }
       let transport = sessionId ? sessions.get(sessionId) : undefined;
       if (!sessionId && isInitializeRequest(request.body)) {
         transport = new NodeStreamableHTTPServerTransport({
+          enableJsonResponse: options.jsonResponse?.(request) ?? false,
           sessionIdGenerator: randomUUID,
           onsessioninitialized: id => { sessions.set(id, transport!); },
         });

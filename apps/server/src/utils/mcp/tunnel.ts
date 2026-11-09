@@ -1,55 +1,41 @@
 import type { Request } from "express";
-import { z } from "zod";
+import type { z } from "zod";
 import conf from "@/utils/conf";
 import { isPublicRequest } from "@/lib/accessToken";
 import { isLocalWorkspaceRequest } from "@/utils/workspace";
 import { getMcpHostApp } from "@/utils/mcp/runtime";
 import { openPublicGateway, readPublicAccess, publicAccessSchema } from "@/utils/mcp/publicGateway";
-import { installTailscale, runTailscale, spawnTailscale, tailscalePath } from "@/utils/mcp/tailscale";
+import { cloudflarePath, installCloudflare, spawnCloudflare } from "@/utils/mcp/cloudflare";
 import { mcpSettingsSchema, oauthOwnerToken } from "@/utils/mcp/oauth";
 
-type TunnelState = { phase: "idle" | "downloading" | "installing" | "loggingIn" | "starting" | "running" | "error";
-  error?: string; authUrl?: string; publicUrl?: string; received?: number; total?: number };
+type TunnelState = { phase: "idle" | "downloading" | "starting" | "running" | "error";
+  error?: string; publicUrl?: string; received?: number; total?: number };
 let state: TunnelState = { phase: "idle" };
 let controller: AbortController | undefined;
 let operation: Promise<void> | undefined;
-let child: Awaited<ReturnType<typeof spawnTailscale>> | undefined;
+let child: Awaited<ReturnType<typeof spawnCloudflare>> | undefined;
 let ownedUrl: string | undefined;
-let clientQuery: Promise<{ connected: boolean; clientError?: string }> | undefined;
-const statusSchema = z.object({ BackendState: z.string(), AuthURL: z.string().optional(), Self: z.object({ DNSName: z.string() }).nullish() });
-export const tunnelPortSchema = z.union([z.literal(443), z.literal(8443), z.literal(10000)]);
-function readTunnelPort() { return tunnelPortSchema.parse(conf.get("mcpTunnel.port", 443)); }
 
 export function requireLocalTunnelRequest(req: Request, windowsOnly = true) {
-  if ((windowsOnly && process.platform !== "win32") || isPublicRequest(req) || !isLocalWorkspaceRequest(req)) {
-    throw Object.assign(new Error("隧道管理仅允许 Windows 本机页面操作"), { status: 403 });
+  if ((windowsOnly && (process.platform !== "win32" || process.arch !== "x64")) || isPublicRequest(req) || !isLocalWorkspaceRequest(req)) {
+    throw Object.assign(new Error("隧道管理仅允许 Windows x64 本机页面操作"), { status: 403 });
   }
 }
-
 function clearOwnedUrl() {
   if (ownedUrl && conf.get("mcpTunnel.publicUrl") === ownedUrl) conf.set("mcpTunnel.publicUrl", "");
   ownedUrl = undefined;
 }
-
 export async function getTunnelStatus() {
-  const installed = Boolean(await tailscalePath());
-  if (installed && !clientQuery) {
-    clientQuery = runTailscale(["status", "--json"]).then(text => ({ connected: statusSchema.parse(JSON.parse(text)).BackendState === "Running" }))
-      .catch(error => ({ connected: false, clientError: error instanceof Error ? error.message : String(error) }));
-    void clientQuery.finally(() => { clientQuery = undefined; });
-  }
-  const client = clientQuery ? await clientQuery : { connected: false };
-  return { ...state, ...client, supported: process.platform === "win32",
-    installed, busy: Boolean(controller), publicAccess: readPublicAccess(), port: readTunnelPort(), ports: [443, 8443, 10000] };
+  return { ...state, provider: "trycloudflare", supported: process.platform === "win32" && process.arch === "x64",
+    installed: Boolean(await cloudflarePath()), busy: Boolean(controller), publicAccess: readPublicAccess() };
 }
-
 function begin(phase: TunnelState["phase"], action: (signal: AbortSignal) => Promise<void>) {
   if (controller) throw Object.assign(new Error("隧道正在运行或处理中，请先关闭当前任务"), { status: 409 });
   const active = new AbortController();
   controller = active;
   state = { phase };
   operation = action(active.signal).catch(error => {
-    if (!active.signal.aborted && !state.error) state = { phase: "error", error: error instanceof Error ? error.message : String(error) };
+    if (!active.signal.aborted) state = { phase: "error", error: error instanceof Error ? error.message : String(error) };
   }).finally(() => {
     let cleanupFailed = false;
     try { clearOwnedUrl(); }
@@ -60,134 +46,93 @@ function begin(phase: TunnelState["phase"], action: (signal: AbortSignal) => Pro
   });
   return { ...state };
 }
-
 export function startTunnelInstall() {
   return begin("downloading", async signal => {
-    await installTailscale(signal, (phase, received, total) => { state = { phase, received, total }; });
+    await installCloudflare(signal, (received, total) => { state = { phase: "downloading", received, total }; });
     state = { phase: "idle" };
   });
 }
-
-function watchProcess(process: Awaited<ReturnType<typeof spawnTailscale>>, onText: (text: string) => void) {
-  let output = "";
-  return new Promise<void>((resolve, reject) => {
-    const read = (chunk: Buffer) => {
-      try {
-        output = (output + chunk.toString("utf8")).slice(-8192);
-        onText(output);
-        const links = output.match(/https:\/\/login\.tailscale\.com\/[^\s"<>]+/g);
-        const url = links?.at(-1)?.replace(/[),.]+$/, "");
-        if (url) state.authUrl = url;
-      } catch (error) { process.kill(); reject(error); }
-    };
-    process.stdout!.on("data", read);
-    process.stderr!.on("data", read);
-    process.once("error", reject);
-    process.once("close", code => code === 0 ? resolve() : reject(new Error(output.trim().slice(-2000) || `Tailscale 进程退出：${code}`)));
-  });
-}
-
-export function startTunnelLogin() {
-  return begin("loggingIn", async signal => {
-    const current = statusSchema.parse(JSON.parse(await runTailscale(["status", "--json"], signal)));
-    if (current.BackendState === "Running") { state = { phase: "idle" }; return; }
-    if (current.BackendState !== "NeedsLogin" && current.BackendState !== "NoState") {
-      throw new Error(`Tailscale 当前状态为 ${current.BackendState}，请先在客户端确认连接状态`);
-    }
-    child = await spawnTailscale(["up", "--json", "--timeout=5m"], signal);
-    await watchProcess(child, () => {});
-    state = { phase: "idle" };
-  });
-}
-
-function hasPort(value: unknown, port: string): boolean {
-  if (!value || typeof value !== "object") return false;
-  // Serve 的前台会话和后台配置都可能占用端口，不覆盖已有配置。
-  return Object.entries(value).some(([key, item]) => key === port || key.endsWith(`:${port}`) || hasPort(item, port));
-}
-
-function hasTarget(value: unknown, target: string): boolean {
-  if (typeof value === "string") return value === target || value === `${target}/`;
-  return !!value && typeof value === "object" && Object.values(value).some(item => hasTarget(item, target));
-}
-
 export function startPublicTunnel() {
   return begin("starting", async signal => {
     const settings = mcpSettingsSchema.parse(conf.get("settings", {}).mcp ?? {});
     if (readPublicAccess().mcp && !settings.enabled) throw new Error("请先开启 MCP，或关闭 MCP 公网入口");
-    const current = statusSchema.parse(JSON.parse(await runTailscale(["status", "--json"], signal)));
-    if (current.BackendState !== "Running") throw new Error("请先完成 Tailscale 登录并连接");
-    const dnsName = current.Self?.DNSName.replace(/\.$/, "");
-    if (!dnsName || !/^[a-z0-9.-]+\.ts\.net$/i.test(dnsName)) throw new Error("未取得 Tailscale HTTPS 域名");
-    const existing = JSON.parse(await runTailscale(["funnel", "status", "--json"], signal));
-    const port = readTunnelPort();
-    if (hasPort(existing, String(port))) throw new Error(`Tailscale 的 ${port} 端口已有配置，未进行覆盖`);
     if (!conf.get("mcpTunnel.token")) conf.set("mcpTunnel.token", oauthOwnerToken() || crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", ""));
     const gateway = await openPublicGateway(getMcpHostApp());
-    let timer: ReturnType<typeof setInterval> | undefined;
     try {
-      child = await spawnTailscale(["funnel", `--https=${port}`, gateway.target], signal);
+      child = await spawnCloudflare(gateway.target, signal);
       const running = child;
-      let checking = false;
-      // ACT: 每五秒核对一次真实状态；客户端断开或域名改变时关闭本次隧道，不自动重连。
-      timer = setInterval(() => {
-        if (checking || signal.aborted) return;
-        checking = true;
-        void Promise.all([runTailscale(["status", "--json"], signal), runTailscale(["funnel", "status", "--json"], signal)]).then(([text, funnel]) => {
-          const latest = statusSchema.parse(JSON.parse(text));
-          if (latest.BackendState !== "Running" || latest.Self?.DNSName.replace(/\.$/, "") !== dnsName) throw new Error("Tailscale 连接或域名已变化，请重新开启隧道");
-          if (state.phase === "running" && !hasTarget(JSON.parse(funnel), gateway.target)) throw new Error("本应用的公网转发配置已变化，隧道已关闭");
-        }).catch(error => {
-          if (!signal.aborted) { state = { phase: "error", error: error instanceof Error ? error.message : String(error) }; running.kill(); }
-        }).finally(() => { checking = false; });
-      }, 5000);
-      await watchProcess(running, output => {
-        if (state.phase !== "starting" || !output.includes("Available on the internet")) return;
-        // 标准 HTTPS 端口不出现在公网地址中，其他端口与实际启动参数保持一致。
-        ownedUrl = `https://${dnsName}${port === 443 ? "" : `:${port}`}`;
-        conf.set("mcpTunnel", { managed: true, publicUrl: ownedUrl, port, token: conf.get("mcpTunnel.token", ""), publicAccess: readPublicAccess() });
-        state = { phase: "running", publicUrl: ownedUrl };
+      await new Promise<void>((resolve, reject) => {
+        let output = "";
+        let allocatedUrl: string | undefined;
+        let readyUrl: string | undefined;
+        let checking = false;
+        const failConnection = (error: Error) => { clearTimeout(timer); clearInterval(monitor); running.kill(); reject(error); };
+        const timer = setTimeout(() => { failConnection(new Error("TryCloudflare 连接超时，请检查网络后重新开启")); }, 90_000);
+        // 以官方 /ready 状态判断真实连接，不把仅分配域名当成公网可用。
+        const monitor = setInterval(() => {
+          if (!readyUrl || !allocatedUrl || checking || signal.aborted) return;
+          checking = true;
+          void fetch(readyUrl, { signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]) }).then(async response => {
+            await response.body?.cancel();
+            if (signal.aborted) return;
+            if (!response.ok) {
+              if (state.phase === "running") failConnection(new Error("TryCloudflare 与公网的连接已断开，请重新开启"));
+              return;
+            }
+            if (state.phase !== "starting") return;
+            ownedUrl = allocatedUrl;
+            conf.set("mcpTunnel", { managed: true, publicUrl: ownedUrl!, token: conf.get("mcpTunnel.token", ""), publicAccess: readPublicAccess() });
+            state = { phase: "running", publicUrl: ownedUrl };
+            clearTimeout(timer);
+          }).catch(error => {
+            if (!signal.aborted) failConnection(error instanceof Error ? error : new Error("TryCloudflare 状态读取失败"));
+          }).finally(() => { checking = false; });
+        }, 2000);
+        const read = (chunk: Buffer) => {
+          try {
+            output = (output + chunk.toString("utf8")).slice(-16384);
+            const matches = [...output.matchAll(/https:\/\/[a-z0-9]+(?:-[a-z0-9]+)*\.trycloudflare\.com\b/gi)];
+            const match = matches.reverse().find(item => !["api.trycloudflare.com", "www.trycloudflare.com"].includes(new URL(item[0]).hostname));
+            if (match) allocatedUrl = new URL(match[0]).origin;
+            const metrics = /127\.0\.0\.1:([1-9]\d{0,4})\/metrics/.exec(output);
+            if (metrics && Number(metrics[1]) <= 65535) readyUrl = `http://127.0.0.1:${metrics[1]}/ready`;
+          } catch (error) { failConnection(error instanceof Error ? error : new Error("读取隧道状态失败")); }
+        };
+        running.stdout!.on("data", read);
+        running.stderr!.on("data", read);
+        running.once("error", error => { clearTimeout(timer); clearInterval(monitor); reject(error); });
+        running.once("close", code => {
+          clearTimeout(timer);
+          clearInterval(monitor);
+          if (signal.aborted) resolve();
+          else reject(new Error("TryCloudflare 进程已退出（" + code + "）：" + output.trim().slice(-1500)));
+        });
       });
-      if (!signal.aborted) throw new Error("公网隧道已退出");
     } finally {
-      clearInterval(timer);
       gateway.server.closeAllConnections();
       await new Promise<void>(resolve => gateway.server.close(() => resolve()));
     }
   });
 }
-
 export async function stopPublicTunnel() {
-  if (state.phase === "installing") throw Object.assign(new Error("安装过程中请等待系统安装完成"), { status: 409 });
   controller?.abort();
   await operation;
   clearOwnedUrl();
   state = { phase: "idle" };
   return getTunnelStatus();
 }
-
 export async function stopTunnelOnHostClose() {
   controller?.abort();
   child?.kill();
   clearOwnedUrl();
-  if (state.phase !== "installing") await operation;
+  await operation;
 }
-
 export function saveTunnelAccess(input: z.infer<typeof publicAccessSchema>) {
   conf.set("mcpTunnel.publicAccess", publicAccessSchema.parse(input));
   return readPublicAccess();
 }
-
-export function saveTunnelPort(port: number) {
-  if (controller) throw Object.assign(new Error("请先关闭当前隧道或任务，再修改公网端口"), { status: 409 });
-  const selected = tunnelPortSchema.parse(port);
-  conf.set("mcpTunnel.port", selected);
-  return selected;
-}
-
 export function useManualPublicUrl() {
   if (controller) throw Object.assign(new Error("请先关闭当前隧道再修改公网地址"), { status: 409 });
   conf.set("mcpTunnel.managed", false);
 }
-
 process.once("exit", () => { child?.kill(); clearOwnedUrl(); });

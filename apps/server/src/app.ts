@@ -12,7 +12,7 @@ import initializePlugins from "@/utils/plugins/initialize";
 import syncBuiltinSkills from "@/utils/skills/builtin";
 import { languageRequest, resolveRequestLocale, runWithLocale, setLocaleFallback, translateError, translateMessage } from "@/lib/i18n";
 import { detectLocale, normalizeLocale } from "@toonflow/i18n";
-import { requireAccessToken } from "@/lib/accessToken";
+import { isPublicRequest, requireAccessToken } from "@/lib/accessToken";
 
 const autoInstallProviders = ["qwenImage.ts"];
 
@@ -146,6 +146,7 @@ export async function createApp({
   const { oauthChallenge, mcpSessionVersion } = await import("@/utils/mcp/oauth");
   app.use("/mcp", createMcpRouter({ getTools: getMcpTools, authorize: authorizeMcp, resources: skillResources,
     challenge: oauthChallenge, authorizationVersion: mcpSessionVersion,
+    jsonResponse: isPublicRequest,
     runInRequest: (request, operation) => runWithLocale(resolveRequestLocale(request.get("accept-language")), operation),
     translate: translateMessage,
     translateError,

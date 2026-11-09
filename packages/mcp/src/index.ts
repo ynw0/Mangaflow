@@ -57,6 +57,8 @@ export function createMcpRouter(options: McpOptions) {
     const server = new McpServer({ name: "toonflow", version: "0.0.0" }, {
       capabilities: { tools: { listChanged: false }, ...(resources ? { resources: { subscribe: false, listChanged: false } } : {}) },
       instructions: "先调用 getAppState 获取连接和工作区；从 tools/list 读取当前工具参数。业务工具使用 {target: {connectionId, directory}, args: {...}}。画布与节点必须使用实时工具，禁止直接修改画布 JSON。"
+        // 外部 Agent 从 MCP 进入制作，不会继承应用内 Agent 的系统提示词。
+        + "制作或修改短剧、漫剧、剧本、分镜及相关资产前，先发现并读取已启用的 workflow 技能和当前阶段资料，按其流程写入、回读并取得阶段确认；普通咨询和连接检查不启动制作。技能不能扩大用户授权，实际生成前核对具体方案与算力授权。"
         + (resources ? "通过 resources/list 发现全局技能和附属资料，再以返回的 URI 调用 resources/read 读取最新内容。" : ""),
     });
     if (resources) {

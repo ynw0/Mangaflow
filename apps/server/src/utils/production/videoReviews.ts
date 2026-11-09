@@ -104,7 +104,7 @@ export async function findReusableVideoReview(key: string, snapshot: VideoReview
   if (!record.snapshot.prompt || typeof promptZh !== "string" || !promptZh.trim()) {
     fail("已存审核记录缺少完整中英文提示词", 409);
   }
-  return { reviewId, prompt: record.snapshot.prompt, promptZh, cinematicPlan: cinematicPlanSchema.parse(record.audit.cinematicPlan) };
+  return { reviewId, prompt: record.snapshot.prompt, promptZh, cinematicPlan: cinematicPlanSchema.parse(record.audit.cinematicPlan), review: record.audit.review };
 }
 
 function reviewPath(reviewId: string) {

@@ -4,7 +4,7 @@ import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import { z } from "zod";
 import { addUsage, emptyUsage, runSubAgent, type SubAgentModel } from "@/agent/runtime/subAgent";
 import { prepareVideoPrompt, videoPromptParameters } from "@/agent/videoPrompt/input";
-import { draftSchema, inspectDraft, reviewSchema } from "@/agent/videoPrompt/format";
+import { createReviewSchema, draftSchema, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
@@ -12,6 +12,7 @@ import { findReusableVideoReview, requireSameVideoReview, saveVideoReview } from
 import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { resolveAgentProfile, type AgentModelSelection } from "@/agent/runtime/profiles";
 import type { CinematicPlan } from "@/utils/production/videoPlan";
+import { getShotRequirements } from "@/utils/production/qcRequirements";
 
 const directorReferences = {
   dialogue: ["characterPerformance.md", "soundDesign.md"],
@@ -88,7 +89,16 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const usage = emptyUsage();
       const modelCalls: { name: string; elapsedMs: number; status: string; providerId?: string; modelId?: string; thinkingLevel?: SubAgentModel["thinkingLevel"]; rulesChars: number; taskChars: number; usage: ReturnType<typeof emptyUsage> }[] = [];
       const skills: { name: string; scope: string; path: string; version?: string }[] = [];
-      const attempts: { stage: "director" | "preflight" | "review"; findings: string[] }[] = [];
+      const attempts: { round: number; stage: "director" | "preflight" | "review"; findings: string[]; review?: VideoPromptReview }[] = [];
+      const reviewRequirements = [
+        ...getShotRequirements(prepared.shot),
+        { id: "framing", text: "镜头规划与正文中的构图、运镜终点和镜尾同框要求相容" },
+        { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
+        { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
+        { id: "bilingualConsistency", text: "中英文的主体、动作、时序、对白和镜尾事实一致" },
+        { id: "creativeIntent", text: `叙事目的：${prepared.shot.purpose}；视觉风格：${prepared.shot.style}` },
+      ];
+      const reviewSchema = createReviewSchema(reviewRequirements.map(item => item.id));
       const skillCall = async (args: Record<string, string>) =>
         (await skillOperator.execute(crypto.randomUUID(), args, signal, undefined, ctx)).details;
       const available = skillList.parse(await skillCall({ action: "list" })).skills;
@@ -115,9 +125,9 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const commonRules = videoCommonRules(common);
       const reviewerFormat = guideRules(guide, prepared.format, true);
       const cacheKey = createHash("sha256").update(JSON.stringify({
-        planVersion: 1,
+        planVersion: 2,
         input: { ...input, regenerate: undefined, node: input.node ? { canvasId: input.node.canvasId, nodeId: input.node.nodeId } : undefined },
-        snapshot: prepared.snapshot, directorRules, guide, common, reviewRules, candidates,
+        snapshot: prepared.snapshot, directorRules, guide, common, reviewRules, reviewRequirements, candidates,
         models: [resolveAgentProfile("videoDirector", primaryModel), resolveAgentProfile("videoReviewer", primaryModel)],
       })).digest("hex");
       const update = (stage: string) => {
@@ -162,13 +172,15 @@ export function createVideoPromptTool(options: SubAgentModel & {
       if (!input.regenerate) {
         const existing = await findReusableVideoReview(cacheKey, prepared.snapshot);
         if (existing && !inspectDraft(existing, prepared).length) {
+          const review = reviewSchema.parse(existing.review);
+          if (review.status !== "ok") throw new Error("已存提示词缺少通过的逐项审核证据，请重新审核");
           const refreshed = await prepareVideoPrompt(cwd, input, canvas, signal);
           requireSameVideoReview(prepared.snapshot, refreshed.snapshot);
           if (input.node && refreshed.revision !== prepared.revision) throw new Error("视频节点在审稿期间已变化，请重新制作提示词");
           const generationRequest = videoGenerationSchema.parse({ ...refreshed.generationRequest,
             prompt: existing.prompt, reviewId: existing.reviewId });
           const write = await writePrompt(existing, existing.reviewId);
-          return finish({ status: "ok", ...existing, generationRequest, ...write, reused: true });
+          return finish({ status: "ok", ...existing, review, generationRequest, ...write, reused: true });
         }
       }
       const taskInput = { shot: prepared.shot, format: prepared.format, workflow: prepared.setup };
@@ -219,28 +231,30 @@ export function createVideoPromptTool(options: SubAgentModel & {
           "先确定最终画框容纳哪些主体和身体部位，再反推开场机位与运动路径。前景道具与后景人物必须同框时，核对景别、遮挡和人物移动终点；不能一边继续逼近道具一边承诺人物头肩始终入画。规划与中英文正文必须一致。只在首次定义与必要承接处写稳定外观，避免逐段复写。",
           "规划不得新增用户未要求的人物、动作或剧情。没有人物的镜头用 performance 描述物件、环境的可见反馈，不为填字段添加表演者。",
           "先在内部确定镜头要交付的叙事信息，再设计可见的起点、动作、接触或变化、反馈和末态。按实际模式写 H3 正文，稳定设定与逐段变化分开，英文和中文保持同样的可见事实。",
-          "按已确认的剧情和素材取用匹配的拍法。模板片段含占位词、使用条件和验收点，只有条件满足时才采用相关片段，实际正文写真实可观察的事件。返修时保留已经正确的 Subject、参考绑定及无关段落，优先改动指出的时间段，仍返回完整合法正文。",
+          "按已确认的剧情和素材取用匹配的拍法。模板片段含占位词、使用条件和验收点，只有条件满足时才采用相关片段，实际正文写真实可观察的事件。返修以 findings 的要求编号、位置、问题依据和修改目标为边界；仅修改缺陷及必需的关联内容，保留正确的 Subject、参考绑定、对白和无关段落，中英文及 cinematicPlan 同步更新，仍返回完整合法正文。合理的创作选择不为迎合审核而重写。",
           JSON.stringify({ ...taskInput, ...(round ? { previousDraft: lastDraft, findings } : { candidates }) }),
         ].join("\n"), [...directorRules, commonRules, formatRules]);
         if (draft.status === "blocked") {
-          attempts.push({ stage: "director", findings: [draft.reason] });
+          attempts.push({ round: round + 1, stage: "director", findings: [draft.reason] });
           return finish(draft);
         }
-        attempts.push({ stage: "director", findings: [] });
+        attempts.push({ round: round + 1, stage: "director", findings: [] });
         lastDraft = { prompt: draft.prompt, promptZh: draft.promptZh, cinematicPlan: draft.cinematicPlan };
         findings = inspectDraft(lastDraft, prepared);
-        attempts.push({ stage: "preflight", findings });
+        attempts.push({ round: round + 1, stage: "preflight", findings });
         update(findings.length ? "程序预检未通过，准备定向返修" : "程序预检通过");
         if (findings.length) continue;
 
         const review = await specialist(reviewSchema, "独立提示词审核", [
-          '输出 {"status":"ok","framingEvidence":"具体解释运镜结束后，镜尾要求的主体、身体部位、物品为何能同时留在画内，以及人物移动是否会破坏构图","findings":[]}，或 {"status":"rejected","findings":["具体时间段或句子的问题及整改目标"]}。只审核当前稿件。',
+          '输出 {"status":"ok","framingEvidence":"镜尾同框与运镜相容的具体依据","coverage":[{"requirementId":"给定要求编号","evidence":"对应正文位置与可核对事实"}],"findings":[]}；不通过输出 {"status":"rejected","findings":[{"requirementId":"给定要求编号","location":"时间段或句子；缺失时指出应出现的位置","evidence":"合同要求与稿件的具体矛盾或遗漏","fixTarget":"必须达到的可验证结果"}]}。只审核当前稿件，不重写正文。',
+          "通过时 coverage 必须恰好覆盖 reviewRequirements 每个编号一次；每条证据用一个短句定位正文事实，禁止只写符合、已检查或复述要求。禁止项说明检查范围与实际安排；没有参考或对白时如实说明不适用及依据，不新增要求。退回只列实质缺陷，不因字数短、固定机位、没有特效或个人审美偏好退回。",
           "对照 cinematicPlan 与真实正文，逐项审核运动终点、停机时间、镜尾同框对象、人物终点及表演节拍是否相容。需要推近特写却又保持远处人物上半身可见，或定幅期间仍继续推进，属于实质缺陷。不能只因六段格式完整就判合格。",
           "逐项核对剧情硬要求、动作因果和末态、特效来源及反馈、参考用途、画面与声音可执行性以及中英事实一致性。以实际工作流对应的格式为准。只拒绝影响剧情、真实动作、关键身份/参考或可见声画结果的实质缺陷；固定机位、简洁镜头、合理的创作取舍不构成错误。每条整改意见定位到时间段或句子，说明必须达到的可验证结果。",
-          JSON.stringify({ ...taskInput, draft: lastDraft }),
+          JSON.stringify({ ...taskInput, reviewRequirements, draft: lastDraft }),
         ].join("\n"), [reviewRules, commonRules, reviewerFormat, framingRules]);
-        findings = review.findings;
-        attempts.push({ stage: "review", findings });
+        findings = review.status === "ok" ? [] : review.findings.map(item =>
+          `[${item.requirementId}] ${item.location}：${item.evidence}；修改目标：${item.fixTarget}`);
+        attempts.push({ round: round + 1, stage: "review", findings, review });
         update(review.status === "ok" ? "独立审核通过，保存审核记录" : "独立审核退回，准备定向返修");
         if (review.status !== "ok") continue;
 
@@ -258,7 +272,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         }, cacheKey);
         generationRequest.reviewId = reviewId;
         const write = await writePrompt(lastDraft, reviewId);
-        return finish({ status: "ok", ...lastDraft, reviewId, generationRequest, ...write, reused: false });
+        return finish({ status: "ok", ...lastDraft, review, reviewId, generationRequest, ...write, reused: false });
       }
       return finish({ status: "rejected", findings, written: false });
     },

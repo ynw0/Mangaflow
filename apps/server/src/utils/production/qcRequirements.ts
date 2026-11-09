@@ -9,6 +9,19 @@ const shotSchema = z.object({
   continuityIn: z.string(), continuityOut: z.string(),
 });
 
+// 提示词审核与成片质检共用合同编号，保持要求原文和来源一致。
+export function getShotRequirements(shot: z.infer<typeof shotSchema>): QcRequirement[] {
+  return [
+    { id: "story", source: "story", text: shot.story },
+    ...shot.mustHave.map((text, index) => ({ id: `mustHave.${index}`, source: `mustHave[${index}]`, text })),
+    ...shot.mustNotHave.map((text, index) => ({ id: `mustNotHave.${index}`, source: `mustNotHave[${index}]`, text: `禁止出现：${text}` })),
+    ...["continuityIn", "continuityOut"].flatMap(source => {
+      const text = shot[source as "continuityIn" | "continuityOut"].trim();
+      return text ? [{ id: source, source, text }] : [];
+    }),
+  ];
+}
+
 export async function readQcRequirements(directory: string, request?: MediaGenerationRequest): Promise<QcRequirement[]> {
   if (!request?.reviewId) return [];
   const review = await readApprovedVideoReview(request.reviewId);
@@ -21,13 +34,7 @@ export async function readQcRequirements(directory: string, request?: MediaGener
   const plan = review.audit.cinematicPlan === undefined ? undefined : cinematicPlanSchema.parse(review.audit.cinematicPlan);
   // 直接保留已审合同的原文与来源，不让 QC 模型自行删减或改写验收范围。
   return [
-    { id: "story", source: "story", text: shot.story },
-    ...shot.mustHave.map((text, index) => ({ id: `mustHave.${index}`, source: `mustHave[${index}]`, text })),
-    ...shot.mustNotHave.map((text, index) => ({ id: `mustNotHave.${index}`, source: `mustNotHave[${index}]`, text: `禁止出现：${text}` })),
-    ...["continuityIn", "continuityOut"].flatMap(source => {
-      const text = shot[source as "continuityIn" | "continuityOut"].trim();
-      return text ? [{ id: source, source, text }] : [];
-    }),
+    ...getShotRequirements(shot),
     ...(plan ? [
       { id: "cameraPlan", source: "cinematicPlan.camera", text: `运镜：${plan.camera.movement}；${plan.camera.stopSeconds === null ? "持续运动至镜尾" : `${plan.camera.stopSeconds} 秒后停止运镜`}。` },
       { id: "endingComposition", source: "cinematicPlan.ending.composition", text: `镜尾构图：${plan.ending.composition}；保持 ${plan.ending.holdSeconds} 秒。` },

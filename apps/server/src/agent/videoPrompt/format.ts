@@ -9,10 +9,22 @@ export const draftSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("ok"), cinematicPlan: cinematicPlanSchema, prompt: z.string().trim().min(1), promptZh: z.string().trim().min(1) }),
   z.object({ status: z.literal("blocked"), reason: z.string().trim().min(1) }),
 ]);
-export const reviewSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("ok"), framingEvidence: z.string().trim().min(1).max(3000), findings: z.tuple([]) }),
-  z.object({ status: z.literal("rejected"), findings: z.array(z.string().trim().min(1)).min(1).max(12) }),
-]);
+export function createReviewSchema(requirementIds: string[]) {
+  const requirementId = z.enum(requirementIds);
+  const evidence = z.string().trim().min(1).max(500);
+  // 通过必须覆盖全部要求且不重复，不能用重复的泛化结论代替缺失项。
+  const coverage = z.array(z.object({ requirementId, evidence })).length(requirementIds.length)
+    .refine(items => new Set(items.map(item => item.requirementId)).size === requirementIds.length, "审核证据须逐项覆盖且不得重复");
+  return z.discriminatedUnion("status", [
+    z.object({ status: z.literal("ok"), framingEvidence: z.string().trim().min(1).max(1500), coverage, findings: z.tuple([]) }),
+    z.object({ status: z.literal("rejected"), findings: z.array(z.object({
+      requirementId, location: z.string().trim().min(1).max(300), evidence,
+      fixTarget: z.string().trim().min(1).max(500),
+    })).min(1).max(12) }),
+  ]);
+}
+
+export type VideoPromptReview = z.infer<ReturnType<typeof createReviewSchema>>;
 
 const refSections = ["subject_definitions", "summary", "retention_analysis", "detailed_description", "overall_soundscape", "non_diegetic_music"];
 const baseSections = ["integrated_multimodal_description", "overall_soundscape", "non_diegetic_music"];

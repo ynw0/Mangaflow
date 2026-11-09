@@ -57,6 +57,7 @@
 
 ## 输出合同
 内置工具审核通过时必须返回 `framingEvidence`，具体解释镜尾同框对象、人物移动终点和运镜停止时间为何相容。检查 `cinematicPlan` 与实际正文，不因规划写得合理就忽略正文中仍在持续推进或裁掉主体的要求。
+内置工具传入 `reviewRequirements` 时，通过结果的 `coverage` 必须按原编号逐项覆盖且不重复，每项包含 `requirementId` 和简短 `evidence`，定位正文中的具体事实；不能只复述要求或写“符合”。禁止项说明检查范围与实际安排，无参考等不适用情况说明依据。退回结果的 `findings` 每项包含 `requirementId`、`location`、`evidence`、`fixTarget`，分别指向原要求、具体时间段或句子、矛盾或遗漏、必须达到的结果。不得把审美偏好当成合同硬要求，或为简单镜头强加运镜、特效和人物。
 返回 `video_prompt_review`：status=ok 且 findings=[]，或 status=rejected 且 findings 含整改意见。shot_id 必须与被审导演合同一致。
 
 ## 阻塞条件

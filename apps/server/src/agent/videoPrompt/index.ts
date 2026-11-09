@@ -4,7 +4,7 @@ import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import { z } from "zod";
 import { addUsage, emptyUsage, runSubAgent, type SubAgentModel } from "@/agent/runtime/subAgent";
 import { prepareVideoPrompt, videoPromptParameters } from "@/agent/videoPrompt/input";
-import { createReviewSchema, draftSchema, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
+import { createReviewSchema, draftSchema, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
@@ -12,7 +12,6 @@ import { findReusableVideoReview, requireSameVideoReview, saveVideoReview } from
 import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { resolveAgentProfile, type AgentModelSelection } from "@/agent/runtime/profiles";
 import type { CinematicPlan } from "@/utils/production/videoPlan";
-import { getShotRequirements } from "@/utils/production/qcRequirements";
 
 const directorReferences = {
   dialogue: ["characterPerformance.md", "soundDesign.md"],
@@ -90,14 +89,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const modelCalls: { name: string; elapsedMs: number; status: string; providerId?: string; modelId?: string; thinkingLevel?: SubAgentModel["thinkingLevel"]; rulesChars: number; taskChars: number; usage: ReturnType<typeof emptyUsage> }[] = [];
       const skills: { name: string; scope: string; path: string; version?: string }[] = [];
       const attempts: { round: number; stage: "director" | "preflight" | "review"; findings: string[]; review?: VideoPromptReview }[] = [];
-      const reviewRequirements = [
-        ...getShotRequirements(prepared.shot),
-        { id: "framing", text: "镜头规划与正文中的构图、运镜终点和镜尾同框要求相容" },
-        { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
-        { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
-        { id: "bilingualConsistency", text: "中英文的主体、动作、时序、对白和镜尾事实一致" },
-        { id: "creativeIntent", text: `叙事目的：${prepared.shot.purpose}；视觉风格：${prepared.shot.style}` },
-      ];
+      const reviewRequirements = getVideoPromptRequirements(prepared.shot);
       const reviewSchema = createReviewSchema(reviewRequirements.map(item => item.id));
       const skillCall = async (args: Record<string, string>) =>
         (await skillOperator.execute(crypto.randomUUID(), args, signal, undefined, ctx)).details;

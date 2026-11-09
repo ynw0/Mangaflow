@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { prepareVideoPrompt } from "@/agent/videoPrompt/input";
 import { inspectDialogue } from "@/agent/videoPrompt/dialogue";
 import { cinematicPlanSchema, inspectVideoPlan, type CinematicPlan } from "@/utils/production/videoPlan";
+import { getShotRequirements } from "@/utils/production/qcRequirements";
 
 type Prepared = Awaited<ReturnType<typeof prepareVideoPrompt>>;
 
@@ -25,6 +26,18 @@ export function createReviewSchema(requirementIds: string[]) {
 }
 
 export type VideoPromptReview = z.infer<ReturnType<typeof createReviewSchema>>;
+
+// 内置与外部 Agent 使用相同验收范围，避免两套审核门禁漂移。
+export function getVideoPromptRequirements(shot: Prepared["shot"]) {
+  return [
+    ...getShotRequirements(shot),
+    { id: "framing", text: "镜头规划与正文中的构图、运镜终点和镜尾同框要求相容" },
+    { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
+    { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
+    { id: "bilingualConsistency", text: "中英文的主体、动作、时序、对白和镜尾事实一致" },
+    { id: "creativeIntent", text: `叙事目的：${shot.purpose}；视觉风格：${shot.style}` },
+  ];
+}
 
 const refSections = ["subject_definitions", "summary", "retention_analysis", "detailed_description", "overall_soundscape", "non_diegetic_music"];
 const baseSections = ["integrated_multimodal_description", "overall_soundscape", "non_diegetic_music"];

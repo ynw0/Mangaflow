@@ -13,9 +13,12 @@ import { appOperations, runAppOperation } from "@/utils/mcp/operations";
 import { listTools } from "@/utils/plugins/tools";
 import { isWithin, lockWorkspaceFiles, protectWorkspaceRoot, renameWorkspaceFile, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { getRuntimePlatform } from "@/lib/platform";
+import { externalVideoPrompt, videoPromptSchema } from "@/utils/mcp/videoPrompt";
+import { getMcpTask, startMcpTask } from "@/utils/mcp/tasks";
+import { readProduction } from "@/utils/production/config";
 
 const targetSchema = z.strictObject({ connectionId: z.uuid().optional(), directory: z.string().min(1).max(4096).optional(), canvasId: z.string().min(1).max(256).optional() });
-const requestSchema = z.strictObject({ target: targetSchema.optional(), args: z.record(z.string(), z.unknown()) });
+const requestSchema = z.strictObject({ target: targetSchema.optional(), args: z.record(z.string(), z.unknown()), taskId: z.uuid().optional(), modelCallConfirmed: z.boolean().optional() });
 let authorizationController = new AbortController();
 for (const key of ["settings.mcp.enabled", "settings.mcp.token", "settings.mcp.authMode", "settings.mcp.publicUrl"] as const) conf.onDidChange(key, () => {
   authorizationController.abort();
@@ -43,13 +46,34 @@ async function resolveTarget(target: z.infer<typeof targetSchema> = {}, requireD
 }
 
 function wrapTool(name: string, description: string, schema: object, execute: (args: Record<string, unknown>, target: z.infer<typeof targetSchema>, signal: AbortSignal) => Promise<unknown>): McpTool {
+  const background = ["generateImage", "generateVideo", "generateAudio", "qcVideo", "runAgent"].includes(name);
+  const mayRunQc = ["qcVideo", "generateVideo", "nodeTools"].includes(name);
   // 插件 JSON Schema 的根引用在包裹后仍指向原来的参数对象。
   const argsSchema = JSON.parse(JSON.stringify(schema).replace(/"\$ref":"#(?=\/|")/g, '"$ref":"#/properties/args'));
   return {
-    name, description,
-    inputSchema: { type: "object", properties: { target: z.toJSONSchema(targetSchema), args: argsSchema }, required: ["args"], additionalProperties: false },
+    name, description: description + (background ? " 此调用启动后台任务，必须提供顶层 taskId(UUID)。立即返回任务状态；用 getMcpTask 查询，同一任务重连沿用原 taskId，禁止因等待超时换 ID 重提。" : ""),
+    inputSchema: { type: "object", properties: { target: z.toJSONSchema(targetSchema), args: argsSchema,
+      ...(background ? { taskId: { type: "string", format: "uuid" } } : {}),
+      ...(mayRunQc ? { modelCallConfirmed: { type: "boolean", description: "已明确告知用户本次会调用设置中的专用 QC 模型并获授权时填 true。主 Agent 抽帧模式不需要。" } } : {}) }, required: background ? ["args", "taskId"] : ["args"], additionalProperties: false },
     async execute(input, signal) {
-      const { args, target = {} } = requestSchema.parse(input);
+      const { args, target = {}, taskId, modelCallConfirmed } = requestSchema.parse(input);
+      const generatesVideo = name === "generateVideo" || name === "nodeTools" && args.name === "node:generateVideo";
+      if (name === "qcVideo" || generatesVideo) {
+        const policy = readProduction();
+        if (policy.qcLevel !== "none" && policy.qcMethod !== "agentFrames"
+          && (name === "qcVideo" || generatesVideo && policy.qcTrigger === "auto") && modelCallConfirmed !== true) {
+          throw new Error("当前设置会额外调用专用 QC 模型；请先明确取得用户授权并传 modelCallConfirmed=true，或由用户将质检方式改为主 Agent 抽帧验收");
+        }
+      }
+      if (background) {
+        if (!taskId) throw new Error("长任务必须提供 taskId，以便重连查询并防止重复执行");
+        const { directory, connection } = await resolveTarget(target);
+        const fixedTarget = { ...target, directory, ...(connection ? { connectionId: connection.id } : {}) };
+        // ComfyUI 的持久化任务继续复用原 generationId，不引入第二次提交。
+        const parameters = name === "generateVideo" && args.providerId === "comfyui" ? { ...args, generationId: args.generationId ?? taskId } : args;
+        return startMcpTask({ taskId, directory: directory!, tool: name, input: { args: parameters, canvasId: target.canvasId },
+          signal: authorizationController.signal, execute: taskSignal => execute(parameters, fixedTarget, taskSignal) });
+      }
       return execute(args, target, signal);
     },
   };
@@ -103,9 +127,30 @@ export async function getMcpTools(): Promise<McpTool[]> {
     async execute() {
       const workspaceRoot = resolve(dirname(conf.path), "workspaces");
       await mkdir(workspaceRoot, { recursive: true });
-      return { connections: listConnections(), workspaceRoot, ...(pluginError ? { pluginError } : {}) };
+      const production = readProduction();
+      return { connections: listConnections(), workspaceRoot,
+        modelExecution: { agent: "external", qcMethod: production.qcMethod, qcTrigger: production.qcTrigger,
+          qcLevel: production.qcLevel, videoQcModelId: production.videoQcModelId, audioQcModelId: production.audioQcModelId },
+        ...(pluginError ? { pluginError } : {}) };
     },
   }];
+  const taskSchema = z.strictObject({ taskId: z.uuid() });
+  for (const cancel of [false, true]) {
+    tools.push(wrapTool(cancel ? "cancelMcpTask" : "getMcpTask", cancel
+      ? "请求停止当前工作区的后台任务。取消不保证供应商撤销算力或费用；ComfyUI 视频使用原 generationId 核对远端状态。"
+      : "读取当前工作区后台任务的状态与最终结果，不调用模型、不重新执行任务。interrupted 表示远端状态未知，不得换 ID 盲目重提。",
+    z.toJSONSchema(taskSchema), async (args, target) => {
+      const { directory } = await resolveTarget(target);
+      return getMcpTask(directory!, taskSchema.parse(args).taskId, cancel);
+    }));
+  }
+  tools.push(wrapTool("videoPrompt", "外部 Agent 直接完成 H3 提示词：prepare 获取合同、真实配置、素材版本及验收要求；inspect 程序预检；submit 提交当前外部 Agent 的逐项审核证据并取得 reviewId/generationRequest。三个操作均不调用语言模型、不生成媒体、不写节点。仍需按 workflow 读取导演和 H3 技能；生成前另核对用户算力授权。",
+    z.toJSONSchema(videoPromptSchema), async (args, target, signal) => {
+      const { directory, connection } = await resolveTarget(target);
+      const canvas: CanvasContext | undefined = connection ? { id: connection.state.canvasId ?? "mcp", tools: connection.state.tools,
+        call: (request, callSignal) => callControl(connection.id, request.name, request.args, callSignal ?? signal, directory) } : undefined;
+      return externalVideoPrompt(directory!, args, canvas, signal);
+    }));
   for (const [name, schema] of Object.entries(uiSchemas)) {
     tools.push(wrapTool(name, uiDescriptions[name as keyof typeof uiSchemas], z.toJSONSchema(schema), async (input, target, signal) => {
       const args = schema.parse(input);
@@ -211,11 +256,12 @@ export async function getMcpTools(): Promise<McpTool[]> {
     return { result: redactSecrets(result), ...(refreshErrors.length ? { refreshErrors } : {}) };
   }));
   const runAgentSchema = z.strictObject({
+    delegationConfirmed: z.literal(true).describe("仅当用户明确要求委托内置 Agent 并知晓额外模型消耗时填写 true；普通写作审核由当前外部 Agent 完成"),
     prompt: z.string().trim().min(1), providerId: z.string().min(1), modelId: z.string().min(1),
     sessionFile: z.string().regex(/^[\w-]+\.jsonl$/).optional(), thinkingLevel: z.string().trim().min(1).max(64).optional(),
   });
-  tools.push(wrapTool("runAgent", "按用户请求调用 Toonflow 内置 Agent，等待本轮完成并返回对话文件与回复；会使用配置的模型。外部 Agent 可直接操作其他工具，仅需要委托内置 Agent 时调用。支持 MCP 取消，历史保存到工作区。", z.toJSONSchema(runAgentSchema), async (input, target, signal) => {
-    const args = runAgentSchema.parse(input);
+  tools.push(wrapTool("runAgent", "仅按用户明确委托启动 Toonflow 内置 Agent，会额外调用指定语言模型。普通写作、规划、提示词、审核和报告由当前外部 Agent 直接完成，不调用此工具。后台结果包含对话文件与回复，历史保存到工作区；查询和请求停止分别使用 getMcpTask/cancelMcpTask。", z.toJSONSchema(runAgentSchema), async (input, target, signal) => {
+    const { delegationConfirmed: _delegationConfirmed, ...args } = runAgentSchema.parse(input);
     const { directory, connection } = await resolveTarget(target);
     const canvas: CanvasContext | undefined = connection ? {
       id: connection.state.canvasId ?? "mcp", tools: connection.state.tools,

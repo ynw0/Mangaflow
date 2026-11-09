@@ -7,6 +7,8 @@ description: 通过 Toonflow MCP 操作工作区、实时画布、节点、文�
 
 通过已连接的 Toonflow MCP 执行操作，外部 Agent 默认直接调用工具；用户需要委托内置 Agent 时再调用 `runAgent`。
 
+当前网页 ChatGPT 或外部 Agent 就是制作 Agent，负责写作、规划、提示词、审核和返修。MCP 负责资料、程序校验、项目操作和明确指定的模型执行，不需要把这些思考步骤转交给内置 Agent。
+
 ## 定位目标
 
 1. 调用 `getAppState`，读取当前连接、工作区目录和面板状态。
@@ -52,9 +54,13 @@ description: 通过 Toonflow MCP 操作工作区、实时画布、节点、文�
 
 ## 生成媒体
 
+- H3 提示词由当前 Agent 直接制作：读取 workflow、适用导演与 H3 资料 → `videoPrompt` 的 `action=prepare`（input 为镜头合同和实际参考，已有节点只传定位）→ 根据返回的合同和配置写出 `draft` → `action=inspect` 程序预检 → 当前 Agent 自行按 `reviewRequirements` 审核 → `action=submit` 提交同一 `preparationId`、稿件与逐项证据。`draft` 为 `status=ok`、`cinematicPlan`、`prompt`、`promptZh`；审核通过须有 `status=ok`、`framingEvidence`、逐项不重复的 `coverage[{requirementId,evidence}]`、`findings=[]`。资料以发现后读取的当前技能为准。这三个操作不调用语言模型，不生成媒体，不写节点。
+- 只有 submit 返回 `status=ok` 后才使用服务端签发的 `reviewId` 与 `generationRequest`。写回已有节点时通过该节点真实 schema 提交完整提示词、审核编号和返回的 `expectedRevision`，不要直接改 JSON。素材、合同、节点配置或稿件变化后重新 prepare/inspect/submit；不自行编造审核编号或仅提交文字“通过”。
 - 从模型列表和节点工具 schema 获取可用模型、比例、分辨率、时长和声音选项，不自行猜测供应商参数。
 - 生成前展示可审阅的对象、数量、完整提示词、真实参考、所选模型、规格和执行次数，并核对用户对该具体批次的算力授权；有可靠报价才报金额，否则说明消耗未知。批准后按范围配置并生成，不反复确认同一批次；改动或额外重试超出原授权时重新确认。返回“已开始”只代表任务已启动，不能宣布图片或视频已生成。
-- 使用节点提供的 `node:getGenerationStatus` 确认完成、输出路径或错误；需要停止时调用 `node:cancelGeneration`，参数以节点返回的 schema 为准。其他节点未暴露这些能力时，如实报告已开始和当前可见结果，不反复触发生成充当查询。
+- 直接调用 `generateImage/generateVideo/generateAudio/qcVideo/runAgent` 时，首次提交前生成并记住顶层 `taskId`（UUID，与 target/args 同层）。调用立即返回后台状态，用 `getMcpTask` 的 `args.taskId` 查询；`succeeded` 后检查 result 中的真实结果。重连重复提交必须沿用原 taskId 和参数；同一 ID 不重新执行。ComfyUI 视频省略 generationId 时复用 taskId。任务结果存盘，宿主重启后的未完成任务标为 interrupted；先核对原 generationId 和远端状态，不盲目新建付费请求。`cancelMcpTask` 只请求停止，不能保证供应商撤销任务或费用。
+- 使用节点生成时，调用节点提供的 `node:getGenerationStatus` 确认完成、输出路径或错误；需要停止时调用 `node:cancelGeneration`，参数以节点返回的 schema 为准。其他节点未暴露这些能力时，如实报告已开始和当前可见结果，不反复触发生成充当查询。
+- 成片审核优先由当前 Agent 按已审合同看图验收：getAppState 的 modelExecution 显示当前 QC 设置；主 Agent 抽帧方式下发起 qcVideo 后，用 getVideoQcStatus 查询，awaitingAgent 时调用 getVideoQcFrames 读取真实图片与证据版本，再用 submitVideoQc 逐项提交。静态帧无法证明的动作或声音如实标未验证。设置为专用或组合 QC 时会额外调用配置的模型，须明确取得用户授权并传顶层 modelCallConfirmed=true；自动 QC 的视频生成同样遵守，不自动改用户的质检设置。
 - 失败时先读取错误并修正原因。网络超时不能证明任务未提交；重试前先确认当前状态，避免重复生成导致额外消耗算力。
 
 ## 文件与文档
@@ -76,4 +82,4 @@ description: 通过 Toonflow MCP 操作工作区、实时画布、节点、文�
 - 插件、全局技能、媒体供应商、素材库和对话历史通过按需发现的应用操作管理。先用 `listAppOperations` 传入 `{ "args": {} }` 查询目录，或 `{ "args": { "name": "操作名" } }` 读取单项 schema，再用 `appOperation` 传入 `{ "args": { "name": "操作名", "parameters": {} } }` 执行。不要猜测参数，也不要把全部操作描述一次性塞进后续上下文。
 - 会话管理的工作目录由 `target.directory` 或指定连接的工作区注入，不在 `parameters` 里另设目录。安装、覆盖或卸载应符合用户请求。
 - 密钥等字段返回 `[REDACTED]` 时，这只是脱敏占位符。不要将含占位符的对象整体写回；按 schema 提交变更，必填密钥使用真实值。
-- 只有用户需要委托 Toonflow 内置 Agent 时使用 `runAgent`。`args` 必填 `providerId`、`modelId`、`prompt`，可选 `sessionFile` 继续已有对话；模型标识来自实际配置。该调用会消耗所选模型服务，等待本轮完成后返回 `sessionFile` 和回复，不用它测试连接。
+- 只有用户明确要求委托 Toonflow 内置 Agent 且知晓额外模型消耗时使用 `runAgent`。`args` 必填 `delegationConfirmed=true`、`providerId`、`modelId`、`prompt`，可选 `sessionFile` 继续已有对话；顶层 taskId 规则同长任务。模型标识来自实际配置，结果由 getMcpTask 返回的 result 提供。不要用它测试连接，也不要为普通写作、自审或生成报告额外委托。

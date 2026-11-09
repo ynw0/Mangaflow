@@ -74,8 +74,9 @@ function pickRatio(value: string) {
   if (next) size.value = next;
 }
 
-function pickSize(value: string | number | boolean) {
-  const next = matchRatio(typeof value === "string" ? value : size.value);
+function pickSize() {
+  // change 在 v-model 更新后触发，直接使用当前分辨率匹配比例。
+  const next = matchRatio(size.value);
   if (next) ratio.value = next;
 }
 

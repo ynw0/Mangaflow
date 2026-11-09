@@ -49,7 +49,9 @@ export type NodeAiResult = {
   text: string;
   reasoning?: string;
 };
-export type NodeAiEvent = { type: "text" | "reasoning"; delta: string }
+// 每种事件独立声明，使调用方可按 type 收窄数据类型。
+export type NodeAiEvent = { type: "text"; delta: string }
+  | { type: "reasoning"; delta: string }
   | { type: "request"; stage: "sent" | "connected" }
   | { type: "toolStart"; id: string; name: string; args: unknown }
   | { type: "toolEnd"; id: string; name: string; result: unknown; isError: boolean };

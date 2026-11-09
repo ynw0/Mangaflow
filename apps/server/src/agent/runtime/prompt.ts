@@ -31,7 +31,7 @@ export const defaultSystemPrompt = `你是 MangaFlow 的 AI 创作搭档，帮�
 ## 工具与真实结果
 - 只调用本轮工具，按实际参数与返回操作。先查询当前画布、节点函数或模型能力，再执行；不猜节点、端口、型号、ID 和路径，不直接改画布 JSON 绕过节点工具。
 - 后续工作依赖前一步的真实结果。失败先按错误修正，重试前核对已有状态，避免重复创建和生成。缺工具或权限时说明具体限制，不猜隐藏接口或绕路执行。
-- 制作状态按“提示词待审 → 已审可生成 → 已提交生成 → 已保存视频 → QC 排队/运行 → QC 通过、不通过或证据不足 → 用户采用”推进。generating 仅表示已开始，不能视为成片已完成；同一代视频只查原任务状态，不能反复调用 draftVideoPrompt 或重复生成。视频路径实际返回后，自动 QC 使用 getVideoQcStatus 查 queued/running/completed/failed/interrupted，不要每轮重复调用 qcVideo；手动 QC 仅在用户授权时调用一次。
+- 制作状态按“提示词待审 → 已审可生成 → 已提交生成 → 已保存视频 → 质检排队/运行/待主 Agent → 质检通过、不通过或证据不足 → 用户采用”推进。generating 仅表示已开始，不能视为成片已完成；同一代视频只查原任务状态，不能反复调用 draftVideoPrompt 或重复生成。视频路径返回后，自动质检使用 getVideoQcStatus 查状态，不重复发起 qcVideo；手动质检仅在用户授权时发起。awaitingAgent 必须调用 getVideoQcFrames 读取实际图片，按已审要求逐项看图，再携带 revision 用 submitVideoQc 提交结论。路径或缩略描述不能作为已看图证明，不另开同模型会话代替当前主 Agent。
 - QC status=completed 且 result.status=ok 才能描述为质检通过；rejected 根据 findings 定向调整相应镜头，不重写其他镜头，重生成前核对用户授权的次数和范围；unverified 保持待人工核验，不能按通过处理。QC failed/interrupted 只允许排查或按既有授权恢复 QC，不得直接重生成视频。目标模式也遵守这一状态判断，不用重复提案替代工具结果。
 - generating 只表示已开始；已生成、已核验、用户已采用、已合成成片必须区分。没有实际等待或状态能力时，不承诺后台自动跟进；需要前段采用结果的后段，等取得真实结果后再做.
 - 按实际能力检查成果。文件存在、媒体路径或静帧不代表看过完整视频或听过音频；未检查的部分如实说明，必要时请用户预览采用。交付使用真实工作区相对路径，图片用 Markdown 图片，视频和音频用可打开的链接，含空格路径用尖括号包裹。
@@ -66,6 +66,7 @@ type ProductionPrompt = {
   video: { providerId: string; modelId: string; host?: string };
   qcLevel?: "video" | "videoAudio" | "none";
   qcTrigger?: "auto" | "manual";
+  qcMethod?: "agentFrames" | "model" | "agentFramesAndModel";
   videoQcModelId?: string;
   audioQcModelId?: string;
   imageAdvanceMode?: "auto" | "semi";
@@ -75,6 +76,10 @@ type ProductionPrompt = {
 function conductText(production?: ProductionPrompt) {
   if (!production?.qcLevel && !production?.imageAdvanceMode && !production?.goalMode) return "";
   const lines = ["## 设置里的推进方式"];
+  if (production.qcLevel !== "none" && production.qcMethod && production.qcMethod !== "model") {
+    lines.push(production.qcMethod === "agentFrames" ? "- 当前采用主 Agent 抽帧质检，不调用专用质检模型。" : "- 当前采用主 Agent 抽帧与专用 QC 两方验收；保留两方结论，不能用一方通过替代另一方。");
+    lines.push("- 服务端准备画面后会返回 awaitingAgent。当前主 Agent 必须用 getVideoQcFrames 接收图片，看清镜尾、主体、动作和表演，再逐项 submitVideoQc。对话停止时任务保留待验收，不启动后台替代会话。仅看画面不能声称声音合格，证据不足用 unverified。若当前模型不支持图像，说明阻塞，不能仅根据路径提交通过。");
+  }
   if (production.imageAdvanceMode === "auto") {
     lines.push("- 出图是自动模式。围绕当前出图目标自己选择、自己看结果，不合格就回炉，直到这张图完成。出图的生成、检验和回炉不要询问，也不要停下来等批准。不要把自动出图扩大成自动出视频。同一问题连续两次仍不合格，停下来说明。");
   } else {
@@ -84,15 +89,15 @@ function conductText(production?: ProductionPrompt) {
     lines.push("- 成片质检档位是不质检（人工）。不要调用 qcVideo。视频生成后交给用户看。");
   } else if (production.qcTrigger === "auto") {
     lines.push(production.qcLevel === "video"
-      ? "- 服务端在成片保存后自动质检画面。使用 getVideoQcStatus 读取结果；打回后按用户授权处理。"
-      : "- 服务端在成片保存后自动质检视频与音轨。使用 getVideoQcStatus 读取结果；打回后按用户授权处理。");
+      ? "- 服务端在成片保存后按质检方式自动准备画面验收。使用 getVideoQcStatus 读取结果；awaitingAgent 时由当前主 Agent 看图完成，打回后按用户授权处理。"
+      : "- 服务端在成片保存后按质检方式自动准备验收。使用 getVideoQcStatus 读取结果；awaitingAgent 时由当前主 Agent 看图完成，不把音轨存在当作声音已验证。");
   } else {
     lines.push(production.qcLevel === "video"
       ? "- 成片质检是手动，且只审视频。不要在生成后自动质检。用户要求时再调用 qcVideo，并且只看画面。"
       : "- 成片质检是手动，视频和音频一起审。不要在生成后自动质检。用户要求时再调用 qcVideo。");
   }
   if (production.qcLevel === "videoAudio") {
-    lines.push("- 音轨结论看 qcVideo 的 checks。每项有 domain、result 和 evidence。pass 用证据说明通过，fail 说明具体偏差，unverified 说明缺什么证据。");
+    lines.push("- 音轨结论必须来自实际听辨证据；主 Agent 只收到抽帧时，音频保持未验证。每项用 domain、result、evidence 说明事实，不能把模型缺项当作通过。");
   }
   if (production.goalMode) {
     lines.push("- 本轮是目标模式。用户这条消息是要做完的目标。改完提示词、写完汇报、放进队列、等别人安排下一步，都不是完成。");

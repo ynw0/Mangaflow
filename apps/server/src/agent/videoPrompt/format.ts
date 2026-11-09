@@ -1,27 +1,28 @@
 import { z } from "zod";
 import type { prepareVideoPrompt } from "@/agent/videoPrompt/input";
 import { inspectDialogue } from "@/agent/videoPrompt/dialogue";
+import { cinematicPlanSchema, inspectVideoPlan, type CinematicPlan } from "@/utils/production/videoPlan";
 
 type Prepared = Awaited<ReturnType<typeof prepareVideoPrompt>>;
 
 export const draftSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("ok"), prompt: z.string().trim().min(1), promptZh: z.string().trim().min(1) }),
+  z.object({ status: z.literal("ok"), cinematicPlan: cinematicPlanSchema, prompt: z.string().trim().min(1), promptZh: z.string().trim().min(1) }),
   z.object({ status: z.literal("blocked"), reason: z.string().trim().min(1) }),
 ]);
 export const reviewSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("ok"), findings: z.tuple([]) }),
+  z.object({ status: z.literal("ok"), framingEvidence: z.string().trim().min(1).max(3000), findings: z.tuple([]) }),
   z.object({ status: z.literal("rejected"), findings: z.array(z.string().trim().min(1)).min(1).max(12) }),
 ]);
 
 const refSections = ["subject_definitions", "summary", "retention_analysis", "detailed_description", "overall_soundscape", "non_diegetic_music"];
 const baseSections = ["integrated_multimodal_description", "overall_soundscape", "non_diegetic_music"];
 
-export function inspectDraft(draft: { prompt: string; promptZh: string }, prepared: Prepared) {
+export function inspectDraft(draft: { prompt: string; promptZh: string; cinematicPlan: CinematicPlan }, prepared: Prepared) {
   const { prompt, promptZh } = draft;
   const { format, setup } = prepared;
   const expected = format === "h3Ref2va" ? refSections : baseSections;
   const headings = [...prompt.matchAll(/^[\t ]*(subject_definitions|summary|retention_analysis|detailed_description|integrated_multimodal_description|overall_soundscape|non_diegetic_music)[\t ]*:/gm)];
-  const findings: string[] = [];
+  const findings: string[] = inspectVideoPlan(draft.cinematicPlan, setup.duration);
   if (headings.length !== expected.length || headings.some((heading, index) => heading[1] !== expected[index])) {
     findings.push(`按实际模式完整输出这些字段：${expected.join("、")}。`);
     return findings;

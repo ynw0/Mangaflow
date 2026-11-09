@@ -132,6 +132,7 @@ N/A
 有 `video1`/`audio1` 时按官方在定义段与 `retention_analysis` 补 `<Video 1>`/`<Audio 1>` 及关系词；对白仍只在 `<d>` 里。
 
 ## 输出合同
+内置 `draftVideoPrompt` 调用时，以工具的输出 Schema 为准，返回 `cinematicPlan`、英文 `prompt` 与中文 `promptZh`。规划先确定镜尾构图及同框对象，再反推机位、运动结束时间和表演节拍；规划与正文必须一致。独立角色交接时使用下方业务合同。
 只返回 status、shot_id、duration_seconds、ref_bindings、prompt、prompt_zh、director_requirements。每个 binding 包含 slot、role、asset_key、asset_type、name、variant_key、image_path，与准备结果完全一致。director_requirements 为 {text,evidence_type} 数组。不返回 must_have、must_not_have 或另立 qc_expectations。
 
 ## 阻塞条件

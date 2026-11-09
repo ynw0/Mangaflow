@@ -110,6 +110,14 @@
       <div class="settingCard">
         <div class="fieldGrid">
           <div class="field">
+            <label for="workflowQcMethod">质检方式</label>
+            <el-select id="workflowQcMethod" v-model="qcMethod">
+              <el-option label="只抽帧 · 主 Agent 质检" value="agentFrames" />
+              <el-option label="只 QC · 专用模型质检" value="model" />
+              <el-option label="抽帧 + QC · 两方验收" value="agentFramesAndModel" />
+            </el-select>
+          </div>
+          <div class="field">
             <label for="workflowQcLevel">质检范围</label>
             <el-select id="workflowQcLevel" v-model="qcLevel">
               <el-option label="只视频" value="video" />
@@ -125,7 +133,8 @@
             </el-select>
           </div>
         </div>
-        <template v-if="qcLevel !== 'none'">
+        <p v-if="qcMethod !== 'model'" class="hint">主 Agent 需要支持图片输入；未提交逐项结论前保持待质检。抽帧不验证声音，声音缺证据时保持未验证。</p>
+        <template v-if="qcLevel !== 'none' && qcMethod !== 'agentFrames'">
           <div class="fieldGrid">
             <div class="field">
               <label for="workflowVideoQc">画面模型</label>
@@ -168,7 +177,7 @@
             </p>
           </div>
         </template>
-        <workflowCatalog title="质检工作流" :items="qcWorkflows" :disabledIds="disabledWorkflowIds" :switchKey="workflowSwitchKey" @change="setWorkflowOn" />
+        <workflowCatalog v-if="qcMethod !== 'agentFrames'" title="质检工作流" :items="qcWorkflows" :disabledIds="disabledWorkflowIds" :switchKey="workflowSwitchKey" @change="setWorkflowOn" />
       </div>
     </section>
 
@@ -333,6 +342,7 @@ const videoQcModelId = ref("qwen3.8-omni-flash");
 const audioQcModelId = ref("qwen3.8-omni-flash");
 const qcLevel = ref<"video" | "videoAudio" | "none">("videoAudio");
 const qcTrigger = ref<"auto" | "manual">("manual");
+const qcMethod = ref<"agentFrames" | "model" | "agentFramesAndModel">("model");
 const imageAdvanceMode = ref<"auto" | "semi">("semi");
 const qwenModels = ref<QwenModel[]>([]);
 const autodlBaseUrl = ref("https://www.autodl.art");
@@ -383,7 +393,7 @@ const repairWorkflow = computed(() => videoWorkflows.value.find(item => item.id 
 const languageModels = computed(() => modelChoices.value);
 const gemmaVideoQc = computed(() => isGemmaQc(videoQcModelId.value));
 const gemmaAudioQc = computed(() => isGemmaQc(audioQcModelId.value));
-const usesGemmaQc = computed(() => qcLevel.value !== "none" && (gemmaVideoQc.value || (qcLevel.value === "videoAudio" && gemmaAudioQc.value)));
+const usesGemmaQc = computed(() => qcMethod.value !== "agentFrames" && qcLevel.value !== "none" && (gemmaVideoQc.value || (qcLevel.value === "videoAudio" && gemmaAudioQc.value)));
 const usesLocal = computed(() => (usesComfy.value && videoHost.value === "local") || (usesGemmaQc.value && gemmaQcHost.value === "local"));
 const usesAutodl = computed(() => (usesComfy.value && videoHost.value === "autodl") || (usesGemmaQc.value && gemmaQcHost.value === "autodl"));
 const audioCapableModels = computed(() => languageModels.value.filter(item => item.inputs.audio));
@@ -477,6 +487,7 @@ function readForm() {
   audioQcModelId.value = text(source.audioQcModelId, "") || "qwen3.8-omni-flash";
   qcLevel.value = source.qcLevel === "video" || source.qcLevel === "none" ? source.qcLevel : "videoAudio";
   qcTrigger.value = source.qcTrigger === "auto" ? "auto" : "manual";
+  qcMethod.value = source.qcMethod === "agentFrames" || source.qcMethod === "agentFramesAndModel" ? source.qcMethod : "model";
   imageAdvanceMode.value = source.imageAdvanceMode === "auto" ? "auto" : "semi";
   autodlBaseUrl.value = text(source.autodlBaseUrl, "https://www.autodl.art");
   autodlToken.value = text(source.autodlToken, "");
@@ -505,6 +516,7 @@ function productionPatch() {
     videoQcModelId: videoQcModelId.value.trim() || "qwen3.8-omni-flash",
     audioQcModelId: audioQcModelId.value.trim() || "qwen3.8-omni-flash",
     qcLevel: qcLevel.value,
+    qcMethod: qcMethod.value,
     qcTrigger: qcLevel.value === "none" ? "manual" : qcTrigger.value,
     imageAdvanceMode: imageAdvanceMode.value,
     autodlBaseUrl: autodlBaseUrl.value.trim(),

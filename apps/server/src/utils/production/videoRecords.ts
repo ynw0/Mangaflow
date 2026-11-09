@@ -4,10 +4,11 @@ import { dirname, join, relative } from "node:path";
 import type { GeneratedMedia, MediaGenerationRequest, QcVideoResult, VideoExecution, VideoQcReport, VideoQcState } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
 import { readProduction, type ProductionConfig } from "@/utils/production/config";
-import { runProductionQc } from "@/utils/production/qc";
+import { prepareAgentVideoQc, runProductionQc } from "@/utils/production/qc";
+import { parseQcPayload, summarizeQc } from "@/utils/production/qcResult";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { readQcRequirements } from "@/utils/production/qcRequirements";
-import type { QcRequirement } from "@toonflow/tools-scaffold/runtime";
+import type { AgentVideoQcSubmission, QcRequirement, VideoQcActionResult } from "@toonflow/tools-scaffold/runtime";
 
 type VideoIdentity = Awaited<ReturnType<typeof videoIdentity>>;
 type VideoRecord = {
@@ -22,11 +23,14 @@ type VideoRecord = {
   rawQc?: string[];
   requirements?: QcRequirement[];
   qcPolicy?: QcPolicy;
+  agentResult?: QcVideoResult;
+  agentDeliveredRevision?: string;
 };
 
-type QcPolicy = Pick<ProductionConfig, "qcLevel" | "videoQcModelId" | "audioQcModelId" | "gemmaQcHost"> & { contractVersion: number };
+type QcPolicy = Pick<ProductionConfig, "qcMethod" | "qcLevel" | "videoQcModelId" | "audioQcModelId" | "gemmaQcHost"> & { contractVersion: number };
 
-const active = new Map<string, { checklist?: string; running: boolean; promise: Promise<QcVideoResult> }>();
+const active = new Map<string, { checklist?: string; running: boolean; promise: Promise<VideoQcActionResult> }>();
+const submissions = new Set<string>();
 let queue: Promise<unknown> = Promise.resolve();
 
 async function videoIdentity(cwd: string, path: string) {
@@ -54,8 +58,8 @@ function newRecord(video: VideoIdentity, qc: VideoQcState): VideoRecord {
   return { workspaceDirectory: video.directory, videoPath: video.videoPath, size: video.size, mtimeMs: video.mtimeMs, createdAt: new Date().toISOString(), qc };
 }
 
-function qcPolicy({ qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost }: ProductionConfig): QcPolicy {
-  return { qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost, contractVersion: 2 };
+function qcPolicy({ qcMethod, qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost }: ProductionConfig): QcPolicy {
+  return { qcMethod, qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost, contractVersion: 3 };
 }
 
 async function saveRecord(video: VideoIdentity, record: VideoRecord, exclusive = false) {
@@ -98,6 +102,7 @@ export async function recordVideoOutputs(directory: string, assets: GeneratedMed
 }
 
 function scheduleQc(video: VideoIdentity, checklist: string | undefined, production = readProduction(), signal?: AbortSignal) {
+  if (submissions.has(video.recordPath)) throw Object.assign(new Error("主 Agent 正在提交此成片质检结论"), { status: 409 });
   const existing = active.get(video.recordPath);
   if (existing) {
     if (checklist !== undefined && checklist !== existing.checklist) {
@@ -110,7 +115,7 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, product
     if (current.size !== video.size || current.mtimeMs !== video.mtimeMs) throw new Error("成片在等待质检期间已变化");
     const saved = await loadRecord(video) ?? newRecord(video, { status: "notRequested" });
     const rawQc: string[] = [];
-    const record = { ...saved, checklist, rawQc, qcPolicy: qcPolicy(production) };
+    const record = { ...saved, agentResult: undefined, agentDeliveredRevision: undefined, checklist, rawQc, qcPolicy: qcPolicy(production) };
     await saveRecord(video, { ...record, qc: { status: "running" } });
     const task = active.get(video.recordPath);
     if (task) task.running = true;
@@ -118,18 +123,41 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, product
       signal?.throwIfAborted();
       const requirements = await readQcRequirements(video.directory, saved.generation?.request);
       record.requirements = requirements;
-      const result = await runProductionQc({
-        directory: video.directory,
-        videoPath: video.videoPath,
-        checklist,
-        production,
-        generation: saved.generation?.request,
-        requirements,
-        onRawOutput: text => rawQc.push(text),
-        signal: signal ?? AbortSignal.timeout(45 * 60_000),
-      });
+      const captured = production.qcMethod !== "model" && production.qcLevel !== "none"
+        ? await prepareAgentVideoQc(video.directory, video.videoPath, requirements, production.qcLevel === "videoAudio",
+          production.qcMethod === "agentFramesAndModel" && production.qcLevel === "videoAudio", signal) : undefined;
+      if (captured && production.qcMethod === "agentFrames") {
+        const waiting = { status: "awaitingAgent" as const, agent: captured.agent };
+        await saveRecord(video, { ...record, qc: waiting });
+        return waiting;
+      }
+      let result: QcVideoResult;
+      try {
+        result = await runProductionQc({
+          directory: video.directory,
+          videoPath: video.videoPath,
+          checklist,
+          production,
+          generation: saved.generation?.request,
+          requirements,
+          evidence: captured?.raw,
+          onRawOutput: text => rawQc.push(text),
+          signal: signal ?? AbortSignal.timeout(45 * 60_000),
+        });
+      } catch (error) {
+        if (!captured || signal?.aborted) throw error;
+        const waiting = { status: "awaitingAgent" as const, agent: captured.agent,
+          modelError: error instanceof Error ? error.message : "专用 QC 执行失败" };
+        await saveRecord(video, { ...record, qc: waiting });
+        return waiting;
+      }
       const completed = await videoIdentity(video.directory, video.videoPath);
       if (completed.size !== video.size || completed.mtimeMs !== video.mtimeMs) throw new Error("成片在质检期间已变化");
+      if (captured) {
+        const waiting = { status: "awaitingAgent" as const, agent: captured.agent, modelResult: result };
+        await saveRecord(video, { ...record, qc: waiting });
+        return waiting;
+      }
       await saveRecord(video, { ...record, qc: { status: "completed", result } });
       return result;
     } catch (error) {
@@ -187,10 +215,10 @@ export async function getVideoQcStatus(directory: string, videoPath: string): Pr
   } : undefined;
   if (task && !task.running) return { status: "queued", generation: parameters };
   if (!task && (state.status === "queued" || state.status === "running")) return { status: "interrupted", generation: parameters };
-  return { ...state, generation: parameters };
+  return { ...state, generation: parameters, agentResult: record?.agentResult };
 }
 
-async function waitForQc(job: Promise<QcVideoResult>, signal?: AbortSignal) {
+async function waitForQc(job: Promise<VideoQcActionResult>, signal?: AbortSignal) {
   if (!signal) return job;
   signal.throwIfAborted();
   let abort = () => {};
@@ -208,7 +236,58 @@ export async function checkRecordedVideo(directory: string, videoPath: string, c
   const saved = await loadRecord(video);
   const normalized = checklist?.trim() || undefined;
   const production = readProduction();
+  if (saved?.qc.status === "awaitingAgent" && normalized === undefined && !active.has(video.recordPath)
+    && JSON.stringify(saved.qcPolicy) === JSON.stringify(qcPolicy(production))) return saved.qc;
   if (saved?.qc.status === "completed" && normalized === undefined && !active.has(video.recordPath)
     && JSON.stringify(saved.qcPolicy) === JSON.stringify(qcPolicy(production))) return saved.qc.result;
   return waitForQc(scheduleQc(video, normalized, production, signal), signal);
+}
+
+export async function getAgentVideoQcEvidence(directory: string, videoPath: string) {
+  const video = await videoIdentity(directory, videoPath);
+  if (submissions.has(video.recordPath)) throw Object.assign(new Error("质检证据正在更新"), { status: 409 });
+  submissions.add(video.recordPath);
+  try {
+    const record = await loadRecord(video);
+    if (record?.qc.status !== "awaitingAgent") throw new Error("该成片当前没有待主 Agent 验收的抽帧任务");
+    if (JSON.stringify(record.qcPolicy) !== JSON.stringify(qcPolicy(readProduction()))) throw new Error("质检设置已变化，请重新发起质检");
+    const images: { data: string; mimeType: string }[] = [];
+    for (const frame of record.qc.agent.frames) {
+      const bytes = await readFile((await resolveWorkspacePath(video.directory, frame.path)).path);
+      if (createHash("sha256").update(bytes).digest("hex") !== frame.digest) throw new Error(`质检帧 ${frame.path} 已被修改，请重新发起质检`);
+      images.push({ data: bytes.toString("base64"), mimeType: "image/jpeg" });
+    }
+    record.agentDeliveredRevision = record.qc.agent.revision;
+    await saveRecord(video, record);
+    return { evidence: record.qc.agent, images };
+  } finally { submissions.delete(video.recordPath); }
+}
+
+export async function submitAgentVideoQc(directory: string, input: AgentVideoQcSubmission): Promise<VideoQcReport> {
+  const video = await videoIdentity(directory, input.videoPath);
+  if (active.has(video.recordPath) || submissions.has(video.recordPath)) throw Object.assign(new Error("该成片质检任务正在更新，请稍后提交"), { status: 409 });
+  submissions.add(video.recordPath);
+  try {
+    const record = await loadRecord(video);
+    if (!record || record.qc.status !== "awaitingAgent") throw new Error("该成片当前没有待主 Agent 验收的任务");
+    const pending = record.qc;
+    if (pending.agent.revision !== input.revision) throw Object.assign(new Error("抽帧版本已变化，请重新读取画面证据"), { status: 409 });
+    if (record.agentDeliveredRevision !== input.revision) throw new Error("必须先调用 getVideoQcFrames 读取实际图片，再提交主 Agent 结论");
+    if (JSON.stringify(record.qcPolicy) !== JSON.stringify(qcPolicy(readProduction()))) throw new Error("质检设置已变化，请重新发起质检");
+    const parsed = parseQcPayload(JSON.stringify({ checks: input.checks }), "video", false, pending.agent.requirements, pending.agent.timelineCoverage, false);
+    const agentResult: QcVideoResult = { ...parsed, technical: pending.agent.technical, videoModelId: "mainAgent", audioModelId: "", merged: false };
+    if (pending.agent.audioExpected && !pending.modelResult) {
+      Object.assign(agentResult, summarizeQc([...agentResult.checks, { domain: "audio", result: "unverified", evidence: "主 Agent 只收到画面帧，未听辨声音内容。" }]));
+    }
+    record.agentResult = agentResult;
+    if (pending.modelError) {
+      await saveRecord(video, { ...record, qc: { status: "failed", message: `主 Agent 结论已保存；专用 QC 失败：${pending.modelError}` } });
+    } else {
+      const model = pending.modelResult;
+      const result: QcVideoResult = model ? { ...model, ...summarizeQc([...agentResult.checks, ...model.checks]),
+        assessments: { agent: agentResult, model } } : { ...agentResult, assessments: { agent: agentResult } };
+      await saveRecord(video, { ...record, qc: { status: "completed", result } });
+    }
+    return getVideoQcStatus(directory, input.videoPath);
+  } finally { submissions.delete(video.recordPath); }
 }

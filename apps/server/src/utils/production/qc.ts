@@ -1,7 +1,8 @@
 // 成片视听质检：按 settings.production 的视频/音频质检模型调用（默认 qwen3.8-omni-flash），不经 sidecar。
-import { copyFile, mkdtemp, readFile, rm } from "@toonflow/file";
+import { copyFile, mkdir, mkdtemp, readFile, rm, unlink, rmdir } from "@toonflow/file";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
+import { createHash } from "node:crypto";
 import { getConfiguredModel, listAiModels } from "@/utils/ai";
 import type { FfmpegCommand } from "@toonflow/ffmpeg/types";
 import { createWorkspaceFfmpeg } from "@/utils/ffmpeg";
@@ -9,9 +10,9 @@ import { resolveComfyBaseUrl } from "@/utils/production/autodl";
 import { findWorkflow } from "@/utils/production/catalog";
 import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, readNodeIntegerRange, submitWorkflow, uploadInput, waitForText } from "@/utils/production/comfyui";
 import { fail, isWorkflowEnabled, readProduction, type ProductionConfig } from "@/utils/production/config";
-import { resolveWorkspacePath } from "@/utils/workspace/files";
+import { resolveWorkspacePath, writeWorkspaceFile, lockWorkspaceFiles } from "@/utils/workspace/files";
 import { parseQcPayload, summarizeQc, type QcMode } from "@/utils/production/qcResult";
-import type { MediaGenerationRequest, QcRequirement, QcVideoResult } from "@toonflow/tools-scaffold/runtime";
+import type { AgentVideoQcEvidence, MediaGenerationRequest, QcRequirement, QcVideoResult } from "@toonflow/tools-scaffold/runtime";
 
 type ModelInputs = { image: boolean; video: boolean; audio: boolean };
 type ContentPart =
@@ -187,7 +188,7 @@ function qcSourceName(videoPath: string) {
   return `qcSource${crypto.randomUUID()}${/^\.[a-z0-9]{1,8}$/.test(extension) ? extension : ".mp4"}`;
 }
 
-async function extractEvidence(absoluteVideo: string, workDir: string, detailed: boolean, signal?: AbortSignal) {
+async function extractEvidence(absoluteVideo: string, workDir: string, detailed: boolean, signal?: AbortSignal, includeAudio = true) {
   const ffmpeg = await createWorkspaceFfmpeg(workDir, signal);
   const audioPath = join(workDir, "qc-audio.mp3");
   const framePaths: string[] = [];
@@ -224,7 +225,7 @@ async function extractEvidence(absoluteVideo: string, workDir: string, detailed:
   }
 
   let audioBytes: Buffer | undefined;
-  if (hasAudio) {
+  if (hasAudio && includeAudio) {
     const command = ffmpeg(absoluteVideo).output(audioPath).noVideo().audioCodec("libmp3lame").audioBitrate(128).format("mp3")
       .outputOptions("-map", "0:a:0");
     await runCommand(command, signal);
@@ -245,6 +246,44 @@ async function extractEvidence(absoluteVideo: string, workDir: string, detailed:
   const timelineCoverage = detailed && duration > 0 && frameTimes.length > 1
     && frameTimes.every((stamp, index) => index === 0 || stamp - frameTimes[index - 1]! <= 0.55);
   return { frames, frameTimes, timelineCoverage, audioBase64: audioBytes ? audioBytes.toString("base64") : undefined, technical };
+}
+
+export async function prepareAgentVideoQc(directory: string, videoPath: string, requirements: QcRequirement[], audioExpected: boolean, includeAudio: boolean, signal?: AbortSignal) {
+  const video = await resolveWorkspacePath(directory, videoPath);
+  const output = await resolveWorkspacePath(directory, "assets/qcEvidence", true);
+  const release = lockWorkspaceFiles([output.path]);
+  let workDir: string | undefined;
+  const written: string[] = [];
+  let evidenceDirectory: string | undefined;
+  try {
+    workDir = await mkdtemp(join(tmpdir(), "mangaflowQc"));
+    const localVideo = join(workDir, qcSourceName(video.path));
+    await copyFile(video.path, localVideo);
+    const raw = await extractEvidence(localVideo, workDir, true, signal, includeAudio);
+    const revision = crypto.randomUUID();
+    await mkdir(output.path, { recursive: true });
+    const relativeDirectory = `assets/qcEvidence/evidence${revision.replaceAll("-", "")}`;
+    evidenceDirectory = (await resolveWorkspacePath(directory, relativeDirectory)).path;
+    await mkdir(evidenceDirectory);
+    const frames: AgentVideoQcEvidence["frames"] = [];
+    for (const [index, frame] of raw.frames.entries()) {
+      signal?.throwIfAborted();
+      const path = `${relativeDirectory}/frame${index}.jpg`;
+      const target = (await resolveWorkspacePath(directory, path)).path;
+      const bytes = Buffer.from(frame.slice(frame.indexOf(",") + 1), "base64");
+      await writeWorkspaceFile(target, bytes, true);
+      written.push(target);
+      frames.push({ path, time: raw.frameTimes[index]!, digest: createHash("sha256").update(bytes).digest("hex") });
+    }
+    return { raw, agent: { revision, frames, requirements, technical: raw.technical, timelineCoverage: raw.timelineCoverage, audioExpected } satisfies AgentVideoQcEvidence };
+  } catch (error) {
+    await Promise.all(written.map(path => unlink(path)));
+    if (evidenceDirectory) await rmdir(evidenceDirectory);
+    throw error;
+  } finally {
+    release();
+    if (workDir) await rm(workDir, { recursive: true, force: true });
+  }
 }
 
 async function completeMultimodal(configured: ReturnType<typeof getConfiguredModel>, parts: ContentPart[], signal?: AbortSignal) {
@@ -365,6 +404,7 @@ export async function runProductionQc(input: {
   generation?: MediaGenerationRequest;
   requirements?: QcRequirement[];
   onRawOutput?: (text: string) => void;
+  evidence?: Awaited<ReturnType<typeof extractEvidence>>;
   signal?: AbortSignal;
 }): Promise<QcVideoResult> {
   const production = input.production ?? readProduction();
@@ -388,7 +428,7 @@ export async function runProductionQc(input: {
     const gemmaVariant = videoVariant || audioVariant;
     const localVideo = join(workDir, qcSourceName(absoluteVideo));
     await copyFile(absoluteVideo, localVideo);
-    const evidence = await extractEvidence(localVideo, workDir, Boolean(input.requirements?.length) && !gemmaVariant, input.signal);
+    const evidence = input.evidence ?? await extractEvidence(localVideo, workDir, Boolean(input.requirements?.length) && !gemmaVariant, input.signal);
     const { technical } = evidence;
     if (gemmaVariant) {
       const hearAudio = production.qcLevel !== "video";

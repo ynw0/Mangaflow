@@ -26,6 +26,12 @@ export const qcVideoSchema = z.strictObject({
   checklist: z.string().max(8000).optional(),
 });
 export const videoQcStatusSchema = qcVideoSchema.pick({ videoPath: true });
+export const agentVideoQcSubmissionSchema = z.strictObject({
+  videoPath: relativePath, revision: z.uuid(),
+  checks: z.array(z.strictObject({ requirementId: z.string().min(1).max(200).optional(),
+    domain: z.enum(["video", "general"]), result: z.enum(["pass", "fail", "unverified"]),
+    evidence: z.string().trim().min(1).max(3000), time: z.string().trim().min(1).max(200).optional() })).min(1).max(256),
+});
 export const imageGenerationSchema = z.strictObject({
   ...sharedFields,
   size: z.string().trim().min(1).max(64).optional(),

@@ -56,6 +56,7 @@
 - 审核不代写导演方案；将发现的问题定位到对应动作/时间段并提出修改目的，由原导演重写。身份锁、Picture、对白、格式等硬检查仍按原规则执行。
 
 ## 输出合同
+内置工具审核通过时必须返回 `framingEvidence`，具体解释镜尾同框对象、人物移动终点和运镜停止时间为何相容。检查 `cinematicPlan` 与实际正文，不因规划写得合理就忽略正文中仍在持续推进或裁掉主体的要求。
 返回 `video_prompt_review`：status=ok 且 findings=[]，或 status=rejected 且 findings 含整改意见。shot_id 必须与被审导演合同一致。
 
 ## 阻塞条件

@@ -25,6 +25,7 @@ function productionPrompt(goal = false) {
     video,
     qcLevel: production.qcLevel,
     qcTrigger: production.qcTrigger,
+    qcMethod: production.qcMethod,
     videoQcModelId: production.videoQcModelId,
     audioQcModelId: production.audioQcModelId,
     imageAdvanceMode: production.imageAdvanceMode,

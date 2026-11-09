@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { MediaContext, ToolDefinition, ToolPlugin } from "@toonflow/tools-scaffold/runtime";
-import { audioGenerationSchema, imageGenerationSchema, listMediaModelsSchema, qcVideoSchema, videoGenerationSchema, videoQcStatusSchema } from "./runtime";
+import type { ToolDefinition, ToolPlugin } from "@toonflow/tools-scaffold/runtime";
+import { agentVideoQcSubmissionSchema, audioGenerationSchema, imageGenerationSchema, listMediaModelsSchema, qcVideoSchema, videoGenerationSchema, videoQcStatusSchema } from "./runtime";
 
 const configSchema = z.strictObject({
   allowImage: z.boolean().default(true),
@@ -33,8 +33,8 @@ const plugin: ToolPlugin = {
     const qcTool: ToolDefinition = {
       name: "qcVideo",
       label: "成片质检",
-      description: "按设置里的画面质检模型和档位验收一条已生成的工作区视频。videoPath 为工作区相对路径，checklist 为可选验收要点。返回总状态、逐项 checks、问题 findings、实测规格与实际质检模型。",
-      promptSnippet: "成片质检调用 qcVideo，传入工作区相对路径。模型、档位和是否听音轨以设置为准，不要用 ffmpeg 抽帧或静音检测代替。",
+      description: "按设置发起成片验收。主 Agent 抽帧模式会返回 awaitingAgent，随后必须调用 getVideoQcFrames 看图并用 submitVideoQc 提交逐项结论。专用 QC 模式返回模型结论；组合模式还需主 Agent 看帧。checklist 为额外验收要点，不替代已审合同。",
+      promptSnippet: "成片验收遵守设置里的方式、范围和触发条件；awaitingAgent 表示尚未验收完成。",
       parameters: z.toJSONSchema(qcVideoSchema, { io: "input", target: "draft-07" }),
       executionMode: "sequential",
       async execute(_id, params, signal) {
@@ -55,7 +55,30 @@ const plugin: ToolPlugin = {
         return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
       },
     };
-    return [qcTool, qcStatusTool, ...(generationTools.length ? [listTool] : []), ...generationTools.map<ToolDefinition>(operation => ({
+    const framesTool: ToolDefinition = {
+      name: "getVideoQcFrames", label: "主 Agent 读取质检画面",
+      description: "读取 awaitingAgent 成片的真实画面帧、时间戳、证据版本与强制验收项。必须实际看图后提交结论；静态帧无法证明的动作或声音标未验证。此操作不启动模型或生成视频。",
+      parameters: z.toJSONSchema(videoQcStatusSchema, { io: "input", target: "draft-07" }),
+      async execute(_id, params, signal) {
+        signal?.throwIfAborted();
+        const { videoPath } = videoQcStatusSchema.parse(params);
+        const { evidence, images } = await media.getAgentVideoQcEvidence(videoPath);
+        return { details: evidence, content: [{ type: "text" as const, text: JSON.stringify({ ...evidence, nextAction: "看完实际图片，按 requirementId 逐项用 submitVideoQc 提交；不能把路径当成已看图证据。" }) },
+          ...images.flatMap((image, index) => [{ type: "text" as const, text: `第 ${index + 1} 帧，${evidence.frames[index]!.time.toFixed(3)} 秒` }, { type: "image" as const, ...image }])] };
+      },
+    };
+    const submitTool: ToolDefinition = {
+      name: "submitVideoQc", label: "提交主 Agent 质检结论",
+      description: "看过 getVideoQcFrames 返回的实际图片后，携带相同 revision 提交逐项画面结论。不得提交总通过来代替验收项；缺项或证据不足会保持未验证。没有听辨音轨时不得声称音频通过。",
+      parameters: z.toJSONSchema(agentVideoQcSubmissionSchema, { io: "input", target: "draft-07" }),
+      executionMode: "sequential",
+      async execute(_id, params, signal) {
+        signal?.throwIfAborted();
+        const result = await media.submitAgentVideoQc(agentVideoQcSubmissionSchema.parse(params));
+        return { details: result, content: [{ type: "text", text: JSON.stringify(result) }] };
+      },
+    };
+    return [qcTool, qcStatusTool, framesTool, submitTool, ...(generationTools.length ? [listTool] : []), ...generationTools.map<ToolDefinition>(operation => ({
       name: operation.name,
       label: operation.label,
       description: `${operation.description}providerId 和 modelId 必须来自 listMediaModels。引用素材的 path 及 outputDirectory 均为工作区相对路径；省略输出目录使用默认媒体目录。等待生成完成后返回已保存的文件路径，不返回 Base64。`,

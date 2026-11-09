@@ -11,6 +11,7 @@ import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { findReusableVideoReview, requireSameVideoReview, saveVideoReview } from "@/utils/production/videoReviews";
 import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { resolveAgentProfile, type AgentModelSelection } from "@/agent/runtime/profiles";
+import type { CinematicPlan } from "@/utils/production/videoPlan";
 
 const directorReferences = {
   dialogue: ["characterPerformance.md", "soundDesign.md"],
@@ -100,10 +101,11 @@ export function createVideoPromptTool(options: SubAgentModel & {
         skills.push({ name, scope: skill.scope, path, ...(version.success ? { version: version.data.version } : {}) });
         return content;
       }
-      const directorRules = await Promise.all([
+      const framingRules = await read("cinematicPromptCraft", "references/compositionAndLens.md");
+      const directorRules = [...new Set([framingRules, ...await Promise.all([
         read("workflow", "references/video-director.md"),
         read("cinematicPromptCraft"), ...directorReferences[input.intent].map(path => read("cinematicPromptCraft", `references/${path}`)),
-      ]);
+      ])])];
       const [guide, common, reviewRules] = await Promise.all([
         read("h3-prompt-writing", prepared.format === "h3Ref2va" ? "references/ref-en.txt" : "references/base-en.txt"),
         read("workflow", "references/common.md"),
@@ -113,6 +115,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const commonRules = videoCommonRules(common);
       const reviewerFormat = guideRules(guide, prepared.format, true);
       const cacheKey = createHash("sha256").update(JSON.stringify({
+        planVersion: 1,
         input: { ...input, regenerate: undefined, node: input.node ? { canvasId: input.node.canvasId, nodeId: input.node.nodeId } : undefined },
         snapshot: prepared.snapshot, directorRules, guide, common, reviewRules, candidates,
         models: [resolveAgentProfile("videoDirector", primaryModel), resolveAgentProfile("videoReviewer", primaryModel)],
@@ -128,6 +131,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         // 节点已写回时，主 Agent 只接收审核状态与定位信息，完整稿仍保存在节点和工具详情中。
         const visible = result.status === "ok" && result.written && input.node
           ? { status: result.status, shotId: input.shotId, reviewId: result.reviewId, written: true,
+            cinematicPlan: result.cinematicPlan,
             node: input.node,
             nextAction: { when: "按当前自动、半自动或目标模式完成相应授权后",
               tool: "nodeTools", args: { canvasId: input.node.canvasId, nodeId: input.node.nodeId, name: "node:generateVideo", args: {} } },
@@ -145,7 +149,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
             await canvas.call({
               name: "nodeTools",
               args: { canvasId: input.node.canvasId, nodeId: input.node.nodeId, name: "node:setPrompt",
-                args: { ...draft, reviewId, expectedRevision: prepared.revision } },
+                args: { prompt: draft.prompt, promptZh: draft.promptZh, reviewId, expectedRevision: prepared.revision } },
             }, signal);
             written = true;
           } catch (error) {
@@ -206,12 +210,14 @@ export function createVideoPromptTool(options: SubAgentModel & {
         try { return parseReply(schema, output.result.result); }
         catch { throw new Error(`${name}未返回有效的结构化结果`); }
       }
-      let lastDraft: { prompt: string; promptZh: string } | undefined;
+      let lastDraft: { prompt: string; promptZh: string; cinematicPlan: CinematicPlan } | undefined;
       let findings: string[] = [];
       // ACT: 初稿加最多一次定向返修；仍不合格时交回 findings，审核门禁保持关闭。
       for (let round = 0; round < 2; round++) {
         const draft = await specialist(draftSchema, round ? "导演返修" : "导演写作", [
-          '输出 {"status":"ok","prompt":"英文生成正文","promptZh":"简中对照"}；缺少关键输入或无法在给定时长交付剧情时，输出 {"status":"blocked","reason":"具体原因"}。',
+          '输出 {"status":"ok","cinematicPlan":{"openingFrame":"开场构图和站位","camera":{"movement":"运镜方式与终点","stopSeconds":0},"ending":{"composition":"镜尾景别和空间关系","visible":["必须在画内的主体、身体部位或物品"],"holdSeconds":0},"beats":[{"startSeconds":0,"endSeconds":1,"action":"可见动作","performance":"眼神、停顿、手或重心的可观察变化"}]},"prompt":"英文生成正文","promptZh":"简中对照"}。时间均为镜头内秒数；持续运镜时 stopSeconds=null，无定幅要求时 holdSeconds=0。缺关键输入或无法按时交付剧情，输出 {"status":"blocked","reason":"具体原因"}。',
+          "先确定最终画框容纳哪些主体和身体部位，再反推开场机位与运动路径。前景道具与后景人物必须同框时，核对景别、遮挡和人物移动终点；不能一边继续逼近道具一边承诺人物头肩始终入画。规划与中英文正文必须一致。只在首次定义与必要承接处写稳定外观，避免逐段复写。",
+          "规划不得新增用户未要求的人物、动作或剧情。没有人物的镜头用 performance 描述物件、环境的可见反馈，不为填字段添加表演者。",
           "先在内部确定镜头要交付的叙事信息，再设计可见的起点、动作、接触或变化、反馈和末态。按实际模式写 H3 正文，稳定设定与逐段变化分开，英文和中文保持同样的可见事实。",
           "按已确认的剧情和素材取用匹配的拍法。模板片段含占位词、使用条件和验收点，只有条件满足时才采用相关片段，实际正文写真实可观察的事件。返修时保留已经正确的 Subject、参考绑定及无关段落，优先改动指出的时间段，仍返回完整合法正文。",
           JSON.stringify({ ...taskInput, ...(round ? { previousDraft: lastDraft, findings } : { candidates }) }),
@@ -221,17 +227,18 @@ export function createVideoPromptTool(options: SubAgentModel & {
           return finish(draft);
         }
         attempts.push({ stage: "director", findings: [] });
-        lastDraft = { prompt: draft.prompt, promptZh: draft.promptZh };
+        lastDraft = { prompt: draft.prompt, promptZh: draft.promptZh, cinematicPlan: draft.cinematicPlan };
         findings = inspectDraft(lastDraft, prepared);
         attempts.push({ stage: "preflight", findings });
         update(findings.length ? "程序预检未通过，准备定向返修" : "程序预检通过");
         if (findings.length) continue;
 
         const review = await specialist(reviewSchema, "独立提示词审核", [
-          '输出 {"status":"ok","findings":[]} 或 {"status":"rejected","findings":["具体时间段或句子的问题及整改目标"]}。只审核当前稿件。',
+          '输出 {"status":"ok","framingEvidence":"具体解释运镜结束后，镜尾要求的主体、身体部位、物品为何能同时留在画内，以及人物移动是否会破坏构图","findings":[]}，或 {"status":"rejected","findings":["具体时间段或句子的问题及整改目标"]}。只审核当前稿件。',
+          "对照 cinematicPlan 与真实正文，逐项审核运动终点、停机时间、镜尾同框对象、人物终点及表演节拍是否相容。需要推近特写却又保持远处人物上半身可见，或定幅期间仍继续推进，属于实质缺陷。不能只因六段格式完整就判合格。",
           "逐项核对剧情硬要求、动作因果和末态、特效来源及反馈、参考用途、画面与声音可执行性以及中英事实一致性。以实际工作流对应的格式为准。只拒绝影响剧情、真实动作、关键身份/参考或可见声画结果的实质缺陷；固定机位、简洁镜头、合理的创作取舍不构成错误。每条整改意见定位到时间段或句子，说明必须达到的可验证结果。",
           JSON.stringify({ ...taskInput, draft: lastDraft }),
-        ].join("\n"), [reviewRules, commonRules, reviewerFormat]);
+        ].join("\n"), [reviewRules, commonRules, reviewerFormat, framingRules]);
         findings = review.findings;
         attempts.push({ stage: "review", findings });
         update(review.status === "ok" ? "独立审核通过，保存审核记录" : "独立审核退回，准备定向返修");
@@ -246,6 +253,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         const generationRequest = videoGenerationSchema.parse({ ...refreshed.generationRequest, prompt: lastDraft.prompt });
         const reviewId = await saveVideoReview({ ...refreshed.snapshot, prompt: generationRequest.prompt }, {
           shot: prepared.shot, request: generationRequest, promptZh: lastDraft.promptZh, review, skills, templateMatches, attempts,
+          cinematicPlan: lastDraft.cinematicPlan,
           modelCalls, usage, reviewElapsedMs: Math.round(performance.now() - startedAt),
         }, cacheKey);
         generationRequest.reviewId = reviewId;

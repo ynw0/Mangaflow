@@ -37,6 +37,8 @@ export type ProductionConfig = {
   qcLevel: "video" | "videoAudio" | "none";
   /** 生成视频后是否自动质检 */
   qcTrigger: "auto" | "manual";
+  /** 主 Agent 看帧、专用 QC，或两者联合验收 */
+  qcMethod: "agentFrames" | "model" | "agentFramesAndModel";
   /** 出图推进：自动自己看到完成，半自动有问题就问 */
   imageAdvanceMode: "auto" | "semi";
 };
@@ -66,6 +68,7 @@ const defaults: ProductionConfig = {
   audioQcModelId: "qwen3.8-omni-flash",
   qcLevel: "videoAudio",
   qcTrigger: "manual",
+  qcMethod: "model",
   imageAdvanceMode: "semi",
 };
 
@@ -92,6 +95,9 @@ export function isWorkflowEnabled(id: string) {
 export function readProduction(): ProductionConfig {
   const raw = conf.get("settings.production", {});
   const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+  if (source.qcMethod !== undefined && !["agentFrames", "model", "agentFramesAndModel"].includes(String(source.qcMethod))) {
+    fail("成片质检方式无效，请在工作流设置中重新选择");
+  }
   return {
     videoHost: source.videoHost === "local" ? "local" : defaults.videoHost,
     localComfyuiBaseUrl: text(source.localComfyuiBaseUrl, "") || defaults.localComfyuiBaseUrl,
@@ -117,6 +123,7 @@ export function readProduction(): ProductionConfig {
     audioQcModelId: text(source.audioQcModelId, "") || defaults.audioQcModelId,
     qcLevel: source.qcLevel === "video" || source.qcLevel === "none" ? source.qcLevel : "videoAudio",
     qcTrigger: source.qcTrigger === "auto" ? "auto" : "manual",
+    qcMethod: source.qcMethod === "agentFrames" || source.qcMethod === "agentFramesAndModel" ? source.qcMethod : "model",
     imageAdvanceMode: source.imageAdvanceMode === "auto" ? "auto" : "semi",
   };
 }

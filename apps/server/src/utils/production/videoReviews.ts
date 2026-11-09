@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import conf from "@/utils/conf";
 import { fail } from "@/utils/production/config";
 import type { PreparedComfyWorkflow } from "@/utils/production/run";
+import { cinematicPlanSchema } from "@/utils/production/videoPlan";
 
 type ReviewFile = { source: string; path: string; size: number; digest: string };
 export type VideoReviewSnapshot = {
@@ -103,7 +104,7 @@ export async function findReusableVideoReview(key: string, snapshot: VideoReview
   if (!record.snapshot.prompt || typeof promptZh !== "string" || !promptZh.trim()) {
     fail("已存审核记录缺少完整中英文提示词", 409);
   }
-  return { reviewId, prompt: record.snapshot.prompt, promptZh };
+  return { reviewId, prompt: record.snapshot.prompt, promptZh, cinematicPlan: cinematicPlanSchema.parse(record.audit.cinematicPlan) };
 }
 
 function reviewPath(reviewId: string) {

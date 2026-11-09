@@ -217,6 +217,7 @@ const completedQcLabel = computed(() => {
   const labels: Record<string, string> = {
     queued: "质检排队中", running: "质检进行中", notRequested: "未自动质检 · 等待手动审核",
     failed: "质检失败 · 查看错误", interrupted: "质检中断 · 需要恢复",
+    awaitingAgent: "待主 Agent 看帧质检 · 尚未完成验收",
   };
   return labels[current.status] ?? "质检状态待确认";
 });
@@ -824,7 +825,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "getPersistentGenerationStatus",
-  description: "查询此节点正在执行或最近已完成的 ComfyUI 任务状态、promptId、成片与 videoQc 质检状态。视频已完成时返回每段成片的 queued/running/completed/failed/interrupted 及 QC 结论，不启动生成或质检。",
+  description: "查询此节点正在执行或最近已完成任务的成片及 videoQc。awaitingAgent 表示待当前主 Agent 用 getVideoQcFrames 看图并 submitVideoQc 提交逐项结论，不能视为验收完成。不启动生成或质检。",
   parameters: z.strictObject({}),
   async execute() { return persistentGenerationStatus(); },
 });

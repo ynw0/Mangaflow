@@ -176,7 +176,17 @@ export type QcCheck = {
 
 export type QcRequirement = { id: string; source: string; text: string };
 
+export interface AgentVideoQcEvidence {
+  revision: string;
+  frames: { path: string; time: number; digest: string }[];
+  requirements: QcRequirement[];
+  technical: NonNullable<QcVideoResult["technical"]>;
+  timelineCoverage: boolean;
+  audioExpected: boolean;
+}
+
 export interface QcVideoResult {
+  assessments?: { agent?: Pick<QcVideoResult, "status" | "checks" | "findings">; model?: Pick<QcVideoResult, "status" | "checks" | "findings"> };
   /** 本次 Gemma 工作流实际提交的输出 Token 预算 */
   maxOutputTokens?: number;
   status: "ok" | "rejected" | "unverified";
@@ -191,6 +201,7 @@ export interface QcVideoResult {
 export type VideoQcState =
   | { status: "notRequested" | "queued" | "running" | "interrupted" }
   | { status: "failed"; message: string }
+  | { status: "awaitingAgent"; agent: AgentVideoQcEvidence; modelResult?: QcVideoResult; modelError?: string }
   | { status: "completed"; result: QcVideoResult };
 
 export type VideoExecution = {
@@ -199,8 +210,12 @@ export type VideoExecution = {
 };
 
 export type VideoQcReport = VideoQcState & {
+  agentResult?: QcVideoResult;
   generation?: { providerId: string; modelId: string; reviewId?: string; duration?: number; ratio?: string; execution?: VideoExecution };
 };
+
+export type VideoQcActionResult = QcVideoResult | Extract<VideoQcState, { status: "awaitingAgent" }>;
+export interface AgentVideoQcSubmission { videoPath: string; revision: string; checks: QcCheck[]; }
 
 export interface MediaContext {
   listModels(): Promise<MediaModel[]>;
@@ -208,8 +223,10 @@ export interface MediaContext {
   generateVideo(request: MediaGenerationRequest, signal?: AbortSignal): Promise<GeneratedMedia[]>;
   generateAudio(request: MediaGenerationRequest, signal?: AbortSignal): Promise<GeneratedMedia[]>;
   /** 按设置里的质检模型和档位验收一条工作区视频。 */
-  qcVideo(request: QcVideoRequest, signal?: AbortSignal): Promise<QcVideoResult>;
+  qcVideo(request: QcVideoRequest, signal?: AbortSignal): Promise<VideoQcActionResult>;
   getVideoQcStatus(videoPath: string): Promise<VideoQcReport>;
+  getAgentVideoQcEvidence(videoPath: string): Promise<{ evidence: AgentVideoQcEvidence; images: { data: string; mimeType: string }[] }>;
+  submitAgentVideoQc(request: AgentVideoQcSubmission): Promise<VideoQcReport>;
 }
 
 export interface QuestionField {

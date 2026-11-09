@@ -5,10 +5,10 @@ import { isPublicRequest } from "@/lib/accessToken";
 import { isLocalWorkspaceRequest } from "@/utils/workspace";
 import { getMcpHostApp } from "@/utils/mcp/runtime";
 import { openPublicGateway, readPublicAccess, publicAccessSchema } from "@/utils/mcp/publicGateway";
-import { cloudflarePath, installCloudflare, spawnCloudflare } from "@/utils/mcp/cloudflare";
+import { appendCloudflareLog, cloudflarePath, flushCloudflareLog, installCloudflare, spawnCloudflare } from "@/utils/mcp/cloudflare";
 import { mcpSettingsSchema, oauthOwnerToken } from "@/utils/mcp/oauth";
 
-type TunnelState = { phase: "idle" | "downloading" | "starting" | "running" | "error";
+type TunnelState = { phase: "idle" | "downloading" | "starting" | "running" | "reconnecting" | "error";
   error?: string; publicUrl?: string; received?: number; total?: number };
 let state: TunnelState = { phase: "idle" };
 let controller: AbortController | undefined;
@@ -59,6 +59,7 @@ export function startPublicTunnel() {
     if (!conf.get("mcpTunnel.token")) conf.set("mcpTunnel.token", oauthOwnerToken() || crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", ""));
     const gateway = await openPublicGateway(getMcpHostApp());
     try {
+      void appendCloudflareLog("lifecycle", "正在启动 TryCloudflare 隧道");
       child = await spawnCloudflare(gateway.target, signal);
       const running = child;
       await new Promise<void>((resolve, reject) => {
@@ -66,8 +67,14 @@ export function startPublicTunnel() {
         let allocatedUrl: string | undefined;
         let readyUrl: string | undefined;
         let checking = false;
-        const failConnection = (error: Error) => { clearTimeout(timer); clearInterval(monitor); running.kill(); reject(error); };
-        const timer = setTimeout(() => { failConnection(new Error("TryCloudflare 连接超时，请检查网络后重新开启")); }, 90_000);
+        const failStartup = (error: Error) => {
+          clearTimeout(timer);
+          clearInterval(monitor);
+          void appendCloudflareLog("lifecycle", "TryCloudflare 首次连接失败：" + error.message);
+          running.kill();
+          reject(error);
+        };
+        const timer = setTimeout(() => { failStartup(new Error("TryCloudflare 首次连接超时，请检查网络后重新开启")); }, 90_000);
         // 以官方 /ready 状态判断真实连接，不把仅分配域名当成公网可用。
         const monitor = setInterval(() => {
           if (!readyUrl || !allocatedUrl || checking || signal.aborted) return;
@@ -76,38 +83,59 @@ export function startPublicTunnel() {
             await response.body?.cancel();
             if (signal.aborted) return;
             if (!response.ok) {
-              if (state.phase === "running") failConnection(new Error("TryCloudflare 与公网的连接已断开，请重新开启"));
+              if (state.phase === "running") {
+                state = { phase: "reconnecting", publicUrl: ownedUrl };
+                void appendCloudflareLog("readiness", "/ready 返回 HTTP " + response.status + "；保留 cloudflared 进程和公网地址");
+              }
               return;
             }
-            if (state.phase !== "starting") return;
-            ownedUrl = allocatedUrl;
-            conf.set("mcpTunnel", { managed: true, publicUrl: ownedUrl!, token: conf.get("mcpTunnel.token", ""), publicAccess: readPublicAccess() });
-            state = { phase: "running", publicUrl: ownedUrl };
-            clearTimeout(timer);
+            if (state.phase === "starting") {
+              ownedUrl = allocatedUrl;
+              conf.set("mcpTunnel", { managed: true, publicUrl: ownedUrl!, token: conf.get("mcpTunnel.token", ""), publicAccess: readPublicAccess() });
+              state = { phase: "running", publicUrl: ownedUrl };
+              void appendCloudflareLog("readiness", "TryCloudflare 公网连接已建立");
+              clearTimeout(timer);
+            } else if (state.phase === "reconnecting") {
+              state = { phase: "running", publicUrl: ownedUrl ?? allocatedUrl };
+              void appendCloudflareLog("readiness", "TryCloudflare 公网连接已自动恢复");
+            }
           }).catch(error => {
-            if (!signal.aborted) failConnection(error instanceof Error ? error : new Error("TryCloudflare 状态读取失败"));
+            if (!signal.aborted && state.phase === "running") {
+              state = { phase: "reconnecting", publicUrl: ownedUrl };
+              void appendCloudflareLog("readiness", "/ready 检查失败；保留 cloudflared 进程：" + (error instanceof Error ? error.message : String(error)));
+            }
           }).finally(() => { checking = false; });
         }, 2000);
-        const read = (chunk: Buffer) => {
+        const read = (source: "stdout" | "stderr") => (chunk: Buffer) => {
+          const content = chunk.toString("utf8");
+          output = (output + content).slice(-16384);
+          void appendCloudflareLog(source, content);
           try {
-            output = (output + chunk.toString("utf8")).slice(-16384);
             const matches = [...output.matchAll(/https:\/\/[a-z0-9]+(?:-[a-z0-9]+)*\.trycloudflare\.com\b/gi)];
             const match = matches.reverse().find(item => !["api.trycloudflare.com", "www.trycloudflare.com"].includes(new URL(item[0]).hostname));
             if (match) allocatedUrl = new URL(match[0]).origin;
             const metrics = /127\.0\.0\.1:([1-9]\d{0,4})\/metrics/.exec(output);
             if (metrics && Number(metrics[1]) <= 65535) readyUrl = `http://127.0.0.1:${metrics[1]}/ready`;
-          } catch (error) { failConnection(error instanceof Error ? error : new Error("读取隧道状态失败")); }
+          } catch (error) { void appendCloudflareLog("parser", "读取 cloudflared 状态输出失败：" + (error instanceof Error ? error.message : String(error))); }
         };
-        running.stdout!.on("data", read);
-        running.stderr!.on("data", read);
-        running.once("error", error => { clearTimeout(timer); clearInterval(monitor); reject(error); });
+        running.stdout!.on("data", read("stdout"));
+        running.stderr!.on("data", read("stderr"));
+        running.once("error", error => {
+          void appendCloudflareLog("process", "cloudflared 进程错误：" + error.message);
+          if (running.pid === undefined) {
+            clearTimeout(timer);
+            clearInterval(monitor);
+            reject(error);
+          }
+        });
         running.once("close", code => {
           clearTimeout(timer);
           clearInterval(monitor);
+          void appendCloudflareLog("lifecycle", "cloudflared 进程退出，code=" + code);
           if (signal.aborted) resolve();
           else reject(new Error("TryCloudflare 进程已退出（" + code + "）：" + output.trim().slice(-1500)));
         });
-      });
+      }).finally(() => flushCloudflareLog());
     } finally {
       gateway.server.closeAllConnections();
       await new Promise<void>(resolve => gateway.server.close(() => resolve()));
@@ -115,6 +143,7 @@ export function startPublicTunnel() {
   });
 }
 export async function stopPublicTunnel() {
+  if (controller) void appendCloudflareLog("lifecycle", "用户请求关闭 TryCloudflare 隧道");
   controller?.abort();
   await operation;
   clearOwnedUrl();

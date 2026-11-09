@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
-import { createWriteStream, mkdir, readFile, stat, unlink, writeAtomic } from "@toonflow/file";
+import { appendFile, createWriteStream, mkdir, readFile, stat, unlink, writeAtomic } from "@toonflow/file";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import conf from "@/utils/conf";
@@ -9,6 +9,27 @@ import conf from "@/utils/conf";
 const assetName = "cloudflared-windows-amd64.exe";
 const directory = () => join(dirname(conf.path), "cloudflared");
 const binaryPath = () => join(directory(), "cloudflared.exe");
+const maxLogBytes = 1024 * 1024;
+let logQueue = Promise.resolve();
+
+export function appendCloudflareLog(source: string, content: string) {
+  const entry = Buffer.from(new Date().toISOString() + " [" + source + "] " + content);
+  logQueue = logQueue.then(async () => {
+    const path = join(directory(), "cloudflared.log");
+    await mkdir(directory(), { recursive: true });
+    const info = await stat(path).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if ((info?.size ?? 0) + entry.length > maxLogBytes) {
+      const previous = info ? await readFile(path) : Buffer.alloc(0);
+      await writeAtomic(path, Buffer.concat([previous, entry]).subarray(-maxLogBytes));
+    } else await appendFile(path, entry);
+  }).catch(error => console.error("保存 cloudflared 日志失败：", error));
+  return logQueue;
+}
+
+export function flushCloudflareLog() { return logQueue; }
 export async function cloudflarePath() {
   if (process.platform !== "win32" || process.arch !== "x64") return null;
   const info = await stat(binaryPath()).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return null; throw error; });

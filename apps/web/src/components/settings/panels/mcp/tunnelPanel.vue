@@ -6,14 +6,16 @@
     </div>
     <el-alert v-if="error || status?.error" :title="error || status?.error || ''" type="error" :closable="false" showIcon />
     <template v-if="status">
-      <el-tag effect="plain" :type="status.phase === 'running' ? 'success' : 'info'">{{ phaseLabel }}</el-tag>
+      <el-tag effect="plain" :type="status.phase === 'running' ? 'success' : status.phase === 'reconnecting' ? 'warning' : 'info'">{{ phaseLabel }}</el-tag>
       <div v-if="status.supported" class="actions">
         <el-button v-if="!status.installed" :disabled="status.busy || working" @click="act('install')">下载 cloudflared</el-button>
         <el-button v-if="status.installed" type="primary" :disabled="status.busy || working" @click="act('start')">开启公网隧道</el-button>
-        <el-button v-if="status.busy" :disabled="working" @click="act('stop')">{{ status.phase === 'running' ? '关闭隧道' : '取消' }}</el-button>
+        <el-button v-if="status.busy" :disabled="working" @click="act('stop')">{{ status.phase === 'running' || status.phase === 'reconnecting' ? '关闭隧道' : '取消' }}</el-button>
       </div>
       <p v-else class="hint">内置隧道管理当前支持 Windows x64 本机连接。</p>
       <p class="hint">无需账号或域名。临时 HTTPS 地址会在重新开启后变化，请重新复制 MCP 配置。</p>
+      <p v-if="status.phase === 'reconnecting'" class="hint">公网连接暂时不可用，正在等待 cloudflared 自动恢复；原地址保持不变。</p>
+      <p class="hint">隧道日志保存在应用数据目录 cloudflared/cloudflared.log，最大 1 MiB。</p>
       <p v-if="status.received !== undefined" class="hint">已下载 {{ (status.received / 1024 / 1024).toFixed(1) }} MB<template v-if="status.total"> / {{ (status.total / 1024 / 1024).toFixed(1) }} MB</template></p>
       <el-input v-if="status.publicUrl" :modelValue="status.publicUrl" readonly dir="ltr" aria-label="隧道公网地址" />
       <div class="accessOptions">
@@ -36,7 +38,7 @@ import axios from "axios";
 import { ElMessage } from "element-plus";
 
 type PublicAccess = { mcp: boolean; management: boolean; files: boolean; api: boolean };
-type TunnelStatus = { phase: "idle" | "downloading" | "starting" | "running" | "error";
+type TunnelStatus = { phase: "idle" | "downloading" | "starting" | "running" | "reconnecting" | "error";
   supported: boolean; installed: boolean; busy: boolean; publicAccess: PublicAccess;
   publicUrl?: string; error?: string; received?: number; total?: number };
 const emit = defineEmits<{ changed: [running: boolean] }>();
@@ -49,7 +51,7 @@ const access = reactive<PublicAccess>({ mcp: true, management: false, files: fal
 const phaseLabel = computed(() => {
   if (!status.value) return "";
   if (!status.value.installed && status.value.phase === "idle") return "客户端未下载";
-  return { idle: "未开启隧道", downloading: "下载中", starting: "正在连接 TryCloudflare", running: "已连接", error: "操作失败" }[status.value.phase];
+  return { idle: "未开启隧道", downloading: "下载中", starting: "正在连接 TryCloudflare", running: "已连接", reconnecting: "连接恢复中", error: "操作失败" }[status.value.phase];
 });
 let timer: ReturnType<typeof setTimeout> | undefined;
 let disposed = false;
@@ -63,11 +65,12 @@ async function refresh() {
   loading.value = true;
   try {
     const { data } = await axios.get<{ data: TunnelStatus }>("/api/mcp/tunnel/status", { headers, signal: controller.signal });
-    const wasRunning = status.value?.phase === "running";
+    const wasConnected = status.value?.phase === "running" || status.value?.phase === "reconnecting";
     status.value = data.data;
     if (!initialized) { Object.assign(access, data.data.publicAccess); initialized = true; }
     error.value = "";
-    if (wasRunning !== (data.data.phase === "running")) emit("changed", data.data.phase === "running");
+    const isConnected = data.data.phase === "running" || data.data.phase === "reconnecting";
+    if (wasConnected !== isConnected) emit("changed", isConnected);
   } catch (cause) { if (!disposed) error.value = message(cause); }
   finally {
     loading.value = false;

@@ -1,0 +1,73 @@
+name: MangaFlow Windows Release
+run-name: MangaFlow Windows ${{ inputs.version || '2.0.8' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Windows 安装包版本号（X.Y.Z）
+        required: true
+        type: string
+        default: "2.0.8"
+  # 首次提交本工作流即触发 2.0.8 构建；以后可以手动发布新版本。
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/windowsRelease.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mangaflow-windows-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 构建 Windows x64
+    uses: ./.github/workflows/debug.yml
+    with:
+      target: windowsX64
+      ref: ${{ github.sha }}
+      version: ${{ inputs.version || '2.0.8' }}
+      generatePatch: false
+      androidRelease: false
+
+  publish:
+    name: 发布 Windows EXE
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: 下载 Windows 构建产物
+        uses: actions/download-artifact@v8
+        with:
+          name: toonflow-${{ needs.build.outputs.version }}-windowsX64
+          path: artifacts
+      - name: 核对唯一 Windows 安装包
+        env:
+          releaseVersion: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          installer="artifacts/mangaflow-${releaseVersion}-Setup.exe"
+          test -s "$installer"
+          actualCount="$(find artifacts -maxdepth 1 -type f -name '*.exe' | wc -l)"
+          if [ "$actualCount" -ne 1 ]; then
+            echo "::error::Windows 安装包数量应为 1，实际为 ${actualCount}"
+            exit 1
+          fi
+      - name: 发布 GitHub Release（仅 EXE）
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          target_commitish: ${{ needs.build.outputs.commit }}
+          name: MangaFlow v${{ needs.build.outputs.version }} · Windows
+          body: |
+            Windows x64 安装包。
+            包含 TryCloudflare 隧道连接恢复与诊断日志修复。
+            只发布 Windows EXE，不包含 macOS 或 Android 安装包。
+          make_latest: true
+          fail_on_unmatched_files: true
+          overwrite_files: false
+          files: artifacts/mangaflow-${{ needs.build.outputs.version }}-Setup.exe

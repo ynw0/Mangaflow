@@ -54,7 +54,7 @@ export function createMcpRouter(options: McpOptions) {
   const translateError = options.translateError ?? ((error: unknown) => translateMessage(error instanceof Error ? error.message : String(error)));
   const createServer = () => {
     const resources = options.resources;
-    const server = new McpServer({ name: "toonflow", version: "0.0.0" }, {
+    const server = new McpServer({ name: "mangaflow", version: "0.0.0" }, {
       capabilities: { tools: { listChanged: false }, ...(resources ? { resources: { subscribe: false, listChanged: false } } : {}) },
       instructions: "先调用 getAppState 获取连接和工作区；从 tools/list 读取当前工具参数。业务工具使用 {target: {connectionId, directory}, args: {...}}。画布与节点必须使用实时工具，禁止直接修改画布 JSON。"
         // 外部 Agent 从 MCP 进入制作，不会继承应用内 Agent 的系统提示词。
@@ -106,7 +106,7 @@ export function createMcpRouter(options: McpOptions) {
         await Promise.all(previous.map(transport => transport.close()));
       }
       if (!await options.authorize(request)) {
-        response.setHeader("WWW-Authenticate", options.challenge?.() ?? 'Bearer realm="Toonflow"');
+        response.setHeader("WWW-Authenticate", options.challenge?.() ?? 'Bearer realm="MangaFlow"');
         response.status(401).json({ jsonrpc: "2.0", id: null, error: { code: -32001, message: translateMessage("MCP 未开启或访问凭证无效") } });
         return;
       }

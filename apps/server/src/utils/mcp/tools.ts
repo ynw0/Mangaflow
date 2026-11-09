@@ -89,7 +89,7 @@ const uiSchemas = {
   updateSettings: z.strictObject({ patch: z.record(z.string(), z.json()).refine(patch => !["mcp", "stores"].some(key => Object.hasOwn(patch, key)), "不能通过 MCP 修改连接凭证或项目列表") }),
 };
 const uiDescriptions: Record<keyof typeof uiSchemas, string> = {
-  openProject: "在目标 Toonflow 页面打开已有工作目录，并等待工作区就绪；操作前获取 getAppState 的 connectionId。",
+  openProject: "在目标 MangaFlow 页面打开已有工作目录，并等待工作区就绪；操作前获取 getAppState 的 connectionId。",
   switchPanel: "切换工作区的 canvas 画布或 document 文档面板，先保存当前编辑。",
   getDocument: "读取当前文档内容和选择状态。writeDocument 必须携带本次读取的 text 作为 expectedText。",
   openDocument: "打开工作区中的文档文件(path)，或画布中的文本节点(canvasPath、nodeId，可选handleId)。",
@@ -113,7 +113,7 @@ async function assertFileNotOpen(directory: string, path: string) {
     for (const file of openPaths) {
       if (!file) continue;
       const opened = (await resolveWorkspacePath(directory, relative(directory, resolve(directory, file)), true)).path;
-      if (isWithin(target, opened)) throw new Error("文件正在 Toonflow 中打开，请使用画布或文档工具修改，关闭后再执行文件操作");
+      if (isWithin(target, opened)) throw new Error("文件正在 MangaFlow 中打开，请使用画布或文档工具修改，关闭后再执行文件操作");
     }
   }
 }
@@ -122,7 +122,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
   const authorizationSignal = authorizationController.signal;
   let pluginError: string | undefined;
   const tools: McpTool[] = [{
-    name: "getAppState", description: "列出连接的 Toonflow 页面及其 connectionId、工作目录、画布、项目列表和节点能力。多个页面时必须用 target.connectionId 明确操作对象；无页面连接时只有显式 target.directory 的服务端工具可用。",
+    name: "getAppState", description: "列出连接的 MangaFlow 页面及其 connectionId、工作目录、画布、项目列表和节点能力。多个页面时必须用 target.connectionId 明确操作对象；无页面连接时只有显式 target.directory 的服务端工具可用。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     async execute() {
       const workspaceRoot = resolve(dirname(conf.path), "workspaces");
@@ -155,7 +155,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
     tools.push(wrapTool(name, uiDescriptions[name as keyof typeof uiSchemas], z.toJSONSchema(schema), async (input, target, signal) => {
       const args = schema.parse(input);
       const { connection, directory } = await resolveTarget(target, !["openProject", "getSettings", "updateSettings"].includes(name));
-      if (!connection) throw new Error("请先打开 Toonflow 桌面或网页");
+      if (!connection) throw new Error("请先打开 MangaFlow 桌面或网页");
       if (name === "openProject") await resolveDirectory((args as { directory: string }).directory);
       const result = await callControl(connection.id, name, args, signal, directory);
       return name === "getSettings" || name === "updateSettings" ? redactSecrets(result) : result;
@@ -177,7 +177,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
         call: (request, callSignal) => callControl(connection.id, request.name, request.args, callSignal ?? signal, directory),
       } : undefined;
       const current = (await createAgentTools(directory!, canvas)).find(tool => tool.name === definition.name);
-      if (!current) throw new Error("工具已禁用，或所需 Toonflow 页面未连接，请重新读取工具列表");
+      if (!current) throw new Error("工具已禁用，或所需 MangaFlow 页面未连接，请重新读取工具列表");
       // ACT: 现有插件依赖 createTools 注入的宿主能力；MCP 没有 Pi 对话，访问会话能力时明确报错。
       const context = new Proxy({ cwd: directory, mode: "rpc", hasUI: false, model: undefined, signal }, {
         get(value, key) { if (Reflect.has(value, key)) return Reflect.get(value, key); throw new Error(t`MCP 不提供内置 Agent 会话能力：${String(key)}`); },
@@ -260,7 +260,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
     prompt: z.string().trim().min(1), providerId: z.string().min(1), modelId: z.string().min(1),
     sessionFile: z.string().regex(/^[\w-]+\.jsonl$/).optional(), thinkingLevel: z.string().trim().min(1).max(64).optional(),
   });
-  tools.push(wrapTool("runAgent", "仅按用户明确委托启动 Toonflow 内置 Agent，会额外调用指定语言模型。普通写作、规划、提示词、审核和报告由当前外部 Agent 直接完成，不调用此工具。后台结果包含对话文件与回复，历史保存到工作区；查询和请求停止分别使用 getMcpTask/cancelMcpTask。", z.toJSONSchema(runAgentSchema), async (input, target, signal) => {
+  tools.push(wrapTool("runAgent", "仅按用户明确委托启动 MangaFlow 内置 Agent，会额外调用指定语言模型。普通写作、规划、提示词、审核和报告由当前外部 Agent 直接完成，不调用此工具。后台结果包含对话文件与回复，历史保存到工作区；查询和请求停止分别使用 getMcpTask/cancelMcpTask。", z.toJSONSchema(runAgentSchema), async (input, target, signal) => {
     const { delegationConfirmed: _delegationConfirmed, ...args } = runAgentSchema.parse(input);
     const { directory, connection } = await resolveTarget(target);
     const canvas: CanvasContext | undefined = connection ? {

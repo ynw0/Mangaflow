@@ -205,7 +205,7 @@ async function copyConfig(transport: "http" | "stdio") {
       ? { headers: { Authorization: `Bearer ${mcpSettings.value.token}` } } : {}),
   };
   if (!config) return;
-  await copyText(JSON.stringify({ mcpServers: { toonflow: config } }, null, 2), "MCP 配置", "headers" in config);
+  await copyText(JSON.stringify({ mcpServers: { mangaflow: config } }, null, 2), "MCP 配置", "headers" in config);
 }
 
 async function savePublicSettings() {

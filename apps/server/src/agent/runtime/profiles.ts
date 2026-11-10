@@ -48,7 +48,9 @@ export function resolveAgentProfile(role: AgentProfileRole, main: AgentModelSele
   const base = { providerId: general.providerId, modelId: general.modelId, thinkingLevel: general.thinkingLevel };
   const selected = applyProfile(base, role, profiles[role]);
   if (selected.configured) return { providerId: selected.providerId, modelId: selected.modelId, thinkingLevel: selected.thinkingLevel };
-  if (role === "videoDirector" && base.thinkingLevel === "xhigh") return { ...base, thinkingLevel: "high" };
-  if (role === "videoReviewer" && ["high", "xhigh"].includes(base.thinkingLevel)) return { ...base, thinkingLevel: "medium" };
+  // 不应把支持 xhigh 但不支持 high 的模型强制降到 high（会触发 400）。
+  const levels = getConfiguredModel(base.providerId, base.modelId).model.thinkingLevels ?? [];
+  if (role === "videoDirector" && base.thinkingLevel === "xhigh" && levels.includes("high")) return { ...base, thinkingLevel: "high" };
+  if (role === "videoReviewer" && ["high", "xhigh"].includes(base.thinkingLevel) && levels.includes("medium")) return { ...base, thinkingLevel: "medium" };
   return base;
 }

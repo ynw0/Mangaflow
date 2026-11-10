@@ -6,7 +6,7 @@ import { getConfiguredModel } from "@/utils/ai";
 export const agentProfileRoles = ["subAgent", "story", "character", "scene", "prop", "team", "videoDirector", "videoReviewer"] as const;
 export type AgentProfileRole = (typeof agentProfileRoles)[number];
 export type AgentModelSelection = { providerId: string; modelId: string; thinkingLevel: string };
-const supportedLevels = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+const supportedLevels = ["off", "none", "on", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] as const;
 const profileSchema = z.strictObject({
   modelKey: z.string().max(1024).optional(),
   thinkingLevel: z.enum(["inherit", ...supportedLevels]).optional(),

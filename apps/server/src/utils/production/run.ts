@@ -2,7 +2,7 @@
 import { readFile } from "@toonflow/file";
 import type { MediaGenerationRequest, VideoExecution } from "@toonflow/tools-scaffold/runtime";
 import { resolveComfyBaseUrl } from "@/utils/production/autodl";
-import { downloadOutput, probeComfy, submitWorkflow, uploadInput, waitForOutput } from "@/utils/production/comfyui";
+import { downloadOutput, probeComfy, readNodeChoices, submitWorkflow, uploadInput, waitForOutput } from "@/utils/production/comfyui";
 import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
 import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
@@ -321,6 +321,14 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   signal?.throwIfAborted();
   const baseUrl = await resolveComfyBaseUrl(signal, host);
   await probeComfy(baseUrl, signal);
+  // 非默认的用户自选 LoRA 必须确实存在于当前 ComfyUI 主机；不静默改成其他文件。
+  if (entry.bindings.optionalLoraNode && request.loraName
+      && request.loraName !== entry.loraDefaultName) {
+    const names = await readNodeChoices(baseUrl, "LoraLoaderModelOnly", "lora_name", signal);
+    if (!names.includes(request.loraName)) {
+      fail("当前 ComfyUI 未安装所选 LoRA，请刷新画布节点的 LoRA 列表或改为关闭 LoRA");
+    }
+  }
   const uploadDirectory = `toonflow/${crypto.randomUUID()}`;
   for (const [index, binding] of entry.bindings.bindings.entries()) {
     if (binding.kind === "value") continue;

@@ -83,6 +83,16 @@
           </span>
         </el-button>
       </div>
+      <div v-if="model?.lora" class="loraSelect">
+        <div class="sectionLabel">使用 LoRA</div>
+        <el-select v-model="selectedLora" :disabled="disabled" :teleported="false" filterable aria-label="选择 LoRA 或关闭">
+          <el-option label="关闭 LoRA（基础模型）" value="" />
+          <el-option v-for="name in loraOptions" :key="name" :value="name" :label="name" />
+        </el-select>
+        <el-button text size="small" :disabled="disabled || loraLoading" :loading="loraLoading" @click="emit('refreshLoras')">读取 ComfyUI 已安装 LoRA</el-button>
+        <div v-if="loraError" class="sizeHint">{{ loraError }}</div>
+        <div class="sizeHint">选择其他 LoRA 前请确认与 H3 基础模型兼容。</div>
+      </div>
       <div v-if="model?.supportsFirstPassOutput" class="audioOption">
         <span class="sectionLabel">输出一采视频</span>
         <el-switch v-model="outputFirstPass" :disabled="disabled" aria-label="输出一采视频" />
@@ -122,7 +132,8 @@ import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch, ElInputNumber } from
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import type { NodeMediaModel } from "@toonflow/nodes-scaffold/runtime";
 
-const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number }>();
+const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number; loraChoices?: string[]; loraLoading?: boolean; loraError?: string }>();
+const emit = defineEmits<{ refreshLoras: [] }>();
 const settingsVisible = ref(false);
 const duration = defineModel<number | undefined>("duration", { required: true });
 const resolution = defineModel<string>("resolution", { required: true });
@@ -131,6 +142,16 @@ const upscale = defineModel<number | undefined>("upscale");
 const firstPassSteps = defineModel<number | undefined>("firstPassSteps");
 const secondPassSteps = defineModel<number | undefined>("secondPassSteps");
 const outputFirstPass = defineModel<boolean>("outputFirstPass", { required: true });
+const loraName = defineModel<string | undefined>("loraName");
+const selectedLora = computed({
+  get: () => loraName.value ?? props.model?.lora?.defaultName ?? "",
+  set: (value: string) => { loraName.value = value; },
+});
+const loraOptions = computed(() => [...new Set([
+  props.model?.lora?.defaultName,
+  ...(props.loraChoices ?? []),
+  loraName.value,
+].filter((name): name is string => Boolean(name)))].sort((a, b) => a.localeCompare(b)));
 const ratio = defineModel<string>("ratio", { required: true });
 const mode = defineModel<string>("mode", { required: true });
 const generateAudio = defineModel<boolean>("generateAudio", { required: true });

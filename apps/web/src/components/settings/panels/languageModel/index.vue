@@ -128,6 +128,7 @@ async function fetchProviderModels(provider: CustomProvider) {
           ...model,
           inputs: prior.inputs,
           ...(prior.thinkingLevels !== undefined ? { thinkingLevels: prior.thinkingLevels } : {}),
+          ...(prior.reasoningMode !== undefined ? { reasoningMode: prior.reasoningMode } : {}),
         };
       });
       return { customProviders: current.map(item => item?.id === id ? { ...item, models } : item) };

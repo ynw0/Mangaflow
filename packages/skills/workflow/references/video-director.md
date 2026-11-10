@@ -16,6 +16,31 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 - `detailed_description` 中在镜头初始部分明确稳定的场景、机位、光线与空间关系，后续时间段侧重**变化**：新增动作、视线、声音、参考状态和必要的摄影变化。持续不变的条件沿用前文，不机械重复每段清单。
 - 保留已有连续摄影、动作时序、对白、槽位和硬约束；新知识库只提供创作决策，不可覆盖上游事实或官方格式。
 
+## 大型机构变形镜头：先验任务容量
+
+机械运动必须能在实际时长和画幅中看清。车辆从全闭合到舱盖打开、翼根露出、三级机翼展开锁定、双尾翼升起包含多条依赖运动链。不要将复杂机构硬编成五秒内六七段精确到毫秒的运动口令；模型不是机械动画控制器。
+
+- 优先建议上游拆为“闭合→舱盖开启”“翼根→机翼展开”“翼板锁定→完整静帧”三个独立连续镜头。拆镜须由既有上游分镜合同确认；不得自行删除剧情硬要求。无法在现有时长内执行时返回 blocked，说明冲突和建议拆法。
+
+- 各阶段参考图需与已批准原车身份一致；重点核对铰链、连接点、左右零件数量、车轮位置。若没有对应状态图先修素材。
+
+- 当前 mode=singleImage 且实际工作流 prompt_format=h3Ref2va 时是普通参考图，不是专用第一帧绑定；禁止以 [keyframe completion]、actual FIRST FRAME 等措辞假设强约束。需要首尾帧时必须先确认真实工作流提供对应绑定，再重新做提示词审核。
+
+- 复杂度应靠拆镜和更精确的结构参考降低，而非重复身份描述、填充时间戳或增加华丽形容词。
+
+## 最小充分提示词（项目优先写作原则）
+
+本项目以**短而明确的单镜提示词**为优先，不追求更多词数或复杂摄影术语。把 H3 模式要求的段落作为**必要结构**，不作为内容扩写任务；官方示例的较长篇幅不是本项目 5 秒单镜的固定目标。做到以下几点即可停止扩写：
+
+1. 引用素材、角色身份、必要的外形/结构锁和当前场景明确；只锁与本镜或跨镜一致性有关的特征。
+2. 开场画面能定位主体和机位，动作的起点、方向、接触或变化、镜尾结果清楚；按真实时长写必要的节拍，普通动作不强行分多段。
+3. 只写当前镜头必要的光、声、表演和摄影变化；稳定环境、画风、机位、背景声只交代一次，别在逐段描述中重复。
+4. `summary` 只用一句说明任务和本镜事件；`retention_analysis` 每个引用主体用最短的正确保留关系与关键锁定事实；无需重复全文外形。
+5. 无关的形容词、说明书式解释、多个候选拍法、QC 检查项、案例文字与 `cinematicPlan` 绝不进入最终模型 prompt。
+6. **简洁不能删掉**：已批准的身份关键特征、参考绑定、剧本硬要求、明确对白、必要声源/口型、时长、运动因果与末态。删减以“不损失可执行和可检验性”为边界。
+
+生成前按句检查：这句话是否带来新的必要画面信息？没有就删掉。不要为了接近某个推荐词数而填充。`prompt_zh` 与英文内容等价即可，不必逐词翻译成更长版本。
+
 ## 成片格式真源
 按目标节点的真实工作流及引用模式写作。新建镜头从用户指定或当前 production.video 取工作流，再核对实际能力。
 
@@ -110,15 +135,15 @@ summary:
 
 retention_analysis:
 <Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - short black hair, deep indigo knit sweater, dark grey trousers.
-<Subject 2> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - hexagonal silhouette and cracks.
-<Subject 3> (appears in [Shot 1], [Shot 2]): fully_preserved - tray silhouette and brushed metal.
-<Subject 4> (appears in [Shot 1], [Shot 3]): fully_preserved - lab layout and cool white overhead lights.
+<Subject 2> (appears in [Shot 1]): fully_preserved - hexagonal silhouette and cracks.
+<Subject 3> (appears in [Shot 1]): fully_preserved - tray silhouette and brushed metal.
+<Subject 4> (appears in [Shot 1]): fully_preserved - lab layout and cool white overhead lights.
 
 detailed_description:
-Realistic-proportion 3D animation. Cool white overhead light from above; thin speculars on the metal rim.
-[Shot 1] Medium shot, slightly above eye level. <Subject 4> underground lab under cool white light. <Subject 1> Lin Yuan sits on the lab chair, eyes on <Subject 2> the spirit stone in <Subject 3> the tray. Low HVAC hum.
-[Shot 2] At 00:03.000, slow push-in to close-up on Lin Yuan's face; gaze still locked on the stone. HVAC hum continues.
-[Shot 3] At 00:06.000, close-up holds. <Subject 1> (S1) says quietly, <d>[Chinese] 再来一次</d>. Voice sits over the HVAC.
+Realistic-proportion 3D animation under cool overhead laboratory lighting.
+[Shot 1] Slightly high medium shot of <Subject 4> the lab. <Subject 1> Lin Yuan sits beside the bench, staring at <Subject 2> the spirit stone in <Subject 3> the tray.
+[Shot 2] At 00:03.000, the camera slowly pushes toward Lin Yuan's face; his gaze stays on the stone.
+[Shot 3] At 00:06.000, the camera holds. <Subject 1> (S1) says quietly, <d>[Chinese] 再来一次</d>.
 
 overall_soundscape:
 Low HVAC hum running throughout.

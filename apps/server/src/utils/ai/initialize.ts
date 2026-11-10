@@ -23,7 +23,7 @@ async function refreshLanguageModels(previousSettings?: Record<string, unknown>)
   if (!apiKey || (previousSettings && apiKey === normalizeApiKey(getLanguageProvider(previousSettings)?.apiKey))) return;
   const fetched = await fetchProviderModels({ apiUrl: provider.apiUrl, protocol: provider.protocol, apiKey });
   if (!fetched.length) throw new Error("未获取到文本模型，保留原有列表");
-  type StoredModel = { id?: unknown; inputs?: unknown; thinkingLevels?: unknown };
+  type StoredModel = { id?: unknown; inputs?: unknown; thinkingLevels?: unknown; reasoningMode?: unknown };
   const previousModels = new Map<string, StoredModel>((Array.isArray(provider.models) ? provider.models : []).flatMap((model: StoredModel) => {
     const id = typeof model?.id === "string" ? model.id : "";
     return id ? [[id, model] as const] : [];
@@ -35,6 +35,7 @@ async function refreshLanguageModels(previousSettings?: Record<string, unknown>)
       ...model,
       ...(prior.inputs ? { inputs: prior.inputs } : {}),
       ...(Array.isArray(prior.thinkingLevels) ? { thinkingLevels: prior.thinkingLevels } : {}),
+      ...(prior.reasoningMode === "toggle" || prior.reasoningMode === "effort" ? { reasoningMode: prior.reasoningMode } : {}),
     };
   });
   const current = conf.get("settings.customProviders");

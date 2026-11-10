@@ -102,12 +102,17 @@
             v-model:firstPassSteps="data.firstPassSteps"
             v-model:secondPassSteps="data.secondPassSteps"
             v-model:outputFirstPass="data.outputFirstPass"
+            v-model:loraName="data.loraName"
             v-model:ratio="data.ratio"
             v-model:mode="data.mode"
             v-model:generateAudio="data.generateAudio"
             v-model:seed="data.seed"
             v-model:seedMode="data.seedMode"
             :lastSeed="data.lastSeed"
+            :loraChoices="loraChoices"
+            :loraLoading="loraLoading"
+            :loraError="loraError"
+            @refresh-loras="refreshLoraChoices"
             :ratios="ratioOptions"
             :model="selectedModel"
             :disabled="generating || deleting || !selectedModel" />
@@ -167,7 +172,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
+const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -194,6 +199,30 @@ data.value.seedMode ??= "fixed";
 data.value.seed ??= defaultSeed;
 const { refList, referenceMentions, setReferencePreview, removeReference } = useNodeReferences();
 const models = ref<NodeMediaModel[]>([]);
+const loraChoices = ref<string[]>([]);
+const loraLoading = ref(false);
+const loraError = ref("");
+async function refreshLoraChoices() {
+  const selected = selectedModel.value;
+  if (!selected?.lora || loraLoading.value) return;
+  loraLoading.value = true;
+  loraError.value = "";
+  try {
+    const response = await fetch(`/api/production/comfyui/loras?modelId=${encodeURIComponent(selected.modelId)}`, {
+      headers: { "x-toonflow-workspace": "1" },
+      cache: "no-store",
+    });
+    const result = await response.json() as { code?: number; message?: string; data?: { names?: string[] } };
+    if (!response.ok || result.code !== 200 || !Array.isArray(result.data?.names)) {
+      throw new Error(result.message || "读取已安装 LoRA 失败");
+    }
+    if (selectedModel.value?.modelId === selected.modelId) loraChoices.value = result.data.names;
+  } catch (error) {
+    if (selectedModel.value?.modelId === selected.modelId) loraError.value = error instanceof Error ? error.message : "ComfyUI 不可用";
+  } finally {
+    loraLoading.value = false;
+  }
+}
 const modelsLoading = ref(false);
 const uploading = ref(false);
 const fileInput = ref<HTMLInputElement>();
@@ -311,6 +340,11 @@ watch([selectedModel, () => data.value.duration], ([choice]) => {
   if (!ratioOptions.includes(data.value.ratio)) data.value.ratio = "9:16";
   if (choice.audio !== "optional") data.value.generateAudio = choice.audio === true;
 }, { flush: "sync" });
+watch(() => selectedModel.value?.modelId, (current, previous) => {
+  if (previous && current !== previous) data.value.loraName = undefined;
+  loraChoices.value = [];
+  loraError.value = "";
+}, { flush: "sync" });
 const modelGroups = computed(() => groupNodeModels(models.value));
 const generationPrompt = computed(() =>
   [
@@ -338,6 +372,7 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     firstPassSteps: choice.sampling?.firstPassDefault != null ? data.value.firstPassSteps : undefined,
     secondPassSteps: choice.sampling?.secondPassDefault != null ? data.value.secondPassSteps : undefined,
     outputFirstPass: choice.supportsFirstPassOutput ? data.value.outputFirstPass === true : undefined,
+    loraName: choice.lora ? (data.value.loraName ?? choice.lora.defaultName) : undefined,
     ratio: data.value.ratio,
     generateAudio: choice.audio === "optional" ? data.value.generateAudio : choice.audio,
     outputDirectory: `assets/${id}`,
@@ -668,6 +703,7 @@ function getConfig() {
       firstPassSteps: data.value.firstPassSteps,
       secondPassSteps: data.value.secondPassSteps,
       outputFirstPass: data.value.outputFirstPass,
+      loraName: selectedModel.value?.lora ? (data.value.loraName ?? selectedModel.value.lora.defaultName) : undefined,
       ratio: data.value.ratio,
       mode: selectedMode.value,
       generateAudio: data.value.generateAudio,
@@ -677,6 +713,8 @@ function getConfig() {
       lastSeed: selectedModel.value?.supportsSeed ? data.value.lastSeed : undefined,
     },
     models: models.value,
+    loraChoices: loraChoices.value,
+    loraError: loraError.value,
     ratios: ratioOptions,
     matchingModes: matchingModes.value,
   };
@@ -735,6 +773,7 @@ nodeTools.register({
     firstPassSteps: z.number().int().min(1).max(64).optional(),
     secondPassSteps: z.number().int().min(1).max(64).optional(),
     outputFirstPass: z.boolean().optional(),
+    loraName: z.string().max(512).optional(),
     ratio: z.enum(ratioOptions).optional(),
     mode: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     generateAudio: z.boolean().optional(),
@@ -762,6 +801,7 @@ nodeTools.register({
       : models.value.find((item) => item.providerId === args.providerId && item.modelId === args.modelId);
     if (!choice) throw new Error(`模型组合无效：providerId=${args.providerId ?? "未指定"}，modelId=${args.modelId ?? "未选择"}。可选模型：${JSON.stringify(models.value.map(({ providerId, modelId, label }) => ({ providerId, modelId, label })))}。请重新读取 getConfig 后选择，不得替换为未获用户批准的模型。`);
     if (args.outputFirstPass !== undefined && !choice.supportsFirstPassOutput) throw new Error("当前工作流不支持输出一采视频");
+    if (args.loraName !== undefined && !choice.lora) throw new Error("当前工作流不支持选择 LoRA");
     if (!choice.supportsSeed && (args.seed !== undefined || args.seedMode !== undefined)) throw new Error("当前工作流没有绑定种子");
     if (args.seedMode === "last" && data.value.lastSeed == null) throw new Error("暂无随机种子记录");
     if (args.seed !== undefined && (args.seedMode ?? data.value.seedMode) !== "fixed") throw new Error(`字段 seed 与种子模式冲突：当前 seedMode=${data.value.seedMode}，本次 seedMode=${args.seedMode ?? "未指定"}。指定 seed 时必须同时传 seedMode=fixed；使用 random 或 last 时不要传 seed。`);
@@ -807,6 +847,7 @@ nodeTools.register({
     if (args.mode !== undefined) data.value.mode = JSON.stringify(args.mode);
     if (args.generateAudio !== undefined) data.value.generateAudio = args.generateAudio;
     if (args.outputFirstPass !== undefined) data.value.outputFirstPass = args.outputFirstPass;
+    if (args.loraName !== undefined) data.value.loraName = args.loraName;
     if (args.seedMode !== undefined) data.value.seedMode = args.seedMode;
     if (args.seed !== undefined) data.value.seed = args.seed;
     return getConfig();

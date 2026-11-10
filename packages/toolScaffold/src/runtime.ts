@@ -83,6 +83,8 @@ export interface MediaModel {
   imageReferences?: { min: number; max: number };
   promptFormat?: "h3Ref2va" | "h3Frames";
   supportsSeed?: boolean;
+  /** 二采工作流允许单独保存一采 MP4，默认关闭。 */
+  supportsFirstPassOutput?: boolean;
   references?: { image: number; video: number; audio: number };
   imageSizes?: string[];
   imageRatios?: string[];
@@ -141,6 +143,8 @@ export interface MediaGenerationRequest {
   firstPassSteps?: number;
   /** 二采节点 148 的二采步数；总步数由工作流 a+b 计算。云视频可忽略 */
   secondPassSteps?: number;
+  /** 只决定是否额外保存一采视频，不跳过或改变一采采样。 */
+  outputFirstPass?: boolean;
   generateAudio?: boolean;
   voice?: string;
   speed?: number;

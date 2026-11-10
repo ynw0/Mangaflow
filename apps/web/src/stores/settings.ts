@@ -140,6 +140,38 @@ export function setModelThinkingLevel(modelKey: string, level: string) {
   settings.value = { ...settings.value, thinkingLevelByModel: { ...current, [modelKey]: resolved } };
 }
 
+// 实际向当前供应商发短请求探测；结果经用户界面触发后写回该模型档位。
+export async function probeAndSaveThinkingLevels(providerId: string, modelId: string) {
+  const response = await axios.post("/api/providers/thinkingProbe", { providerId, modelId }, { timeout: 125000 });
+  const payload = response.data as { code?: number; message?: string; data?: { levels?: unknown; source?: string; notice?: string } };
+  if (payload.code !== 200 || !Array.isArray(payload.data?.levels)) throw new Error(payload.message || "探测失败");
+  const levels = normalizeThinkingLevels(payload.data.levels).filter(item => (presetThinkingLevels as readonly string[]).includes(item));
+  const key = JSON.stringify([providerId, modelId]);
+  await saveSettings(current => {
+    const providers = current.customProviders;
+    if (!Array.isArray(providers) || !providers.some(item => item.id === providerId && item.models?.some(model => model.id === modelId))) {
+      throw new Error("模型已从供应商设置中移除，未保存探测结果");
+    }
+    const byModel = current.thinkingLevelByModel && typeof current.thinkingLevelByModel === "object"
+      ? current.thinkingLevelByModel as Record<string, string> : {};
+    const selected = byModel[key];
+    const profiles = current.agentProfiles && typeof current.agentProfiles === "object"
+      ? current.agentProfiles as Record<string, { modelKey?: string; thinkingLevel?: string }> : {};
+    return {
+      customProviders: providers.map(provider => provider.id !== providerId ? provider : {
+        ...provider, models: provider.models.map(model => model.id === modelId ? { ...model, thinkingLevels: levels } : model),
+      }),
+      thinkingLevelByModel: { ...byModel, [key]: selected && levels.includes(selected) ? selected : "off" },
+      agentProfiles: Object.fromEntries(Object.entries(profiles).map(([role, profile]) => [
+        role, profile.modelKey === key && profile.thinkingLevel !== "inherit" && profile.thinkingLevel !== "off"
+          && !levels.includes(profile.thinkingLevel ?? "")
+          ? { ...profile, thinkingLevel: "off" } : profile,
+      ])),
+    };
+  });
+  return { levels, source: payload.data.source, notice: payload.data.notice };
+}
+
 export type ModelInputs = { image: boolean; video: boolean; audio: boolean };
 export type CustomProviderModel = { id: string; label: string; contextWindow?: number; maxOutputTokens?: number; inputs?: ModelInputs; thinkingLevels?: string[] };
 

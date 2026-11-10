@@ -53,6 +53,14 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     return findings;
   }
   const prefix = prompt.slice(0, headings[0]!.index).trim();
+  // 单图参考/多图 Ref2VA 并不具备 first_frame、last_frame 硬绑定；不可用文字冒充关键帧。
+  if (format !== "h3Frames" && (
+    /\[keyframe completion\]/i.test(prompt)
+    || /\b(?:exact|actual|true)\s+(?:first|starting)\s+(?:video\s+)?frame\b/i.test(prompt)
+    || /\bfirst (?:video )?frame is exactly\b/i.test(prompt)
+  )) {
+    findings.push("当前工作流是参考图模式，没有专用首尾帧绑定。不得声明 keyframe completion 或严格第一帧；请换用真实 h3Frames 工作流，或改写为普通参考图语义。");
+  }
   if (format === "h3Frames") {
     const duration = setup.duration.toFixed(2);
     if (prefix.split("\n").length !== 1 || !/Picture 1.*0\.00-second mark/.test(prefix)

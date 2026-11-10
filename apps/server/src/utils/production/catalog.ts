@@ -19,6 +19,8 @@ export type WorkflowEntry = {
   version?: number;
   /** 二采工作流 JSON 里现成的一采、二采步数，不在代码里另写默认值。 */
   stepDefaults?: { firstPass: number; secondPass: number };
+  /** 原工作流内加载的 LoRA 文件名，保持旧画布默认行为。 */
+  loraDefaultName?: string;
 };
 
 const labels: Record<string, string> = {
@@ -101,6 +103,7 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
     workflowPath,
     version: parsed.version,
     stepDefaults: await readStepDefaults(workflowPath, parsed),
+    loraDefaultName: await readLoraDefault(workflowPath, parsed),
   };
 }
 
@@ -123,6 +126,15 @@ async function readStepDefaults(workflowPath: string, bindings: WorkflowBindings
   const secondPass = readBoundInteger(parsed, secondTarget);
   if (firstPass == null || secondPass == null) return;
   return { firstPass, secondPass };
+}
+
+async function readLoraDefault(workflowPath: string, bindings: WorkflowBindings) {
+  const id = bindings.optionalLoraNode;
+  if (!id) return;
+  const workflow = JSON.parse(await readFile(workflowPath, "utf8")) as Record<string, { inputs?: { lora_name?: unknown } }>;
+  const name = workflow[id]?.inputs?.lora_name;
+  if (typeof name !== "string" || !name.trim()) fail(`可选 LoRA 节点 ${id} 缺少默认模型名`);
+  return name;
 }
 
 const warnedNotices = new Set<string>();
@@ -270,6 +282,7 @@ export function toMediaModel(entry: WorkflowEntry) {
     usage: entry.bindings.usage,
     promptFormat: entry.bindings.promptFormat,
     supportsFirstPassOutput: Boolean(entry.bindings.firstPassOutputNode),
+    ...(entry.loraDefaultName ? { lora: { defaultName: entry.loraDefaultName } } : {}),
     supportsSeed: entry.bindings.bindings.some(item => item.source === "seed" && item.kind === "value"),
     references,
     type: "video" as const,

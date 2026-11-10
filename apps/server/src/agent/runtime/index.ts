@@ -268,7 +268,7 @@ export async function run(
       tools: tools.map((tool) => tool.name),
       customTools: tools,
     });
-    configureAgentRequests(session);
+    configureAgentRequests(session, undefined, thinkingLevel);
     active.session = session;
     async function promptSession(text: string, expandPromptTemplates = true) {
       await compactHistory(session, history, send);

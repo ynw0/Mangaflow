@@ -56,6 +56,7 @@ export const videoGenerationSchema = z.strictObject({
   firstPassSteps: z.number().int().min(1).max(64).optional(),
   secondPassSteps: z.number().int().min(1).max(64).optional(),
   outputFirstPass: z.boolean().optional(),
+  loraName: z.string().max(512).refine(v => !/[\u0000-\u001f]/.test(v), "LoRA 文件名不能包含控制字符").optional(),
   generateAudio: z.boolean().optional(),
   mode: z.union([
     z.enum(["singleImage", "startEndRequired", "endFrameOptional", "startFrameOptional", "text"]),

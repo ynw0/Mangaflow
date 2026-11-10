@@ -85,6 +85,8 @@ export interface MediaModel {
   supportsSeed?: boolean;
   /** 二采工作流允许单独保存一采 MP4，默认关闭。 */
   supportsFirstPassOutput?: boolean;
+  /** 二采工作流可选择 LoRA 或完全关闭；defaultName 来自当前工作流。 */
+  lora?: { defaultName: string };
   references?: { image: number; video: number; audio: number };
   imageSizes?: string[];
   imageRatios?: string[];
@@ -145,6 +147,8 @@ export interface MediaGenerationRequest {
   secondPassSteps?: number;
   /** 只决定是否额外保存一采视频，不跳过或改变一采采样。 */
   outputFirstPass?: boolean;
+  /** 省略沿用工作流默认 LoRA；空字符串完全旁路；非空为 ComfyUI 已安装的 LoRA 名称。 */
+  loraName?: string;
   generateAudio?: boolean;
   voice?: string;
   speed?: number;

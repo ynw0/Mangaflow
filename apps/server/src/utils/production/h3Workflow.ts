@@ -29,5 +29,15 @@ export function validateH3Workflow(nodes: unknown, bindings: WorkflowBindings) {
     }
     if (candidate.inputs.save_output !== true) fail(`一采保存节点 ${id} 必须配置 save_output=true`);
   }
+  if (bindings.optionalLoraNode) {
+    const id = bindings.optionalLoraNode;
+    const candidate = (nodes as Record<string, { class_type?: string; inputs?: Record<string, unknown> }>)[id];
+    if (candidate?.class_type !== "LoraLoaderModelOnly"
+      || !Array.isArray(candidate.inputs?.model)
+      || typeof candidate.inputs?.lora_name !== "string"
+      || typeof candidate.inputs?.strength_model !== "number") {
+      fail(`可选 LoRA 节点 ${id} 必须是带模型输入、文件名和强度的 LoraLoaderModelOnly`);
+    }
+  }
   if (!bindings.bindings.some(binding => binding.source === "prompt" && binding.kind === "value")) fail("H3 工作流必须绑定文本 prompt");
 }

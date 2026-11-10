@@ -60,7 +60,7 @@
               </div>
             </div>
           </div>
-          <p v-if="!resolvedModel(role.id)?.thinkingLevels?.length" class="capabilityNote">当前模型未声明思考档位，仅可关闭思考；请在文本模型中配置实际支持的档位。</p>
+          <p v-if="!resolvedModel(role.id)?.thinkingLevels?.length" class="capabilityNote">当前模型未检测到可配置的思考档位，只使用服务默认；可在模型选择处探测支持档位。</p>
         </div>
       </div>
     </section>

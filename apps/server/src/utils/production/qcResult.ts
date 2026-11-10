@@ -25,8 +25,40 @@ function extractJsonObject(text: string): { value?: unknown; error?: string } {
   }
 }
 
+// 质检模型可能重复输出同一编号；先合并再计数，不能把互相矛盾的结论当成通过或失败。
+function compactQcChecks(checks: QcCheck[]): QcCheck[] {
+  const groups = new Map<string, QcCheck[]>();
+  for (const check of checks) {
+    const key = check.requirementId
+      ? `requirement:${check.requirementId}`
+      : `diagnostic:${check.domain}\u0000${check.result}\u0000${check.time ?? ""}\u0000${check.evidence.replace(/\s+/g, " ").trim()}`;
+    const existing = groups.get(key);
+    if (existing) existing.push(check);
+    else groups.set(key, [check]);
+  }
+  return [...groups.values()].map((group): QcCheck => {
+    const first = group[0]!;
+    if (!first.requirementId || group.length === 1) return first;
+    const passed = group.some(item => item.result === "pass");
+    const failed = group.some(item => item.result === "fail");
+    if (passed && failed) {
+      const positive = group.find(item => item.result === "pass")!;
+      const negative = group.find(item => item.result === "fail")!;
+      return { ...first, result: "unverified",
+        evidence: `同一验收编号同时出现通过和失败，需查看原片复核。通过依据：${positive.evidence.slice(0, 180)}；失败依据：${negative.evidence.slice(0, 180)}` };
+    }
+    if (failed) {
+      const failure = group.find(item => item.result === "fail")!;
+      return { ...failure, evidence: `同一编号的 ${group.length} 条结果已合并。 ${failure.evidence}` };
+    }
+    return { ...first, result: "unverified",
+      evidence: `验收编号重复 ${group.length} 次，不能据此判定通过；需对照时间证据复核。 ${first.evidence}` };
+  });
+}
+
 export function summarizeQc(checks: QcCheck[]): Pick<QcVideoResult, "status" | "checks" | "findings"> {
-  // 文本是证据，汇总只读取结构化判定。保留合格证据供复查。
+  // 文本是证据，先归并重复/冲突项，再读取结构化判定。
+  checks = compactQcChecks(checks);
   const findings = checks.filter(check => check.result !== "pass").map(check => ({
     domain: check.domain,
     text: [check.requirementId ? `[${check.requirementId}] ${check.requirement ?? ""}` : "", check.time, check.evidence].filter(Boolean).join(" "),
@@ -44,8 +76,8 @@ export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requ
   // 模型输出非合法 JSON 属于质检执行失败，不能误判为成片已审。
   if (!parsed.success) throw new Error(`质检输出无效：${diagnostic}`);
   const required = mode === "merged" ? ["video", "audio"] as const : [mode];
-  const checks: QcCheck[] = parsed.data.checks.filter(check =>
-    check.domain === "general" || (required.includes(check.domain) && (check.domain !== "audio" || hasAudio)));
+  const checks: QcCheck[] = compactQcChecks(parsed.data.checks.filter(check =>
+    check.domain === "general" || (required.includes(check.domain) && (check.domain !== "audio" || hasAudio))));
   for (const domain of required) {
     if (checks.some(check => check.domain === domain)) continue;
     const evidence = domain === "video" ? "模型未给出画面判定。"
@@ -54,21 +86,26 @@ export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requ
   }
   const expected = new Map(requirements.map(item => [item.id, item]));
   for (const check of checks) {
-    if (!check.requirementId) continue;
+    if (!check.requirementId) {
+      // 未绑定验收编号且无时间锚的画面描述，只能作为诊断线索。
+      if (requirements.length && check.domain === "video" && !check.time && check.result !== "unverified") {
+        check.result = "unverified";
+        check.evidence = `未绑定具体验收编号且缺少时间证据，需复核。${check.evidence}`;
+      }
+      continue;
+    }
     const requirement = expected.get(check.requirementId);
     if (!requirement) {
-      if (check.result === "pass") check.result = "unverified";
+      check.result = "unverified";
       check.evidence = `未知验收编号，不能证明合同覆盖。${check.evidence}`;
       continue;
     }
     check.requirement = requirement.text;
-    const duplicates = checks.filter(item => item.requirementId === requirement.id).length > 1;
-    // 抽取三帧不能证明完整剧情或镜尾动作；缺时间证据、重复项同样不能算通过。
-    // 离散帧即使密集，也不能证明整段视频“从未出现”被禁止的内容。
+    // 只有具备足够证据的“通过”才能通过；失败依据仍保留供复核。
     const negativeEvidence = requirement.source.startsWith("mustNotHave") && !fullVideoEvidence;
-    if (check.result === "pass" && (duplicates || !timelineEvidence || !check.time || negativeEvidence)) {
+    if (check.result === "pass" && (!timelineEvidence || !check.time || negativeEvidence)) {
       check.result = "unverified";
-      const why = duplicates ? "验收编号重复" : !timelineEvidence ? "抽帧不足以确认完整时序" : !check.time
+      const why = !timelineEvidence ? "抽帧不足以确认完整时序" : !check.time
         ? "缺少可定位的时间证据" : "离散帧不能证明整段视频未出现禁止项";
       check.evidence = `${why}。${check.evidence}`;
     }

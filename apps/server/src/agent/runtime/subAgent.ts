@@ -78,7 +78,7 @@ export async function runSubAgent(options: SubAgentModel & {
       customTools: activeTools,
       tools: activeTools.map(tool => tool.name),
     }));
-    configureAgentRequests(session);
+    configureAgentRequests(session, undefined, modelOptions.thinkingLevel);
     signal.throwIfAborted();
     session.agent.shouldStopAfterTurn = () => Boolean(inputRequired?.());
     session.subscribe(event => {

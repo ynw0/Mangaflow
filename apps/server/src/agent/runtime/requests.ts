@@ -12,7 +12,23 @@ function contentHash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
-export function configureAgentRequests(session: AgentSession, limits?: { maxRequestImageBytes?: number; maxRequestBytes?: number }) {
+// Pi SDK 的默认档位映射可能把 xhigh/max 变成 high；以本轮明确选择的档位为准。
+export function applySelectedReasoningEffort(body: Record<string, unknown>, protocol: string, requested: string) {
+  if (protocol === "openai-completions") {
+    if (requested === "off") delete body.reasoning_effort;
+    else body.reasoning_effort = requested;
+  } else if (protocol === "openai-responses") {
+    if (requested === "off") delete body.reasoning;
+    else {
+      const current = body.reasoning && typeof body.reasoning === "object" && !Array.isArray(body.reasoning)
+        ? body.reasoning as Record<string, unknown> : {};
+      body.reasoning = { ...current, effort: requested };
+    }
+  }
+  return body;
+}
+
+export function configureAgentRequests(session: AgentSession, limits?: { maxRequestImageBytes?: number; maxRequestBytes?: number }, selectedThinkingLevel?: string) {
   for (const value of Object.values(limits ?? {})) {
     if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) throw new Error("图片请求预算必须为正安全整数");
   }
@@ -183,7 +199,11 @@ export function configureAgentRequests(session: AgentSession, limits?: { maxRequ
             apiKey,
             onPayload: async (payload, requestModel) => {
               try {
-                const body = await options?.onPayload?.(payload, requestModel) ?? payload;
+                const body = (await options?.onPayload?.(payload, requestModel) ?? payload) as Record<string, unknown>;
+                // 只有原本确实指定了思考等级的 Agent 需要强制同步；压缩摘要始终省略思考参数。
+                if (selectedThinkingLevel !== undefined) {
+                  applySelectedReasoningEffort(body, model.api, session.isCompacting ? "off" : selectedThinkingLevel);
+                }
                 const images = getRequestFiles(body).filter(file => file.mimeType.toLowerCase().startsWith("image/"));
                 const imageCursors = new Map<string, number>();
                 activeImages = [];

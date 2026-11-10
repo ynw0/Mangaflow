@@ -2,7 +2,7 @@
 name: workflow
 description: 按小说或用户query制作漫剧。先编剧，再资产规划，再角色、场景、道具原画与对应审核，再视频导演、视频提示词审核与成片审核。出图按系统设置走 Qwen 图像 API 或 ComfyUI 工作流。出视频用 AutoDL 或本机的 ComfyUI。用户要做短剧、漫剧、分镜、资产或镜头时使用。
 metadata:
-  version: "1.9.0"
+  version: "1.10.0"
   displayName: 漫剧制作
   author: Manga
 ---
@@ -28,6 +28,10 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | 道具原画 | [prop-art.md](references/prop-art.md) 然后 [prop-prompt-review.md](references/prop-prompt-review.md) | 审核通过的产品图 |
 | 单集导演规划（可选） | [directorPlan.md](references/directorPlan.md) | 分集画布上的分场情绪与注意事项 |
 | 成片提示词 | 已有节点先核对实际工作流和模式，新镜用用户指定或 production.video。内置 Agent 用 draftVideoPrompt 读取 [导演 Skill](../cinematicPromptCraft/SKILL.md)、对应的 [H3 规则](../h3-prompt-writing/SKILL.md) 和 [视频审核规则](references/video-prompt-review.md) | 程序预检和独立审核通过后交接英中文稿。出片使用同一已审工作流及参数，并另行确认 |
+
+### 原画案例参考（不替换生产合同）
+
+角色、场景或道具原画首次设计，或失败重试需要澄清构图、尺度、材质、身份锁时，可以按 asset_type / t2i / edit 从 [imagePromptCases.md](references/imagePromptCases.md) 阅读 1–2 条。其 I01–I04 仅是原创且未生成验证的案例，依当前 [character-art.md](references/character-art.md)、[scene-art.md](references/scene-art.md)、[prop-art.md](references/prop-art.md) 及审核合同重新撰写；不得让案例内容替换已批准的车辆、人物和场景。无需额外调用模型来“润色案例”。
 
 官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing + cinematicPromptCraft 导演知识 → video-director → video-prompt-review → Comfy H3 Ref2VA）。
 

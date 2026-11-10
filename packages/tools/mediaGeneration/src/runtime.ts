@@ -55,6 +55,7 @@ export const videoGenerationSchema = z.strictObject({
   // 二采节点 150 / 148 的步数，范围与目录里的 firstPassMin/Max 一致。云视频组装参数时不用。
   firstPassSteps: z.number().int().min(1).max(64).optional(),
   secondPassSteps: z.number().int().min(1).max(64).optional(),
+  outputFirstPass: z.boolean().optional(),
   generateAudio: z.boolean().optional(),
   mode: z.union([
     z.enum(["singleImage", "startEndRequired", "endFrameOptional", "startFrameOptional", "text"]),

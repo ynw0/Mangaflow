@@ -101,6 +101,7 @@
             v-model:upscale="data.upscale"
             v-model:firstPassSteps="data.firstPassSteps"
             v-model:secondPassSteps="data.secondPassSteps"
+            v-model:outputFirstPass="data.outputFirstPass"
             v-model:ratio="data.ratio"
             v-model:mode="data.mode"
             v-model:generateAudio="data.generateAudio"
@@ -166,7 +167,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
+const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -187,6 +188,7 @@ data.value.model ??= "";
 data.value.resolution ??= "";
 data.value.mode ??= "";
 data.value.generateAudio ??= true;
+data.value.outputFirstPass ??= false;
 data.value.ratio ??= "9:16";
 data.value.seedMode ??= "fixed";
 data.value.seed ??= defaultSeed;
@@ -335,6 +337,7 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     upscale: choice.sampling && typeof data.value.upscale === "number" ? data.value.upscale : undefined,
     firstPassSteps: choice.sampling?.firstPassDefault != null ? data.value.firstPassSteps : undefined,
     secondPassSteps: choice.sampling?.secondPassDefault != null ? data.value.secondPassSteps : undefined,
+    outputFirstPass: choice.supportsFirstPassOutput ? data.value.outputFirstPass === true : undefined,
     ratio: data.value.ratio,
     generateAudio: choice.audio === "optional" ? data.value.generateAudio : choice.audio,
     outputDirectory: `assets/${id}`,
@@ -664,6 +667,7 @@ function getConfig() {
       upscale: data.value.upscale,
       firstPassSteps: data.value.firstPassSteps,
       secondPassSteps: data.value.secondPassSteps,
+      outputFirstPass: data.value.outputFirstPass,
       ratio: data.value.ratio,
       mode: selectedMode.value,
       generateAudio: data.value.generateAudio,
@@ -730,6 +734,7 @@ nodeTools.register({
     upscale: z.number().min(1).max(4).optional(),
     firstPassSteps: z.number().int().min(1).max(64).optional(),
     secondPassSteps: z.number().int().min(1).max(64).optional(),
+    outputFirstPass: z.boolean().optional(),
     ratio: z.enum(ratioOptions).optional(),
     mode: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     generateAudio: z.boolean().optional(),
@@ -756,6 +761,7 @@ nodeTools.register({
     const choice = args.modelId === undefined ? selectedModel.value
       : models.value.find((item) => item.providerId === args.providerId && item.modelId === args.modelId);
     if (!choice) throw new Error(`模型组合无效：providerId=${args.providerId ?? "未指定"}，modelId=${args.modelId ?? "未选择"}。可选模型：${JSON.stringify(models.value.map(({ providerId, modelId, label }) => ({ providerId, modelId, label })))}。请重新读取 getConfig 后选择，不得替换为未获用户批准的模型。`);
+    if (args.outputFirstPass !== undefined && !choice.supportsFirstPassOutput) throw new Error("当前工作流不支持输出一采视频");
     if (!choice.supportsSeed && (args.seed !== undefined || args.seedMode !== undefined)) throw new Error("当前工作流没有绑定种子");
     if (args.seedMode === "last" && data.value.lastSeed == null) throw new Error("暂无随机种子记录");
     if (args.seed !== undefined && (args.seedMode ?? data.value.seedMode) !== "fixed") throw new Error(`字段 seed 与种子模式冲突：当前 seedMode=${data.value.seedMode}，本次 seedMode=${args.seedMode ?? "未指定"}。指定 seed 时必须同时传 seedMode=fixed；使用 random 或 last 时不要传 seed。`);
@@ -800,6 +806,7 @@ nodeTools.register({
     if (args.ratio !== undefined) data.value.ratio = args.ratio;
     if (args.mode !== undefined) data.value.mode = JSON.stringify(args.mode);
     if (args.generateAudio !== undefined) data.value.generateAudio = args.generateAudio;
+    if (args.outputFirstPass !== undefined) data.value.outputFirstPass = args.outputFirstPass;
     if (args.seedMode !== undefined) data.value.seedMode = args.seedMode;
     if (args.seed !== undefined) data.value.seed = args.seed;
     return getConfig();

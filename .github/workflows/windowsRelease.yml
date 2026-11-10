@@ -1,5 +1,5 @@
 name: MangaFlow Windows Release
-run-name: MangaFlow Windows ${{ inputs.version || '2.0.8' }}
+run-name: MangaFlow Windows ${{ inputs.version || '2.0.9' }}
 
 on:
   workflow_dispatch:
@@ -8,8 +8,8 @@ on:
         description: Windows 安装包版本号（X.Y.Z）
         required: true
         type: string
-        default: "2.0.8"
-  # 首次提交本工作流即触发 2.0.8 构建；以后可以手动发布新版本。
+        default: "2.0.9"
+  # 更新此工作流触发 Windows 专用构建；以后也可手动发布新版本。
   push:
     branches: [master]
     paths:
@@ -29,7 +29,7 @@ jobs:
     with:
       target: windowsX64
       ref: ${{ github.sha }}
-      version: ${{ inputs.version || '2.0.8' }}
+      version: ${{ inputs.version || '2.0.9' }}
       generatePatch: false
       androidRelease: false
 
@@ -65,7 +65,8 @@ jobs:
           name: MangaFlow v${{ needs.build.outputs.version }} · Windows
           body: |
             Windows x64 安装包。
-            包含 TryCloudflare 隧道连接恢复与诊断日志修复。
+            基于最新 master 源码，包含 H3 参考图/首帧模式校验、QC 重复与冲突结果归并、机械镜头导演提示词优化。
+            继续包含 TryCloudflare 隧道连接恢复与诊断日志修复。
             只发布 Windows EXE，不包含 macOS 或 Android 安装包。
           make_latest: true
           fail_on_unmatched_files: true

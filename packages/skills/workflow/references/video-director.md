@@ -24,7 +24,7 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 
 - 各阶段参考图需与已批准原车身份一致；重点核对铰链、连接点、左右零件数量、车轮位置。若没有对应状态图先修素材。
 
-- 当前 mode=singleImage 且实际工作流 prompt_format=h3Ref2va 时是普通参考图，不是专用第一帧绑定；禁止以 [keyframe completion]、actual FIRST FRAME 等措辞假设强约束。需要首尾帧时必须先确认真实工作流提供对应绑定，再重新做提示词审核。
+- Ref2VA 的 summary 可根据参考图实际用途使用官方任务类型 [keyframe completion]，并允许说明 <Picture N> 作为第一帧或关键帧的创作锚点。当前 mode=singleImage 且 workflow.prompt_format=h3Ref2va 只通过参考图槽位送入，不提供专用首/尾帧输入；不得承诺逐像素、强制首帧完全一致。需要硬件级明确帧输入时，先核查并切换真正绑定 refs.first_frame / refs.last_frame 的工作流，再重新审核。
 
 - 复杂度应靠拆镜和更精确的结构参考降低，而非重复身份描述、填充时间戳或增加华丽形容词。
 

@@ -24,6 +24,7 @@ const sampling = z.strictObject({
   upscale: z.number().min(1).max(4).optional(),
   firstPassSteps: z.number().int().min(1).max(64).optional(),
   secondPassSteps: z.number().int().min(1).max(64).optional(),
+  outputFirstPass: z.boolean().optional(),
 });
 
 const ratioSchema = z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"]);
@@ -69,6 +70,7 @@ const nodeContext = z.object({
     generateAudio: z.boolean().optional(), resolution: z.string().optional(),
     megapixels: z.number().optional(), upscale: z.number().optional(),
     firstPassSteps: z.number().optional(), secondPassSteps: z.number().optional(),
+    outputFirstPass: z.boolean().optional(),
     seed: z.number().optional(), seedMode: z.string().optional(),
     supportsSeed: z.boolean().optional(),
   }),
@@ -118,7 +120,8 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
     || (requestedSampling.megapixels !== undefined && !spec.megapixels.includes(requestedSampling.megapixels))
     || (requestedSampling.upscale !== undefined && (requestedSampling.upscale < spec.upscaleMin || requestedSampling.upscale > spec.upscaleMax))
     || (requestedSampling.firstPassSteps !== undefined && spec.firstPassDefault === undefined)
-    || (requestedSampling.secondPassSteps !== undefined && spec.secondPassDefault === undefined))) {
+    || (requestedSampling.secondPassSteps !== undefined && spec.secondPassDefault === undefined)
+    || (requestedSampling.outputFirstPass !== undefined && !model.supportsFirstPassOutput))) {
     throw new Error(`字段 sampling=${JSON.stringify(requestedSampling)} 不受工作流 ${workflow.id} 支持。实际采样能力：${JSON.stringify(spec ?? null)}。请重新核对模型能力。`);
   }
   const approved = await Promise.all(references.map(async item => {

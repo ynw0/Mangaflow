@@ -54,7 +54,9 @@ async function trial(configured: ReturnType<typeof getConfiguredModel>, extra: R
         const parsed = JSON.parse(raw) as { error?: string | { message?: string }; message?: string };
         message = typeof parsed.error === "string" ? parsed.error : parsed.error?.message ?? parsed.message ?? raw;
       } catch { /* 兼容非 JSON 错误 */ }
-      return { state: response.status === 400 || response.status === 422 ? "rejected" : "unknown", reasoning: false, error: `HTTP ${response.status}: ${message.slice(0, 240)}` };
+      // 防止把 401/403、模型不存在、配额/权限错误当作思考等级校验拒绝。
+      const effortError = /reasoning[_ ]?effort|unsupported.{0,45}effort|__invalid_effort_probe__|reasoning.{0,40}(?:type|value|level)/i.test(message);
+      return { state: (response.status === 400 || response.status === 422) && effortError ? "rejected" : "unknown", reasoning: false, error: `HTTP ${response.status}: ${message.slice(0, 240)}` };
     }
     const result = await response.json() as { choices?: { message?: { reasoning_content?: string; reasoning?: unknown } }[]; output?: unknown[] };
     const message = result.choices?.[0]?.message;

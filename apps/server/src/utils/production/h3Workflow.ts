@@ -21,5 +21,13 @@ export function validateH3Workflow(nodes: unknown, bindings: WorkflowBindings) {
   if (referenceNode && frames) fail("H3 ReferenceToVideo 节点不能声明首尾帧提示词模式，请核对参考绑定");
   const expected = imageNode || frames ? "h3Frames" : "h3Ref2va";
   if (bindings.promptFormat !== expected) fail(`H3 节点及参考绑定与 prompt_format 不一致，应声明 ${expected}`);
+  if (bindings.firstPassOutputNode) {
+    const id = bindings.firstPassOutputNode;
+    const candidate = (nodes as Record<string, { class_type?: string; inputs?: Record<string, unknown> }>)[id];
+    if (candidate?.class_type !== "VHS_VideoCombine" || !Array.isArray(candidate.inputs?.images)) {
+      fail(`一采保存节点 ${id} 必须是已连接一采图像的 VHS_VideoCombine`);
+    }
+    if (candidate.inputs.save_output !== true) fail(`一采保存节点 ${id} 必须配置 save_output=true`);
+  }
   if (!bindings.bindings.some(binding => binding.source === "prompt" && binding.kind === "value")) fail("H3 工作流必须绑定文本 prompt");
 }

@@ -1,10 +1,10 @@
 workflow: ./h3_ref2va_1080p_api.json
 prompt_format: h3Ref2va
 usage: 用已批准的图片、视频或音频做单镜连续成片，按 H3 Ref2VA 六段格式和实际槽位编写。适合需 1080P 交付的参考生成。
-# 对应工作流时长节点明确标注的 2–15 秒范围。
+# 对应工作流工作流时长限制与 MiniMax H3 官方输出 4–15 秒对齐（参考输入片段仍可为 2–15 秒）。
 capabilities:
   duration_seconds:
-    min: 2
+    min: 4
     max: 15
 bindings:
 - source: prompt

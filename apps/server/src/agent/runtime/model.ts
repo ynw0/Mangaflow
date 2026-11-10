@@ -5,6 +5,11 @@ import { getConfiguredModel, getModelThinkingProfile } from "@/utils/ai";
 export type SdkThinkingLevel = NonNullable<CreateAgentSessionOptions["thinkingLevel"]>;
 
 export function toSdkThinkingLevel(level: string): SdkThinkingLevel {
+  // 部分兼容服务提供扩展档位；SDK 用近似内部档位编排思考块，
+  // 最终向服务发送的值仍由 onPayload 精确映射（绝不把 ultra 真的发为 max）。
+  if (level === "on") return "low" as SdkThinkingLevel;
+  if (level === "none") return "off" as SdkThinkingLevel;
+  if (level === "ultra") return "max" as SdkThinkingLevel;
   return level as SdkThinkingLevel;
 }
 

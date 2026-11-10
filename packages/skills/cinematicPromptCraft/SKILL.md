@@ -25,7 +25,7 @@ metadata:
 
 - 每个子镜头一个主要机械变化，留出动作读清和末态验收时间。参考资产提供同一车辆可追踪的零件数、连接点与运动来源。
 
-- 只有工作流实际绑定 refs.first_frame / refs.last_frame，才允许承诺强首尾帧；singleImage 或 refs.slot1 属普通参考图，不能在六段正文写 [keyframe completion]、actual FIRST FRAME 等虚假强约束。
+- 官方 Ref2VA 六段式允许用 [keyframe completion] 表达图片作为首帧、尾帧或关键帧锚，也可以直接描述 <Picture N> 对应的目标画面；这是一种语义指导，不等于逐像素锁帧保证。singleImage / refs.slot1 不具备专用 refs.first_frame / refs.last_frame 的输入绑定，禁止承诺与参考图逐像素完全相同；需要真实首尾帧输入时应选择匹配的 h3Frames 工作流。
 
 - 中间态缺失或结构不匹配，先退回资产规划；不要用更长的提示词和精确到毫秒的时间清单代替真实几何条件。
 

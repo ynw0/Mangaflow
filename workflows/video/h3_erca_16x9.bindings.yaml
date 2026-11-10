@@ -1,5 +1,6 @@
 workflow: ./h3_erca_16x9_api.json
 prompt_format: h3Ref2va
+first_pass_output: 126
 usage: 横屏 16:9 的 H3 二次采样成片。支持参考素材和可选采样参数，按 H3 Ref2VA 组织连续动作和参考关系。
 label: 二采 MiniMax H3 16:9
 # 二采 MiniMax H3（16:9）：9 槽参考图 + 视频/音频；duration 经 PrimitiveFloat 注入（官方输出秒 4–15）。

@@ -269,6 +269,7 @@ export function toMediaModel(entry: WorkflowEntry) {
     label: entry.label,
     usage: entry.bindings.usage,
     promptFormat: entry.bindings.promptFormat,
+    supportsFirstPassOutput: Boolean(entry.bindings.firstPassOutputNode),
     supportsSeed: entry.bindings.bindings.some(item => item.source === "seed" && item.kind === "value"),
     references,
     type: "video" as const,

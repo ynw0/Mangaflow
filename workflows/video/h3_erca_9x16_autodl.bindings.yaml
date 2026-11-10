@@ -7,7 +7,7 @@ label: 成片 MiniMax H3 二采 AutoDL 9:16
 version: 3
 capabilities:
   duration_seconds:
-    min: 2
+    min: 4
     max: 15
 bindings:
 - source: prompt

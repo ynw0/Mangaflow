@@ -49,7 +49,7 @@
           <span v-if="probeNotice" class="levelTip">{{ probeNotice }}</span>
         </div>
         <p v-if="!selectedModelChoice?.thinkingLevels?.length" class="levelTip">该模型没有声明可用思考档位；如需启用，请在文本模型设置中维护实际支持的等级。</p>
-        <p v-else class="levelTip">仅显示已配置的支持档位。关闭表示不向接口发送思考等级；若模型有默认档位，仍以接口默认行为为准。</p>
+        <p v-else class="levelTip">仅显示已配置的支持档位。“服务默认”不发送等级参数；若模型有默认档位，仍以接口默认行为为准。</p>
       </div>
     </el-popover>
   </div>
@@ -90,7 +90,7 @@ const modelGroups = computed(() => customProviders.value.toSorted((left, right) 
 const selectedModelChoice = computed(() => modelChoices.value.find(item => item.value === selectedModel.value));
 const thinkingOptions = computed(() => thinkingLevelOptionsFor(selectedModelChoice.value?.thinkingLevels ?? []));
 const thinkingLevel = computed(() => thinkingLevelForModel(selectedModelChoice.value));
-const thinkingLabel = computed(() => thinkingOptions.value.find(item => item.value === thinkingLevel.value)?.label ?? "关闭");
+const thinkingLabel = computed(() => thinkingOptions.value.find(item => item.value === thinkingLevel.value)?.label ?? "服务默认");
 function setThinking(level: string) {
   if (!props.disabled && selectedModel.value) setModelThinkingLevel(selectedModel.value, level);
 }

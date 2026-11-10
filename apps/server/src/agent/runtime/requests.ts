@@ -13,7 +13,15 @@ function contentHash(value: unknown) {
 }
 
 // Pi SDK 的默认档位映射可能把 xhigh/max 变成 high；以本轮明确选择的档位为准。
-export function applySelectedReasoningEffort(body: Record<string, unknown>, protocol: string, requested: string) {
+export function applySelectedReasoningEffort(body: Record<string, unknown>, protocol: string, requested: string, mode: "effort" | "toggle" = "effort") {
+  if (mode === "toggle" && protocol === "openai-completions") {
+    delete body.reasoning_effort;
+    const current = body.chat_template_kwargs && typeof body.chat_template_kwargs === "object" && !Array.isArray(body.chat_template_kwargs)
+      ? body.chat_template_kwargs as Record<string, unknown> : {};
+    body.chat_template_kwargs = { ...current, enable_thinking: requested !== "off" };
+    return body;
+  }
+  // 模型接口未声明显式思考关闭能力时，off 等价于不发参数（使用服务端默认）。
   if (protocol === "openai-completions") {
     if (requested === "off") delete body.reasoning_effort;
     else body.reasoning_effort = requested;
@@ -202,7 +210,8 @@ export function configureAgentRequests(session: AgentSession, limits?: { maxRequ
                 const body = (await options?.onPayload?.(payload, requestModel) ?? payload) as Record<string, unknown>;
                 // 只有原本确实指定了思考等级的 Agent 需要强制同步；压缩摘要始终省略思考参数。
                 if (selectedThinkingLevel !== undefined) {
-                  applySelectedReasoningEffort(body, model.api, session.isCompacting ? "off" : selectedThinkingLevel);
+                  const mode = provider?.models?.find((entry: { id?: string }) => entry.id === model.id)?.reasoningMode === "toggle" ? "toggle" : "effort";
+                  applySelectedReasoningEffort(body, model.api, session.isCompacting ? "off" : selectedThinkingLevel, mode);
                 }
                 const images = getRequestFiles(body).filter(file => file.mimeType.toLowerCase().startsWith("image/"));
                 const imageCursors = new Map<string, number>();

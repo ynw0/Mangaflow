@@ -53,13 +53,14 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     return findings;
   }
   const prefix = prompt.slice(0, headings[0]!.index).trim();
-  // 单图参考/多图 Ref2VA 并不具备 first_frame、last_frame 硬绑定；不可用文字冒充关键帧。
-  if (format !== "h3Frames" && (
-    /\[keyframe completion\]/i.test(prompt)
-    || /\b(?:exact|actual|true)\s+(?:first|starting)\s+(?:video\s+)?frame\b/i.test(prompt)
-    || /\bfirst (?:video )?frame is exactly\b/i.test(prompt)
+  // 官方 Ref2VA 允许 [keyframe completion] 和首帧/关键帧关系。
+  // 只有真正绑定了 refs.first_frame / refs.last_frame 的工作流才具备专门的帧输入；
+  // 普通参考图仍可作为目标帧进行语义引导，但不能承诺逐像素精准锁帧。
+  if (format === "h3Ref2va" && (
+    /\b(?:very\s+)?(?:first|last|initial|final)\s+(?:video\s+)?frame\s+(?:is|must\s+be|equals|matches)\s+(?:exactly|identical(?:ly)?(?:\s+to)?|pixel[- ]for[- ]pixel)\s*<Picture\s+\d+>/i.test(prompt)
+    || /\b(?:pixel[- ]for[- ]pixel|bit[- ]for[- ]bit)\s+(?:identical|match|matching|reproduction)\b/i.test(prompt)
   )) {
-    findings.push("当前工作流是参考图模式，没有专用首尾帧绑定。不得声明 keyframe completion 或严格第一帧；请换用真实 h3Frames 工作流，或改写为普通参考图语义。");
+    findings.push("普通 Ref2VA 图片可按官方规范用 keyframe completion 描述帧关系，但不保证第一帧/末帧与参考图逐像素一致。删除硬匹配承诺；如需专用帧输入，请切换实际绑定首尾帧的工作流。");
   }
   if (format === "h3Frames") {
     const duration = setup.duration.toFixed(2);

@@ -221,7 +221,7 @@ export async function run(options: {
       thinkingLevel: toSdkThinkingLevel(thinkingLevel), sessionManager: state.history, settingsManager, resourceLoader,
       tools: tools.map(tool => tool.name), customTools: tools,
     });
-    configureAgentRequests(session);
+    configureAgentRequests(session, undefined, thinkingLevel);
     active.session = session;
     active.controller.signal.throwIfAborted();
     const streamFunction = session.agent.streamFunction;

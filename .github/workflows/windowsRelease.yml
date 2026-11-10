@@ -1,5 +1,5 @@
 name: MangaFlow Windows Release
-run-name: MangaFlow Windows ${{ inputs.version || '2.0.11' }}
+run-name: MangaFlow Windows ${{ inputs.version || '2.0.12' }}
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         description: Windows 安装包版本号（X.Y.Z）
         required: true
         type: string
-        default: "2.0.11"
+        default: "2.0.12"
   # 更新此工作流触发 Windows 专用构建；以后也可手动发布新版本。
   push:
     branches: [master]
@@ -29,7 +29,7 @@ jobs:
     with:
       target: windowsX64
       ref: ${{ github.sha }}
-      version: ${{ inputs.version || '2.0.11' }}
+      version: ${{ inputs.version || '2.0.12' }}
       generatePatch: false
       androidRelease: false
 
@@ -65,8 +65,8 @@ jobs:
           name: MangaFlow v${{ needs.build.outputs.version }} · Windows
           body: |
             Windows x64 安装包。
-            基于最新 master 源码，新增 H3 二采工作流的“输出一采视频”开关，默认关闭；常规及 AutoDL 横竖屏二采均受支持。
-            默认只输出二采视频；可选择额外保存一采 MP4，保留此前 H3 模式校验、QC 和导演规则优化。
+            本次新增 H3 二采 LoRA 下拉选择：可关闭 TaoMate 加速 LoRA，或从当前 ComfyUI 已安装 LoRA 列表选择其他 LoRA。
+            关闭时真正旁路 LoRA 加载器，保留一采/二采独立步数、二采超分与默认只输出二采视频的功能。
             继续包含 TryCloudflare 隧道连接恢复与诊断日志修复。
             只发布 Windows EXE，不包含 macOS 或 Android 安装包。
           make_latest: true

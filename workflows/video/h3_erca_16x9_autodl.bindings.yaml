@@ -1,6 +1,7 @@
 workflow: ./h3_erca_16x9_autodl_api.json
 prompt_format: h3Ref2va
 first_pass_output: 126
+optional_lora_node: 21
 usage: 横屏 16:9 的 AutoDL H3 二次采样成片，按实际参考槽位与 H3 提示词格式设置镜头。
 label: 成片 MiniMax H3 二采 AutoDL 16:9
 # 9 路参考图：slot1–9 对应 LoadImage 24、15、123、130、132、133、159、160、161，接入节点 6 的 ref_image_0–8。缺图时删除对应 LoadImage，不删节点 6。

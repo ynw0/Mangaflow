@@ -11,6 +11,10 @@ export function toSdkThinkingLevel(level: string): SdkThinkingLevel {
 export async function createAgentModel(providerId: string, modelId: string, thinkingLevel = "off") {
   const configured = getConfiguredModel(providerId, modelId);
   const { provider, model, baseUrl } = configured;
+  // API 能力由当前供应商/模型配置定义，不能拿其他供应商的同名模型作最终依据。
+  if (thinkingLevel !== "off" && !model.thinkingLevels?.includes(thinkingLevel)) {
+    throw new Error(`模型 ${model.label} 未声明支持思考等级 ${thinkingLevel}；请先探测实际支持档位，再重新选择。`);
+  }
   const thinking = getModelThinkingProfile(model.id);
   const runtime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false });
   runtime.registerProvider(providerId, {

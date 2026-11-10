@@ -33,6 +33,7 @@ export const providerSchema = z.object({
       audio: z.boolean().optional(),
     }).optional(),
     thinkingLevels: z.array(z.string().trim().min(1).max(64)).max(32).optional(),
+    reasoningMode: z.enum(["effort", "toggle"]).optional(),
   })),
 });
 

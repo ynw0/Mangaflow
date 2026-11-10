@@ -87,7 +87,7 @@ export const privacySettings = computed(() => {
   };
 });
 
-export const presetThinkingLevels = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export const presetThinkingLevels = ["none", "on", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] as const;
 export type PresetThinkingLevel = (typeof presetThinkingLevels)[number];
 export type ThinkingLevelChoice = "off" | string;
 
@@ -106,8 +106,8 @@ export function normalizeThinkingLevels(value: unknown): string[] {
 }
 
 export function thinkingLevelOptionsFor(levels: string[]) {
-  const names: Record<string, string> = { minimal: "极简", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最高" };
-  return [{ label: "关闭", value: "off" }, ...levels.map(level => ({ label: names[level] ?? level, value: level }))];
+  const names: Record<string, string> = { none: "不思考", on: "开启", minimal: "极简", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最高", ultra: "极致" };
+  return [{ label: "服务默认", value: "off" }, ...levels.map(level => ({ label: names[level] ?? level, value: level }))];
 }
 
 export function modelThinkingLevels(model: { thinkingLevels?: string[] } | undefined): string[] {
@@ -143,9 +143,10 @@ export function setModelThinkingLevel(modelKey: string, level: string) {
 // 实际向当前供应商发短请求探测；结果经用户界面触发后写回该模型档位。
 export async function probeAndSaveThinkingLevels(providerId: string, modelId: string) {
   const response = await axios.post("/api/providers/thinkingProbe", { providerId, modelId }, { timeout: 125000 });
-  const payload = response.data as { code?: number; message?: string; data?: { levels?: unknown; source?: string; notice?: string } };
+  const payload = response.data as { code?: number; message?: string; data?: { levels?: unknown; mode?: "effort" | "toggle"; source?: string; notice?: string } };
   if (payload.code !== 200 || !Array.isArray(payload.data?.levels)) throw new Error(payload.message || "探测失败");
   const levels = normalizeThinkingLevels(payload.data.levels).filter(item => (presetThinkingLevels as readonly string[]).includes(item));
+  const mode = payload.data.mode === "toggle" ? "toggle" : "effort";
   const key = JSON.stringify([providerId, modelId]);
   await saveSettings(current => {
     const providers = current.customProviders;
@@ -159,7 +160,7 @@ export async function probeAndSaveThinkingLevels(providerId: string, modelId: st
       ? current.agentProfiles as Record<string, { modelKey?: string; thinkingLevel?: string }> : {};
     return {
       customProviders: providers.map(provider => provider.id !== providerId ? provider : {
-        ...provider, models: provider.models.map(model => model.id === modelId ? { ...model, thinkingLevels: levels } : model),
+        ...provider, models: provider.models.map(model => model.id === modelId ? { ...model, thinkingLevels: levels, reasoningMode: mode } : model),
       }),
       thinkingLevelByModel: { ...byModel, [key]: selected && levels.includes(selected) ? selected : "off" },
       agentProfiles: Object.fromEntries(Object.entries(profiles).map(([role, profile]) => [
@@ -173,7 +174,7 @@ export async function probeAndSaveThinkingLevels(providerId: string, modelId: st
 }
 
 export type ModelInputs = { image: boolean; video: boolean; audio: boolean };
-export type CustomProviderModel = { id: string; label: string; contextWindow?: number; maxOutputTokens?: number; inputs?: ModelInputs; thinkingLevels?: string[] };
+export type CustomProviderModel = { id: string; label: string; contextWindow?: number; maxOutputTokens?: number; inputs?: ModelInputs; thinkingLevels?: string[]; reasoningMode?: "effort" | "toggle" };
 
 export function modelInputs(value: unknown): ModelInputs {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -187,7 +188,7 @@ export const customProviders = computed<CustomProvider[]>(() => Array.isArray(se
 
 export const modelChoices = computed(() => customProviders.value.flatMap(provider => provider.models.map(model => ({
   value: JSON.stringify([provider.id, model.id]), providerId: provider.id, modelId: model.id, label: model.label, contextWindow: model.contextWindow,
-  inputs: modelInputs(model.inputs), thinkingLevels: modelThinkingLevels(model),
+  inputs: modelInputs(model.inputs), thinkingLevels: modelThinkingLevels(model), reasoningMode: model.reasoningMode,
 }))));
 
 export function resolveThinkingLevelForModel(level: ThinkingLevelChoice, model?: { thinkingLevels?: string[] }) {

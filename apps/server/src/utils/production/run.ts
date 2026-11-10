@@ -149,6 +149,35 @@ function omitFirstPassOutput(workflow: Record<string, unknown>, saverId: string)
   for (const id of removed) delete workflow[id];
 }
 
+// 关闭 LoRA 时旁路模型输出并删掉原加载器，而不是仅把 strength_model 设为零。
+function selectWorkflowLora(workflow: Record<string, unknown>, nodeId: string, name: unknown) {
+  if (name === undefined) return; // 旧项目沿用原工作流的 LoRA。
+  const node = workflow[nodeId] as { class_type?: string; inputs?: Record<string, unknown> } | undefined;
+  if (node?.class_type !== "LoraLoaderModelOnly" || !node.inputs) fail(`LoRA 加载器 ${nodeId} 不存在`);
+  if (name !== "") {
+    if (typeof name !== "string" || !name.trim() || name.length > 512) fail("LoRA 文件名无效");
+    node.inputs.lora_name = name;
+    return;
+  }
+  const upstream = node.inputs.model;
+  if (!Array.isArray(upstream) || upstream.length !== 2 || !Object.hasOwn(workflow, String(upstream[0]))) {
+    fail(`LoRA 加载器 ${nodeId} 没有可旁路的模型输入`);
+  }
+  let rewired = 0;
+  for (const [id, value] of Object.entries(workflow)) {
+    if (id === nodeId || !value || typeof value !== "object") continue;
+    const inputs = (value as { inputs?: Record<string, unknown> }).inputs;
+    if (!inputs) continue;
+    for (const [key, input] of Object.entries(inputs)) {
+      if (!Array.isArray(input) || input.length !== 2 || String(input[0]) !== nodeId) continue;
+      inputs[key] = [...upstream];
+      rewired += 1;
+    }
+  }
+  if (!rewired) fail(`LoRA 加载器 ${nodeId} 没有可旁路的下游模型`);
+  delete workflow[nodeId];
+}
+
 function terminalNodeIds(workflow: Record<string, unknown>) {
   return Object.keys(workflow).filter(nodeId => !hasConsumer(workflow, nodeId));
 }
@@ -185,6 +214,9 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
     // 先组装本地实际请求，审核通过之前不上传素材或连接 GPU 主机。
     writePath(workflow, binding.target, value);
   }
+  if (entry.bindings.optionalLoraNode) {
+    selectWorkflowLora(workflow, entry.bindings.optionalLoraNode, context.lora_name);
+  }
   if (entry.bindings.firstPassOutputNode && context.output_first_pass !== true) {
     omitFirstPassOutput(workflow, entry.bindings.firstPassOutputNode);
   }
@@ -208,6 +240,7 @@ export async function prepareComfyWorkflow(options: {
     fail(`${entry.label} 的时长需要在 ${limits.min} 到 ${limits.max} 秒`);
   }
   if (request.outputFirstPass === true && !entry.bindings.firstPassOutputNode) fail(`${entry.label} 不支持输出一采视频`);
+  if (request.loraName !== undefined && !entry.bindings.optionalLoraNode) fail(`${entry.label} 不支持自选 LoRA`);
   const images = request.images ?? [];
   const { min, max: referenceSlots } = imageReferenceRange(entry);
   if (mediaType === "image" && images.length < min) fail(`${entry.label} 至少需要 ${min} 张参考图片`);
@@ -235,6 +268,7 @@ export async function prepareComfyWorkflow(options: {
     first_pass_steps: sampling("first_pass_steps", request.firstPassSteps, 8),
     second_pass_steps: sampling("second_pass_steps", request.secondPassSteps, 4),
     output_first_pass: request.outputFirstPass === true,
+    lora_name: request.loraName,
     params: mediaType === "video" ? pair(videoNative, ratio) : pixels(request.size, request.ratio),
     delivery: pair(videoDelivery, ratio),
     refs,

@@ -83,6 +83,10 @@
           </span>
         </el-button>
       </div>
+      <div v-if="model?.supportsFirstPassOutput" class="audioOption">
+        <span class="sectionLabel">输出一采视频</span>
+        <el-switch v-model="outputFirstPass" :disabled="disabled" aria-label="输出一采视频" />
+      </div>
       <div v-if="model?.audio === 'optional'" class="audioOption">
         <span class="sectionLabel">生成音频</span>
         <el-switch v-model="generateAudio" :disabled="disabled" aria-label="生成音频" />
@@ -126,6 +130,7 @@ const megapixels = defineModel<number | undefined>("megapixels");
 const upscale = defineModel<number | undefined>("upscale");
 const firstPassSteps = defineModel<number | undefined>("firstPassSteps");
 const secondPassSteps = defineModel<number | undefined>("secondPassSteps");
+const outputFirstPass = defineModel<boolean>("outputFirstPass", { required: true });
 const ratio = defineModel<string>("ratio", { required: true });
 const mode = defineModel<string>("mode", { required: true });
 const generateAudio = defineModel<boolean>("generateAudio", { required: true });

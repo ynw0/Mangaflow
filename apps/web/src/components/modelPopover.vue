@@ -44,6 +44,10 @@
             {{ option.label }}
           </button>
         </div>
+        <div class="probeControls">
+          <el-button size="small" text :loading="probing" :disabled="disabled || !selectedModelChoice || probing" @click="probeThinking">探测实际支持档位</el-button>
+          <span v-if="probeNotice" class="levelTip">{{ probeNotice }}</span>
+        </div>
         <p v-if="!selectedModelChoice?.thinkingLevels?.length" class="levelTip">该模型没有声明可用思考档位；如需启用，请在文本模型设置中维护实际支持的等级。</p>
         <p v-else class="levelTip">仅显示所选模型声明支持的等级。</p>
       </div>
@@ -53,13 +57,35 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { ElMessage } from "element-plus";
+import axios from "axios";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import { modelIcon } from "@toonflow/model-icons";
-import { customProviders, modelChoices, setModelThinkingLevel, settings, thinkingLevelForModel, thinkingLevelOptionsFor } from "@/stores/settings";
+import { customProviders, modelChoices, setModelThinkingLevel, settings, thinkingLevelForModel, thinkingLevelOptionsFor, probeAndSaveThinkingLevels } from "@/stores/settings";
 
 const selectedModel = defineModel<string>({ default: "" });
 const props = withDefaults(defineProps<{ active?: boolean; disabled?: boolean }>(), { active: true, disabled: false });
 const visible = ref(false);
+const probing = ref(false);
+const probeNotice = ref("");
+async function probeThinking() {
+  const model = selectedModelChoice.value;
+  if (!model || probing.value) return;
+  probing.value = true;
+  probeNotice.value = "";
+  try {
+    const result = await probeAndSaveThinkingLevels(model.providerId, model.modelId);
+    probeNotice.value = `已探测：${result.levels.join("、") || "未确认可用档位"}。${result.notice ?? ""}`;
+    ElMessage.success("模型支持的思考档位已更新");
+  } catch (e) {
+    const reason = axios.isAxiosError(e) ? e.response?.data?.message ?? e.message : e instanceof Error ? e.message : "探测失败";
+    probeNotice.value = String(reason);
+    ElMessage.error(String(reason));
+  } finally {
+    probing.value = false;
+  }
+}
+
 const modelGroups = computed(() => customProviders.value.toSorted((left, right) => Number(right.id === "tfRouter") - Number(left.id === "tfRouter")));
 const selectedModelChoice = computed(() => modelChoices.value.find(item => item.value === selectedModel.value));
 const thinkingOptions = computed(() => thinkingLevelOptionsFor(selectedModelChoice.value?.thinkingLevels ?? []));
@@ -68,6 +94,7 @@ const thinkingLabel = computed(() => thinkingOptions.value.find(item => item.val
 function setThinking(level: string) {
   if (!props.disabled && selectedModel.value) setModelThinkingLevel(selectedModel.value, level);
 }
+watch(selectedModel, () => { probeNotice.value = ""; });
 watch(modelChoices, items => {
   if (!selectedModel.value) selectedModel.value = items[0]?.value ?? "";
 }, { immediate: true });
@@ -111,5 +138,6 @@ watch(() => !props.active || props.disabled, close => { if (close) visible.value
     &:disabled { cursor: not-allowed; opacity: 0.5; }
   }
   .levelTip { margin: 0; line-height: 1.5; }
+  .probeControls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 }
 </style>

@@ -24,6 +24,22 @@ describe("思考档位自动探测与请求映射", () => {
     expect(body).not.toHaveProperty("reasoning_effort");
   });
 
+  test("Warehouse 开关模式：off 显式关闭、on 显式开启，不触发 high", () => {
+    const disabled: Record<string, unknown> = { reasoning_effort: "high" };
+    applySelectedReasoningEffort(disabled, "openai-completions", "off", "toggle");
+    expect(disabled).toEqual({ chat_template_kwargs: { enable_thinking: false } });
+    applySelectedReasoningEffort(disabled, "openai-completions", "on", "toggle");
+    expect(disabled).toEqual({ chat_template_kwargs: { enable_thinking: true } });
+  });
+
+  test("OpenAI Completions: 兼容扩展 none/ultra 档位且不改成 high", () => {
+    const body: Record<string, unknown> = { reasoning_effort: "high" };
+    applySelectedReasoningEffort(body, "openai-completions", "ultra");
+    expect(body.reasoning_effort).toBe("ultra");
+    applySelectedReasoningEffort(body, "openai-completions", "none");
+    expect(body.reasoning_effort).toBe("none");
+  });
+
   test("OpenAI Responses: 精确映射到 reasoning.effort", () => {
     const body: Record<string, unknown> = { reasoning: { effort: "high", summary: "auto" } };
     applySelectedReasoningEffort(body, "openai-responses", "medium");

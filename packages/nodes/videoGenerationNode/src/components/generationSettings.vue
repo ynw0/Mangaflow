@@ -86,7 +86,7 @@
       <div v-if="model?.lora" class="loraSelect">
         <div class="sectionLabel">使用 LoRA</div>
         <el-select v-model="selectedLora" :disabled="disabled" :teleported="false" filterable aria-label="选择 LoRA 或关闭">
-          <el-option label="关闭 LoRA（基础模型）" value="" />
+          <el-option label="关闭 LoRA（基础模型）" value="__lora_disabled__" />
           <el-option v-for="name in loraOptions" :key="name" :value="name" :label="name" />
         </el-select>
         <el-button text size="small" :disabled="disabled || loraLoading" :loading="loraLoading" @click="emit('refreshLoras')">读取 ComfyUI 已安装 LoRA</el-button>
@@ -144,8 +144,8 @@ const secondPassSteps = defineModel<number | undefined>("secondPassSteps");
 const outputFirstPass = defineModel<boolean>("outputFirstPass", { required: true });
 const loraName = defineModel<string | undefined>("loraName");
 const selectedLora = computed({
-  get: () => loraName.value ?? props.model?.lora?.defaultName ?? "",
-  set: (value: string) => { loraName.value = value; },
+  get: () => loraName.value === "" ? "__lora_disabled__" : (loraName.value ?? props.model?.lora?.defaultName ?? ""),
+  set: (value: string) => { loraName.value = value === "__lora_disabled__" ? "" : value; },
 });
 const loraOptions = computed(() => [...new Set([
   props.model?.lora?.defaultName,

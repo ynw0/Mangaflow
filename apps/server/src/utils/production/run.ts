@@ -134,6 +134,21 @@ function dropNode(workflow: Record<string, unknown>, target: string, source: str
   for (const node of Object.values(workflow)) removeLinks(node, nodeId);
 }
 
+// 一采关闭时连同依赖保存文件的对比预览节点一起移除；保留一采采样及二采计算链路。
+function omitFirstPassOutput(workflow: Record<string, unknown>, saverId: string) {
+  const removed = new Set([saverId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [id, node] of Object.entries(workflow)) {
+      if (removed.has(id) || ![...removed].some(parent => linksTo(node, parent))) continue;
+      removed.add(id);
+      changed = true;
+    }
+  }
+  for (const id of removed) delete workflow[id];
+}
+
 function terminalNodeIds(workflow: Record<string, unknown>) {
   return Object.keys(workflow).filter(nodeId => !hasConsumer(workflow, nodeId));
 }
@@ -170,6 +185,9 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
     // 先组装本地实际请求，审核通过之前不上传素材或连接 GPU 主机。
     writePath(workflow, binding.target, value);
   }
+  if (entry.bindings.firstPassOutputNode && context.output_first_pass !== true) {
+    omitFirstPassOutput(workflow, entry.bindings.firstPassOutputNode);
+  }
   const outputs = terminalNodeIds(workflow);
   if (!outputs.length) fail(dropped.length ? `工作流 ${entry.label} 没有输出节点。${dropped.join("；")}` : `工作流 ${entry.label} 没有输出节点`);
   return workflow;
@@ -189,6 +207,7 @@ export async function prepareComfyWorkflow(options: {
   if (mediaType === "video" && limits && request.duration != null && (request.duration < limits.min || request.duration > limits.max)) {
     fail(`${entry.label} 的时长需要在 ${limits.min} 到 ${limits.max} 秒`);
   }
+  if (request.outputFirstPass === true && !entry.bindings.firstPassOutputNode) fail(`${entry.label} 不支持输出一采视频`);
   const images = request.images ?? [];
   const { min, max: referenceSlots } = imageReferenceRange(entry);
   if (mediaType === "image" && images.length < min) fail(`${entry.label} 至少需要 ${min} 张参考图片`);
@@ -215,6 +234,7 @@ export async function prepareComfyWorkflow(options: {
     upscale: sampling("upscale", request.upscale, 2),
     first_pass_steps: sampling("first_pass_steps", request.firstPassSteps, 8),
     second_pass_steps: sampling("second_pass_steps", request.secondPassSteps, 4),
+    output_first_pass: request.outputFirstPass === true,
     params: mediaType === "video" ? pair(videoNative, ratio) : pixels(request.size, request.ratio),
     delivery: pair(videoDelivery, ratio),
     refs,
@@ -251,6 +271,9 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     const baseUrl = await resolveComfyBaseUrl(signal, options.resume.host as "local" | "autodl");
     await probeComfy(baseUrl, signal);
     const outputs = await waitForOutput(baseUrl, options.resume.promptId, "video", signal, options.onSubmitted === undefined);
+    const workflow = await findWorkflow(request.modelId).catch(() => undefined);
+    const firstPassId = workflow?.bindings.firstPassOutputNode;
+    if (firstPassId) outputs.sort((a, b) => Number(a.nodeId === firstPassId) - Number(b.nodeId === firstPassId));
     const files = [];
     for (const output of outputs) files.push(await downloadOutput(baseUrl, output, signal));
     return { files, execution: options.resume };
@@ -287,6 +310,8 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   const execution: VideoExecution = { ...submission, promptId };
   await options.onSubmitted?.(execution);
   const outputs = await waitForOutput(baseUrl, promptId, mediaType, signal, options.onSubmitted === undefined);
+  const firstPassId = entry.bindings.firstPassOutputNode;
+  if (firstPassId) outputs.sort((a, b) => Number(a.nodeId === firstPassId) - Number(b.nodeId === firstPassId));
   const files = [];
   for (const output of outputs) files.push(await downloadOutput(baseUrl, output, signal));
   return { files, execution };

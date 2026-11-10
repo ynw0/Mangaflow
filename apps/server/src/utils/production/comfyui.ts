@@ -6,7 +6,7 @@ import { fail } from "@/utils/production/config";
 const imageExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
 const videoExtensions = new Set([".mp4", ".webm", ".mov"]);
 
-export type ComfyOutput = { filename: string; subfolder: string; type: string };
+export type ComfyOutput = { filename: string; subfolder: string; type: string; nodeId?: string };
 
 function rootOf(baseUrl: string) {
   const value = baseUrl.trim().replace(/\/$/, "");
@@ -300,9 +300,9 @@ export async function submitWorkflow(baseUrl: string, workflow: Record<string, u
   return data.prompt_id;
 }
 
-function collectOutputs(value: unknown, extensions: Set<string>, found: ComfyOutput[], seen: Set<string>) {
+function collectOutputs(value: unknown, extensions: Set<string>, found: ComfyOutput[], seen: Set<string>, nodeId?: string) {
   if (Array.isArray(value)) {
-    value.forEach(item => collectOutputs(item, extensions, found, seen));
+    value.forEach(item => collectOutputs(item, extensions, found, seen, nodeId));
     return;
   }
   if (!value || typeof value !== "object") return;
@@ -313,10 +313,10 @@ function collectOutputs(value: unknown, extensions: Set<string>, found: ComfyOut
     const key = `${item.filename}\n${item.subfolder}\n${item.type}`;
     if (extensions.has(suffix) && !seen.has(key)) {
       seen.add(key);
-      found.push(item);
+      found.push({ ...item, nodeId });
     }
   }
-  Object.values(record).forEach(item => collectOutputs(item, extensions, found, seen));
+  Object.values(record).forEach(item => collectOutputs(item, extensions, found, seen, nodeId));
 }
 
 export async function waitForOutput(baseUrl: string, promptId: string, kind: "image" | "video", signal?: AbortSignal, cancelOnAbort = true) {
@@ -334,7 +334,12 @@ export async function waitForOutput(baseUrl: string, promptId: string, kind: "im
         if (item) {
           if (item.status?.status_str === "error") fail(`ComfyUI 生成失败：${JSON.stringify(item.status.messages ?? item.status).slice(0, 500)}`, 502);
           const outputs: ComfyOutput[] = [];
-          collectOutputs(item.outputs ?? {}, extensions, outputs, new Set());
+          const seen = new Set<string>();
+          if (item.outputs && typeof item.outputs === "object" && !Array.isArray(item.outputs)) {
+            for (const [nodeId, output] of Object.entries(item.outputs)) {
+              collectOutputs(output, extensions, outputs, seen, nodeId);
+            }
+          }
           if (outputs.length) return outputs;
           if (item.status?.status_str === "success") fail("ComfyUI 完成但没有图片或视频输出", 502);
         }

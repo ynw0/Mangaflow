@@ -109,6 +109,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
     throw new Error(`工作流 ${workflow.id} 未启用或没有 H3 提示词规则`);
   }
   const model = toMediaModel(workflow);
+  if (model.type !== "video") throw new Error(`工作流 ${workflow.id} 不是视频工作流`);
   const seconds = current?.config.duration ?? duration;
   const aspect = current?.config.ratio ?? ratio;
   if (!seconds || !aspect) throw new Error("新镜头需要明确时长和画幅");

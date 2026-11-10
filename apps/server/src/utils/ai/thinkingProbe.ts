@@ -2,11 +2,11 @@
 // 由用户在设置界面主动触发；每次测试最多发送简短请求，可能产生少量模型 Token 费用。
 import { getConfiguredModel } from "@/utils/ai";
 
-export const probeLevels = ["low", "medium", "high", "xhigh", "minimal", "max"] as const;
+export const probeLevels = ["minimal", "low", "medium", "high", "xhigh", "max"] as const;
 export type ProbeThinkingLevel = typeof probeLevels[number];
 type Trial = { state: "accepted" | "rejected" | "unknown"; message: string; advertised: ProbeThinkingLevel[] };
 
-function advertisedLevels(message: string) {
+export function advertisedLevels(message: string) {
   const match = /supported\s+(?:types|values|levels|efforts)(?:\s+are|\s*:)\s*([^\n.]{1,240})/i.exec(message);
   if (!match) return [];
   const candidates = match[1]!.toLowerCase().match(/\b(?:minimal|low|medium|high|xhigh|max)\b/g) ?? [];
@@ -44,7 +44,7 @@ export async function probeConfiguredThinkingLevels(providerId: string, modelId:
   const first = await trial(configured, "high");
   // 常见兼容接口会在高档被拒绝时直接枚举实际支持的全部档位。
   if (first.state === "rejected" && first.advertised.length) {
-    return { levels: first.advertised, source: "provider-advertised" as const, verified: ["high"], notice: "已从服务端错误响应中读取明确支持的档位；其他档位尚未逐一调用。" };
+    return { levels: probeLevels.filter(level => first.advertised.includes(level)), source: "provider-advertised" as const, verified: ["high"], notice: "已从服务端错误响应中读取明确支持的档位；其他档位尚未逐一调用。" };
   }
   if (first.state === "unknown") throw new Error(`无法确认模型推理等级：${first.message}。未更改原配置。`);
   const accepted: ProbeThinkingLevel[] = first.state === "accepted" ? ["high"] : [];

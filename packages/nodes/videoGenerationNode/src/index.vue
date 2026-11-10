@@ -712,7 +712,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "getConfig",
-  description: "读取此视频生成节点的当前配置（含种子与种子模式）、可选视频模型能力、通用比例及适合当前引用的模式，不含密钥；时长与分辨率须符合 durationResolutionMap。二采模型看 sampling：用百万像素、放大倍率和一采/二采步数，不使用分辨率",
+  description: "读取此视频生成节点的当前配置（含种子与种子模式）、可选视频模型能力、通用比例及适合当前引用的模式，不含密钥；时长与分辨率须符合 durationResolutionMap。二采模型看 sampling：用百万像素、放大倍率和一采/二采步数，不使用分辨率；支持一采额外输出的模型还提供 outputFirstPass，默认 false",
   parameters: z.strictObject({}),
   async execute(_args, { signal }) {
     signal?.throwIfAborted();
@@ -724,7 +724,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setConfig",
-  description: "修改此视频生成节点的模型、时长、分辨率、比例、模式、声音或种子；二采改为百万像素、放大倍率和一采/二采步数；先用 getConfig 查询能力，providerId 与 modelId 必须同时提供；mode 使用返回的原始字符串或数组，须匹配当前引用；不修改提示词、不启动生成",
+  description: "修改此视频生成节点的模型、时长、分辨率、比例、模式、声音或种子；二采改为百万像素、放大倍率和一采/二采步数，可设置 outputFirstPass 控制是否额外保存一采 MP4（默认 false）；先用 getConfig 查询能力，providerId 与 modelId 必须同时提供；mode 使用返回的原始字符串或数组，须匹配当前引用；不修改提示词、不启动生成",
   parameters: z.strictObject({
     providerId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),

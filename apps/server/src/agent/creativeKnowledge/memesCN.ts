@@ -20,7 +20,7 @@ const octUrl = "https://www.ssmys.com/";
 const octLabel = "是什么意思：2026年10—11月按走红时间标注的网络流行语词条（编辑记录，非全网排行）";
 const summerUrl = "https://www.adquan.com/article/361636";
 const summerLabel = "广告门：2026上半年热梗盘点（2026-07-01）";
-const consumerUrl = "https://www.p5w.net/roll/finance/202607/t20260729_6489083.htm";
+const consumerUrl = "https://www.xhby.net/content/s6a696efce4b03d9ce79721d1.html";
 const consumerLabel = "京东消费观察2026上半年百余热梗调查报道（2026-07-29）";
 
 function dated(id: string, phrase: string, date: string, meaning: string, usage: string, avoid: string, tags: string[]): MemeEntry {

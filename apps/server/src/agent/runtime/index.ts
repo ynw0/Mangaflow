@@ -198,6 +198,7 @@ export async function run(
     };
     const active: ActiveAgentSession = {
       history, send, tools: liveTools,
+      steeringRequests: new Map<string, Promise<void>>(),
       entryOffset: history.getEntries().length,
       abort: () => { controller.abort(); onCancel?.(); return finished.promise; },
     };

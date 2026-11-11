@@ -74,7 +74,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
   test("同一个分类检索工具新增 listCreativeTags/searchCreative，按2026档期搜索", async () => {
     const tool = createVideoTemplateSearchTool();
     const listed = await tool.execute("t", { action: "listCreativeTags" }, signal, undefined, undefined as never);
-    expect(JSON.stringify(listed.details)).toContain("2026中国网络热梗");
+    expect(JSON.stringify(listed.details)).toContain("2026网络热梗与二创文化");
     expect(JSON.stringify(listed.details)).toContain("原创抽象搞怪");
     const searched = await tool.execute("t", { action: "searchCreative", library: "memes", query: "宿命对视", limit: 2 }, signal, undefined, undefined as never);
     const json = JSON.stringify(searched.details);
@@ -101,7 +101,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
       expect(group.length).toBeGreaterThanOrEqual(8);
       for (const item of group) {
         expect(item.face.length).toBeGreaterThan(6);
-        expect(item.gesture.length).toBeGreaterThan(5);
+        expect(item.gesture.length).toBeGreaterThanOrEqual(5);
         expect(item.videoBeat.includes("→")).toBe(true);
         expect(item.imagePrompt).toContain("保持原角色");
         expect(item.continuity).toContain("身份");

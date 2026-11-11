@@ -153,7 +153,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     expect(entry?.sourceUrl).toContain("digitaling.com");
     expect(entry?.aliases).toContain("我Chovy");
     const alias = searchCreativeKnowledge({library:"memes",query:"我 Chovy",tags:[],limit:3});
-    expect(alias[0]?.id).toBe(entry?.id);
+    expect(alias[0]?.id).toBe("m26-chovy");
   });
 
   test("热梗扩充须有明确的传播日期和适用/禁用上下文，不能伪装最初首发", () => {

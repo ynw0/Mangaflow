@@ -575,6 +575,10 @@ async function steerMessage() {
     ElMessage.warning("有无法读取的 @ 引用，请重新选择");
     return;
   }
+  if (mentions.length) {
+    ElMessage.warning("运行中引导暂不支持 @ 素材引用，请用文字说明；原生成不会被取消");
+    return;
+  }
   if (draftAttachments.value.length) {
     ElMessage.warning("运行中引导暂不支持新附件，请先去掉附件；普通消息发送仍支持附件");
     return;
@@ -588,7 +592,7 @@ async function steerMessage() {
     const response = await fetch("/api/agent/steer", {
       method: "POST",
       headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
-      body: JSON.stringify({ directory, sessionFile: props.sessionFile, requestId, prompt, mentions }),
+      body: JSON.stringify({ directory, sessionFile: props.sessionFile, requestId, prompt }),
     });
     const result = await response.json().catch(() => null) as { code?: number; message?: string } | null;
     if (!response.ok || result?.code !== 200) throw new Error(result?.message || `引导发送失败（HTTP ${response.status}）`);

@@ -17,6 +17,8 @@ export type AgentMessage = {
   mentions?: AgentMention[];
   parts?: AgentMessagePart[];
   streaming?: boolean;
+  /** 本地 UI 临时状态，不参与会话历史或模型上下文。 */
+  guidanceState?: "sending" | "queued";
   error?: string;
   report?: { file: string; name: string };
 };

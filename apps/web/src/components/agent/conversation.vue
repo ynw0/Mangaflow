@@ -56,6 +56,7 @@
                   </template>
                   <attachmentList v-if="item.attachments?.length" :attachments="item.attachments" :directory="directory" />
                   <div v-if="item.role === 'user'" class="messageText"><mentionContent :content="item.content" :mentions="item.mentions" :directory="directory" /></div>
+                  <div v-if="item.guidanceState" class="guidanceState" role="status">{{ item.guidanceState === 'sending' ? '正在发送引导…' : '已排队 · 当前工具结束后生效' }}</div>
                   <div v-if="item.error" class="messageError" role="alert">{{ item.error }}</div>
                 </div>
               </template>
@@ -587,7 +588,7 @@ async function steerMessage() {
   if (!prompt) return;
   steering.value = true;
   const requestId = crypto.randomUUID();
-  const optimistic = reactive<AgentMessage>({ id: requestId, role: "user", content: prompt, mentions });
+  const optimistic = reactive<AgentMessage>({ id: requestId, role: "user", content: prompt, mentions, guidanceState: "sending" });
   messages.value.push(optimistic);
   try {
     const response = await fetch("/api/agent/steer", {
@@ -597,6 +598,7 @@ async function steerMessage() {
     });
     const result = await response.json().catch(() => null) as { code?: number; message?: string } | null;
     if (!response.ok || result?.code !== 200) throw new Error(result?.message || `引导发送失败（HTTP ${response.status}）`);
+    if (!optimistic.entryId) optimistic.guidanceState = "queued";
     if (sender === instance && getDraftContent().trim() === prompt) {
       await instance.reset();
       draftMentions.value = [];
@@ -1304,7 +1306,13 @@ watch(() => !props.initialSession?.parentFile && !!workspaceStore.pendingAgentMe
         }
       }
 
-      .messageText {
+      .guidanceState {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--el-text-color-secondary);
+}
+.messageText {
         white-space: pre-wrap;
         font-size: 13px;
         line-height: 1.6;

@@ -1,6 +1,6 @@
 import { t } from "@/lib/i18n";
 import { listMediaModels, generateMedia } from "@/utils/media/generation";
-import { checkRecordedVideo, getVideoQcStatus, getAgentVideoQcEvidence, submitAgentVideoQc } from "@/utils/production/videoRecords";
+import { checkRecordedVideo, getVideoQcStatus, getAgentVideoQcEvidence, submitAgentVideoQc, saveVideoQcRectificationPlan } from "@/utils/production/videoRecords";
 import { createWorkspaceFfmpeg } from "@/utils/ffmpeg";
 import { createBrowserContext } from "@/utils/browser";
 import { importImage } from "@/utils/workspace/chatImages";
@@ -91,6 +91,7 @@ export function createAgentToolContext(cwd: string, config: Record<string, unkno
       getVideoQcStatus: videoPath => getVideoQcStatus(cwd, videoPath),
       getAgentVideoQcEvidence: videoPath => getAgentVideoQcEvidence(cwd, videoPath),
       submitAgentVideoQc: request => submitAgentVideoQc(cwd, request),
+      saveVideoQcRectificationPlan: request => saveVideoQcRectificationPlan(cwd, request),
     } : undefined,
     sdk: {
       defineTool, createWriteToolDefinition, createEditToolDefinition, createLsToolDefinition,

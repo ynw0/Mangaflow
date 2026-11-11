@@ -358,8 +358,11 @@ export async function run(
     const resumeLeafId = history.getLeafId();
     let userMessageId = history.getBranch().findLast((entry) => entry.type === "message" && entry.message.role === "user")?.id;
     function sendUserMessage() {
-      const entry = history.getBranch().findLast((item) => item.type === "message" && item.message.role === "user");
-      if (!entry || entry.type !== "message" || entry.message.role !== "user" || entry.id === userMessageId) return;
+      // 运行中可能连续排队多条 steer；逐条记录，不能只读 findLast 遗漏旧引导。
+      const branch = history.getBranch();
+      const seenIndex = userMessageId ? branch.findIndex(item => item.id === userMessageId) : -1;
+      for (const entry of branch.slice(seenIndex + 1)) {
+        if (entry.type !== "message" || entry.message.role !== "user") continue;
       const raw = entry.message.content;
       const text = typeof raw === "string" ? raw : getToolResultText(raw);
       if (text.includes(goalContinueMark)) {
@@ -382,6 +385,7 @@ export async function run(
       const original = saved?.type === "custom" ? saved.data as { content: string; attachments: z.infer<typeof agentAttachmentsSchema>; mentions?: AgentMention[] } : undefined;
       const content = entry.type === "message" && entry.message.role === "user" ? entry.message.content : "";
       send({ type: "userMessage", id: entry.id, content: original?.content ?? (typeof content === "string" ? content : getToolResultText(content)), attachments: original?.attachments, mentions: original?.mentions });
+      }
     }
     let firstTokenAt: number | undefined;
     let modelError: string | undefined;

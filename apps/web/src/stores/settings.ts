@@ -142,7 +142,7 @@ export function setModelThinkingLevel(modelKey: string, level: string) {
 
 // 实际向当前供应商发短请求探测；结果经用户界面触发后写回该模型档位。
 export async function probeAndSaveThinkingLevels(providerId: string, modelId: string) {
-  const response = await axios.post("/api/providers/thinkingProbe", { providerId, modelId }, { timeout: 125000 });
+  const response = await axios.post("/api/providers/thinkingProbe", { providerId, modelId }, { timeout: 125000, headers: { "x-toonflow-workspace": "1" } });
   const payload = response.data as { code?: number; message?: string; data?: { levels?: unknown; mode?: "effort" | "toggle"; source?: string; notice?: string } };
   if (payload.code !== 200 || !Array.isArray(payload.data?.levels)) throw new Error(payload.message || "探测失败");
   const levels = normalizeThinkingLevels(payload.data.levels).filter(item => (presetThinkingLevels as readonly string[]).includes(item));

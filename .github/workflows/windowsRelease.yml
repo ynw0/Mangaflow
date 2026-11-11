@@ -1,5 +1,5 @@
 name: MangaFlow Windows Release
-run-name: MangaFlow Windows ${{ inputs.version || '2.0.16' }}
+run-name: MangaFlow Windows ${{ inputs.version || '2.0.17' }}
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         description: Windows 安装包版本号（X.Y.Z）
         required: true
         type: string
-        default: "2.0.16"
+        default: "2.0.17"
   # 更新此工作流触发 Windows 专用构建；以后也可手动发布新版本。
   push:
     branches: [master]
@@ -29,7 +29,7 @@ jobs:
     with:
       target: windowsX64
       ref: ${{ github.sha }}
-      version: ${{ inputs.version || '2.0.16' }}
+      version: ${{ inputs.version || '2.0.17' }}
       generatePatch: false
       androidRelease: false
 
@@ -67,6 +67,7 @@ jobs:
             Windows x64 安装包。
             修复思考等级探测 HTTP 404：将遗漏的 thinkingProbe、Agent steer 与 ComfyUI LoRA 接口加入发布版自动路由表，打包前自动生成路由并在 CI 核对。
             思考能力探测按钮从对话模型弹窗移至「设置 → 文本模型 → 编辑供应商 → 展开模型 → 思考等级」，按模型单独检测支持档位；点击保存修改后生效。
+            当供应商能力无法验证时保留旧有思考等级，不清空用户配置；补齐内置探测请求所需的工作区访问标记。
             保留 Pi SDK 原生不中断引导、彩色思考等级滑块与 QC 整改方案。
             继续包含 TryCloudflare 隧道连接恢复与诊断日志修复。
             只发布 Windows EXE，不包含 macOS 或 Android 安装包。

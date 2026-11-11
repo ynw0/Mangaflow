@@ -46,9 +46,9 @@
 
 ## 维护入口
 
-- 热梗数据：[memesCN.ts](../../../../../apps/server/src/agent/creativeKnowledge/memesCN.ts)
-- 原创抽象模板：[absurdPrompts.ts](../../../../../apps/server/src/agent/creativeKnowledge/absurdPrompts.ts)
-- 检索实现：[index.ts](../../../../../apps/server/src/agent/creativeKnowledge/index.ts)
-- 自动测试：[index.test.ts](../../../../../apps/server/src/agent/creativeKnowledge/index.test.ts)
+- 热梗数据：[memesCN.ts](../../../../apps/server/src/agent/creativeKnowledge/memesCN.ts)
+- 原创抽象模板：[absurdPrompts.ts](../../../../apps/server/src/agent/creativeKnowledge/absurdPrompts.ts)
+- 检索实现：[index.ts](../../../../apps/server/src/agent/creativeKnowledge/index.ts)
+- 自动测试：[index.test.ts](../../../../apps/server/src/agent/creativeKnowledge/index.test.ts)
 
 修改数据时确认每条稳定 ID 与来源，不删除仍被生产记录引用的 ID。运行 `bun test src/agent/creativeKnowledge/index.test.ts`（工作目录 `apps/server`）及 GitHub CI 验证。

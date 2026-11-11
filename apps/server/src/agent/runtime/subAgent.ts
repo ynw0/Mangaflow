@@ -94,9 +94,17 @@ export async function runSubAgent(options: SubAgentModel & {
     if (!reply || reply.role !== "assistant") throw new Error("子任务没有返回回复");
     if (reply.stopReason === "error" || reply.stopReason === "aborted") throw new Error(reply.errorMessage || "子任务执行失败");
     const text = question ?? reply.content.filter(part => part.type === "text").map(part => part.text).join("\n").trim();
+    // 结构化结果由调用方校验，完整 JSON 不受对话摘要字数限制。
+    if (!question && responseFormat === "json" && reply.stopReason === "length") {
+      result.status = "limited";
+      result.result = "模型达到输出长度限制，未返回完整 JSON";
+      return { result, usage };
+    }
     if (!text) throw new Error("子任务没有返回文本结果");
-    result.status = question ? "inputRequired" : reply.stopReason === "length" || text.length > 16000 ? "limited" : "completed";
-    result.result = `${text.slice(0, 16000)}${text.length > 16000 ? "\n[结果过长，已截断；请读取工作区产物]" : ""}${reply.stopReason === "length" ? "\n[模型输出达到长度限制，任务可能未完成]" : ""}`.trim();
+    const truncated = (responseFormat !== "json" || Boolean(question)) && text.length > 16000;
+    result.status = question ? "inputRequired" : reply.stopReason === "length" || truncated ? "limited" : "completed";
+    const summary = truncated ? `${text.slice(0, 16000)}\n[结果过长，已截断；请读取工作区产物]` : text;
+    result.result = reply.stopReason === "length" ? `${summary}\n[模型输出达到长度限制，任务可能未完成]` : summary;
   } catch (error) {
     result.status = signal.aborted ? "cancelled" : "error";
     const reason = signal.aborted ? signal.reason : error;

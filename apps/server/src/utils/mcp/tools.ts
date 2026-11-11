@@ -9,19 +9,20 @@ import { createAgentTools } from "@/agent/tools";
 import { run as runAgent } from "@/agent";
 import { videoTemplateSearch } from "@/agent/videoPrompt/templates";
 import conf from "@/utils/conf";
-import { callControl, getConnection, listConnections } from "@/utils/mcp/control";
+import { callControl, getConnection, getMcpToolPolicy, listConnections } from "@/utils/mcp/control";
+import { canUseMcpTool } from "@/utils/mcp/permissions";
 import { appOperations, runAppOperation } from "@/utils/mcp/operations";
 import { listTools } from "@/utils/plugins/tools";
 import { isWithin, lockWorkspaceFiles, protectWorkspaceRoot, renameWorkspaceFile, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { getRuntimePlatform } from "@/lib/platform";
-import { externalVideoPrompt, videoPromptSchema } from "@/utils/mcp/videoPrompt";
+import { externalVideoPrompt, videoPromptToolSchema } from "@/utils/mcp/videoPrompt";
 import { getMcpTask, startMcpTask } from "@/utils/mcp/tasks";
 import { readProduction } from "@/utils/production/config";
 
 const targetSchema = z.strictObject({ connectionId: z.uuid().optional(), directory: z.string().min(1).max(4096).optional(), canvasId: z.string().min(1).max(256).optional() });
 const requestSchema = z.strictObject({ target: targetSchema.optional(), args: z.record(z.string(), z.unknown()), taskId: z.uuid().optional(), modelCallConfirmed: z.boolean().optional() });
 let authorizationController = new AbortController();
-for (const key of ["settings.mcp.enabled", "settings.mcp.token", "settings.mcp.authMode", "settings.mcp.publicUrl"] as const) conf.onDidChange(key, () => {
+for (const key of ["settings.mcp.enabled", "settings.mcp.token", "settings.mcp.authMode", "settings.mcp.publicUrl", "settings.mcp.publicPermissions", "settings.mcp.allowDirectMedia"] as const) conf.onDidChange(key, () => {
   authorizationController.abort();
   authorizationController = new AbortController();
 });
@@ -30,6 +31,14 @@ async function resolveDirectory(directory?: string) {
   if (!directory || !isAbsolute(directory)) throw new Error("请在 target.directory 指定绝对工作目录，或先打开项目");
   const path = await realpath(directory);
   if (!(await stat(path)).isDirectory()) throw new Error("工作目录不是文件夹");
+  if (getMcpToolPolicy().permissions) {
+    const workspaceKey = (value: string) => process.platform === "win32" ? resolve(value).toLowerCase() : resolve(value);
+    const key = workspaceKey(path);
+    const registered = listConnections().some(({ state }) =>
+      (state.directory !== null && workspaceKey(state.directory) === key)
+      || state.projectList.some(item => workspaceKey(item.directory) === key));
+    if (!registered) throw new Error("匿名公网 MCP 只能操作 MangaFlow 页面已登记的工作区");
+  }
   if (!getRuntimePlatform().local) {
     const root = await realpath(resolve(dirname(conf.path), "workspaces"));
     if (!isWithin(root, path)) throw new Error("服务器部署只能使用 data/workspaces 内的工作区");
@@ -87,7 +96,7 @@ const uiSchemas = {
   openDocument: z.strictObject({ path: z.string().max(4096).optional(), canvasPath: z.string().max(4096).optional(), nodeId: z.string().max(256).optional(), handleId: z.string().max(256).optional() }),
   writeDocument: z.strictObject({ text: z.string().max(10_000_000), expectedText: z.string().max(10_000_000) }),
   getSettings: z.strictObject({}),
-  updateSettings: z.strictObject({ patch: z.record(z.string(), z.json()).refine(patch => !["mcp", "stores"].some(key => Object.hasOwn(patch, key)), "不能通过 MCP 修改连接凭证或项目列表") }),
+  updateSettings: z.strictObject({ patch: z.record(z.string(), z.json()).refine(patch => !["mcp", "stores", "mediaBudget"].some(key => Object.hasOwn(patch, key)), "请在应用内修改 MCP 权限、项目列表和生成额度") }),
 };
 const uiDescriptions: Record<keyof typeof uiSchemas, string> = {
   openProject: "在目标 MangaFlow 页面打开已有工作目录，并等待工作区就绪；操作前获取 getAppState 的 connectionId。",
@@ -96,7 +105,7 @@ const uiDescriptions: Record<keyof typeof uiSchemas, string> = {
   openDocument: "打开工作区中的文档文件(path)，或画布中的文本节点(canvasPath、nodeId，可选handleId)。",
   writeDocument: "通过文档编辑器保存当前文档；expectedText 必须匹配当前内容，防止覆盖用户新输入。",
   getSettings: "读取页面当前设置，访问凭证脱敏。",
-  updateSettings: "合并保存指定顶层设置项，同时更新页面；不修改 mcp 凭证与 stores 项目列表，嵌套设置应先读取再合并。",
+  updateSettings: "合并保存指定顶层设置项，同时更新页面。MCP 权限、项目列表和生成额度在应用内维护。嵌套设置应先读取再合并。",
 };
 
 export function redactSecrets(value: unknown): unknown {
@@ -121,11 +130,14 @@ async function assertFileNotOpen(directory: string, path: string) {
 
 export async function getMcpTools(): Promise<McpTool[]> {
   const authorizationSignal = authorizationController.signal;
+  const toolOrigins = new Map<string, string>();
   let pluginError: string | undefined;
   const tools: McpTool[] = [{
     name: "getAppState", description: "列出连接的 MangaFlow 页面及其 connectionId、工作目录、画布、项目列表和节点能力。多个页面时必须用 target.connectionId 明确操作对象；无页面连接时只有显式 target.directory 的服务端工具可用。",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     async execute() {
+      const { permissions } = getMcpToolPolicy();
+      if (permissions && !permissions.workspaceRead) return { connections: [], workspaceAccess: "disabled" };
       const workspaceRoot = resolve(dirname(conf.path), "workspaces");
       await mkdir(workspaceRoot, { recursive: true });
       const production = readProduction();
@@ -148,7 +160,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
   tools.push(wrapTool(videoTemplateSearch.name, videoTemplateSearch.description, videoTemplateSearch.parameters,
     async (args, _target, signal) => videoTemplateSearch.execute(args, signal)));
   tools.push(wrapTool("videoPrompt", "外部 Agent 直接完成 H3 提示词：prepare 获取合同、真实配置、素材版本及验收要求；可在 input.creativeSelection 传 searchVideoPromptTemplates 返回的模板 ID，prepare 返回适用的视频摘要；inspect 程序预检；submit 提交当前外部 Agent 的逐项审核证据并取得 reviewId/generationRequest。三个操作均不调用语言模型、不生成媒体、不写节点。仍需按 workflow 读取导演和 H3 技能；生成前另核对用户算力授权。",
-    z.toJSONSchema(videoPromptSchema), async (args, target, signal) => {
+    videoPromptToolSchema, async (args, target, signal) => {
       const { directory, connection } = await resolveTarget(target);
       const canvas: CanvasContext | undefined = connection ? { id: connection.state.canvasId ?? "mcp", tools: connection.state.tools,
         call: (request, callSignal) => callControl(connection.id, request.name, request.args, callSignal ?? signal, directory) } : undefined;
@@ -172,6 +184,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
   });
   for (const definition of definitions) {
     if (tools.some(tool => tool.name === definition.name)) throw new Error(t`MCP 工具名称重复：${definition.name}`);
+    toolOrigins.set(definition.name, definition.pluginName);
     tools.push(wrapTool(definition.name, [definition.description, ...(definition.promptGuidelines ?? [])].join("\n"), definition.parameters, async (args, target, signal) => {
       const { connection, directory } = await resolveTarget(target);
       if (["write", "edit"].includes(definition.name) && typeof args.path === "string") await assertFileNotOpen(directory!, args.path);
@@ -179,7 +192,8 @@ export async function getMcpTools(): Promise<McpTool[]> {
         id: connection.state.canvasId ?? "mcp", tools: connection.state.tools,
         call: (request, callSignal) => callControl(connection.id, request.name, request.args, callSignal ?? signal, directory),
       } : undefined;
-      const current = (await createAgentTools(directory!, canvas)).find(tool => tool.name === definition.name);
+      const current = (await createAgentTools(directory!, canvas)).find(tool =>
+        tool.name === definition.name && tool.pluginName === definition.pluginName);
       if (!current) throw new Error("工具已禁用，或所需 MangaFlow 页面未连接，请重新读取工具列表");
       // ACT: 现有插件依赖 createTools 注入的宿主能力；MCP 没有 Pi 对话，访问会话能力时明确报错。
       const context = new Proxy({ cwd: directory, mode: "rpc", hasUI: false, model: undefined, signal }, {
@@ -272,17 +286,23 @@ export async function getMcpTools(): Promise<McpTool[]> {
     } : undefined;
     const blocks = new Map<string, string>();
     let sessionFile = args.sessionFile;
-    await runAgent({ ...args, cwd: directory!, canvas, signal }, event => {
+    await runAgent({ ...args, cwd: directory!, canvas, signal, allowChatMedia: getMcpToolPolicy().allowDirectMedia }, event => {
       if (event.type === "session") sessionFile = event.file;
       if (event.type === "text") blocks.set(event.blockId, event.content ?? (blocks.get(event.blockId) ?? "") + (event.delta ?? ""));
     });
     return { sessionFile, text: [...blocks.values()].join("\n") };
   }));
-  return tools.map(tool => ({
+  const { permissions, allowDirectMedia } = getMcpToolPolicy();
+  return tools.filter(tool => canUseMcpTool(tool.name, toolOrigins.get(tool.name), permissions, allowDirectMedia)).map(tool => ({
     ...tool,
     execute(input, signal) {
       const requestSignal = AbortSignal.any([signal, authorizationSignal]);
       requestSignal.throwIfAborted();
+      const policy = getMcpToolPolicy();
+      const args = input.args && typeof input.args === "object" && !Array.isArray(input.args) ? input.args as Record<string, unknown> : {};
+      if (!canUseMcpTool(tool.name, toolOrigins.get(tool.name), policy.permissions, policy.allowDirectMedia, args)) {
+        throw new Error("当前 MCP 权限未开放此操作");
+      }
       return tool.execute(input, requestSignal);
     },
   }));

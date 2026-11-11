@@ -7,6 +7,7 @@ import { success } from "@/lib/responseFormat";
 import { maxSystemPromptLength } from "@/agent/runtime/prompt";
 import { agentProfilesSchema } from "@/agent/runtime/profiles";
 import { t } from "@/lib/i18n";
+import { mediaBudgetSchema } from "@/utils/media/budget";
 
 const router = Router();
 
@@ -17,6 +18,7 @@ export default router.put("/", validateFields({ settings: z.record(z.string(), z
     "自定义更新源必须是不含账号、查询参数或锚点的 HTTP(S) 地址").optional(),
   mcp: u.mcpOauth.mcpSettingsSchema.optional(),
   agentProfiles: agentProfilesSchema.optional(),
+  mediaBudget: mediaBudgetSchema.optional(),
   production: z.object({ qcMethod: z.enum(["agentFrames", "model", "agentFramesAndModel"]).optional() }).passthrough().optional(),
 })).refine(value => value.desktopUpdateSource !== "custom" || !!value.desktopUpdateCustomUrl, {
   path: ["desktopUpdateCustomUrl"], message: "选择自定义更新源前，请先填写有效地址",

@@ -87,6 +87,7 @@ type AgentOptions = {
   signal?: AbortSignal;
   onCancel?: () => void;
   goal?: boolean;
+  allowChatMedia?: boolean;
   delivery?: "restart";
 };
 
@@ -128,6 +129,7 @@ export async function run(
     signal,
   onCancel,
   goal = false,
+  allowChatMedia = true,
   delivery,
 }: AgentOptions,
   send: (event: AgentEvent) => void
@@ -205,8 +207,8 @@ export async function run(
     unregister = registerAgentSession(history.getSessionFile()!, active);
     // Canvas tools remain available. Chat-level generateImage/generateVideo/generateAudio
     // are only exposed for a deliberate in-chat request, never as an accidental shortcut.
-    const directChatAllowed = !child && explicitlyRequestsChatGeneration(prompt);
-    const tools = routeAgentMediaTools(await createAgentTools(cwd, canvas, question), prompt, Boolean(child));
+    const directChatAllowed = allowChatMedia && !child && explicitlyRequestsChatGeneration(prompt);
+    const tools: ToolDefinition[] = routeAgentMediaTools(await createAgentTools(cwd, canvas, question), prompt, Boolean(child) || !allowChatMedia);
     // Single classified search surface for video directing and 2026 comedy knowledge.
     // Read-only, shared by main Agent and specialized sub-agents; no duplicate tool.
     const searchTemplates = createVideoTemplateSearchTool();

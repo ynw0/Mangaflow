@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Request } from "express";
 import conf from "@/utils/conf";
 import { accessToken, sameToken } from "@/lib/accessToken";
+import { publicMcpPermissionSchema } from "@/types/mcpPermissions";
 
 const httpsOrigin = z.string().refine(value => {
   if (!value) return true;
@@ -14,6 +15,8 @@ const httpsOrigin = z.string().refine(value => {
 export const mcpSettingsSchema = z.object({
   enabled: z.boolean().optional(), token: z.string().optional(), port: z.number().int().min(1).max(65535).optional(),
   authMode: z.enum(["oauth", "none"]).optional(), publicUrl: httpsOrigin.optional(),
+  publicPermissions: publicMcpPermissionSchema.optional(),
+  allowDirectMedia: z.boolean().optional(),
 });
 export function oauthOwnerToken() {
   const raw = conf.get("settings", {}).mcp as { token?: string } | undefined;
@@ -24,6 +27,7 @@ export function publicMcpSettings() {
   const raw = conf.get("settings", {}).mcp;
   const parsed = mcpSettingsSchema.parse(raw ?? {});
   return { enabled: parsed.enabled === true, authMode: parsed.authMode ?? "oauth",
+    publicPermissions: parsed.publicPermissions ?? {}, allowDirectMedia: parsed.allowDirectMedia === true,
     publicUrl: conf.get("mcpTunnel.managed") === true ? conf.get("mcpTunnel.publicUrl", "") : parsed.publicUrl || process.env.TOONFLOW_PUBLIC_URL || "" };
 }
 export function oauthOrigin() {

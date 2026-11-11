@@ -43,7 +43,21 @@
         <el-form-item label="HTTPS 公网地址">
           <el-input v-model="publicUrlDraft" :disabled="saving || tunnelRunning" dir="ltr" aria-label="HTTPS 公网地址" />
         </el-form-item>
-        <el-alert v-if="authModeDraft === 'none'" title="公网访问者可以调用已开启的 MCP 工具" type="warning" :closable="false" showIcon />
+        <div v-if="authModeDraft === 'none'" class="publicPermissions" role="group" aria-labelledby="publicMcpPermissionTitle">
+          <h4 id="publicMcpPermissionTitle">匿名公网权限</h4>
+          <p class="description">任何知道公网地址的人均可使用已开放的权限。创作模板检索无需工作区权限。</p>
+          <div v-for="item in permissionItems" :key="item.key" class="permissionRow">
+            <div class="permissionCopy">
+              <div class="permissionTitle">
+                <strong>{{ item.label }}</strong>
+                <el-tag v-if="item.highRisk" type="danger" size="small" effect="plain">高危</el-tag>
+              </div>
+              <p class="description">{{ item.risk }}</p>
+            </div>
+            <el-switch :modelValue="permissionsDraft[item.key] === true" :aria-label="item.label" :disabled="saving"
+              @change="value => permissionsDraft[item.key] = value === true" />
+          </div>
+        </div>
         <el-button :loading="saving" @click="savePublicSettings">保存公网设置</el-button>
       </el-form>
       <div class="portSetting">
@@ -61,6 +75,15 @@
         <el-button v-if="status?.stdio" :icon="IconTerminal2" :disabled="!mcpSettings.enabled || saving" @click="copyConfig('stdio')">复制 stdio 配置</el-button>
       </div>
       <p class="description">HTTP 配置包含访问凭证，请仅提供给可信的客户端。</p>
+    </section>
+
+    <section class="settingSection" aria-labelledby="mcpMediaTitle">
+      <div class="settingHeader">
+        <h3 id="mcpMediaTitle">允许 MCP 直接生成</h3>
+        <el-switch :modelValue="allowDirectMediaDraft" :disabled="saving" aria-label="允许 MCP 直接生成"
+          @change="value => setAllowDirectMedia(value === true)" />
+      </div>
+      <p class="description">开启后，具备生成权限的 MCP 客户端可绕过画布生成图片、视频和音频并消耗算力。</p>
     </section>
 
     <section class="settingSection" aria-labelledby="mcpSkillTitle">
@@ -94,9 +117,12 @@ import { writeClipboardText } from "@/lib/clipboard";
 import messageMarkdown from "@/components/messageMarkdown.vue";
 import tunnelPanel from "./tunnelPanel.vue";
 import { isRemoteConnection } from "@/lib/platform";
+import type { PublicMcpPermissions } from "@toonflow/server/mcpPermissions";
 
 type McpStatus = {
   authMode: "oauth" | "none";
+  publicPermissions: PublicMcpPermissions;
+  allowDirectMedia: boolean;
   publicUrl: string;
   enabled: boolean;
   connections: { id: string; state: { directory?: string; panel?: string; canvasId?: string } }[];
@@ -120,6 +146,17 @@ const mcpSettings = computed(() => {
 });
 const portDraft = ref<number | undefined>(mcpSettings.value.port);
 const authModeDraft = ref<"oauth" | "none">("oauth");
+const permissionsDraft = ref<PublicMcpPermissions>({});
+const allowDirectMediaDraft = ref(false);
+const permissionItems = [
+  { key: "workspaceRead", label: "读取工作区和技能", risk: "公开登记的项目名称、路径、文件、素材、画布和技能内容。", highRisk: false },
+  { key: "workspaceWrite", label: "修改工作区和画布", risk: "允许新建、重命名和覆盖内容，也可提交视频提示词自审。", highRisk: true },
+  { key: "workspaceDelete", label: "删除文件和画布元素", risk: "允许移除工作区文件、目录、节点及连线，可能造成数据丢失。", highRisk: true },
+  { key: "mediaGeneration", label: "生成媒体与质检", risk: "允许调用已配置的生成和质检服务，可能消耗算力或产生费用。", highRisk: true },
+  { key: "appManagement", label: "管理应用和插件", risk: "允许修改全局设置、安装或卸载可执行插件，以及管理全局技能和素材。", highRisk: true },
+  { key: "agentExecution", label: "运行内置 Agent", risk: "可调用语言模型和内置 Agent 自身可用的工具，权限范围大于外部工具列表。", highRisk: true },
+  { key: "pluginExecution", label: "调用其他插件能力", risk: "允许额外工具及自定义节点函数，可能访问外部网络、浏览器或文件。", highRisk: true },
+] as const satisfies readonly { key: keyof PublicMcpPermissions; label: string; risk: string; highRisk: boolean }[];
 const publicUrlDraft = ref("");
 const tunnelRunning = ref(false);
 async function handleTunnelChanged(running: boolean) { tunnelRunning.value = running; await refreshStatus(); }
@@ -150,6 +187,8 @@ async function refreshStatus() {
     if (portDraft.value === (status.value?.preferredPort ?? mcpSettings.value.port)) portDraft.value = data.data.preferredPort;
     status.value = data.data;
     authModeDraft.value = data.data.authMode;
+    permissionsDraft.value = { ...data.data.publicPermissions };
+    allowDirectMediaDraft.value = data.data.allowDirectMedia;
     publicUrlDraft.value = data.data.publicUrl;
   } catch (error) {
     statusError.value = errorMessage(error);
@@ -220,9 +259,23 @@ async function savePublicSettings() {
     await saveSettings(current => {
       const raw = current.mcp;
       const mcp = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
-      return { mcp: { ...mcp, ...(!tunnelRunning.value ? { publicUrl } : {}), authMode: authModeDraft.value } };
+      return { mcp: { ...mcp, ...(!tunnelRunning.value ? { publicUrl } : {}), authMode: authModeDraft.value,
+        publicPermissions: permissionsDraft.value } };
     });
     await refreshStatus();
+  } catch (error) { ElMessage.error(errorMessage(error)); }
+  finally { saving.value = false; }
+}
+
+async function setAllowDirectMedia(allowDirectMedia: boolean) {
+  saving.value = true;
+  try {
+    await saveSettings(current => {
+      const raw = current.mcp;
+      const mcp = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+      return { mcp: { ...mcp, allowDirectMedia } };
+    });
+    allowDirectMediaDraft.value = allowDirectMedia;
   } catch (error) { ElMessage.error(errorMessage(error)); }
   finally { saving.value = false; }
 }
@@ -293,6 +346,34 @@ onMounted(refreshStatus);
       color: var(--el-text-color-secondary);
       font-size: 12px;
       line-height: 1.6;
+    }
+
+    .publicPermissions {
+      margin: 0 0 16px;
+      padding: 12px 14px;
+      border: 1px solid var(--el-border-color-light);
+      border-radius: var(--el-border-radius-base);
+
+      h4 { margin: 0; color: var(--el-text-color-primary); font-size: 13px; }
+
+      .permissionRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--el-border-color-lighter);
+
+        &:last-child { padding-bottom: 0; border-bottom: 0; }
+
+        .permissionCopy {
+          min-width: 0;
+
+          .permissionTitle { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+          .description { margin-top: 3px; }
+        }
+        .el-switch { flex-shrink: 0; }
+      }
     }
 
     .portSetting {

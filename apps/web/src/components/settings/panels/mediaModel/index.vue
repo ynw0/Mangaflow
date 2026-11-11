@@ -1,5 +1,6 @@
 <template>
   <div v-if="loaded" class="providerList">
+    <mediaBudget />
     <div class="itemList">
       <el-card v-for="item in sortedProviders" :key="item.fileName" class="providerItem" shadow="never">
         <div class="providerHeader">
@@ -50,6 +51,7 @@ import type { MediaProvider } from "./types";
 import { settings, saveSettings } from "@/stores/settings";
 import { invalidateNodeModels } from "@toonflow/nodes-scaffold/nodeAi";
 import tfAccount from "../../tfAccount.vue";
+import mediaBudget from "./mediaBudget.vue";
 
 defineProps<{ visible?: boolean }>();
 const mediaProviderDialog = shallowRef<Component>();

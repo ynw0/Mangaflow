@@ -4,9 +4,12 @@ import { readFile } from "@toonflow/file";
 import { file } from "@toonflow/file/bun";
 import { resolve } from "node:path";
 import * as skillFile from "@/utils/skills/files";
+import { getMcpToolPolicy } from "@/utils/mcp/control";
 
 export const skillResources: NonNullable<McpOptions["resources"]> = {
   async list(signal) {
+    const { permissions } = getMcpToolPolicy();
+    if (permissions && !permissions.workspaceRead) return [];
     const { skills } = loadSkillsFromDir({ dir: skillFile.directory(), source: "user" });
     const resources = [];
     for (const skill of skills) {
@@ -26,6 +29,8 @@ export const skillResources: NonNullable<McpOptions["resources"]> = {
     return resources;
   },
   async read(uri, signal) {
+    const { permissions } = getMcpToolPolicy();
+    if (permissions && !permissions.workspaceRead) throw Object.assign(new Error("当前 MCP 权限未开放技能读取"), { status: 403 });
     signal.throwIfAborted();
     const match = /^toonflow:\/\/skills\/([^/]+)\/(.+)$/.exec(uri);
     if (!match) throw Object.assign(new Error("技能资源地址无效"), { status: 400 });

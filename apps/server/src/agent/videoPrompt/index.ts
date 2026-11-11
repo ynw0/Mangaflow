@@ -33,6 +33,7 @@ const skillList = z.object({ skills: z.array(z.object({
   name: z.string(), scope: z.enum(["global", "workspace"]), disableModelInvocation: z.boolean().optional(),
 })) });
 const skillDocument = z.object({ content: z.string().min(1) });
+const reviewerSource = "independentModel";
 
 function parseReply<T>(schema: z.ZodType<T>, reply: string) {
   const text = reply.trim().replace(/^```(?:json)?\s*|\s*```$/gi, "");
@@ -129,11 +130,11 @@ export function createVideoPromptTool(options: SubAgentModel & {
         onUpdate?.({ content: [{ type: "text", text }], details: { stage, elapsedMs, usage, modelCalls } });
       };
       const finish = (result: Record<string, unknown>) => {
-        const details = { ...result, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, creativeSelection: creativeContext, attempts,
+        const details = { ...result, reviewer: result.reviewId ? reviewerSource : undefined, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, creativeSelection: creativeContext, attempts,
           modelCalls, elapsedMs: Math.round(performance.now() - startedAt) };
         // 节点已写回时，主 Agent 只接收审核状态与定位信息，完整稿仍保存在节点和工具详情中。
         const visible = result.status === "ok" && result.written && input.node
-          ? { status: result.status, shotId: input.shotId, reviewId: result.reviewId, written: true,
+          ? { status: result.status, shotId: input.shotId, reviewId: result.reviewId, reviewer: reviewerSource, written: true,
             cinematicPlan: result.cinematicPlan,
             node: input.node,
             nextAction: { when: "按当前自动、半自动或目标模式完成相应授权后",
@@ -260,7 +261,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         }
         const generationRequest = videoGenerationSchema.parse({ ...refreshed.generationRequest, prompt: lastDraft.prompt });
         const reviewId = await saveVideoReview({ ...refreshed.snapshot, prompt: generationRequest.prompt }, {
-          shot: prepared.shot, request: generationRequest, promptZh: lastDraft.promptZh, review, skills, templateMatches, attempts,
+          shot: prepared.shot, request: generationRequest, promptZh: lastDraft.promptZh, review, reviewer: reviewerSource, skills, templateMatches, attempts,
           cinematicPlan: lastDraft.cinematicPlan,
           modelCalls, usage, reviewElapsedMs: Math.round(performance.now() - startedAt),
         }, cacheKey);

@@ -112,8 +112,8 @@ export function createAgentToolContext(cwd: string, config: Record<string, unkno
   };
 }
 
-export async function createAgentTools(cwd: string, canvas?: CanvasContext, question?: QuestionContext): Promise<ToolDefinition[]> {
-  const tools: ToolDefinition[] = [];
+export async function createAgentTools(cwd: string, canvas?: CanvasContext, question?: QuestionContext): Promise<(ToolDefinition & { pluginName: string })[]> {
+  const tools: (ToolDefinition & { pluginName: string })[] = [];
   const names = new Set<string>();
   const grants = createBoundaryGrants();
   const context = createAgentToolContext(cwd, {}, canvas, question);
@@ -130,6 +130,7 @@ export async function createAgentTools(cwd: string, canvas?: CanvasContext, ques
       const execute = tool.execute;
       tools.push({
         ...tool,
+        pluginName: item.name,
         promptGuidelines: [
           ...(metadata.prompt ? [metadata.prompt] : []),
           ...(tool.promptGuidelines ?? []),

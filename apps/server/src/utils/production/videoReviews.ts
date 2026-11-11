@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, realpath, stat, writeAtomic } from "@toonflow/file";
+import { createReadStream, mkdir, readFile, realpath, stat, writeAtomic } from "@toonflow/file";
 import { dirname, join } from "node:path";
 import conf from "@/utils/conf";
 import { fail } from "@/utils/production/config";
@@ -7,6 +7,7 @@ import type { PreparedComfyWorkflow } from "@/utils/production/run";
 import { cinematicPlanSchema } from "@/utils/production/videoPlan";
 
 type ReviewFile = { source: string; path: string; size: number; digest: string };
+const maxReviewFileBytes = 100 * 1024 * 1024;
 export type VideoReviewSnapshot = {
   directory: string;
   modelId: string;
@@ -23,22 +24,38 @@ function serialize(value: unknown) {
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
 }
 
-async function readReviewFile(path: string, signal?: AbortSignal) {
+async function requireReviewFile(path: string) {
   const info = await stat(path);
-  if (!info.isFile() || info.size > 100 * 1024 * 1024) fail("审核参考须为不超过 100 MB 的文件");
+  if (!info.isFile() || info.size > maxReviewFileBytes) fail("审核参考须为不超过 100 MB 的文件");
+}
+
+async function digestReviewFile(path: string, signal?: AbortSignal) {
+  await requireReviewFile(path);
+  const hash = createHash("sha256");
+  let size = 0;
+  // 多读一字节即可识别在读取过程中超出上限的文件。
+  for await (const chunk of createReadStream(path, { end: maxReviewFileBytes, signal })) {
+    size += chunk.length;
+    hash.update(chunk);
+  }
+  if (!size || size > maxReviewFileBytes) fail("审核参考为空或超过 100 MB");
+  return { size, digest: hash.digest("hex") };
+}
+
+async function readReviewFile(path: string, signal?: AbortSignal) {
+  await requireReviewFile(path);
   const bytes = new Uint8Array(await readFile(path, { signal }));
-  if (!bytes.length || bytes.length > 100 * 1024 * 1024) fail("审核参考为空或超过 100 MB");
+  if (!bytes.length || bytes.length > maxReviewFileBytes) fail("审核参考为空或超过 100 MB");
   return { bytes, size: bytes.length, digest: createHash("sha256").update(bytes).digest("hex") };
 }
 
 export async function captureVideoReview(directory: string, prepared: PreparedComfyWorkflow, signal?: AbortSignal): Promise<VideoReviewSnapshot> {
   const root = await realpath(directory);
   const references: ReviewFile[] = [];
-  // ACT: 逐份读取且不缓存素材正文，单份上限 100 MB；更多素材改用流式摘要。
   for (const input of prepared.inputs) {
     if (input.kind === "value" || typeof input.value !== "string" || !input.value) continue;
     signal?.throwIfAborted();
-    const { size, digest } = await readReviewFile(input.value, signal).catch(error => {
+    const { size, digest } = await digestReviewFile(input.value, signal).catch(error => {
       signal?.throwIfAborted();
       fail(`参考素材 ${input.source} 无法核对：${error instanceof Error ? error.message : String(error)}，请修复后重新审核`, 409);
     });

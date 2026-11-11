@@ -10,6 +10,7 @@
     "./documentFormats": "./src/lib/documentFormats.ts",
     "./nodeMenu": "./src/lib/nodeMenu.ts",
     "./mcp": "./src/utils/mcp/runtime.ts",
+    "./mcpPermissions": "./src/types/mcpPermissions.ts",
     "./mobileLink": "./src/utils/mobileLink/index.ts",
     "./browser": "./src/utils/browser/index.ts",
     "./agent/types": "./src/agent/runtime/types.ts",

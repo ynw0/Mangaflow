@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import conf from "@/utils/conf";
@@ -49,6 +50,16 @@ export function getAppOrigin(req: Request) {
 
 const localTransports = new WeakSet<Request>();
 export function markLocalMcpRequest(req: Request) { localTransports.add(req); }
+const mcpRequest = new AsyncLocalStorage<boolean>();
+
+export function runWithMcpRequest<T>(req: Request, operation: () => T) {
+  return mcpRequest.run(!localTransports.has(req), operation);
+}
+
+export function getMcpToolPolicy() {
+  const { authMode, publicPermissions, allowDirectMedia } = publicMcpSettings();
+  return { permissions: mcpRequest.getStore() !== false && authMode === "none" ? publicPermissions : null, allowDirectMedia };
+}
 
 function authorizeControl(req: Request) {
   const { enabled, token } = getMcpSettings();

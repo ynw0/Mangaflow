@@ -137,7 +137,7 @@ export async function createApp({
   await initializeProviderModels();
   const router = await import("@/router");
   router.default(app);
-  const [{ createMcpRouter }, { getMcpTools }, { authorizeMcp }, { skillResources }] = await Promise.all([
+  const [{ createMcpRouter }, { getMcpTools }, { authorizeMcp, runWithMcpRequest }, { skillResources }] = await Promise.all([
     import("@toonflow/mcp"),
     import("@/utils/mcp/tools"),
     import("@/utils/mcp/control"),
@@ -147,7 +147,8 @@ export async function createApp({
   app.use("/mcp", createMcpRouter({ getTools: getMcpTools, authorize: authorizeMcp, resources: skillResources,
     challenge: oauthChallenge, authorizationVersion: mcpSessionVersion,
     jsonResponse: isPublicRequest,
-    runInRequest: (request, operation) => runWithLocale(resolveRequestLocale(request.get("accept-language")), operation),
+    runInRequest: (request, operation) => runWithMcpRequest(request,
+      () => runWithLocale(resolveRequestLocale(request.get("accept-language")), operation)),
     translate: translateMessage,
     translateError,
   }));

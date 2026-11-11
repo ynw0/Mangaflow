@@ -1,5 +1,5 @@
 name: MangaFlow Windows Release
-run-name: MangaFlow Windows ${{ inputs.version || '2.0.19' }}
+run-name: MangaFlow Windows ${{ inputs.version }}
 
 on:
   workflow_dispatch:
@@ -8,12 +8,6 @@ on:
         description: Windows 安装包版本号（X.Y.Z）
         required: true
         type: string
-        default: "2.0.19"
-  # 更新此工作流触发 Windows 专用构建；以后也可手动发布新版本。
-  push:
-    branches: [master]
-    paths:
-      - ".github/workflows/windowsRelease.yml"
 
 permissions:
   contents: read
@@ -29,12 +23,12 @@ jobs:
     with:
       target: windowsX64
       ref: ${{ github.sha }}
-      version: ${{ inputs.version || '2.0.19' }}
+      version: ${{ inputs.version }}
       generatePatch: false
       androidRelease: false
 
   publish:
-    name: 发布 Windows EXE
+    name: 发布 Windows 安装包和更新文件
     needs: build
     runs-on: ubuntu-24.04
     permissions:
@@ -45,7 +39,8 @@ jobs:
         with:
           name: toonflow-${{ needs.build.outputs.version }}-windowsX64
           path: artifacts
-      - name: 核对唯一 Windows 安装包
+      - name: 核对安装包及更新清单
+        id: assets
         env:
           releaseVersion: ${{ needs.build.outputs.version }}
         run: |
@@ -57,22 +52,25 @@ jobs:
             echo "::error::Windows 安装包数量应为 1，实际为 ${actualCount}"
             exit 1
           fi
-      - name: 发布 GitHub Release（仅 EXE）
+          manifest="artifacts/stable-win-x64-update.json"
+          archive="$(jq -er --arg version "$releaseVersion" '
+            select(.schemaVersion == 1 and .identifier == "local.mangaflow.desktop" and
+              .version == $version and .channel == "stable" and .platform == "win" and .arch == "x64")
+            | .artifact.file | select(test("^stable-win-x64-[A-Za-z0-9._-]+\\.tar\\.zst$"))
+          ' "$manifest")"
+          test -s "artifacts/$archive"
+          printf 'archive=%s\n' "$archive" >> "$GITHUB_OUTPUT"
+      - name: 发布 GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.build.outputs.version }}
           target_commitish: ${{ needs.build.outputs.commit }}
           name: MangaFlow v${{ needs.build.outputs.version }} · Windows
-          body: |
-            Windows x64 安装包。
-            基于最新 master 构建 Windows x64 安装包，包含本轮创作知识库与 draftVideoPrompt 修复。
-            - draftVideoPrompt 工具参数改为单一类型化 JSON 对象，修复宿主误将数组、对象和数字转成字符串导致的参数校验失败。
-            - 已有画布视频节点和新建镜头的参数模式仍由服务端严格验证；保留原独立审核与已审结果复用机制。
-            - searchVideoPromptTemplates 保留统一分类检索入口，新增 2026 热梗、剧情节拍、表情颜艺、画风滤镜与组合检查。
-            - 已选模板 ID 可传给 draftVideoPrompt.creativeSelection，导演按需读取，避免复制整个知识库。
-            - 继续遵循画布优先、镜头提示词与成片留在画布，以及用户授权后才生成的工作流程。
-            只发布 Windows EXE，不包含 macOS 或 Android 安装包。
+          generate_release_notes: true
           make_latest: true
           fail_on_unmatched_files: true
           overwrite_files: false
-          files: artifacts/mangaflow-${{ needs.build.outputs.version }}-Setup.exe
+          files: |
+            artifacts/mangaflow-${{ needs.build.outputs.version }}-Setup.exe
+            artifacts/${{ steps.assets.outputs.archive }}
+            artifacts/stable-win-x64-update.json

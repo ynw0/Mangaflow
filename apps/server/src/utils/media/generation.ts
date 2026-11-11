@@ -13,6 +13,7 @@ import { getProviderPrice } from "@/utils/media/billing";
 import { detectMimeType, readPriceReference } from "@/utils/media/priceReference";
 import { recordVideoOutputs } from "@/utils/production/videoRecords";
 import { getStoredGenerationRequest, runGenerationJob } from "@/utils/production/generationJobs";
+import { reserveMediaBudget } from "@/utils/media/budget";
 
 const maxMediaSize = 100 * 1024 * 1024;
 const mediaExtensions: Record<string, string> = {
@@ -308,6 +309,7 @@ export async function generateMedia(
       signal?.throwIfAborted();
       const { type, ...parameters } = prepared;
       if (type !== "video") invalid("云视频请求类型错误");
+      await reserveMediaBudget(directory, mediaType, request.duration, signal);
       const assets = await provider.generateVideo!(parameters as VideoRequest);
       if (!Array.isArray(assets) || !assets.length) invalid("供应商未返回生成结果");
       for (const asset of assets) {
@@ -346,6 +348,7 @@ export async function generateMedia(
   try {
     signal?.throwIfAborted();
     const { type, ...parameters } = prepared;
+    await reserveMediaBudget(directory, mediaType, request.duration, signal);
     const assets = type === "audio" ? await provider.generateAudio!(parameters as AudioRequest)
       : type === "image" ? await provider.generateImage!(parameters as ImageRequest) : await provider.generateVideo!(parameters as VideoRequest);
     if (!Array.isArray(assets) || !assets.length) invalid("供应商未返回生成结果");

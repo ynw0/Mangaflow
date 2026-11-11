@@ -8,6 +8,7 @@ import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/p
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { captureVideoReview, requireVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
 import { validateH3Workflow } from "@/utils/production/h3Workflow";
+import { reserveMediaBudget } from "@/utils/media/budget";
 
 type MediaRef = { path: string; mimeType?: string };
 
@@ -318,6 +319,9 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   const snapshot = mediaType === "video" && entry.bindings.promptFormat
     ? await captureVideoReview(directory, prepared, signal) : undefined;
   if (snapshot) await requireVideoReview(request.reviewId, snapshot);
+  const boundDuration = prepared.inputs.find(input => input.source === "duration")?.value;
+  await reserveMediaBudget(directory, mediaType, typeof boundDuration === "number" ? boundDuration : context.duration,
+    signal, mediaType === "video" ? request.generationId : undefined);
   signal?.throwIfAborted();
   const baseUrl = await resolveComfyBaseUrl(signal, host);
   await probeComfy(baseUrl, signal);

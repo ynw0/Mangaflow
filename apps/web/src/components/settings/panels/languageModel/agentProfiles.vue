@@ -19,11 +19,8 @@
             </el-select>
           </div>
           <div class="field"><label>思考等级</label>
-            <div class="levelChips" role="group" aria-label="主 Agent 思考等级">
-              <button v-for="choice in mainThinkingOptions" :key="choice.value" type="button"
-                :class="{ selected: mainThinking === choice.value }" :aria-pressed="mainThinking === choice.value"
-                :title="choice.value" @click="changeMainThinking(choice.value)">{{ choice.label }}</button>
-            </div>
+            <thinking-effort-slider :model-value="mainThinking" :options="mainThinkingOptions"
+              aria-label="主 Agent 思考等级" @update:model-value="changeMainThinking" />
           </div>
         </div>
       </div>
@@ -49,15 +46,10 @@
             </div>
             <div class="field">
               <label>思考等级 <span class="fieldHint">{{ resolvedModel(role.id)?.label ?? "未选择模型" }}</span></label>
-              <div class="levelChips" role="group" :aria-label="`${role.title} 思考等级`">
-                <button type="button" :class="{ selected: (profile(role.id).thinkingLevel ?? 'inherit') === 'inherit' }"
-                  :aria-pressed="(profile(role.id).thinkingLevel ?? 'inherit') === 'inherit'"
-                  @click="changeThinking(role.id, 'inherit')">{{ profile(role.id).modelKey ? "默认" : "继承" }}</button>
-                <button v-for="choice in roleThinkingOptions(role.id)" :key="choice.value" type="button"
-                  :class="{ selected: profile(role.id).thinkingLevel === choice.value }"
-                  :aria-pressed="profile(role.id).thinkingLevel === choice.value" :title="choice.value"
-                  @click="changeThinking(role.id, choice.value)">{{ choice.label }}</button>
-              </div>
+              <thinking-effort-slider :model-value="profile(role.id).thinkingLevel ?? 'inherit'"
+                :options="[{ label: profile(role.id).modelKey ? '默认' : '继承', value: 'inherit' }, ...roleThinkingOptions(role.id)]"
+                :aria-label="`${role.title} 思考等级`"
+                @update:model-value="value => changeThinking(role.id, value)" />
             </div>
           </div>
           <p v-if="!resolvedModel(role.id)?.thinkingLevels?.length" class="capabilityNote">当前模型未检测到可配置的思考档位，只使用服务默认；可在模型选择处探测支持档位。</p>
@@ -70,6 +62,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import thinkingEffortSlider from "@/components/thinkingEffortSlider.vue";
 import { customProviders, modelChoices, settings, setModelThinkingLevel, thinkingLevelForModel, thinkingLevelOptionsFor } from "@/stores/settings";
 
 const roles = [
@@ -159,13 +152,6 @@ function changeThinking(role: Role, level: string) {
   label { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; color: var(--el-text-color-regular); font-size: 12px; font-weight: 600; }
   .fieldHint { max-width: 56%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--el-text-color-secondary); font-weight: 400; font-size: 11px; }
   .el-select { width: 100%; }
-}
-.levelChips { display: flex; flex-wrap: wrap; gap: 6px;
-  button { padding: 6px 10px; min-height: 31px; border: 1px solid var(--el-border-color); border-radius: 8px; background: var(--el-fill-color-blank); color: var(--el-text-color-regular); font: inherit; font-size: 11px; cursor: pointer;
-    &:hover { border-color: var(--el-color-primary-light-5); background: var(--el-fill-color-light); }
-    &:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
-    &.selected { border-color: var(--el-color-primary); color: var(--el-color-primary); background: var(--el-color-primary-light-9); font-weight: 650; }
-  }
 }
 .capabilityNote { margin: -5px 0 0; color: var(--el-text-color-secondary); font-size: 11px; line-height: 1.5; }
 .footerTip { margin: 0; padding: 12px 14px; border-radius: 10px; background: var(--el-fill-color-light); color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.7; }

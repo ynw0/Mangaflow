@@ -15,7 +15,7 @@
 | 图片生成与复用 | 通过所配置的图片生成工作流出图；保存提示词、参数及图像节点输出。已采用素材可固定为图片节点供后续镜头连接 |
 | 视频生成 | 通过配置的 ComfyUI 工作流生成连续镜头，支持实际工作流允许的参考、时长、二采、LoRA 与超分参数 |
 | 视频提示词制作 | H3 Ref2VA 等工作流的镜头提示词生成、审核、版本核对、参考顺序与中文对照 |
-| 中国网络热梗知识库 | 按来源日期与场景检索中国网络热梗；区分 2026 年 11 月站点关注快照与 2025 年度回顾，不冒充全网实时榜 |
+| 2026 中国网络热梗库 | 28 条有 2026 年公开日期记录的用语/热梗，覆盖 7 月至 11 月；保留来源、语义、时间与适用场景，不冒充实时全网榜 |
 | 抽象搞怪创作库 | 20 套原创荒诞喜剧图像/单镜头视频构思，附笑点机制、机位、动作和连续性检查 |
 | 质检与整改 | 视频 QC 输出问题/证据，主 Agent 据此制定覆盖问题编号的整改计划；计划本身不等于自动重生成 |
 | 可配置的多模型 Agent | 主 Agent 与角色、场景、道具等专业子 Agent 可分别指定对话模型、思考等级；模型支持的思考档位可在设置中主动探测 |
@@ -69,25 +69,25 @@ MangaFlow 的生产指令应当落实到**可编辑、可继续使用的画布�
 
 ## 创作知识库：中国网络热梗与抽象搞怪
 
-两套资料由主 Agent、角色/场景/道具等子 Agent 通过只读工具 **`searchCreativeKnowledge`** 按需检索；不把整个热梗库塞进系统提示词，避免消耗上下文及在严肃剧情中强行加梗。
+两类数据直接放在**现有分类检索提示词模板库**内，由主 Agent 和各专业子 Agent 统一调用 **`searchVideoPromptTemplates`**：旧 `listTags/search` 查询导演模板；新增 `listCreativeTags/searchCreative` 查询“2026网络热梗 / 原创抽象搞怪”。不重复创建第二套 Agent 检索入口，也不把全部热梗塞进系统提示词。
 
-- **中国热梗库（24 条）**：提供词语/句式、观察日期、来源、含义、适用笑点与不适合的用法。2026 年条目来自截至 2026-11-10 的[梗百科站内访问样本](https://www.geng8.com/rank/month/2026-11/)；2025 年年度语汇参考公开年度名单，**均不是实时全网热度排行**。
+- **2026 网络热梗库（28 条）**：仅收录在 2026 年有明确日期报道或词条记录的用语，来源包括[2026 年 10–11 月网络词条](https://www.ssmys.com/)、[2026 上半年热点盘点](https://www.adquan.com/article/361636)、[2026 上半年消费热梗调查](https://www.p5w.net/roll/finance/202607/t20260729_6489083.htm)。2025 年年度回顾词不再混入当前库；每条保留发布时间、证据级别、含义和适用情境。**2026 年被记录不保证首次起源于 2026 年**，不冒充实时全网排名。
 - **原创抽象搞怪提示词库（20 条）**：赛博生活、职场荒诞、动物拟人、机械反差、奇幻撞科技等；每条有 `imagePrompt`、`videoBeat`、`camera`、`continuity`、`jokeMechanism`，可改写成当前角色/场景的创作方案。
 - **触发条件**：只有用户要求热梗、沙雕、抽象、搞笑、反差，或已经确定的喜剧情节需要笑点时使用；严肃故事不默认植入。
 - **执行边界**：知识库只是创意检索，不提交图片或视频任务；经过角色设定、镜头合同和必要审核后，仍在画布节点中填提示词、连线和生成。H3 视频提示词必须重新适配其专用格式与连续镜头规范。
-- **版本与更新**：初始快照日期 **2026-11-11**，目前是离线内置库，**不会自动联网爬取或每天自动更新**。补充热梗必须保留来源及观察时间，不能把旧词直接标记为最新。
+- **检索与时效**：最新收录快照 **2026-11-11**，会优先给出关键词匹配且来源时间较新的热梗；目前是离线内置库，**不是自动联网抓取的实时热榜**。之后应按实际版本维护来源与日期，而不是把历史词条伪装成新梗。
 
 示例：
 
 ```text
 “给飞行汽车加一点反差萌，但不要改变机械结构。”
-→ searchCreativeKnowledge：检索“飞行”“机械”“反差”
+→ searchVideoPromptTemplates({action: "searchCreative", library: "absurd", query: "飞行", limit: 3})
 → 取 1 条喜剧机制，融入本次已批准的角色与场景
 → 画布图片/视频生成节点设置经审核的提示词
 → 检查真实参考与连接，获得算力许可后生成
 ```
 
-维护：[热梗数据](apps/server/src/agent/creativeKnowledge/memesCN.ts) · [搞怪提示词](apps/server/src/agent/creativeKnowledge/absurdPrompts.ts) · [检索接口](apps/server/src/agent/creativeKnowledge/index.ts) · [创作知识库使用规范](packages/skills/workflow/references/creativeKnowledge.md)。
+维护：[热梗数据](apps/server/src/agent/creativeKnowledge/memesCN.ts) · [原创搞怪模板](apps/server/src/agent/creativeKnowledge/absurdPrompts.ts) · [统一分类检索入口](apps/server/src/agent/videoPrompt/templates/index.ts) · [知识库检索实现](apps/server/src/agent/creativeKnowledge/index.ts) · [创作知识库规范](packages/skills/workflow/references/creativeKnowledge.md)。
 
 ## 安装与使用
 

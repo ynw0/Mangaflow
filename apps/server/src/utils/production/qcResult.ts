@@ -32,7 +32,7 @@ function compactQcChecks(checks: QcCheck[]): QcCheck[] {
   const groups = new Map<string, QcCheck[]>();
   for (const check of checks) {
     const key = check.requirementId
-      ? `requirement:${check.requirementId}`
+      ? `requirement:${check.domain}:${check.requirementId}`
       : `diagnostic:${check.domain}\u0000${check.result}\u0000${check.time ?? ""}\u0000${check.evidence.replace(/\s+/g, " ").trim()}`;
     const existing = groups.get(key);
     if (existing) existing.push(check);
@@ -79,6 +79,19 @@ export function summarizeQc(checks: QcCheck[]): Pick<QcVideoResult, "status" | "
   const status = checks.some(check => check.result === "fail") ? "rejected"
     : checks.length && findings.length === 0 ? "ok" : "unverified";
   return { status, checks, findings, issues };
+}
+
+/** 统一验证整改计划引用的 QC 问题编号，防止漏项或引用旧版问题。 */
+export function validateRectificationCoverage(checks: QcCheck[], actions: { issueIds: string[] }[]) {
+  const issues = summarizeQc(checks).issues ?? [];
+  const known = new Set(issues.map(issue => issue.id));
+  if (!issues.length) throw new Error("当前 QC 没有需要整改或补证的问题");
+  if (actions.some(action => action.issueIds.some(id => !known.has(id)))) {
+    throw new Error("整改计划包含当前 QC 不存在的问题 ID，请按已返回的 issues 编号提交");
+  }
+  const covered = new Set(actions.flatMap(action => action.issueIds));
+  const missing = issues.filter(issue => !covered.has(issue.id)).map(issue => issue.id);
+  if (missing.length) throw new Error(`整改计划没有覆盖下列 QC 问题：${missing.join("、")}`);
 }
 
 export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requirements: QcRequirement[] = [], timelineEvidence = true, fullVideoEvidence = timelineEvidence) {

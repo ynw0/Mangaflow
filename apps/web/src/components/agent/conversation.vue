@@ -161,7 +161,7 @@
             </div>
           </div>
         </el-popover>
-        <el-button v-show="!busy || draftReady" class="sendButton" type="primary" circle :disabled="!runningDraft && locked" :aria-label="runningDraft ? '停止当前任务并发送' : editingId ? '重发消息' : '发送消息'" :title="runningDraft ? '停止当前任务并发送' : editingId ? '重发消息' : '发送消息'" @click="onSendClick">
+        <el-button v-show="!busy || draftReady" class="sendButton" type="primary" circle :disabled="steering || (!runningDraft && locked)" :aria-label="runningDraft ? '引导当前任务，不中断生成' : editingId ? '重发消息' : '发送消息'" :title="runningDraft ? '引导当前任务（当前工具完成后生效）' : editingId ? '重发消息' : '发送消息'" @click="onSendClick">
           <icon-arrow-up :size="16" />
         </el-button>
         <el-button v-if="busy" class="sendButton" type="primary" circle aria-label="停止生成" title="停止生成" @click="stopMessage">
@@ -256,6 +256,7 @@ const remoteRunning = ref(props.initialSession?.running ?? false);
 const stats = ref(props.initialSession?.stats);
 const contextUsage = ref(props.initialSession?.contextUsage);
 const busy = ref(false);
+const steering = ref(false);
 const compacting = ref(false);
 const deletingId = ref<string>();
 const restoringAttachment = ref(false);
@@ -264,14 +265,7 @@ const composerLocked = computed(() => props.disabled || deletingId.value !== und
 const editingId = ref<string>();
 const draftReady = ref(false);
 const runningDraft = computed(() => !editingId.value && (busy.value || remoteRunning.value) && draftReady.value);
-let conversationAlive = true;
-let restarting = false;
-const readyWaiters: (() => void)[] = [];
-onBeforeUnmount(() => {
-  conversationAlive = false;
-  readyWaiters.splice(0).forEach(resolve => resolve());
-});
-watch(busy, value => { if (!value) readyWaiters.splice(0).forEach(resolve => resolve()); });
+
 const draftMentions = ref<AgentMention[]>([]);
 const draftMentionTargets = shallowRef<{ key: symbol; element: HTMLElement; mention: AgentMention }[]>([]);
 const draftMentionPreview = ref<InstanceType<typeof mentionContent>>();
@@ -553,42 +547,63 @@ function syncDraftReady(instance = sender) {
 }
 watch(draftAttachments, () => syncDraftReady(), { deep: true });
 
-function waitUntilReady() {
-  if (!busy.value) return Promise.resolve();
-  return new Promise<void>(resolve => readyWaiters.push(resolve));
-}
-
 function onSendClick() {
   void submitMessage();
 }
 
 function submitMessage() {
   if (runningDraft.value) {
-    void restartMessage();
+    void steerMessage();
     return;
   }
   if ((busy.value || remoteRunning.value) && !editingId.value) return;
   return sendMessage(editingId.value ? messages.value.find(item => item.id === editingId.value) : undefined);
 }
 
-async function restartMessage() {
-  if (restarting) return;
-  restarting = true;
+/** 中途引导沿用原会话；不取消当前 ComfyUI、工具或子 Agent。 */
+async function steerMessage() {
+  const instance = sender;
+  if (!instance || steering.value || !draftReady.value || composerLocked.value) return;
+  if (!props.sessionFile || !directory) {
+    ElMessage.warning("会话正在初始化，当前不能接收引导；原任务仍在运行");
+    return;
+  }
+  const prompt = getDraftContent().trim();
+  const mentionIds = instance.getTagData().mention.map(item => item.id);
+  const mentions = draftMentions.value.filter(item => mentionIds.includes(item.id)).map(item => ({ ...item }));
+  if (mentionIds.some(id => !mentions.some(item => item.id === id))) {
+    ElMessage.warning("有无法读取的 @ 引用，请重新选择");
+    return;
+  }
+  if (draftAttachments.value.length) {
+    ElMessage.warning("运行中引导暂不支持新附件，请先去掉附件；普通消息发送仍支持附件");
+    return;
+  }
+  if (!prompt) return;
+  steering.value = true;
+  const requestId = crypto.randomUUID();
+  const optimistic = reactive<AgentMessage>({ id: requestId, role: "user", content: prompt, mentions });
+  messages.value.push(optimistic);
   try {
-    if (busy.value) {
-      stopMessage();
-      await waitUntilReady();
-      if (!conversationAlive || !sender) return;
-      remoteRunning.value = false;
-      await sendMessage();
-      return;
+    const response = await fetch("/api/agent/steer", {
+      method: "POST",
+      headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
+      body: JSON.stringify({ directory, sessionFile: props.sessionFile, requestId, prompt, mentions }),
+    });
+    const result = await response.json().catch(() => null) as { code?: number; message?: string } | null;
+    if (!response.ok || result?.code !== 200) throw new Error(result?.message || `引导发送失败（HTTP ${response.status}）`);
+    if (sender === instance && getDraftContent().trim() === prompt) {
+      await instance.reset();
+      draftMentions.value = [];
+      syncDraftReady(instance);
     }
-    if (remoteRunning.value) {
-      remoteRunning.value = false;
-      await sendMessage(undefined, "restart");
-    }
+    ElMessage.success("引导已加入当前任务，原生成继续运行");
+  } catch (error) {
+    const pendingIndex = messages.value.findIndex(message => message.id === requestId && !message.entryId);
+    if (pendingIndex >= 0) messages.value.splice(pendingIndex, 1);
+    ElMessage.error(error instanceof Error ? error.message : "引导发送失败，草稿已保留");
   } finally {
-    restarting = false;
+    steering.value = false;
   }
 }
 

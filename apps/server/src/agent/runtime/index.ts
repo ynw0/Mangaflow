@@ -23,7 +23,7 @@ import { getAgentImageReference, getOffloadedImageText, readAgentImage } from "@
 import { createSubAgentTool } from "@/agent/tools/subAgent";
 import { createVideoPromptTool } from "@/agent/videoPrompt";
 import { createVideoTemplateSearchTool } from "@/agent/videoPrompt/templates";
-import { createCreativeKnowledgeSearchTool } from "@/agent/creativeKnowledge";
+
 import { createMemoryTool } from "@/agent/tools/memory";
 import { createReportTool } from "@/agent/tools/report";
 import { runDelegatedAgent } from "@/agent/runtime/delegation";
@@ -207,15 +207,11 @@ export async function run(
     // are only exposed for a deliberate in-chat request, never as an accidental shortcut.
     const directChatAllowed = !child && explicitlyRequestsChatGeneration(prompt);
     const tools = routeAgentMediaTools(await createAgentTools(cwd, canvas, question), prompt, Boolean(child));
-    // Curated meme/comedy knowledge is a read-only search tool; do not preload
-    // whole libraries into the model prompt or media generation payload.
-    if (tools.some(tool => tool.name === "searchCreativeKnowledge")) throw new Error("工具名称 searchCreativeKnowledge 已被占用");
-    tools.push(createCreativeKnowledgeSearchTool());
-    if (!child) {
-      const searchTemplates = createVideoTemplateSearchTool();
-      if (tools.some(tool => tool.name === searchTemplates.name)) throw new Error("视频提示词模板工具名称冲突");
-      tools.push(searchTemplates);
-    }
+    // Single classified search surface for video directing and 2026 comedy knowledge.
+    // Read-only, shared by main Agent and specialized sub-agents; no duplicate tool.
+    const searchTemplates = createVideoTemplateSearchTool();
+    if (tools.some(tool => tool.name === searchTemplates.name)) throw new Error("分类检索工具名称冲突");
+    tools.push(searchTemplates);
     const skillOperator = tools.find(tool => tool.name === "skillOperator");
     if (!child && skillOperator) {
       if (tools.some(tool => tool.name === "draftVideoPrompt")) throw new Error("工具名称 draftVideoPrompt 已被内置视频提示词工具占用");

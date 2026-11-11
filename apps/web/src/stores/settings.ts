@@ -149,7 +149,7 @@ export async function probeAndSaveThinkingLevels(providerId: string, modelId: st
   const mode = payload.data.mode === "toggle" ? "toggle" : "effort";
   const key = JSON.stringify([providerId, modelId]);
   await saveSettings(current => {
-    const providers = current.customProviders;
+    const providers = Array.isArray(current.customProviders) ? current.customProviders as CustomProvider[] : [];
     if (!Array.isArray(providers) || !providers.some(item => item.id === providerId && item.models?.some(model => model.id === modelId))) {
       throw new Error("模型已从供应商设置中移除，未保存探测结果");
     }

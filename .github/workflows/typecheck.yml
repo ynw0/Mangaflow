@@ -24,6 +24,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: 核对服务端类型
         run: bun run --cwd apps/server typecheck
+      - name: 核对 Web 对话界面类型
+        run: bun run --cwd apps/web typecheck
       - name: 核对节点及媒体工具类型
         run: |
           bun run --cwd packages/toolScaffold typecheck

@@ -5,14 +5,8 @@ import config from "../../../electrobun.config";
 import copyDocumentPackages from "./copyDocumentPackages";
 
 const projectDir = resolve(import.meta.dirname, "../../..");
-// 无论是在开发机还是 CI 打包，先同步代码生成的路由表，避免新增 API 在 EXE 中返回 404。
-await import { $ } from "bun";
-import { cp, realpath, rm } from "@toonflow/file";
-import { dirname, resolve } from "node:path";
-import config from "../../../electrobun.config";
-import copyDocumentPackages from "./copyDocumentPackages";
-
-${process.execPath} run routes`.cwd(resolve(projectDir, "apps/server"));
+// 在打包前同步自动路由表，防止新 API 被遗漏造成 404。
+await $`${process.execPath} run routes`.cwd(resolve(projectDir, "apps/server"));
 const agentDirectory = dirname(await realpath(Bun.resolveSync("@earendil-works/pi-coding-agent", resolve(projectDir, "apps/server"))));
 const photonDirectory = dirname(Bun.resolveSync("@silvia-odwyer/photon-node", agentDirectory));
 // ACT: 团队暂不打包，恢复时取消注释。

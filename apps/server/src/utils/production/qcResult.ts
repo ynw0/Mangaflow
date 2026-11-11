@@ -10,6 +10,8 @@ const qcPayload = z.object({
     result: z.enum(["pass", "fail", "unverified"]),
     evidence: z.string().trim().min(1),
     time: z.string().trim().min(1).optional(),
+    problem: z.string().trim().min(1).max(600).optional(),
+    fixHint: z.string().trim().min(1).max(600).optional(),
   })).min(1),
 });
 
@@ -56,16 +58,27 @@ function compactQcChecks(checks: QcCheck[]): QcCheck[] {
   });
 }
 
-export function summarizeQc(checks: QcCheck[]): Pick<QcVideoResult, "status" | "checks" | "findings"> {
+export function summarizeQc(checks: QcCheck[]): Pick<QcVideoResult, "status" | "checks" | "findings" | "issues"> {
   // 文本是证据，先归并重复/冲突项，再读取结构化判定。
   checks = compactQcChecks(checks);
   const findings = checks.filter(check => check.result !== "pass").map(check => ({
     domain: check.domain,
     text: [check.requirementId ? `[${check.requirementId}] ${check.requirement ?? ""}` : "", check.time, check.evidence].filter(Boolean).join(" "),
   }));
+  const issues = checks.flatMap((check, index) => check.result === "pass" ? [] : [{
+    id: check.requirementId ? `${check.domain}:${check.requirementId}` : `diagnostic:${check.domain}:${index}`,
+    ...(check.requirementId ? { requirementId: check.requirementId } : {}),
+    domain: check.domain,
+    kind: check.result === "fail" ? "defect" as const : "needsEvidence" as const,
+    ...(check.requirement ? { expected: check.requirement } : {}),
+    observed: check.evidence,
+    problem: check.problem ?? check.evidence,
+    ...(check.time ? { time: check.time } : {}),
+    ...(check.fixHint ? { fixHint: check.fixHint } : {}),
+  }]);
   const status = checks.some(check => check.result === "fail") ? "rejected"
     : checks.length && findings.length === 0 ? "ok" : "unverified";
-  return { status, checks, findings };
+  return { status, checks, findings, issues };
 }
 
 export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requirements: QcRequirement[] = [], timelineEvidence = true, fullVideoEvidence = timelineEvidence) {

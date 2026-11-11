@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { ToolDefinition, ToolPlugin } from "@toonflow/tools-scaffold/runtime";
-import { agentVideoQcSubmissionSchema, audioGenerationSchema, imageGenerationSchema, listMediaModelsSchema, qcVideoSchema, videoGenerationSchema, videoQcStatusSchema } from "./runtime";
+import { agentVideoQcSubmissionSchema, audioGenerationSchema, imageGenerationSchema, listMediaModelsSchema, qcRectificationPlanSchema, qcVideoSchema, videoGenerationSchema, videoQcStatusSchema } from "./runtime";
 
 const configSchema = z.strictObject({
   allowImage: z.boolean().default(true),
@@ -46,7 +46,7 @@ const plugin: ToolPlugin = {
     const qcStatusTool: ToolDefinition = {
       name: "getVideoQcStatus",
       label: "查询成片质检状态",
-      description: "按工作区内成片相对路径读取持久化质检状态。已完成时返回逐项结果；此操作不启动质检。",
+      description: "按成片路径读取持久化 QC。completed 时 issues 明确列出错误、缺失证据、时间与验收要求，qcRevision 用于绑定整改方案。若 rejected/unverified，主 Agent 必须先制定整改方案，再调用 saveVideoQcRectificationPlan 保存；工具本身不启动生成。",
       parameters: z.toJSONSchema(videoQcStatusSchema, { io: "input", target: "draft-07" }),
       async execute(_id, params, signal) {
         signal?.throwIfAborted();
@@ -78,7 +78,20 @@ const plugin: ToolPlugin = {
         return { details: result, content: [{ type: "text", text: JSON.stringify(result) }] };
       },
     };
-    return [qcTool, qcStatusTool, framesTool, submitTool, ...(generationTools.length ? [listTool] : []), ...generationTools.map<ToolDefinition>(operation => ({
+    const planTool: ToolDefinition = {
+      name: "saveVideoQcRectificationPlan",
+      label: "主 Agent 保存成片整改方案",
+      description: "读取 getVideoQcStatus 的 issues 与 qcRevision 后，对每条失败/未验证问题确定根因假设、应调整的素材/提示词/工作流/采样/镜头及可核验验收标准。必须覆盖所有 issueIds。优先改变导致相同失败的参考或控制手段，不得只反复堆叠提示词。未确认的根因必须标记为假设。此工具只持久化整改计划，不授权或启动新生成。",
+      promptSnippet: "QC 未通过先整理具体问题并提交结构化整改方案；同类失败反复出现时更改策略而非重复改写提示词，保存方案不等于允许重生。",
+      parameters: z.toJSONSchema(qcRectificationPlanSchema, { io: "input", target: "draft-07" }),
+      executionMode: "sequential",
+      async execute(_id, params, signal) {
+        signal?.throwIfAborted();
+        const result = await media.saveVideoQcRectificationPlan(qcRectificationPlanSchema.parse(params));
+        return { details: result, content: [{ type: "text", text: JSON.stringify(result) }] };
+      },
+    };
+    return [qcTool, qcStatusTool, framesTool, submitTool, planTool, ...(generationTools.length ? [listTool] : []), ...generationTools.map<ToolDefinition>(operation => ({
       name: operation.name,
       label: operation.label,
       description: `${operation.description}providerId 和 modelId 必须来自 listMediaModels。引用素材的 path 及 outputDirectory 均为工作区相对路径；省略输出目录使用默认媒体目录。等待生成完成后返回已保存的文件路径，不返回 Base64。`,

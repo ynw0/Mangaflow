@@ -16,6 +16,8 @@ const deniedChat = /(?:不要|不用|别|禁止|不准|并非|不是|无需|不�
 export function explicitlyRequestsChatGeneration(prompt: string): boolean {
   const normalized = prompt.replace(/\s+/g, " ").trim();
   if (!normalized || !mediaAction.test(normalized)) return false;
+  // Questions about old chat output are not requests to produce new chat media.
+  if (/^(?:为什么|为何|怎么|如何|解释|分析|研究|论证|排查|检查|查看|看看|帮我看看)/.test(normalized)) return false;
   if (deniedChat.test(normalized)) return false;
   return (
     /(?:在|到|放在|发在|直接在|只在|仅在)(?:当前)?(?:对话|聊天)(?:框|窗口|里|内|中|界面)?(?:.{0,16})(?:直接)?(?:生成|出图|生图|制作|画|显示)/.test(normalized)

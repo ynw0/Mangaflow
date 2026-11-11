@@ -26,6 +26,20 @@ export const qcVideoSchema = z.strictObject({
   checklist: z.string().max(8000).optional(),
 });
 export const videoQcStatusSchema = qcVideoSchema.pick({ videoPath: true });
+export const qcRectificationPlanSchema = z.strictObject({
+  videoPath: relativePath,
+  qcRevision: z.string().regex(/^[a-f0-9]{64}$/),
+  summary: z.string().trim().min(10).max(3000),
+  needsRegeneration: z.boolean(),
+  actions: z.array(z.strictObject({
+    issueIds: z.array(z.string().trim().min(1).max(200)).min(1).max(128),
+    rootCauseHypothesis: z.string().trim().min(5).max(1000),
+    category: z.enum(["reference", "prompt", "workflow", "sampling", "camera", "audio", "verification", "other"]),
+    change: z.string().trim().min(5).max(2000),
+    acceptance: z.string().trim().min(5).max(1200),
+  })).min(1).max(32),
+});
+
 export const agentVideoQcSubmissionSchema = z.strictObject({
   videoPath: relativePath, revision: z.uuid(),
   checks: z.array(z.strictObject({ requirementId: z.string().min(1).max(200).optional(),

@@ -206,7 +206,7 @@ export default (app: Express) => {
   app.use("/api/desktop/update/apply", route48);
   app.use("/api/desktop/update/check", route49);
   app.use("/api/desktop/update/download", route50);
-  app.use("/api/desktop/update/index", route51);
+  app.use("/api/desktop/update", route51);
   app.use("/api/ext/install", route52);
   app.use("/api/ext/list", route53);
   app.use("/api/ext/read", route54);

@@ -65,7 +65,7 @@ export const memesCN: MemeEntry[] = [
     sourceUrl: "https://tech.ifeng.com/c/8xhKxSaK0sd",
     meaning: "网友给DeepSeek蓝色鲸鱼logo起的昵称，并发展成蓝发鲸鱼娘/DeepSeek娘等非官方AI拟人二创；爱吃白饭、摸鱼和赛博鱼塘是常见人设。",
     usage: "虚构AI助手认不出自己的鲸鱼标志时露出呆萌表情；也可只借AI助手摸鱼的反差机制创作原创角色。",
-    avoid: "DeepSeek官方并未指定这个二创形象；现有鲸鱼娘具体设计有创作者和许可边界，商业作品优先使用原创形象，不冒充官方授权。",
+    avoid: "这不是DeepSeek官方指定的形象，而是非官方二创；现有鲸鱼娘具体设计有创作者和许可边界，商业作品优先使用原创形象，不冒充官方授权。",
     tags: ["DeepSeek", "AI", "蓝色大肥鱼", "鲸鱼娘", "二创", "表情包", "反差萌"],
   },
   dated("m26-remarry", "结过婚我也认", "2026-10-05",

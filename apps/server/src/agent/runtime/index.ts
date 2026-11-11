@@ -367,7 +367,7 @@ export async function run(
       const text = typeof raw === "string" ? raw : getToolResultText(raw);
       if (text.includes(goalContinueMark)) {
         userMessageId = entry.id;
-        return;
+        continue;
       }
       userMessageId = entry.id;
       const firstMessage = !messageAccepted;

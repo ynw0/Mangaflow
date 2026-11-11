@@ -104,9 +104,9 @@ export const memesCN: MemeEntry[] = [
     tags: ["嘉豪", "嘉豪文学", "中二", "自嘲", "抽象", "反差"],
   },
   {
-    id: "m26-newaccount", phrase: "新号别搞", observedAt: "2026-05-08", period: "2026年5月传播报道",
-    evidence: "2026-dated-entry", sourceLabel: "钱江晚报/潮新闻2026-05-08：校园网络口头禅报道",
-    sourceUrl: "https://m.sohu.com/a/1019925020_121627717",
+    id: "m26-newaccount", phrase: "新号别搞", observedAt: "2026-06-13", period: "2026年6月传播报道",
+    evidence: "2026-dated-entry", sourceLabel: "人民日报2026-06-13校园流行梗调查（羊城晚报转载）",
+    sourceUrl: "https://edu.ycwb.com/2026-06/13/content_54172949.htm",
     meaning: "以网络游戏新号身份开玩笑求放过或表示承受不住，是把游戏语境移到现实的调侃。",
     usage: "刚出厂的家务机器人遇到超额任务，一边举起新手铭牌一边请求降低难度。",
     avoid: "面向未成年人内容不能把现实欺凌、惩罚或危险行为当成合理笑点。",

@@ -197,6 +197,13 @@ async function probeThinking(item: FormModel) {
       throw new Error(payload.message || "服务没有返回可用的思考等级");
     }
     if (controller.signal.aborted || !visible.value || !models.value.includes(item) || !canProbeModel(item)) return;
+    // API 未提供可验证的档位时不能清空已经保存或手工维护的正确配置。
+    if (payload.data.source === "unverified") {
+      const notice = payload.data.notice || "接口没有返回可确认的思考等级，原配置保持不变。";
+      probeNotices.value = { ...probeNotices.value, [item.key]: notice };
+      ElMessage.warning("未能验证模型支持的档位，已保留原设置");
+      return;
+    }
     item.thinkingLevels = normalizeThinkingLevels(payload.data.levels)
       .filter(level => (presetThinkingLevels as readonly string[]).includes(level));
     item.reasoningMode = payload.data.mode === "toggle" ? "toggle" : "effort";

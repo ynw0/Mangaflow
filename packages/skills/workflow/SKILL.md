@@ -31,6 +31,10 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | 单集导演规划（可选） | [directorPlan.md](references/directorPlan.md) | 分集画布上的分场情绪与注意事项 |
 | 成片提示词 | 已有节点先核对实际工作流和模式，新镜用用户指定或 production.video。内置 Agent 用 draftVideoPrompt 读取 [导演 Skill](../cinematicPromptCraft/SKILL.md)、对应的 [H3 规则](../h3-prompt-writing/SKILL.md) 和 [视频审核规则](references/video-prompt-review.md) | 程序预检和独立审核通过后交接英中文稿。出片使用同一已审工作流及参数，并另行确认 |
 
+### 网络热梗与抽象搞怪知识（按需启用，不自动污染剧情）
+
+用户明确要求**抽象、沙雕、整活、热梗、无厘头、搞怪喜剧、反差萌**，或已确认的喜剧场景需要强化笑点时，调用只读的 `searchCreativeKnowledge`（先 `list` 再按 `memes` / `absurd` 查询需要的 1–5 项），并按 [创作知识库说明](references/creativeKnowledge.md) 核对来源、日期、适用场景、原创性和可拍摄动作。该工具返回的是已注明时间的词条样本和原创创意骨架，**不是 2026 年全网实时热榜，也不是直接可提交的 H3 提示词**；严肃剧情不强加热梗，不能用知识库替代阶段合同、主 Agent 审核、画布节点执行或算力授权。特别注意用 `nodeTools` 写入已改写的提示词，生成结果仍必须显示在画布。
+
 ### 原画案例参考（不替换生产合同）
 
 角色、场景或道具原画首次设计，或失败重试需要澄清构图、尺度、材质、身份锁时，可以按 asset_type / t2i / edit 从 [imagePromptCases.md](references/imagePromptCases.md) 阅读 1–2 条。其 I01–I04 仅是原创且未生成验证的案例，依当前 [character-art.md](references/character-art.md)、[scene-art.md](references/scene-art.md)、[prop-art.md](references/prop-art.md) 及审核合同重新撰写；不得让案例内容替换已批准的车辆、人物和场景。无需额外调用模型来“润色案例”。

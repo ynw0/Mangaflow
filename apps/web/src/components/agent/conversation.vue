@@ -596,7 +596,7 @@ async function steerMessage() {
       headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
       body: JSON.stringify({ directory, sessionFile: props.sessionFile, requestId, prompt }),
     });
-    const result = await response.json().catch(() => null) as { code?: number; message?: string } | null;
+    const result = await response.json().catch(() => null) as { code?: number; message?: string; data?: { waitingForAnswer?: boolean } } | null;
     if (!response.ok || result?.code !== 200) throw new Error(result?.message || `引导发送失败（HTTP ${response.status}）`);
     if (!optimistic.entryId) optimistic.guidanceState = "queued";
     if (sender === instance && getDraftContent().trim() === prompt) {
@@ -604,7 +604,8 @@ async function steerMessage() {
       draftMentions.value = [];
       syncDraftReady(instance);
     }
-    ElMessage.success("引导已加入当前任务，原生成继续运行");
+    if (result?.data?.waitingForAnswer) ElMessage.warning("引导已排队；当前任务正在等待提问答复，回答后会继续执行");
+    else ElMessage.success("引导已加入当前任务，原生成继续运行");
   } catch (error) {
     const pendingIndex = messages.value.findIndex(message => message.id === requestId && !message.entryId);
     if (pendingIndex >= 0) messages.value.splice(pendingIndex, 1);

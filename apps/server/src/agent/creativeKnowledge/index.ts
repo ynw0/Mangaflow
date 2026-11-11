@@ -118,7 +118,7 @@ export type CreativeSelectionOptions = {
 export function checkCreativeSelection(options: CreativeSelectionOptions) {
   const { selected } = options;
   const errors: string[] = [], warnings: string[] = [];
-  function pick<T extends { id: string; title: string }>(id: string | undefined, items: readonly T[], slot: string): T | undefined {
+  function pick<T extends { id: string }>(id: string | undefined, items: readonly T[], slot: string): T | undefined {
     if (!id) return undefined;
     const found = items.find(item => item.id === id);
     if (!found) errors.push(`${slot} 指向不存在的模板 ID：${id}`);

@@ -9,6 +9,7 @@ import conf from "@/utils/conf";
 import { providerSchema, getModelLimits } from "@/utils/ai";
 import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { getReadableFileMimeType } from "@/lib/documentFormats";
+import { enqueueAgentGuidance } from "@/agent/runtime/steering";
 
 export const goalContinueMark = "[[goal-continue]]";
 
@@ -50,34 +51,10 @@ export function getActiveAgentSession(path: string) {
 // 不打开第二个 Agent，不拿会话文件锁，不发送 abort；无 active 时明确要求重新发起普通消息。
 export async function steerActiveAgentSession(path: string, input: { prompt: string; requestId: string }) {
   const active = getActiveAgentSession(path);
-  if (!active?.session || !active.session.isStreaming) {
-    throw Object.assign(new Error("当前对话已经停止或尚未启动；请作为普通消息发送"), { status: 409 });
+  if (!active) {
+    throw Object.assign(new Error("当前对话未运行，请作为普通消息发送"), { status: 409 });
   }
-  const previous = active.steeringRequests.get(input.requestId);
-  if (previous) {
-    await previous;
-    return { status: "queued" as const, requestId: input.requestId, duplicate: true };
-  }
-  if (active.steeringRequests.size >= 128) {
-    throw Object.assign(new Error("当前会话已接收过多条引导，请在新一轮对话中继续"), { status: 429 });
-  }
-  if (active.session.pendingMessageCount >= 16) {
-    throw Object.assign(new Error("待处理的引导消息已达上限，先让 Agent 处理已有消息"), { status: 429 });
-  }
-  // Pi 官方 SDK 在运行中按 steer 入队，当前工具全部完成后才送给下一轮模型。
-  // 保留真正的 user message，以便被原订阅流和 JSONL 历史同步记录。
-  const submitted = active.session.sendUserMessage(input.prompt, {
-    deliverAs: "steer",
-    expandPromptTemplates: false,
-  });
-  active.steeringRequests.set(input.requestId, submitted);
-  try {
-    await submitted;
-    return { status: "queued" as const, requestId: input.requestId, duplicate: false };
-  } catch (error) {
-    active.steeringRequests.delete(input.requestId);
-    throw error;
-  }
+  return enqueueAgentGuidance(active.session, active.steeringRequests, input);
 }
 
 export function hasPendingAgentQuestion(active: ActiveAgentSession, visited = new Set<ActiveAgentSession>()): boolean {

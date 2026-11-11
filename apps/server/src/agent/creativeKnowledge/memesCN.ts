@@ -19,7 +19,7 @@ export type MemeEntry = {
 const snapshot2026 = "2026-11-11";
 const source2026 = "https://www.geng8.com/rank/month/2026-11/";
 const rank2026 = "梗百科本站2026年11月1—10日访问榜（仅站内访问，非全网排名）";
-const annual2025 = "https://www.xinhuanet.com/20251224/210acf907c3644558e882c2068526e1b/c.html";
+const annual2025 = "https://hsb.hspress.net/system/2025/1213/236859.shtml";
 const selection2025 = "2025年度汉语盘点及网络流行语报道（权威年度名单，非2026年热度）";
 
 function observation(id: string, phrase: string, meaning: string, usage: string, avoid: string, tags: string[]): MemeEntry {
@@ -27,7 +27,7 @@ function observation(id: string, phrase: string, meaning: string, usage: string,
     sourceLabel: rank2026, sourceUrl: source2026, meaning, usage, avoid, tags };
 }
 function annual(id: string, phrase: string, meaning: string, usage: string, avoid: string, tags: string[]): MemeEntry {
-  return { id, phrase, observedAt: "2025-12-24", period: "2025年度回顾", evidence: "annual-selection",
+  return { id, phrase, observedAt: "2025-12-13", period: "2025年度回顾", evidence: "annual-selection",
     sourceLabel: selection2025, sourceUrl: annual2025, meaning, usage, avoid, tags };
 }
 
@@ -46,7 +46,7 @@ export const memesCN: MemeEntry[] = [
   observation("m26-smilenot", "嘻嘻不嘻嘻", "由轻松转向尴尬、无奈或崩溃的情绪突变。", "修车师傅笑着按下试飞键，屏幕随后显示“起飞已被税务系统拦截”。", "使用情绪节奏，不必照抄现成视频的音效或字幕。", ["情绪反转", "喜剧", "反差"]),
   observation("m26-loveoldself", "爱你老己", "对自己表达照顾或奖励的口语式调侃。", "忙碌的机甲为自己安装一个按摩椅，给自己一张小奖状。", "不把自嘲包装成健康/心理治疗建议。", ["自嘲", "温暖", "治愈", "反差"]),
   observation("m26-snowfox", "雪山救狐狸", "近期站内被访问的故事梗词条，具体原型与版本众多。", "把英雄救美反转为狐狸先把人类带离雪山的原创故事。", "不要照搬已有民俗故事的固定角色造型和具体台词。", ["动物拟人", "反转", "故事"]),
-  observation("m26-otter", "背手负鼠", "一种用“背着手站着”的动物形象表达淡定、观察、领导视察的幽默联想。", "让原创负鼠质检员背手检查巨型火箭螺丝，严肃与体型形成反差。", "不要复用原图、视频或特定拍摄者的作品。", ["动物拟人", "质检", "一本正经"]),
+  observation("m26-possum", "背手负鼠", "一种用“背着手站着”的动物形象表达淡定、观察、领导视察的幽默联想。", "让原创负鼠质检员背手检查巨型火箭螺丝，严肃与体型形成反差。", "不要复用原图、视频或特定拍摄者的作品。", ["动物拟人", "质检", "一本正经"]),
   observation("m26-cowork", "青梅牛马", "以青梅竹马句式改写打工人关系的职场自嘲。", "两个从幼儿园就认识的机器人在不同工厂相遇，工牌数字却一模一样。", "不将单站词条热度等同于全网走红。", ["职场", "打工", "反差"]),
   annual("m25-basic", "××基础，××不基础", "用“基础/不基础”的格式形成反转对照。", "车身基础，机翼就不基础；道具外观朴素，能力极其离谱。", "改写句式，不复制特定创作者的完整剧本文案。", ["反差", "穿搭", "科技", "句式"]),
   annual("m25-emotional", "情绪价值", "关系或互动中给予心理安慰与支持的价值。", "冷冰冰的维修机器人给失败的机甲一张手写鼓励便签。", "不随意给他人贴心理标签。", ["生活", "人物", "温暖"]),

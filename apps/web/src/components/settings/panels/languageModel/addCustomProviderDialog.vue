@@ -88,7 +88,15 @@
                   aria-label="思考等级">
                   <el-option v-for="level in presetThinkingLevels" :key="level" :label="level" :value="level" />
                 </el-select>
-                <div class="levelHint">仅选择该模型接口实际支持的档位；未确认时保持空白。</div>
+                <div class="levelProbe">
+                  <el-button size="small" plain :loading="probingModelKey === item.key"
+                    :disabled="saving || !!fetching || !!probingModelKey || !canProbeModel(item)"
+                    @click="probeThinking(item)">探测支持的思考等级</el-button>
+                  <span v-if="probeNotices[item.key]" class="probeNotice" role="status">{{ probeNotices[item.key] }}</span>
+                </div>
+                <div class="levelHint">探测以当前已保存的供应商连接为准；结果先填写到上方档位列表，点击「保存修改」后生效。
+                  <span v-if="!canProbeModel(item)">新模型、已修改连接或模型 ID 时，请先保存后再探测。</span>
+                </div>
               </el-form-item>
             </div>
           </div>
@@ -99,7 +107,7 @@
     </el-scrollbar>
     <template #footer>
       <el-button :disabled="saving" @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" :disabled="fetching" @click="addProvider">
+      <el-button type="primary" :loading="saving" :disabled="fetching || !!probingModelKey" @click="addProvider">
         {{ provider ? "保存修改" : "确定添加供应商" }}
       </el-button>
     </template>
@@ -132,7 +140,7 @@
 <script setup lang="ts">
 import { computed, h, onBeforeUnmount, reactive, ref, shallowRef, watch } from "vue";
 import axios from "axios";
-import { ElCheckbox, type FormInstance, type FormRules, type Column } from "element-plus";
+import { ElCheckbox, ElMessage, type FormInstance, type FormRules, type Column } from "element-plus";
 import {
   IconPlus,
   IconDownload,
@@ -156,6 +164,60 @@ const fetchedModels = shallowRef<CustomProviderModel[]>([]);
 const selectedIds = ref(new Set<string>());
 const modelSearch = ref("");
 const saving = ref(false);
+const probingModelKey = ref("");
+const probeNotices = ref<Record<string, string>>({});
+let probeRequest: AbortController | undefined;
+
+type FormModel = CustomProviderModel & { key: string; inputs: ReturnType<typeof modelInputs> };
+function canProbeModel(item: FormModel) {
+  const original = props.provider;
+  return !!original && original.id === form.id.trim() && original.apiUrl === form.apiUrl.trim()
+    && original.protocol === form.protocol && original.apiKey === form.apiKey
+    && original.models.some(model => model.id === item.id.trim())
+    && !!item.id.trim() && form.protocol !== "anthropic-messages";
+}
+
+async function probeThinking(item: FormModel) {
+  const original = props.provider;
+  if (!original || probingModelKey.value || !canProbeModel(item)) return;
+  const modelId = item.id.trim();
+  const controller = new AbortController();
+  probeRequest = controller;
+  probingModelKey.value = item.key;
+  probeNotices.value = { ...probeNotices.value, [item.key]: "" };
+  try {
+    const response = await axios.post("/api/providers/thinkingProbe",
+      { providerId: original.id, modelId },
+      { headers: { "x-toonflow-workspace": "1" }, timeout: 125000, signal: controller.signal });
+    const payload = response.data as {
+      code?: number; message?: string;
+      data?: { levels?: unknown; mode?: "effort" | "toggle"; source?: string; notice?: string };
+    };
+    if (payload.code !== 200 || !Array.isArray(payload.data?.levels)) {
+      throw new Error(payload.message || "服务没有返回可用的思考等级");
+    }
+    if (controller.signal.aborted || !visible.value || !models.value.includes(item) || !canProbeModel(item)) return;
+    item.thinkingLevels = normalizeThinkingLevels(payload.data.levels)
+      .filter(level => (presetThinkingLevels as readonly string[]).includes(level));
+    item.reasoningMode = payload.data.mode === "toggle" ? "toggle" : "effort";
+    probeNotices.value = {
+      ...probeNotices.value,
+      [item.key]: `检测结果：${item.thinkingLevels.join("、") || "未确认支持的档位"}。${payload.data.notice ?? ""}`,
+    };
+    ElMessage.success("探测完成，请点击「保存修改」应用结果");
+  } catch (error) {
+    if (controller.signal.aborted) return;
+    const detail = axios.isAxiosError(error)
+      ? error.response?.data?.message || (error.response?.status === 404
+        ? "本机 MangaFlow 服务未注册探测接口，请安装包含路由修复的版本" : error.message)
+      : error instanceof Error ? error.message : "探测失败";
+    probeNotices.value = { ...probeNotices.value, [item.key]: detail };
+    ElMessage.error(detail);
+  } finally {
+    if (probeRequest === controller) probeRequest = undefined;
+    probingModelKey.value = "";
+  }
+}
 const protocols = ["openai-completions", "openai-responses", "anthropic-messages"];
 const addedIds = computed(() => new Set(models.value.map((item) => item.id.trim())));
 const filteredModels = computed(() => {
@@ -216,10 +278,11 @@ watch(visible, (value) => {
     }
   } else {
     request?.abort();
+    probeRequest?.abort();
     resultsVisible.value = false;
   }
 }, { immediate: true });
-onBeforeUnmount(() => request?.abort());
+onBeforeUnmount(() => { request?.abort(); probeRequest?.abort(); });
 watch([() => form.id, () => form.apiUrl, () => form.protocol, () => form.apiKey], () => request?.abort());
 
 function resetForm() {
@@ -230,6 +293,8 @@ function resetForm() {
   selectedIds.value = new Set();
   modelSearch.value = "";
   formError.value = "";
+  probeNotices.value = {};
+  probingModelKey.value = "";
 }
 
 async function fetchModels() {
@@ -389,6 +454,9 @@ async function addProvider() {
 
       .tokenSettings {
         padding-top: 12px;
+        .levelProbe { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+        .probeNotice { font-size: 12px; color: var(--el-text-color-secondary); white-space: normal; line-height: 1.5; }
+        .levelHint { font-size: 12px; color: var(--el-text-color-secondary); }
 
         .el-form-item {
           margin-bottom: 4px;

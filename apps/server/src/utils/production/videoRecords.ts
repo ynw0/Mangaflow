@@ -221,7 +221,7 @@ export async function getVideoQcStatus(directory: string, videoPath: string): Pr
   if (task && !task.running) return { status: "queued", generation: parameters };
   if (!task && (state.status === "queued" || state.status === "running")) return { status: "interrupted", generation: parameters };
   const revision = state.status === "completed" ? qcRevision(video, state.result) : undefined;
-  const rectificationPlan = revision === record?.rectificationPlan?.qcRevision ? record.rectificationPlan : undefined;
+  const rectificationPlan = record && revision && record.rectificationPlan?.qcRevision === revision ? record.rectificationPlan : undefined;
   const result = state.status === "completed" ? {
     ...state.result,
     ...(!state.result.issues ? { issues: summarizeQc(state.result.checks).issues } : {}),

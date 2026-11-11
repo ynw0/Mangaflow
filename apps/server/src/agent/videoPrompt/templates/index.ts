@@ -6,7 +6,7 @@ import { effectsTemplates } from "@/agent/videoPrompt/templates/effectsTemplates
 import { sceneTemplates } from "@/agent/videoPrompt/templates/sceneTemplates";
 import { templateAnchors, templateConditions, templateFormats, templateTags, templateTagSchema } from "@/agent/videoPrompt/templates/schema";
 import type { TemplateConditions, VideoPromptTags, VideoPromptTemplate } from "@/agent/videoPrompt/templates/schema";
-import { listCreativeKnowledgeCategories, searchCreativeKnowledge } from "@/agent/creativeKnowledge";
+import { checkCreativeSelection, listCreativeKnowledgeCategories, searchCreativeKnowledge } from "@/agent/creativeKnowledge";
 
 const templates = [...sceneTemplates, ...actionTemplates, ...effectsTemplates, ...craftTemplates];
 const weights: Record<keyof VideoPromptTags, number> = {
@@ -45,10 +45,24 @@ const searchParameters = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("listCreativeTags") }),
   z.strictObject({
     action: z.literal("searchCreative"),
-    library: z.enum(["memes", "absurd", "expressions", "styles", "all"]).default("all"),
+    library: z.enum(["memes", "absurd", "expressions", "styles", "narrative", "all"]).default("all"),
     query: z.string().trim().max(200).default(""),
     tags: z.array(z.string().trim().min(1).max(24)).max(8).default([]),
     limit: z.number().int().min(1).max(10).default(5),
+  }),
+  z.strictObject({
+    action: z.literal("checkCreativeSelection"),
+    selected: z.strictObject({
+      narrativeId: z.string().trim().min(1).max(40).optional(),
+      expressionId: z.string().trim().min(1).max(40).optional(),
+      styleId: z.string().trim().min(1).max(40).optional(),
+      filterId: z.string().trim().min(1).max(40).optional(),
+      absurdId: z.string().trim().min(1).max(40).optional(),
+      memeId: z.string().trim().min(1).max(40).optional(),
+    }),
+    medium: z.enum(["image","video"]).default("video"),
+    tone: z.enum(["neutral","serious","comedy"]).default("neutral"),
+    durationSeconds: z.number().positive().max(300).optional(),
   }),
   z.strictObject({
     action: z.literal("search"),
@@ -62,8 +76,8 @@ export function createVideoTemplateSearchTool(): ToolDefinition {
   return {
     name: "searchVideoPromptTemplates",
     label: "分类检索：导演模板与创作知识库",
-    description: "统一分类检索：listTags/search 保留导演模板；listCreativeTags/searchCreative 检索2026有来源网络热梗、原创搞怪、人物表情（常规/搞怪/极夸张/抽象）、画风和滤镜。只读，按需返回少量结果，不执行生成或后期处理。",
-    promptSnippet: "写表情/颜艺、画风或滤镜时可用 searchCreative 查询 expressions/styles；喜剧/玩梗时查 memes/absurd。优先复用已定角色与镜头约束，少量检索后改写，不在严肃剧情自动加梗；知识库不会自动出图或执行滤镜。",
+    description: "统一分类创作知识库：listTags/search 检索原有导演镜头模板；listCreativeTags/searchCreative 检索2026来源网络热梗、原创喜剧、表情、画风/滤镜和叙事结构；checkCreativeSelection 检查模板组合、适用时长、风格与题材冲突。不生成、不修改画布。",
+    promptSnippet: "需要剧情节拍可查 narrative；导演拍法用原 search；人物颜艺查 expressions、画风滤镜查 styles、喜剧查 memes/absurd。先小范围按需检索，挑选 1–3 个互补模板，用 checkCreativeSelection 校验冲突后再独立改写成符合剧本/工作流的提示词，禁止直接拼接模板全文。",
     parameters: z.toJSONSchema(searchParameters, { io: "input", target: "draft-07" }),
     async execute(_id, args, signal) {
       signal?.throwIfAborted();
@@ -75,9 +89,11 @@ export function createVideoTemplateSearchTool(): ToolDefinition {
           : input.action === "searchCreative"
             ? {
               matches: searchCreativeKnowledge(input),
-              notice: "热梗为2026有日期记录而非实时全网排名；表情/画风/滤镜只是可组合提示词，不能改变已有角色身份或代替真实滤镜处理；最终仍须按当前工作流审核并通过画布节点执行。",
+              notice: "热梗日期是2026传播记录而非首发或实时榜单。叙事场次模板不可直接塞进单个连续镜头；表情、画风、滤镜是提示词材料，不等于完成节点后期。选用后请检查组合冲突。",
             }
-            : { templates: findVideoPromptTemplates(input.tags, input.conditions, input.limit) };
+            : input.action === "checkCreativeSelection"
+              ? checkCreativeSelection(input)
+              : { templates: findVideoPromptTemplates(input.tags, input.conditions, input.limit) };
       return { details, content: [{ type: "text", text: JSON.stringify(details) }] };
     },
   };

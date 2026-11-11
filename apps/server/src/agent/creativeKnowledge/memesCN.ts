@@ -14,6 +14,8 @@ export type MemeEntry = {
   usage: string;
   avoid: string;
   tags: string[];
+  /** 搜索别名（不把二创/空耳别名当成不同热梗重复计数） */
+  aliases?: string[];
 };
 
 const octUrl = "https://www.ssmys.com/";
@@ -120,6 +122,336 @@ export const memesCN: MemeEntry[] = [
     usage: "修车机器人被追问修好没有，却一本正经展示自己的流线型外壳。",
     avoid: "只用无关回答制造错位，不借外貌评价羞辱真实人物。",
     tags: ["无厘头", "错位", "回答", "抽象", "反差"],
+  },
+
+  // 媒体于 2026-08-21 盘点的传播案例；观察日期不是最初起源日期。
+  {
+    "id": "m26-chovy",
+    "phrase": "我超威",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "源于谢孟伟直播喊话的空耳二创，读音让网友联想到电竞选手 Chovy；后来用于惊讶、催促或吐槽，并非选手本人所说。",
+    "usage": "虚构维修师傅看见同伴把重要工具拿错，忍不住发出一句原创化的夸张催促。",
+    "avoid": "不要冒充 Chovy 的采访或比赛原声，不复制真人声线、原带货切片与完整音频。",
+    "tags": [
+      "空耳",
+      "我Chovy",
+      "我chovy",
+      "我超威",
+      "惊讶",
+      "吐槽",
+      "催促",
+      "电竞",
+      "反差"
+    ],
+    "aliases": [
+      "我Chovy",
+      "我chovy",
+      "我 Chovy"
+    ]
+  },
+  {
+    "id": "m26-danzi",
+    "phrase": "胆子真是肥嘟嘟的",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "生气句式搭配软萌叠词，形成狠话软说、威胁感突然转萌的反差。",
+    "usage": "小修车机器人发现有人抢自己工位，用软萌语气责怪对方。",
+    "avoid": "熟人玩笑可用，避免对真实骑手或商家进行骚扰，不复刻原聊天截图。",
+    "tags": [
+      "萌凶",
+      "吐槽",
+      "反差萌",
+      "台词",
+      "喜剧"
+    ],
+    "aliases": [
+      "你的胆子真是肥嘟嘟的"
+    ]
+  },
+  {
+    "id": "m26-dogmilk",
+    "phrase": "野生狗奶",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "源于短视频整蛊道具的荒诞包装，夸张的保质期设定让普通商品显得不可思议。",
+    "usage": "科幻商店展示一种寿命被夸张设定的虚构饮料，主角用仪器认真检查。",
+    "avoid": "不要使用原制作者商品包装和原素材；不暗示真实产品永久保质或可食用。",
+    "tags": [
+      "道具",
+      "荒诞",
+      "科幻",
+      "生活",
+      "恶搞"
+    ]
+  },
+  {
+    "id": "m26-colleague",
+    "phrase": "青梅牛马",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "把青梅竹马改写为一起入职、加班、挨训的职场同伴关系，含自嘲意味。",
+    "usage": "两位从新人成长的修理师并肩修好同一台老机器，默契碰拳。",
+    "avoid": "仅当剧本存在共同工作经历时使用，不凭空添加角色过去。",
+    "tags": [
+      "职场",
+      "伙伴",
+      "成长",
+      "反差",
+      "自嘲"
+    ]
+  },
+  {
+    "id": "m26-dna",
+    "phrase": "中式DNA觉醒",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "网友用来调侃在某些日常情境突然认同熟悉的生活习惯或传统偏好。",
+    "usage": "年轻工程师看见废旧花盆后忍不住先研究它还能种什么。",
+    "avoid": "不要把文化刻板印象说成所有人的共同本能。",
+    "tags": [
+      "生活",
+      "习惯",
+      "文化",
+      "反差",
+      "日常"
+    ]
+  },
+  {
+    "id": "m26-cityjob",
+    "phrase": "进城办事",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "原为商业文案直译引发的年代语感反差，被改编为一本正经的日常出行说法。",
+    "usage": "太空飞船船长穿隆重制服，只是去隔壁街修一枚螺丝。",
+    "avoid": "不要复刻真实服装品牌文案、商标或官方宣传照。",
+    "tags": [
+      "生活",
+      "语言",
+      "复古",
+      "错位",
+      "职场"
+    ]
+  },
+  {
+    "id": "m26-doubao",
+    "phrase": "豆包型人格",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "网友将 AI 助手温和接话、迅速认错等沟通特征拟作一种人设标签。",
+    "usage": "工作机器人被主管指出出错，先冷静点头再笨拙地检查电路。",
+    "avoid": "属于网络戏称，不当作真实心理人格分类；不宣称对某产品真实性格的诊断。",
+    "tags": [
+      "AI",
+      "职场",
+      "性格",
+      "反差",
+      "沟通"
+    ]
+  },
+  {
+    "id": "m26-mentalquit",
+    "phrase": "精神离职",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "形容人仍在岗位上，但情绪投入已经明显降低的自嘲表达。",
+    "usage": "维修工机械地盖章，目光却盯着窗外夕阳，手边工序没丢。",
+    "avoid": "避免贬低真实工作者或鼓励危险岗位违规操作。",
+    "tags": [
+      "职场",
+      "疲惫",
+      "自嘲",
+      "状态",
+      "生活"
+    ]
+  },
+  {
+    "id": "m26-language",
+    "phrase": "我们不说X但可以说Y",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "从规范表达倡议视频被网友反向玩成句式梗，用一本正经替换制造差异。",
+    "usage": "智能语音助手把一句简单求救重新翻译成冗长的正式公文。",
+    "avoid": "避免把原学校或未成年人演绎成负面角色，使用原创化句式。",
+    "tags": [
+      "语言",
+      "教育",
+      "反差",
+      "抽象",
+      "台词"
+    ],
+    "aliases": [
+      "我们不说",
+      "可以说"
+    ]
+  },
+  {
+    "id": "m26-lowhill",
+    "phrase": "低山臭水遇知音",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "将高雅成语反向写成接地气的荒诞好友关系，强调两人懂彼此奇怪笑点。",
+    "usage": "两名古怪维修师同时发现同一颗不起眼螺丝而兴奋击掌。",
+    "avoid": "不以真实地域、生态或人群作贬损对象。",
+    "tags": [
+      "友情",
+      "抽象",
+      "荒诞",
+      "同伴",
+      "反差"
+    ],
+    "aliases": [
+      "低山臭水",
+      "低山臭水遇至阴"
+    ]
+  },
+  {
+    "id": "m26-zhengbang",
+    "phrase": "蒸蚌",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "把对猫的夸赞音节空耳改写，常用作轻松、可爱的表扬语。",
+    "usage": "机器猫帮忙按对一个按钮，主人认真奖励它，机器猫得意摆尾。",
+    "avoid": "不复制原博主真实声线、原三花猫视频或独有训练场面。",
+    "tags": [
+      "猫meme",
+      "动物",
+      "空耳",
+      "夸赞",
+      "可爱"
+    ],
+    "aliases": [
+      "真棒"
+    ]
+  },
+  {
+    "id": "m26-resign",
+    "phrase": "我将辞职专心研究",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "夸张地把研究普通小事说成重大人生投入，以郑重其事的反差制造笑点。",
+    "usage": "顶级科学家放下宇宙设计图，认真研究办公室饮水机为什么漏水。",
+    "avoid": "不真的鼓励角色在安全关键岗位随意弃岗；避免一镜挤多件无关事。",
+    "tags": [
+      "职场",
+      "一本正经",
+      "反差",
+      "荒诞",
+      "科学"
+    ],
+    "aliases": [
+      "辞职研究"
+    ]
+  },
+  {
+    "id": "m26-notalk",
+    "phrase": "不讲不讲",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "用魔性重复短句回避问题，常与无关问题的答非所问形成荒诞喜剧。",
+    "usage": "面对同伴追问机翼为什么抖动，维修机器人忙着捂住日志屏幕。",
+    "avoid": "不要模仿原视频中真实老人音色或完整对白。",
+    "tags": [
+      "抽象",
+      "回避",
+      "台词",
+      "生活",
+      "反差"
+    ]
+  },
+  {
+    "id": "m26-checkcards",
+    "phrase": "我要验牌",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "源自较早电影里的喜剧台词，2026 年被重新剪辑传播，现用于表达不信任、要亲自检查。",
+    "usage": "机械师怀疑系统显示的免费改装额度，拿出自己校准过的检测终端。",
+    "avoid": "原作早于2026年；不能把再传播说成2026原创或复制受版权保护影片片段。",
+    "tags": [
+      "核对",
+      "怀疑",
+      "反差",
+      "老梗再传播",
+      "喜剧"
+    ],
+    "aliases": [
+      "牌没有问题"
+    ]
+  },
+  {
+    "id": "m26-familyban",
+    "phrase": "从我开始三代不准",
+    "observedAt": "2026-08-21",
+    "period": "2026年上半年传播，8月媒体回顾",
+    "evidence": "2026-press-roundup",
+    "sourceLabel": "数英2026-08-21《2026上半年网络热词TOP30》",
+    "sourceUrl": "https://www.digitaling.com/articles/1561293.html",
+    "meaning": "将职业受挫夸大成家族禁令式自嘲，用不合比例的承诺制造笑点。",
+    "usage": "工程师改了八遍程序仍失败，郑重在白板写下荒诞的禁止声明。",
+    "avoid": "不可借此作出对现实家庭、教育或职业的歧视性断言。",
+    "tags": [
+      "职场",
+      "挫折",
+      "自嘲",
+      "抽象",
+      "反差"
+    ],
+    "aliases": [
+      "三代不准"
+    ]
+  },
+  {
+    id: "m26-chinafly", phrase: "中国人会飞", observedAt: "2026-10-31",
+    period: "2026年7—10月传播记录", evidence: "2026-dated-entry",
+    sourceLabel: "梗百科2026-10-31：中国人会飞词条（传播记录，非全网榜）",
+    sourceUrl: "https://www.geng8.com/word/zhongguorenhuifei.html",
+    meaning: "2026年由说唱片段及航天飞行等画面二创扩散的夸张飞行话题；中国人能飞为常见近义写法。",
+    usage: "主角第一次看到国产飞行汽车升空，用原创旁白表达对飞行能力的惊讶，保留真实机械起飞细节。",
+    avoid: "不用未经授权的原曲旋律、歌词和短视频音轨；不以玩梗取代真实机械动作或政治宣传。",
+    tags: ["飞行", "科幻", "航天", "科技", "二创", "热血"],
+    aliases: ["中国人能飞"],
   },
   roundup("m26-possum", "背手负鼠", "summer",
     "2026年上半年以动物背手站姿表达淡定围观、视察气质的形象梗。", "原创负鼠质检官背手走近大火箭，却只关注地上掉的一颗螺帽。", "不照搬原视频/表情包或真人配音。", ["动物拟人", "一本正经", "职场", "反差"]),

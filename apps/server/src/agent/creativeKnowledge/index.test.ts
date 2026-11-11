@@ -1,18 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { searchCreativeKnowledge } from "./index";
+import { checkCreativeSelection, searchCreativeKnowledge } from "./index";
 import { createVideoTemplateSearchTool } from "@/agent/videoPrompt/templates";
 import { memesCN } from "./memesCN";
 import { absurdPrompts } from "./absurdPrompts";
 import { expressionTemplates } from "./expressionTemplates";
 import { visualStyles } from "./visualStyles";
+import { narrativeTemplates } from "./narrativeTemplates";
 
 const signal = new AbortController().signal;
 
 describe("创作知识库：热梗、搞怪、表情与画风", () => {
   test("热梗均为2026有日期的公开记录，无2025条目或不明确的热门来源", () => {
-    expect(memesCN.length).toBeGreaterThanOrEqual(33);
+    expect(memesCN.length).toBeGreaterThanOrEqual(49);
     expect(absurdPrompts.length).toBeGreaterThanOrEqual(20);
-    const all = [...memesCN, ...absurdPrompts, ...expressionTemplates, ...visualStyles];
+    const all = [...memesCN, ...absurdPrompts, ...expressionTemplates, ...visualStyles, ...narrativeTemplates];
     expect(new Set(all.map(x => x.id)).size).toBe(all.length);
     for (const item of memesCN) {
       expect(item.observedAt).toMatch(/^2026-\d\d-\d\d$/);
@@ -140,6 +141,97 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
       const result = await tool.execute("t",{action:"searchCreative",library,query,limit:3},signal,undefined,undefined as never);
       expect(JSON.stringify(result.details)).toContain(query);
     }
+  });
+
+
+  test("我超威与 Chovy 空耳别名准确指向同一条，保留来源及人物边界", () => {
+    const result = searchCreativeKnowledge({library:"memes",query:"我超威",tags:[],limit:4});
+    expect(result[0]?.title).toBe("我超威");
+    expect(result[0]?.observedAt).toBe("2026-08-21");
+    const entry = memesCN.find(m => m.phrase === "我超威");
+    expect(entry?.meaning).toContain("并非选手本人所说");
+    expect(entry?.sourceUrl).toContain("digitaling.com");
+    expect(entry?.aliases).toContain("我Chovy");
+    const alias = searchCreativeKnowledge({library:"memes",query:"我 Chovy",tags:[],limit:3});
+    expect(alias[0]?.id).toBe(entry?.id);
+  });
+
+  test("热梗扩充须有明确的传播日期和适用/禁用上下文，不能伪装最初首发", () => {
+    for (const name of ["胆子真是肥嘟嘟的","野生狗奶","青梅牛马","中式DNA觉醒",
+      "进城办事","豆包型人格","精神离职","低山臭水遇知音","蒸蚌","我要验牌","中国人会飞"]) {
+      const item = memesCN.find(x => x.phrase === name);
+      expect(item).toBeDefined();
+      expect(item?.sourceUrl.startsWith("https://")).toBe(true);
+      expect(item?.usage.length).toBeGreaterThan(10);
+      expect(item?.avoid.length).toBeGreaterThan(10);
+    }
+    expect(memesCN.find(x=>x.phrase==="我要验牌")?.avoid).toContain("早于2026年");
+    expect(memesCN.find(x=>x.phrase==="中国人会飞")?.avoid).toContain("原曲");
+  });
+
+  test("检索必须同时命中多个标签与所有查询词，标题/别名精准结果优先", () => {
+    const exact = searchCreativeKnowledge({library:"memes",query:"我超威",tags:[],limit:3});
+    expect(exact[0]?.title).toBe("我超威");
+    expect(searchCreativeKnowledge({library:"styles",query:"胶片",tags:["滤镜","非实际标签"],limit:4})).toEqual([]);
+    expect(searchCreativeKnowledge({library:"styles",query:"电影级写实 不存在的光源名",tags:[],limit:3})).toEqual([]);
+    const filter = searchCreativeKnowledge({library:"styles",query:"胶片",tags:["滤镜"],limit:8});
+    expect(filter.length).toBeGreaterThan(0);
+    expect(filter.every(item=>item.tags.includes("滤镜"))).toBe(true);
+  });
+
+  test("叙事结构22套覆盖开场、冲突、揭示、选择、回报、余波，并区分单镜和多镜", () => {
+    expect(narrativeTemplates).toHaveLength(22);
+    const phases = new Set(narrativeTemplates.map(item=>item.phase));
+    for (const phase of ["hook","establish","conflict","reveal","choice","payoff","aftermath"]) {
+      expect(phases.has(phase as never)).toBe(true);
+    }
+    for (const item of narrativeTemplates) {
+      expect(item.id.startsWith("n")).toBe(true);
+      expect(item.setup.length).toBeGreaterThan(8);
+      expect(item.escalation.length).toBeGreaterThan(8);
+      expect(item.visibleResult.length).toBeGreaterThan(8);
+      expect(item.verify.length).toBeGreaterThan(8);
+      expect(item.avoid.length).toBeGreaterThan(8);
+      expect(item.scope === "scene" || item.scope === "shot").toBe(true);
+    }
+    const searched = searchCreativeKnowledge({library:"narrative",query:"机械",tags:[],limit:5});
+    expect(searched.length).toBeGreaterThan(0);
+    expect(searched.some(x=>x.title.includes("机械"))).toBe(true);
+  });
+
+  test("模板组合检查阻止错误ID，识别写实颜艺、多镜压缩、严肃剧情强塞热梗", () => {
+    const result = checkCreativeSelection({
+      selected: {narrativeId:"n12",styleId:"s01",expressionId:"e21",memeId:"m26-chovy"},
+      medium:"video",tone:"serious",durationSeconds:5,
+    });
+    expect(result.status).toBe("review");
+    const notes = result.warnings.join(" ");
+    expect(notes).toContain("不得作为单个 H3");
+    expect(notes).toContain("至少按15s");
+    expect(notes).toContain("颜艺");
+    expect(notes).toContain("严肃基调");
+    expect(notes).toContain("来源/日期");
+    const invalid = checkCreativeSelection({
+      selected: {styleId:"f01",expressionId:"does-not-exist"},
+      medium:"image",tone:"neutral",
+    });
+    expect(invalid.status).toBe("invalid");
+    expect(invalid.errors).toHaveLength(2);
+    const valid = checkCreativeSelection({
+      selected: {styleId:"s01",expressionId:"e02",narrativeId:"n01"},
+      medium:"video",tone:"neutral",durationSeconds:5,
+    });
+    expect(valid.status).toBe("ok");
+  });
+
+  test("沿用统一工具查询 narrative 与检查组合，而不另建 Agent 工具", async () => {
+    const tool = createVideoTemplateSearchTool();
+    const list = await tool.execute("t",{action:"listCreativeTags"},signal,undefined,undefined as never);
+    expect(JSON.stringify(list.details)).toContain("叙事结构与剧情节拍模板");
+    const found = await tool.execute("t",{action:"searchCreative",library:"narrative",query:"系统觉醒",limit:2},signal,undefined,undefined as never);
+    expect(JSON.stringify(found.details)).toContain("系统觉醒");
+    const checked = await tool.execute("t",{action:"checkCreativeSelection",selected:{styleId:"s01",filterId:"f01",expressionId:"e02"},medium:"image"},signal,undefined,undefined as never);
+    expect(checked.details).toHaveProperty("status","ok");
   });
 
 });

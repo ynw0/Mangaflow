@@ -44,7 +44,7 @@ metadata:
 
 ## 根据镜头目的读取知识（每条镜头按需）
 
-内置 Agent 可调用 searchVideoPromptTemplates 的 listTags 查看标签，再用 search 多选剧情、情绪、表演、动作、特效、摄影、构图、光影、声音和环境。已知时传入时长、参考模式、参考图数量、主体数量和可用锚点。draftVideoPrompt 用同一目录检索，并记录命中的模板。模板里的摄影或动作标签可以表示可选拍法，采纳时核对适用条件，只保留当前镜头确实需要的运动和事件。
+内置 Agent 可调用 searchVideoPromptTemplates 的 listTags 查看标签，再用 search 多选剧情、情绪、表演、动作、特效、摄影、构图、光影、声音和环境。剧情上游如涉及结构设计，可另用同一工具的 `searchCreative` 查询 `narrative`；表情用 `expressions`，画风与滤镜用 `styles`。根据 `checkCreativeSelection` 排除错误组合；多镜 `scope:scene` 只用于分镜规划，不直接粘入一条 H3 生成提示词。已知时传入时长、参考模式、参考图数量、主体数量和可用锚点。draftVideoPrompt 用同一目录检索，并记录命中的模板。模板里的摄影或动作标签可以表示可选拍法，采纳时核对适用条件，只保留当前镜头确实需要的运动和事件。
 
 | 任务特征 | 必读参考 | 按需增读 |
 | --- | --- | --- |

@@ -31,9 +31,11 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | 单集导演规划（可选） | [directorPlan.md](references/directorPlan.md) | 分集画布上的分场情绪与注意事项 |
 | 成片提示词 | 已有节点先核对实际工作流和模式，新镜用用户指定或 production.video。内置 Agent 用 draftVideoPrompt 读取 [导演 Skill](../cinematicPromptCraft/SKILL.md)、对应的 [H3 规则](../h3-prompt-writing/SKILL.md) 和 [视频审核规则](references/video-prompt-review.md) | 程序预检和独立审核通过后交接英中文稿。出片使用同一已审工作流及参数，并另行确认 |
 
-### 网络热梗与抽象搞怪知识（按需启用，不自动污染剧情）
+### 创作知识库（按阶段取用，严禁堆砌）
 
-用户明确要求**抽象、沙雕、整活、热梗、无厘头、搞怪喜剧、反差萌**，或已确认的喜剧场景需要强化笑点时，复用原有的分类检索工具 `searchVideoPromptTemplates`：先用 `listCreativeTags` 查看“2026网络热梗 / 原创抽象搞怪”两个分类，再以 `searchCreative` 按 `library: memes/absurd/all`、关键词或标签查询相关的 1–5 项。该工具原有 `listTags/search` 视频导演模板检索保持不变。按 [创作知识库说明](references/creativeKnowledge.md) 核对来源、日期、适用场景、原创性与可拍摄动作。热梗只收录**2026 年有时间记录**的内容，最新快照截至 2026-11-11，并非联网实时热榜，也不能保证每个词最初诞生于 2026；严肃剧情不强加热梗。检索不替代阶段合同、H3 正式提示词审核、画布节点执行或算力授权。用 `nodeTools` 写入改写后的提示词，生成结果留在画布。
+按当前创作目标，从 [创作知识库说明](references/creativeKnowledge.md) 精准检索，而不是每镜套用全库。统一入口仍为 `searchVideoPromptTemplates`：原 `listTags/search` 保留导演镜头模板；`listCreativeTags/searchCreative` 支持 `narrative` 剧情节拍、`memes` 热梗、`absurd` 喜剧、`expressions` 颜艺和 `styles` 画风/滤镜。每镜只选择与已批准剧情、人物和参考图相容的少量条目；导演阶段存在更精确的原有拍法模板时优先用它。已选条目可用 `checkCreativeSelection` 检查多镜场次误塞单镜、时长不足、严肃剧情强加梗、写实人脸过度夸张和错误滤镜 ID。
+
+**叙事模板不等于单镜脚本。** `scope:scene` 是多镜结构，不准压进单个 H3 连续镜头；所有 `scope:shot` 也须经现有镜头合同、独立提示词审查和算力授权。表情模板只控制表演，画风由项目设定锁定；滤镜是提示词观感而非真实后期处理。热梗库截至 2026-11-11 的有来源传播记录（含“我超威”），不保证首次起源且不是实时全网榜；用户未要求搞笑或剧情不适合时不得插入。严禁拷贝未授权原音轨或人物声线。不要把知识库的提示词全文拼成冗长生成正文。
 
 ### 原画案例参考（不替换生产合同）
 

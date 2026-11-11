@@ -1,5 +1,5 @@
 name: MangaFlow Windows Release
-run-name: MangaFlow Windows ${{ inputs.version || '2.0.14' }}
+run-name: MangaFlow Windows ${{ inputs.version || '2.0.15' }}
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         description: Windows 安装包版本号（X.Y.Z）
         required: true
         type: string
-        default: "2.0.14"
+        default: "2.0.15"
   # 更新此工作流触发 Windows 专用构建；以后也可手动发布新版本。
   push:
     branches: [master]
@@ -29,7 +29,7 @@ jobs:
     with:
       target: windowsX64
       ref: ${{ github.sha }}
-      version: ${{ inputs.version || '2.0.14' }}
+      version: ${{ inputs.version || '2.0.15' }}
       generatePatch: false
       androidRelease: false
 
@@ -65,8 +65,9 @@ jobs:
           name: MangaFlow v${{ needs.build.outputs.version }} · Windows
           body: |
             Windows x64 安装包。
-            思考等级统一采用渐变彩色滑块：对话模型、主 Agent 与专业子 Agent 共用，颜色随思考等级增强。
-            成片 QC 新增具体验收问题、时间证据和待核实项；主 Agent 按 QC 问题制定并保存版本绑定的整改计划，视频节点可展开查看。整改方案不会自动启动视频重生。
+            修复对话生成中途发送新消息导致旧会话停止的问题。运行中新消息走 Pi SDK 原生 steer 引导队列，保留原 Agent、原流式回复及正在执行的工具/ComfyUI 任务。
+            引导消息按同一会话安全轮次交付，带幂等请求编号、排队状态和并发保护；明确停止按钮仍可主动取消任务。
+            继续包含彩色思考等级滑块与 QC 问题清单、主 Agent 结构化整改计划。
             继续包含 TryCloudflare 隧道连接恢复与诊断日志修复。
             只发布 Windows EXE，不包含 macOS 或 Android 安装包。
           make_latest: true

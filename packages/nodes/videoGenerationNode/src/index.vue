@@ -60,6 +60,30 @@
           <el-button text size="small" :loading="completedQcChecking" :disabled="generating || deleting"
             @click="refreshCompletedQc().catch(error => showNodeError(error, '质检状态查询失败'))">刷新质检</el-button>
         </div>
+        <details v-if="currentQc?.status === 'completed' && currentQc.result?.issues?.length" class="qcProblemPanel">
+          <summary>QC 问题清单（{{ currentQc.result.issues.length }} 项）</summary>
+          <ol>
+            <li v-for="issue in currentQc.result.issues" :key="issue.id">
+              <strong>{{ issue.kind === 'defect' ? '失败' : '待核实' }} · {{ issue.requirementId ?? issue.domain }}</strong>
+              <span>{{ issue.problem }}</span>
+              <small v-if="issue.time">{{ issue.time }}</small>
+              <small v-if="issue.expected">应达到：{{ issue.expected }}</small>
+              <small v-if="issue.fixHint">检查方向：{{ issue.fixHint }}</small>
+            </li>
+          </ol>
+        </details>
+        <details v-if="currentQc?.rectificationPlan" class="qcProblemPanel">
+          <summary>主 Agent 整改方案（{{ currentQc.rectificationPlan.actions.length }} 项）</summary>
+          <p>{{ currentQc.rectificationPlan.summary }}</p>
+          <ol>
+            <li v-for="(action, index) in currentQc.rectificationPlan.actions" :key="index">
+              <strong>{{ action.category }} · {{ action.issueIds.join('、') }}</strong>
+              <span>{{ action.change }}</span>
+              <small>验收：{{ action.acceptance }}</small>
+            </li>
+          </ol>
+          <small>此方案仅为整改计划，未自动提交新的视频生成。</small>
+        </details>
         <referenceItem
           v-if="refList.length"
           v-model="refList"
@@ -235,7 +259,10 @@ let generationController: AbortController | undefined;
 const generationState = useNodeGeneration(outputs, () => { void requestStop().catch(error => showNodeError(error, "取消视频失败")); });
 const { generating } = generationState;
 const persistentPhase = ref("");
-const completedQc = ref<{ path: string; status: string; result?: { status: string }; message?: string }[]>([]);
+type NodeQcIssue = { id: string; requirementId?: string; domain: string; kind: "defect" | "needsEvidence"; problem: string; expected?: string; observed: string; time?: string; fixHint?: string };
+type NodeQcPlan = { summary: string; needsRegeneration: boolean; actions: { issueIds: string[]; category: string; change: string; acceptance: string }[] };
+const completedQc = ref<{ path: string; status: string; result?: { status: string; issues?: NodeQcIssue[] }; rectificationPlan?: NodeQcPlan; message?: string }[]>([]);
+const currentQc = computed(() => completedQc.value.find(item => item.path === outputFile.value?.url));
 const completedQcChecking = ref(false);
 const completedQcLabel = computed(() => {
   const current = completedQc.value.find(item => item.path === outputFile.value?.url);
@@ -943,6 +970,21 @@ nodeTools.register({
       strong { color: var(--el-text-color-primary); }
       small { color: var(--el-color-warning); line-height: 1.5; }
     }
+  }
+  .qcProblemPanel {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--el-border-color-light);
+    border-radius: 9px;
+    background: var(--el-fill-color-extra-light);
+    summary { font-size: 12px; font-weight: 650; cursor: pointer; color: var(--el-text-color-primary); }
+    p { font-size: 12px; line-height: 1.6; }
+    ol { margin: 8px 0 0; padding-left: 21px; }
+    li { margin-bottom: 8px; font-size: 11px; line-height: 1.5; color: var(--el-text-color-regular); }
+    li strong, li span, li small { display: block; }
+    li strong { color: var(--el-text-color-primary); }
+    li small { color: var(--el-text-color-secondary); }
+    > small { color: var(--el-text-color-placeholder); }
   }
   .referenceHint {
     margin: 8px 0;

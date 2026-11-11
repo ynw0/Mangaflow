@@ -22,6 +22,11 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - name: 校验自动路由表与所有源码接口一致
+        run: |
+          bun run --cwd apps/server routes
+          git diff --exit-code -- apps/server/src/router.ts
+          bun -e 'const x=await Bun.file("apps/server/src/router.ts").text(); for(const route of ["/api/providers/thinkingProbe","/api/agent/steer","/api/production/comfyui/loras"]) if(!x.includes(`app.use("${route}"`)) throw Error(`缺少路由：${route}`);'
       - name: 核对服务端类型
         run: bun run --cwd apps/server typecheck
       - name: 核对 Web 对话界面类型

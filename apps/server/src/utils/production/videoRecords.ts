@@ -5,7 +5,7 @@ import type { GeneratedMedia, MediaGenerationRequest, QcVideoResult, VideoExecut
 import conf from "@/utils/conf";
 import { readProduction, type ProductionConfig } from "@/utils/production/config";
 import { prepareAgentVideoQc, runProductionQc } from "@/utils/production/qc";
-import { parseQcPayload, summarizeQc } from "@/utils/production/qcResult";
+import { parseQcPayload, summarizeQc, validateRectificationCoverage } from "@/utils/production/qcResult";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { readQcRequirements } from "@/utils/production/qcRequirements";
 import type { AgentVideoQcSubmission, QcRequirement, VideoQcActionResult, VideoQcRectificationPlan } from "@toonflow/tools-scaffold/runtime";
@@ -326,15 +326,7 @@ export async function saveVideoQcRectificationPlan(directory: string, input: {
     if (input.qcRevision !== revision) {
       throw Object.assign(new Error("质检证据版本已变化，请重新读取问题后制定方案"), { status: 409 });
     }
-    const issues = summarizeQc(record.qc.result.checks).issues ?? [];
-    const known = new Set(issues.map(issue => issue.id));
-    if (!issues.length) throw new Error("当前 QC 没有需要整改或补证的问题");
-    const covered = new Set(input.actions.flatMap(action => action.issueIds));
-    if (input.actions.some(action => action.issueIds.some(id => !known.has(id)))) {
-      throw new Error("整改计划包含当前 QC 不存在的问题 ID，请按已返回的 issues 编号提交");
-    }
-    const missing = issues.filter(issue => !covered.has(issue.id)).map(issue => issue.id);
-    if (missing.length) throw new Error(`整改计划没有覆盖下列 QC 问题：${missing.join("、")}`);
+    validateRectificationCoverage(record.qc.result.checks, input.actions);
     const plan: VideoQcRectificationPlan = {
       qcRevision: revision,
       createdAt: new Date().toISOString(),

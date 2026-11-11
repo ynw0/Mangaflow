@@ -1,7 +1,8 @@
 # 中国网络热梗与抽象搞怪创作知识库
 
-**入口：** 主 Agent 和专职子 Agent 使用运行时的 `searchCreativeKnowledge` 工具检索。它是只读查询工具，返回被选中的几条知识，而不是把整库灌入系统提示词。原始条目维护在 `apps/server/src/agent/creativeKnowledge/memesCN.ts`（热梗）和 `absurdPrompts.ts`（原创搞怪模板）。搜索和来源约束由统一工具执行，避免多份不一致的数据。
+**统一入口：** 主 Agent 和专业子 Agent 使用原有的 `searchVideoPromptTemplates` 分类检索工具，通过 `listCreativeTags` / `searchCreative` 检索最新 2026 网络热梗和原创抽象搞怪拍法。原 `listTags` / `search` 导演模板检索完全保留。两个资料分类是一个工具、两套分类数据，不重复引入第二个 Agent 检索工具。
 
+数据分别维护在 `apps/server/src/agent/creativeKnowledge/memesCN.ts` 和 `absurdPrompts.ts`，按需只返回 1–10 条，不把全部资料灌入系统提示词。
 ## 何时用
 
 - 用户明确要求**搞笑、抽象、沙雕、整活、玩梗、反差、热梗短剧**；或已经批准的剧情本来带喜剧段落时，才检索。
@@ -13,19 +14,24 @@
 
 | 目标 | 工具调用示意 | 使用方式 |
 | --- | --- | --- |
-| 查看容量和类型 | `searchCreativeKnowledge({action: "list"})` | 了解热梗/原创模板两库，不加载全文 |
-| 热梗 | `searchCreativeKnowledge({action: "search", library: "memes", query: "职场", limit: 4})` | 读取词语含义、观察日期、证据范围、禁忌和改写方向 |
-| 抽象图像/视频 | `searchCreativeKnowledge({action: "search", library: "absurd", query: "改装 飞行", limit: 3})` | 取原创前提、构图、动作节拍、笑点机制、连续性约束 |
-| 双库交叉 | `searchCreativeKnowledge({action: "search", library: "all", tags: ["反差"], limit: 5})` | 先找到 1 个笑点机制，再适配剧情，不把 5 个全塞进一个镜头 |
+| 旧导演模板分类 | `searchVideoPromptTemplates({action: "listTags"})` | 原样保留，查询剧情用途、动作、镜头等 |
+| 旧导演模板检索 | `searchVideoPromptTemplates({action: "search", tags: {scene: ["机械变形"]}, limit: 3})` | 原样保留，按 H3 工作流已核实条件筛选 |
+| 查看创意分类标签 | `searchVideoPromptTemplates({action: "listCreativeTags"})` | 查看热梗/抽象两组及其标签、数量、日期 |
+| 2026 热梗 | `searchVideoPromptTemplates({action: "searchCreative", library: "memes", query: "职场", limit: 4})` | 只取已核实的 2026 词条、观察日期和来源 |
+| 抽象图片与视频 | `searchVideoPromptTemplates({action: "searchCreative", library: "absurd", query: "飞行", limit: 3})` | 取原创构图、动作节拍、笑点机制与连续性约束 |
+| 交叉检索 | `searchVideoPromptTemplates({action: "searchCreative", library: "all", tags: ["反差"], limit: 5})` | 将两类结果在一个入口按匹配度排序 |
+
 
 工具 schema 以实际返回为准；上表是使用示意。关键词不足时缩小到单词或改用标签，不因为没匹配就编造热梗。
 
-## 真实性与时效
+## 2026 来源与时效
 
-- **2026 年 11 月快照**：截至 2026-11-10 的 [梗百科站内词条访问月榜](https://www.geng8.com/rank/month/2026-11/)，只代表该站访客的关注，与微博/抖音/B站全网话题热度不同；每条保存 `observedAt`、`period`、`sourceUrl` 和 `evidence: site-observation`。词义存在分歧时已注明，不擅自补充“首发作者”或全网传播量。
-- **2025 年回顾档案**：国家语言资源监测等年度名单与《咬文嚼字》评选，保留为理解句式和喜剧节奏的历史资料，**不称为 2026 年最新热梗**。
-- **更新策略**：此版本为固定快照（2026-11-11），**不包含自动联网爬取或自动每日更新**。下一次维护应检查时间、真实来源与条目语义；旧项保留历史时间，不要篡改为新词。
-- 不承诺所有来源都能证明词语的真正起源；没有可靠来源时标注“语义不稳定”，不要假装权威。
+- **范围：只包含 2026 年有公开日期记录的热梗。** 当前快照截至 **2026-11-11**，共 28 条；2025 年年度回顾及仅因 2026 年搜索访问而上榜的明显旧词不再混入“2026最新”分类。
+- **2026 年 10—11 月词条**：依据 [是什么意思词典](https://www.ssmys.com/) 的按走红时间标注条目（如 11 月 2 日、10 月 25 日、10 月 14 日等），属于编辑记录，不等于全网真实热度排行。
+- **2026 上半年已获媒体报道的热点**：采用 [广告门2026-07-01专题](https://www.adquan.com/article/361636)及 [京东消费观察2026-07-29报道](https://www.p5w.net/roll/finance/202607/t20260729_6489083.htm)，作为年度内较早的参考；优先检索更近的 10—11 月词条。
+- 每条保留 `observedAt`、`period`、`sourceUrl`、`sourceLabel`、`evidence`。**2026 有报道不等于该梗诞生于 2026**，更不能宣称当前全网排名；没有足够证据证明首次起源时不得编造。
+- **更新机制**：本库是离线随版本发布的日期快照，**不是网络实时爬虫**。下次更新必须验证新词条出处、发布日期、语义和适用场景；旧资料保留真实日期，过时内容不能改时间冒充新梗。
+
 
 ## 抽象提示词如何落到画布
 
@@ -48,7 +54,7 @@
 
 - 热梗数据：[memesCN.ts](../../../../apps/server/src/agent/creativeKnowledge/memesCN.ts)
 - 原创抽象模板：[absurdPrompts.ts](../../../../apps/server/src/agent/creativeKnowledge/absurdPrompts.ts)
-- 检索实现：[index.ts](../../../../apps/server/src/agent/creativeKnowledge/index.ts)
+- 分类检索工具：[视频模板分类检索入口](../../../../apps/server/src/agent/videoPrompt/templates/index.ts)；[知识数据与排序](../../../../apps/server/src/agent/creativeKnowledge/index.ts)
 - 自动测试：[index.test.ts](../../../../apps/server/src/agent/creativeKnowledge/index.test.ts)
 
 修改数据时确认每条稳定 ID 与来源，不删除仍被生产记录引用的 ID。运行 `bun test src/agent/creativeKnowledge/index.test.ts`（工作目录 `apps/server`）及 GitHub CI 验证。

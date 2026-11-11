@@ -14,6 +14,7 @@ import type { AgentEvent, AgentMention, AgentToolCall } from "@/agent/runtime/ty
 import { agentMentionsSchema, mentionPrompt, snapshotMentions, validateMentionTokens } from "@/agent/runtime/mentions";
 import { readAiReferences, referenceContent } from "@/utils/ai";
 import { createAgentTools } from "@/agent/tools";
+import { routeAgentMediaTools, explicitlyRequestsChatGeneration, canvasMediaRoutingInstructions } from "@/agent/runtime/canvasMediaRouting";
 import { createAgentResources } from "@/agent/runtime/resources";
 import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { resolveAgentProfile } from "@/agent/runtime/profiles";
@@ -201,7 +202,10 @@ export async function run(
       abort: () => { controller.abort(); onCancel?.(); return finished.promise; },
     };
     unregister = registerAgentSession(history.getSessionFile()!, active);
-    const tools = await createAgentTools(cwd, canvas, question);
+    // Canvas tools remain available. Chat-level generateImage/generateVideo/generateAudio
+    // are only exposed for a deliberate in-chat request, never as an accidental shortcut.
+    const directChatAllowed = !child && explicitlyRequestsChatGeneration(prompt);
+    const tools = routeAgentMediaTools(await createAgentTools(cwd, canvas, question), prompt, Boolean(child));
     if (!child) {
       const searchTemplates = createVideoTemplateSearchTool();
       if (tools.some(tool => tool.name === searchTemplates.name)) throw new Error("视频提示词模板工具名称冲突");
@@ -241,9 +245,11 @@ export async function run(
     }));
     let goalDone = false;
     if (goal && !child) tools.push(createCompleteGoalTool(() => { goalDone = true; }));
-    const resources = await createAgentResources(cwd, tools, SettingsManager.inMemory({ compaction: compactionSettingsFor(runtime.getModel(providerId, modelId)?.contextWindow ?? 0) }), child
+    const canvasInstructions = canvasMediaRoutingInstructions(Boolean(canvas), directChatAllowed);
+    const childInstructions = child
       ? `## 子 Agent 职责\n你正在执行委派任务：${JSON.stringify({ name: child.name, task: child.task })}。遵守当前工作区规则与授权，用户可以进入此子会话补充要求。重要进展与最终结论使用 report 上报父 Agent。${goal ? "当前是目标模式的子任务：不要提问，按已有信息自己决定并做完。" : ""}`
-      : "", goal && !child);
+      : "";
+    const resources = await createAgentResources(cwd, tools, SettingsManager.inMemory({ compaction: compactionSettingsFor(runtime.getModel(providerId, modelId)?.contextWindow ?? 0) }), [childInstructions, canvasInstructions].filter(Boolean).join("\n\n"), goal && !child);
     const resendEntry = resendFrom ? history.getBranch().find((item) => item.id === resendFrom) : undefined;
     if (resendFrom && (resendEntry?.type !== "message" || resendEntry.message.role !== "user")) {
       throw Object.assign(new Error("重发消息不在当前对话中，请重新打开对话"), { status: 400 });

@@ -139,7 +139,7 @@ export function createConversationStream(messages: Ref<AgentMessage[]>) {
     if (event.type === "userMessage") {
       const existing = messages.value.find(message => message.entryId === event.id)
         ?? messages.value.find(message => message.role === "user" && !message.entryId && message.content === event.content);
-      if (existing) { existing.entryId = event.id; existing.error = undefined; existing.mentions = event.mentions; }
+      if (existing) { existing.entryId = event.id; existing.error = undefined; existing.mentions = event.mentions; existing.guidanceState = undefined; }
       else messages.value.push({ id: event.id, entryId: event.id, role: "user", content: event.content ?? "", attachments: event.attachments, mentions: event.mentions });
       ensureReply(event.id);
     } else if (["text", "thinking", "tool", "question"].includes(event.type)) {

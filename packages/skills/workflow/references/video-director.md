@@ -6,6 +6,14 @@
 ## 输入
 shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬要求、相邻镜头文本、continuity、`approved_assets`（含登记名、`canonical_description`、批准原画全文 `approved_image_prompt`、`allowed_variant_changes`）、`subjects`、实际 `ref_slot_plan` 与工作流能力。`story` 和 `must_have` 是编剧原文，程序没有改写。
 
+## draftVideoPrompt 工具参数
+
+视频提示词创建由 **`draftVideoPrompt`** 执行，`searchVideoPromptTemplates` 只负责检索。工具对外使用一个顶层 JSON 对象，禁止把 `mustHave`、`mustNotHave`、`references` 数组变成 JSON 字符串，`duration` 必须是数字。已有画布节点只传 `node` 及当前已确认的镜头合同/实际参考；先 `node:getConfig` → `node:setConfig` → `node:getPromptContext`，已有节点不传 `duration/ratio/modelId/sampling/seed/seedMode`。新镜头省略 `node`，必须提供 `duration` 和 `ratio`。已选创作模板通过 `creativeSelection` 中稳定的模板 ID 传入，不复制整套模版文字；独立审核与节点写回机制保持不变。
+
+### 模板使用边界
+
+自动导演检索的原镜头模板已经包含拍法和约束；`creativeSelection` 为可选创作知识，优先遵守已批准剧情、角色、参考图和既定主画风。严肃镜头不因为库中有热梗就插入喜剧。多镜叙事模板要留在上游分镜，不可强塞入一个 H3 连续镜头。具体分类与选材规则见 [创作知识库](creativeKnowledge.md)。
+
 ## 导演创作步骤
 写 H3 正文前，先读 bundled `cinematicPromptCraft/SKILL.md`，按镜头用途选读相关资料并完成内部导演决策。揭示、冲突、觉醒等关键节拍仍有创作空间时，比较两种拍法能交付的信息与执行负荷，并结合当前集已写镜头选择。只把入选方案写进当前模式规定的正文。
 

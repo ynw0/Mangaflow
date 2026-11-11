@@ -35,6 +35,8 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 
 按当前创作目标，从 [创作知识库说明](references/creativeKnowledge.md) 精准检索，而不是每镜套用全库。统一入口仍为 `searchVideoPromptTemplates`：原 `listTags/search` 保留导演镜头模板；`listCreativeTags/searchCreative` 支持 `narrative` 剧情节拍、`memes` 热梗、`absurd` 喜剧、`expressions` 颜艺和 `styles` 画风/滤镜。每镜只选择与已批准剧情、人物和参考图相容的少量条目；导演阶段存在更精确的原有拍法模板时优先用它。已选条目可用 `checkCreativeSelection` 检查多镜场次误塞单镜、时长不足、严肃剧情强加梗、写实人脸过度夸张和错误滤镜 ID。
 
+**工具联动：** Agent 先用 `searchVideoPromptTemplates` 取得匹配模板及其稳定 ID，需要其影响 H3 导演成稿时，将 ID 放到 `draftVideoPrompt.creativeSelection`。不要复制 1–10 条全文到提示词；无需模板就省略。`draftVideoPrompt` 参数使用原生 JSON 类型，`mustHave/mustNotHave/references` 必须是数组，`duration` 必须是数字。已有节点只传 `node`，不要与 `duration/ratio/modelId/sampling/seed` 同传；具体示例见 [创作知识库说明](references/creativeKnowledge.md)。
+
 **叙事模板不等于单镜脚本。** `scope:scene` 是多镜结构，不准压进单个 H3 连续镜头；所有 `scope:shot` 也须经现有镜头合同、独立提示词审查和算力授权。表情模板只控制表演，画风由项目设定锁定；滤镜是提示词观感而非真实后期处理。热梗库截至 2026-11-11 的有来源传播记录（含“我超威”），不保证首次起源且不是实时全网榜；用户未要求搞笑或剧情不适合时不得插入。严禁拷贝未授权原音轨或人物声线。不要把知识库的提示词全文拼成冗长生成正文。
 
 ### 原画案例参考（不替换生产合同）

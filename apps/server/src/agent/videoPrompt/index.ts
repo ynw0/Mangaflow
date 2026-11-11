@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import { z } from "zod";
 import { addUsage, emptyUsage, runSubAgent, type SubAgentModel } from "@/agent/runtime/subAgent";
-import { prepareVideoPrompt, videoPromptParameters } from "@/agent/videoPrompt/input";
+import { prepareVideoPrompt, videoPromptParameters, videoPromptToolSchema } from "@/agent/videoPrompt/input";
+import { checkCreativeSelection } from "@/agent/creativeKnowledge";
 import { createReviewSchema, draftSchema, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
@@ -69,14 +70,26 @@ export function createVideoPromptTool(options: SubAgentModel & {
   return {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "根据已确认的镜头合同与真实参考制作 H3 中英文提示词，导演预检、独立审核、最多一次返修。同一镜头合同、参考内容、工作流、技能和模型配置不变时直接复用服务端已审结果，不重复消耗模型 Token；明确要重写时传 regenerate=true。返回审核 ID 与下一步节点操作，不启动生成。已有节点传 node，不传 modelId、duration、ratio、sampling、seed、seedMode；先通过节点 setConfig 配置后再 getPromptContext，获准写回时传 node.write=true。新镜头必须传 duration、ratio。references 必须匹配实际输入。",
-    promptSnippet: "制作 H3 镜头时调用 draftVideoPrompt；合同和素材未变可复用已审稿，用户要求重新创作才传 regenerate=true。",
-    parameters: { type: "object", ...z.toJSONSchema(videoPromptParameters, { io: "input", target: "draft-07" }) },
+    description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。相同镜头合同和模板不变时优先复用已审稿，重写才传 regenerate=true。",
+    promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。数组写真实 []，duration 填数字；已有画布节点只传 node，新镜头必须传 duration 和 ratio。先 searchVideoPromptTemplates 检索所需模板，选中的 ID 通过 creativeSelection 传入；合同与素材未变不用反复重做。",
+    parameters: { type: "object", ...videoPromptToolSchema },
     executionMode: "sequential",
     async execute(_id, params, signal, onUpdate, ctx) {
       const startedAt = performance.now();
       const input = videoPromptParameters.parse(params);
       const prepared = await prepareVideoPrompt(cwd, input, canvas, signal);
+      // 只使用外层 Agent 明确选定的模板 ID，不把整个知识库灌入导演模型。
+      const selectedCreative = prepared.selectedCreative
+        ? checkCreativeSelection({ selected: prepared.selectedCreative, medium: "video",
+          tone: "neutral", durationSeconds: prepared.setup.duration })
+        : undefined;
+      if (selectedCreative?.status === "invalid") {
+        throw new Error(`创作模板选择无效：${selectedCreative.errors.join("；")}；请重新检索可用模板 ID`);
+      }
+      const creativeContext = selectedCreative
+        ? { selected: selectedCreative.selected, warnings: selectedCreative.warnings,
+          guidance: selectedCreative.guidance }
+        : undefined;
       const tags = { scene: scenesByIntent[input.intent], ...prepared.templateTags };
       const candidates = findVideoPromptTemplates(tags, {
         ...prepared.templateConditions,
@@ -119,7 +132,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const cacheKey = createHash("sha256").update(JSON.stringify({
         planVersion: 2,
         input: { ...input, regenerate: undefined, node: input.node ? { canvasId: input.node.canvasId, nodeId: input.node.nodeId } : undefined },
-        snapshot: prepared.snapshot, directorRules, guide, common, reviewRules, reviewRequirements, candidates,
+        snapshot: prepared.snapshot, directorRules, guide, common, reviewRules, reviewRequirements, candidates, creativeContext,
         models: [resolveAgentProfile("videoDirector", primaryModel), resolveAgentProfile("videoReviewer", primaryModel)],
       })).digest("hex");
       const update = (stage: string) => {
@@ -128,7 +141,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         onUpdate?.({ content: [{ type: "text", text }], details: { stage, elapsedMs, usage, modelCalls } });
       };
       const finish = (result: Record<string, unknown>) => {
-        const details = { ...result, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, attempts,
+        const details = { ...result, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, creativeSelection: creativeContext, attempts,
           modelCalls, elapsedMs: Math.round(performance.now() - startedAt) };
         // 节点已写回时，主 Agent 只接收审核状态与定位信息，完整稿仍保存在节点和工具详情中。
         const visible = result.status === "ok" && result.written && input.node
@@ -175,7 +188,8 @@ export function createVideoPromptTool(options: SubAgentModel & {
           return finish({ status: "ok", ...existing, review, generationRequest, ...write, reused: true });
         }
       }
-      const taskInput = { shot: prepared.shot, format: prepared.format, workflow: prepared.setup };
+      const taskInput = { shot: prepared.shot, format: prepared.format, workflow: prepared.setup,
+        ...(creativeContext ? { creativeTemplates: creativeContext } : {}) };
       const specialistModels = new Map<string, SubAgentModel>();
       async function specialist<T>(schema: z.ZodType<T>, name: string, task: string, rules: string[]) {
         signal?.throwIfAborted();
@@ -223,7 +237,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
           "先确定最终画框容纳哪些主体和身体部位，再反推开场机位与运动路径。前景道具与后景人物必须同框时，核对景别、遮挡和人物移动终点；不能一边继续逼近道具一边承诺人物头肩始终入画。规划与中英文正文必须一致。只在首次定义与必要承接处写稳定外观，避免逐段复写。",
           "规划不得新增用户未要求的人物、动作或剧情。没有人物的镜头用 performance 描述物件、环境的可见反馈，不为填字段添加表演者。",
           "先在内部确定镜头要交付的叙事信息，再设计可见的起点、动作、接触或变化、反馈和末态。按实际模式写 H3 正文，稳定设定与逐段变化分开，英文和中文保持同样的可见事实。",
-          "按已确认的剧情和素材取用匹配的拍法。模板片段含占位词、使用条件和验收点，只有条件满足时才采用相关片段，实际正文写真实可观察的事件。返修以 findings 的要求编号、位置、问题依据和修改目标为边界；仅修改缺陷及必需的关联内容，保留正确的 Subject、参考绑定、对白和无关段落，中英文及 cinematicPlan 同步更新，仍返回完整合法正文。合理的创作选择不为迎合审核而重写。",
+          "按已确认的剧情和素材取用匹配的拍法。creativeTemplates 是外层 Agent 按 ID 选中的创作参考，不是剧情合同；先处理 warnings，只抽取本镜所需的动作/表演/风格，多镜场次不得塞进单个 H3 连续镜头。模板含占位词、使用条件和验收点，满足条件后才写真实可观察的事件。返修以 findings 的要求编号、位置、问题依据和修改目标为边界；仅修改缺陷及必需的关联内容，保留正确的 Subject、参考绑定、对白和无关段落，中英文及 cinematicPlan 同步更新，仍返回完整合法正文。合理的创作选择不为迎合审核而重写。",
           JSON.stringify({ ...taskInput, ...(round ? { previousDraft: lastDraft, findings } : { candidates }) }),
         ].join("\n"), [...directorRules, commonRules, formatRules]);
         if (draft.status === "blocked") {

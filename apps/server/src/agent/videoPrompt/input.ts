@@ -43,26 +43,51 @@ const shotFields = {
   regenerate: z.boolean().optional().describe("明确要求重新创作时传 true；省略则相同已审镜头直接复用审核结果"),
   templateTags: templateTagSchema.optional(),
   templateConditions: templateConditions.pick({ subjectCount: true, anchors: true }).optional(),
-  references: z.array(reference).max(24),
+  references: z.array(reference).max(24).describe("按实际槽位顺序传 JSON 对象数组，不是字符串"),
 };
-const newShotFields = {
+const creativeSelection = z.strictObject({
+  narrativeId: shortText.optional(),
+  memeId: shortText.optional(),
+  absurdId: shortText.optional(),
+  expressionId: shortText.optional(),
+  styleId: shortText.optional(),
+  filterId: shortText.optional(),
+}).describe("可选：先调用 searchVideoPromptTemplates 检索，再传选择的模板 ID；不要复制整条模板正文");
+
+// 顶层必须是一个纯 object JSON Schema：宿主无法可靠地把 z.union 的 anyOf 分支还原为类型化工具参数。
+// 分支约束在服务器解析后执行，不向 Agent 暴露互斥的根 anyOf；数组/数字/对象保持原生 JSON 类型。
+const videoPromptToolInput = z.strictObject({
   ...shotFields,
-  node: z.never().optional(),
-  modelId: shortText.optional(),
-  duration: z.number().int().positive(),
-  sampling: sampling.optional(),
-  ratio: ratioSchema,
-};
-// 已有节点只提供定位信息；新镜头的规格与种子政策由请求明确给出。
-export const videoPromptParameters = z.union([
-  z.strictObject({ ...shotFields,
-    node: z.strictObject({ canvasId: shortText, nodeId: shortText, write: z.boolean().optional() }),
-    modelId: z.never().optional(), duration: z.never().optional(), ratio: z.never().optional(),
-    sampling: z.never().optional(), seed: z.never().optional(), seedMode: z.never().optional(),
-  }).describe("已有视频节点：先 getConfig → setConfig → getPromptContext，再传 node；禁止重复传生成参数"),
-  z.strictObject({ ...newShotFields, seedMode: z.literal("random").optional(), seed: z.never().optional() }),
-  z.strictObject({ ...newShotFields, seedMode: z.enum(["fixed", "last"]), seed: videoGenerationSchema.shape.seed.unwrap() }),
-]).describe("已有节点只传 node 与镜头合同；新镜头必须传 duration、ratio。新镜头随机模式不传 seed，fixed/last 模式必须同时传具体 seed。");
+  creativeSelection: creativeSelection.optional(),
+  node: z.strictObject({ canvasId: shortText, nodeId: shortText, write: z.boolean().optional() }).optional()
+    .describe("已有节点：传 canvasId/nodeId；先 getConfig → setConfig → getPromptContext"),
+  modelId: shortText.optional().describe("仅新镜头可传；已有节点禁止传"),
+  duration: z.number().int().positive().optional().describe("新镜头必填秒数；已有节点禁止传"),
+  ratio: ratioSchema.optional().describe("新镜头必填画幅；已有节点禁止传"),
+  sampling: sampling.optional().describe("仅新镜头可用；已有节点从 node:getPromptContext 读取"),
+  seedMode: z.enum(["random", "fixed", "last"]).optional().describe("仅新镜头；fixed/last 必须配合法定 seed"),
+  seed: videoGenerationSchema.shape.seed.unwrap().optional().describe("仅新镜头 fixed/last 模式填写数值种子"),
+}).describe("单一类型化对象：必填镜头合同。已有视频节点只传 node，不传模型、时长、画幅、采样或种子；新镜头不传 node，必须传 duration 与 ratio。mustHave/mustNotHave/references 是 JSON 数组，不是字符串。");
+
+// JSON Schema 用于宿主工具调用（无顶层 anyOf/oneOf）；业务分支在 Zod 运行时进行严格校验。
+export const videoPromptToolSchema = z.toJSONSchema(videoPromptToolInput, { io: "input", target: "draft-07" });
+export const videoPromptParameters = videoPromptToolInput.superRefine((input, ctx) => {
+  const issue = (path: string, message: string) =>
+    ctx.addIssue({ code: "custom", path: [path], message });
+  if (input.node) {
+    for (const name of ["modelId", "duration", "ratio", "sampling", "seed", "seedMode"] as const) {
+      if (input[name] !== undefined) issue(name, "已有节点不允许重复传生成参数，请先在画布节点 setConfig 后读取 getPromptContext");
+    }
+  } else {
+    if (input.duration === undefined) issue("duration", "新镜头必须提供数字时长（秒）");
+    if (input.ratio === undefined) issue("ratio", "新镜头必须提供明确画幅");
+    if (input.seedMode === "fixed" || input.seedMode === "last") {
+      if (input.seed === undefined) issue("seed", "fixed/last 模式必须提供数值 seed");
+    } else if (input.seed !== undefined) {
+      issue("seed", "随机种子模式不能传 seed；需要固定种子时设置 seedMode=fixed");
+    }
+  }
+});
 
 const nodeContext = z.object({
   config: z.object({
@@ -89,7 +114,7 @@ export type VideoPromptInput = z.infer<typeof videoPromptParameters>;
 export type VideoPromptFormat = "h3Ref2va" | "h3Frames" | "h3Text";
 
 export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, canvas?: CanvasContext, signal?: AbortSignal) {
-  const { node, modelId, duration, ratio, references, sampling: requestedSampling, seed, seedMode, templateTags, templateConditions, regenerate: _regenerate, ...shot } = input;
+  const { node, modelId, duration, ratio, references, sampling: requestedSampling, seed, seedMode, templateTags, templateConditions, creativeSelection: selectedCreative, regenerate: _regenerate, ...shot } = input;
   const production = readProduction();
   if (node && !canvas) throw new Error("请先打开目标视频节点所在的画布");
   const current = node && canvas ? nodeContext.parse(await canvas.call({
@@ -173,7 +198,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   const snapshot = await captureVideoReview(cwd, effective, signal);
   const numbered = (items: typeof approved, name: string) => items.map((item, index) => ({ ...item, label: `<${name} ${index + 1}>` }));
   return {
-    shot, format, revision: current?.revision, templateTags, templateConditions, generationRequest, snapshot,
+    shot, format, revision: current?.revision, templateTags, templateConditions, selectedCreative, generationRequest, snapshot,
     setup: {
       modelId: workflow.id, duration: seconds, ratio: aspect, mode: current?.config.mode ?? format,
       host: production.videoHost, config: current?.config, usage: workflow.bindings.usage,

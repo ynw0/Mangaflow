@@ -40,6 +40,32 @@ searchVideoPromptTemplates({
 })
 ```
 
+## 与 draftVideoPrompt 的直接衔接
+
+检索工具的 `searchCreative` 返回含稳定 `id` 的匹配模板，外层 Agent 只选择符合当前镜头的少量条目。**需要让视频导演实际借鉴已选创作模板时，在 `draftVideoPrompt` 中传 `creativeSelection` 对象（字段为模板 ID），而非重复粘贴模板全文。** 服务端据 ID 取知识库详情、检查冲突，并随镜头合同传给导演专职模型；未经检索不得猜 ID。导演工具内部还会自动使用原 `findVideoPromptTemplates` 候选，和新增创作模板互补。若无需相关模板，省略 `creativeSelection`。
+
+```ts
+// 检索只发生一次，返回的 id 分别为 e02、s01
+searchVideoPromptTemplates({action:"searchCreative",library:"expressions",query:"温和微笑",limit:1})
+searchVideoPromptTemplates({action:"searchCreative",library:"styles",query:"电影级写实",limit:1})
+
+// 合同与素材输入来自当前已确认的分镜和画布；以下为字段形态示意
+draftVideoPrompt({
+  shotId:"S01", story:"已确认的镜头动作", purpose:"本镜要交付的信息",
+  style:"已批准视觉风格", continuityIn:"从上一镜承接的状态",
+  continuityOut:"本镜结束的状态",
+  mustHave:["必须出现的第一个事实"], mustNotHave:[],
+  intent:"reveal",
+  references:[],
+  duration:10, ratio:"9:16",
+  creativeSelection:{expressionId:"e02",styleId:"s01"}
+})
+```
+
+上例为**新镜头、无参考的字段示意**，实际必须按 ComfyUI 工作流能力与已连接参考填入对应 `references`；不能用示例假定 Ref2VA 允许无图。对于**已有视频生成节点**，不要传 `duration`、`ratio`、`modelId`、`sampling` 或种子参数；先通过 `node:getConfig` → `node:setConfig` → `node:getPromptContext` 核对，然后将 `node:{canvasId,nodeId,write:true}` 和当前节点实际引用的素材传给 `draftVideoPrompt`。新镜头才必须传数字 `duration` 和字符串 `ratio`。
+
+**宿主兼容要求**：`mustHave`、`mustNotHave`、`references` 必须是 JSON 数组，`templateTags`、`sampling`、`creativeSelection` 为 JSON 对象，`duration` 为数字；不得发送成 `"[]"`、`"{}"` 或 `"10"`。工具现在对外暴露单一对象 Schema，分支互斥由服务器在解析时验证。参数校验失败属于工具调用失败，**不意味着视频已生成，也不应自动重试消耗算力**。
+
 检索支持 `query`、`tags`（多个标签**必须全部匹配**）、`limit`（最多 10 条）和 `library:"all"`。标题与别名优先排序；“我Chovy/我超威”只对应同一条，不重复计数。未命中时不要从记忆编造，应简化标签、减少关键词或改用别的分类。无创作需求不要默认全文检索。
 
 ## 一次镜头怎样选模板

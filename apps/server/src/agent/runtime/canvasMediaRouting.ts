@@ -10,7 +10,7 @@ export const directMediaToolNames = ["generateImage", "generateVideo", "generate
 
 const mediaAction = /(?:生成|制作|出图|生图|出视频|做视频|出音频|做音频|画(?:一张|图)?|render)/i;
 const chatLocation = /(?:对话|聊天)(?:框|窗口|里|内|中|界面)?/;
-const deniedChat = /(?:不要|不用|别|禁止|不准|并非|不是|无需|不需要)(?:.{0,8})(?:在|到|放在|显示在)?(?:当前)?(?:对话|聊天)(?:框|窗口|里|内|中|界面)?/;
+const deniedChat = /(?:不要|不用|别|禁止|不准|并非|不是|无需|不需要)(?:再|直接|一直|仅|只|让你|让它)?(?:在|到|放在|显示在)?(?:当前)?(?:对话|聊天)(?:框|窗口|里|内|中|界面)?/;
 
 /** Only an explicit request to generate *in the chat* opts out of the canvas. */
 export function explicitlyRequestsChatGeneration(prompt: string): boolean {

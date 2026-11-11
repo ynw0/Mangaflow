@@ -1,5 +1,5 @@
 name: MangaFlow Windows Release
-run-name: MangaFlow Windows ${{ inputs.version || '2.0.18' }}
+run-name: MangaFlow Windows ${{ inputs.version || '2.0.19' }}
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         description: Windows 安装包版本号（X.Y.Z）
         required: true
         type: string
-        default: "2.0.18"
+        default: "2.0.19"
   # 更新此工作流触发 Windows 专用构建；以后也可手动发布新版本。
   push:
     branches: [master]
@@ -29,7 +29,7 @@ jobs:
     with:
       target: windowsX64
       ref: ${{ github.sha }}
-      version: ${{ inputs.version || '2.0.18' }}
+      version: ${{ inputs.version || '2.0.19' }}
       generatePatch: false
       androidRelease: false
 
@@ -65,11 +65,12 @@ jobs:
           name: MangaFlow v${{ needs.build.outputs.version }} · Windows
           body: |
             Windows x64 安装包。
-            恢复画布优先制作：常规出图、出视频和继续制作只通过画布生成节点执行，只有明确请求对话直出才开放聊天媒体生成工具；保留节点提示词、参考连线和生成结果。
-            复用原 searchVideoPromptTemplates 分类检索工具，新增2026中国网络热梗与原创抽象搞怪提示词分类（listCreativeTags/searchCreative），保留旧视频导演模板接口与独立审查链。
-            热梗只收录有2026日期记录的词条，截至2026-11-11，标注来源及场景；删除混入的2025回顾内容；同步更新工作流Skill和项目README。
-            保留 Pi SDK 原生不中断引导、彩色思考等级滑块与 QC 整改方案。
-            继续包含 TryCloudflare 隧道连接恢复与诊断日志修复。
+            基于最新 master 构建 Windows x64 安装包，包含本轮创作知识库与 draftVideoPrompt 修复。
+            - draftVideoPrompt 工具参数改为单一类型化 JSON 对象，修复宿主误将数组、对象和数字转成字符串导致的参数校验失败。
+            - 已有画布视频节点和新建镜头的参数模式仍由服务端严格验证；保留原独立审核与已审结果复用机制。
+            - searchVideoPromptTemplates 保留统一分类检索入口，新增 2026 热梗、剧情节拍、表情颜艺、画风滤镜与组合检查。
+            - 已选模板 ID 可传给 draftVideoPrompt.creativeSelection，导演按需读取，避免复制整个知识库。
+            - 继续遵循画布优先、镜头提示词与成片留在画布，以及用户授权后才生成的工作流程。
             只发布 Windows EXE，不包含 macOS 或 Android 安装包。
           make_latest: true
           fail_on_unmatched_files: true

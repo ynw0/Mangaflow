@@ -180,6 +180,37 @@ export type QcCheck = {
   result: "pass" | "fail" | "unverified";
   evidence: string;
   time?: string;
+  /** 实际观察到的问题；失败项建议填写。 */
+  problem?: string;
+  /** QC 只指出需要检查的方向，具体整改由主 Agent 制定。 */
+  fixHint?: string;
+};
+
+export type QcIssue = {
+  id: string;
+  requirementId?: string;
+  domain: "video" | "audio" | "general";
+  kind: "defect" | "needsEvidence";
+  expected?: string;
+  observed: string;
+  problem: string;
+  time?: string;
+  fixHint?: string;
+};
+
+export type VideoQcRectificationPlan = {
+  qcRevision: string;
+  createdAt: string;
+  summary: string;
+  actions: {
+    issueIds: string[];
+    rootCauseHypothesis: string;
+    category: "reference" | "prompt" | "workflow" | "sampling" | "camera" | "audio" | "verification" | "other";
+    change: string;
+    acceptance: string;
+  }[];
+  /** 计划本身并不授权或执行新的视频生成。 */
+  needsRegeneration: boolean;
 };
 
 export type QcRequirement = { id: string; source: string; text: string };
@@ -201,6 +232,8 @@ export interface QcVideoResult {
   checks: QcCheck[];
   technical?: { width?: number; height?: number; duration?: number; fps?: number; frameCount?: number; hasAudio: boolean };
   findings: { domain: "video" | "audio" | "general"; text: string }[];
+  /** QC 自身生成的证据化问题清单，非 Agent 编造的根因。 */
+  issues?: QcIssue[];
   videoModelId: string;
   audioModelId: string;
   merged: boolean;
@@ -219,6 +252,8 @@ export type VideoExecution = {
 
 export type VideoQcReport = VideoQcState & {
   agentResult?: QcVideoResult;
+  qcRevision?: string;
+  rectificationPlan?: VideoQcRectificationPlan;
   generation?: { providerId: string; modelId: string; reviewId?: string; duration?: number; ratio?: string; execution?: VideoExecution };
 };
 
@@ -235,6 +270,13 @@ export interface MediaContext {
   getVideoQcStatus(videoPath: string): Promise<VideoQcReport>;
   getAgentVideoQcEvidence(videoPath: string): Promise<{ evidence: AgentVideoQcEvidence; images: { data: string; mimeType: string }[] }>;
   submitAgentVideoQc(request: AgentVideoQcSubmission): Promise<VideoQcReport>;
+  saveVideoQcRectificationPlan(request: {
+    videoPath: string;
+    qcRevision: string;
+    summary: string;
+    actions: VideoQcRectificationPlan["actions"];
+    needsRegeneration: boolean;
+  }): Promise<VideoQcReport>;
 }
 
 export interface QuestionField {

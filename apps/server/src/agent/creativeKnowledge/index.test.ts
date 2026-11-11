@@ -53,9 +53,9 @@ describe("中国网络热梗与抽象搞怪提示词知识库", () => {
   test("工具使用 list/search，结果只读，不生成或写画布", async () => {
     const tool = createCreativeKnowledgeSearchTool();
     expect(tool.name).toBe("searchCreativeKnowledge");
-    const listed = await tool.execute("t", { action: "list" }, new AbortController().signal);
+    const listed = await tool.execute("t", { action: "list" }, new AbortController().signal, undefined, undefined as never);
     expect(JSON.stringify(listed.details)).toContain("memes");
-    const found = await tool.execute("t", { action: "search", library: "absurd", query: "机甲", limit: 2 }, new AbortController().signal);
+    const found = await tool.execute("t", { action: "search", library: "absurd", query: "机甲", limit: 2 }, new AbortController().signal, undefined, undefined as never);
     expect(JSON.stringify(found.details)).toContain("matches");
   });
 });

@@ -30,20 +30,9 @@
           <span>思考等级</span>
           <span class="levelCurrent">{{ thinkingLabel }}</span>
         </div>
-        <div class="thinkingOptions" role="group" aria-label="当前模型思考等级">
-          <button
-            v-for="option in thinkingOptions"
-            :key="option.value"
-            type="button"
-            class="thinkingOption"
-            :class="{ selected: thinkingLevel === option.value }"
-            :disabled="disabled || !selectedModelChoice"
-            :aria-pressed="thinkingLevel === option.value"
-            :title="option.value"
-            @click="setThinking(option.value)">
-            {{ option.label }}
-          </button>
-        </div>
+        <thinking-effort-slider :model-value="thinkingLevel" :options="thinkingOptions"
+          :disabled="disabled || !selectedModelChoice" aria-label="当前模型思考等级"
+          @update:model-value="setThinking" />
         <div class="probeControls">
           <el-button size="small" text :loading="probing" :disabled="disabled || !selectedModelChoice || probing" @click="probeThinking">探测实际支持档位</el-button>
           <span v-if="probeNotice" class="levelTip">{{ probeNotice }}</span>
@@ -61,6 +50,7 @@ import { ElMessage } from "element-plus";
 import axios from "axios";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import { modelIcon } from "@toonflow/model-icons";
+import thinkingEffortSlider from "@/components/thinkingEffortSlider.vue";
 import { customProviders, modelChoices, setModelThinkingLevel, settings, thinkingLevelForModel, thinkingLevelOptionsFor, probeAndSaveThinkingLevels } from "@/stores/settings";
 
 const selectedModel = defineModel<string>({ default: "" });
@@ -127,16 +117,6 @@ watch(() => !props.active || props.disabled, close => { if (close) visible.value
   .panelHint, .levelTip { color: var(--el-text-color-secondary); font-size: 11px; font-weight: 400; }
   .thinkingHeader { margin-top: 4px; }
   .levelCurrent { padding: 2px 9px; border-radius: 999px; background: var(--el-color-primary-light-9); color: var(--el-color-primary); font-size: 12px; }
-  .thinkingOptions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-  .thinkingOption {
-    min-width: 0; min-height: 34px; padding: 6px 5px; border: 1px solid var(--el-border-color);
-    border-radius: 9px; background: var(--el-fill-color-blank); color: var(--el-text-color-regular);
-    font: inherit; font-size: 12px; cursor: pointer; transition: background 120ms ease, border-color 120ms ease;
-    &:hover:not(:disabled) { background: var(--el-fill-color-light); border-color: var(--el-color-primary-light-5); }
-    &.selected { color: var(--el-color-primary); border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); font-weight: 600; }
-    &:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
-    &:disabled { cursor: not-allowed; opacity: 0.5; }
-  }
   .levelTip { margin: 0; line-height: 1.5; }
   .probeControls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 }

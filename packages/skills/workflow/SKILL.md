@@ -11,6 +11,8 @@ metadata:
 
 把小说或用户query做成可出图、可出视频的镜头。判断规则用本技能的 references，不要用聊天印象代替。出图以系统提示里的 production.image 为准。出视频的 ComfyUI 按系统设置走 AutoDL 实例，或走本机已经启动的 ComfyUI。
 
+**执行入口约束：** 用户提出“继续”“继续出图”“做角色/场景/道具参考图”“做视频”“连线”“生成分镜”时，以已打开的画布和现有节点为制作主场；主 Agent 必须先读取 [画布落点](references/canvas-use.md) 及 canvas 技能的节点操作说明，再选择真实节点执行，结果与提示词留在画布。生成能力应通过节点 `nodeTools` 使用；只有用户明确要求直接在聊天中生成才允许对话媒体工具。无画布权限就说明阻塞，不默认使用对话 `generateImage` / `generateVideo` 代替。此约束不要求纯文字问答触发画布，也不覆盖算力授权与分阶段确认。
+
 references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前画布的文本节点；审核通过后才生成。审核不通过时，只把 findings 退回原来的专职重写，总控不改 prompt、不改槽位。
 
 公共规则读 [common.md](references/common.md)。小说改编定调读 [adaptationStrategy.md](references/adaptationStrategy.md)（原则门，不抄外部死数字）。需要完整场次正文读 [episodeScript.md](references/episodeScript.md)；分场情绪与注意事项读 [directorPlan.md](references/directorPlan.md)。审核分流及原画通用审核顺序见 [prompt-review.md](references/prompt-review.md)。合同怎么落到画布读 [canvas-use.md](references/canvas-use.md)。每阶段写入后须用户明确确认才进入下一阶段，规则见 canvas-use「逐步确认关卡」，节点操作再读 canvas 技能。开始某一阶段前，只读该阶段的参考，不要一次读完。
@@ -35,6 +37,6 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 
 官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing + cinematicPromptCraft 导演知识 → video-director → video-prompt-review → Comfy H3 Ref2VA）。
 
-出图前用 `listMediaModels` 查实际启用项。先按用户指定、配置的出图后端、是否有底图及参考图数量筛选，再读候选的 `usage`，按草稿速度、细节、底图保留需求选择。设置中的文生图和编辑工作流是对应任务的默认选项。Qwen-Image-2.1 Turbo 适合快速探索，标准版适合细节任务，具体以目录和验收结果为准。编辑用 `<image1>` 指代底图，补充参考图按实际槽位编号。编写、原画审核与生成均使用同一个工作流。出视频只用 ComfyUI 工作流，`providerId` 为 `comfyui`；`production.video.host` 为 `local` 时用本机地址，为 `autodl` 时用 AutoDL 实例。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片 16:9。
+画布出图时先通过图片生成节点的 `node:getConfig` 查询可用模型与当前配置，并由 `node:setConfig` 配置；可用 `listMediaModels` 交叉核实已启用项，但不得因此跳过画布生成节点。先按用户指定、配置的出图后端、是否有底图及参考图数量筛选，再读候选的 `usage`，按草稿速度、细节、底图保留需求选择。设置中的文生图和编辑工作流是对应任务的默认选项。Qwen-Image-2.1 Turbo 适合快速探索，标准版适合细节任务，具体以目录和验收结果为准。编辑用 `<image1>` 指代底图，补充参考图按实际槽位编号。编写、原画审核与生成均使用同一个工作流。出视频只用 ComfyUI 工作流，`providerId` 为 `comfyui`；`production.video.host` 为 `local` 时用本机地址，为 `autodl` 时用 AutoDL 实例。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片 16:9。
 
 生成前把方案里的提示词、参考图和所选工作流给用户看。用户同意后才生成。出视频失败先看当前选中的 ComfyUI 是否连通，不换工作流重试。

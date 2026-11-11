@@ -174,7 +174,7 @@
 
 <script setup lang="ts">
 import { locale, t, translate } from "@toonflow/i18n/vue";
-import { computed, inject, nextTick, onBeforeUnmount, reactive, ref, shallowRef, watch, type ComponentPublicInstance } from "vue";
+import { computed, inject, nextTick, reactive, ref, shallowRef, watch, type ComponentPublicInstance } from "vue";
 import { defaultRangeExtractor, measureElement, observeElementRect, useVirtualizer } from "@tanstack/vue-virtual";
 import axios from "axios";
 import {
@@ -424,11 +424,12 @@ const composerDrive = computed({
   },
 });
 function composerPlaceholder() {
+  if (busy.value || remoteRunning.value) return translate("输入补充要求，在当前工具完成后引导 Agent，不会停止生成…");
   return composerDrive.value === "goal"
     ? translate("输入要完成的目标，会一直做到完，可随时停止")
     : translate("输入消息，@ 提及节点输出或全局素材…");
 }
-watch(composerDrive, () => {
+watch([composerDrive, busy, remoteRunning], () => {
   sender?.updateConfig({ placeholder: composerPlaceholder() });
 });
 const contextWindow = computed(() => contextUsage.value?.contextWindow ?? selectedModelChoice.value?.contextWindow ?? 262144);

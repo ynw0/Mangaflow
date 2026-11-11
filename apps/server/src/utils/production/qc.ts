@@ -378,7 +378,7 @@ function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "vi
       ...[...(kind !== "audio" ? ["video"] : []), ...(kind !== "video" ? ["audio"] : [])].map(domain => ({ domain, result: "unverified", evidence: "填写实际观察事实" })),
     ] })}。`,
     "domain 只能填 video、audio、general 中的一个；result 只能填 pass、fail、unverified 中的一个，不能填带竖线的组合字符串。每条 evidence 简洁描述，最多 48 个汉字左右；不输出思考过程、Markdown 或额外解释。",
-    "fail 项请额外给 problem（具体观察到的错误，最多 30 字）和 fixHint（供主 Agent 制定方案时参考的检查方向，最多 30 字）。unverified 项在 problem 说明缺什么证据。不要直接替主 Agent 决定重生、改模型或改时长；pass 不需填写这两个字段。",
+    "fail 必须在 evidence 中指出具体可见或可听的错误及对应时间，不得只写未通过；可选用 problem 用不超过 16 字概括，unverified 要说明缺失的证据。不要为了额外字段延长 JSON；不填写 fixHint 也有效。根因分析、是否重生成及整改方案由主 Agent 依据 checks 和原合同单独制定。",
     domains,
     "分别检查本轮域内的验收要点。可确认符合用 pass，能指出具体偏差用 fail，证据不足用 unverified。时间无法核实时省略 time。离散帧不能证明帧间没有错误；细微接触、短暂形变、禁止项如不能确定须标 unverified。",
     "画面检查主体、场景、动作和连续性。音轨检查对白、与画面对齐的音效和声景，以及音量遮盖。",

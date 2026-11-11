@@ -54,7 +54,8 @@ export async function steerActiveAgentSession(path: string, input: { prompt: str
   if (!active) {
     throw Object.assign(new Error("当前对话未运行，请作为普通消息发送"), { status: 409 });
   }
-  return enqueueAgentGuidance(active.session, active.steeringRequests, input);
+  const queued = await enqueueAgentGuidance(active.session, active.steeringRequests, input);
+  return { ...queued, waitingForAnswer: hasPendingAgentQuestion(active) };
 }
 
 export function hasPendingAgentQuestion(active: ActiveAgentSession, visited = new Set<ActiveAgentSession>()): boolean {

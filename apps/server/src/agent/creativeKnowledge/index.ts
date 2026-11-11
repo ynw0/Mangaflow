@@ -1,18 +1,20 @@
-/** 分类检索的数据层：复用 searchVideoPromptTemplates 的工具入口，避免重复创建 Agent 工具。 */
+/** 按需检索的创作知识数据层：保留现有统一 Agent 工具 searchVideoPromptTemplates。 */
 import { memesCN } from "@/agent/creativeKnowledge/memesCN";
 import { absurdPrompts } from "@/agent/creativeKnowledge/absurdPrompts";
+import { expressionTemplates } from "@/agent/creativeKnowledge/expressionTemplates";
+import { visualStyles } from "@/agent/creativeKnowledge/visualStyles";
 
-export type CreativeLibrary = "memes" | "absurd" | "all";
+export type CreativeLibrary = "memes" | "absurd" | "expressions" | "styles" | "all";
 export type CreativeSearchOptions = { library: CreativeLibrary; query: string; tags: string[]; limit: number };
 
 export type CreativeSearchResult = {
-  library: "memes" | "absurd";
+  library: Exclude<CreativeLibrary, "all">;
   id: string;
   title: string;
   tags: string[];
   score: number;
   observedAt?: string;
-  details: (typeof memesCN)[number] | (typeof absurdPrompts)[number];
+  details: (typeof memesCN)[number] | (typeof absurdPrompts)[number] | (typeof expressionTemplates)[number] | (typeof visualStyles)[number];
 };
 
 function matchingScore(title: string, tags: string[], content: string, query: string, requestedTags: string[]): number {
@@ -28,23 +30,22 @@ function matchingScore(title: string, tags: string[], content: string, query: st
   return termScore + matchedTags.length * 5 + (terms.length || requestedTags.length ? 0 : 1);
 }
 
+const categoryTags = (items: readonly { tags: string[] }[]) => [...new Set(items.flatMap(x => x.tags))].sort();
 export function listCreativeKnowledgeCategories() {
   return {
     asOf: "2026-11-11",
     categories: [
-      {
-        id: "memes", title: "2026中国网络热梗",
-        count: memesCN.length,
-        tags: [...new Set(memesCN.flatMap(x => x.tags))].sort(),
-        observedFrom: "2026-07-01", observedThrough: "2026-11-11",
-        caveat: "2026年有日期的公开记录，不保证词语首次发明于2026年；不是实时全网热度排行。",
-      },
-      {
-        id: "absurd", title: "原创抽象搞怪图片/视频拍法",
-        count: absurdPrompts.length,
-        tags: [...new Set(absurdPrompts.flatMap(x => x.tags))].sort(),
-        caveat: "原创构思模板，不是已生成验证的作品；执行时按当前工作流与镜头合同改写。",
-      },
+      { id: "memes", title: "2026网络热梗与二创文化", count: memesCN.length,
+        tags: categoryTags(memesCN), observedFrom: "2026-05-08", observedThrough: "2026-11-11",
+        caveat: "2026年有日期的公开记录，不保证词语起源于2026年；不是实时热榜；真实二创形象须尊重版权和人物。"},
+      { id: "absurd", title: "原创抽象搞怪剧情/镜头", count: absurdPrompts.length,
+        tags: categoryTags(absurdPrompts), caveat: "原创喜剧构思，需要改写成具体镜头提示词。"},
+      { id: "expressions", title: "人物表情与颜艺模板", count: expressionTemplates.length,
+        tags: categoryTags(expressionTemplates), groups: ["basic", "funny", "extreme", "abstract"],
+        caveat: "常规、搞怪、极夸张与抽象；保留角色面部结构及已确认的身份。"},
+      { id: "styles", title: "画风与滤镜模板", count: visualStyles.length,
+        tags: categoryTags(visualStyles), groups: ["style", "filter"],
+        caveat: "可组合的提示词视觉语言；滤镜不表示已执行真实 LUT/后期处理。"},
     ],
   };
 }
@@ -52,20 +53,21 @@ export function listCreativeKnowledgeCategories() {
 export function searchCreativeKnowledge(options: CreativeSearchOptions): CreativeSearchResult[] {
   const limit = Math.max(1, Math.min(10, options.limit));
   const results: CreativeSearchResult[] = [];
-  if (options.library !== "absurd") {
-    for (const entry of memesCN) {
-      const score = matchingScore(entry.phrase, entry.tags, [entry.meaning, entry.usage].join(" "), options.query, options.tags);
-      if (score > 0) results.push({ library: "memes", id: entry.id, title: entry.phrase, tags: entry.tags, score, observedAt: entry.observedAt, details: entry });
-    }
-  }
-  if (options.library !== "memes") {
-    for (const entry of absurdPrompts) {
-      const score = matchingScore(entry.title, entry.tags,
-        [entry.setup, entry.imagePrompt, entry.videoBeat, entry.jokeMechanism].join(" "), options.query, options.tags);
-      if (score > 0) results.push({ library: "absurd", id: entry.id, title: entry.title, tags: entry.tags, score, details: entry });
-    }
-  }
-  return results.sort((a, b) => b.score - a.score
+  const wants = (library: CreativeSearchResult["library"]) => options.library === "all" || options.library === library;
+  const add = (library: CreativeSearchResult["library"], id: string, title: string, tags: string[], content: string,
+    details: CreativeSearchResult["details"], observedAt?: string) => {
+    const score = matchingScore(title, tags, content, options.query, options.tags);
+    if (score > 0) results.push({ library, id, title, tags, score, ...(observedAt ? { observedAt } : {}), details });
+  };
+  if (wants("memes")) for (const item of memesCN)
+    add("memes", item.id, item.phrase, item.tags, [item.meaning, item.usage].join(" "), item, item.observedAt);
+  if (wants("absurd")) for (const item of absurdPrompts)
+    add("absurd", item.id, item.title, item.tags, [item.setup, item.imagePrompt, item.videoBeat, item.jokeMechanism].join(" "), item);
+  if (wants("expressions")) for (const item of expressionTemplates)
+    add("expressions", item.id, item.title, item.tags, [item.face, item.gesture, item.imagePrompt, item.videoBeat, item.category].join(" "), item);
+  if (wants("styles")) for (const item of visualStyles)
+    add("styles", item.id, item.title, item.tags, [item.group, item.imagePrompt, item.videoPrompt, item.palette, item.lighting].join(" "), item);
+  return results.sort((a,b) => b.score - a.score
     || (b.observedAt ?? "").localeCompare(a.observedAt ?? "")
-    || a.id.localeCompare(b.id)).slice(0, limit);
+    || a.id.localeCompare(b.id)).slice(0,limit);
 }

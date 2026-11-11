@@ -1,60 +1,56 @@
-# 中国网络热梗与抽象搞怪创作知识库
+# 创作知识库：分类检索与画布使用
 
-**统一入口：** 主 Agent 和专业子 Agent 使用原有的 `searchVideoPromptTemplates` 分类检索工具，通过 `listCreativeTags` / `searchCreative` 检索最新 2026 网络热梗和原创抽象搞怪拍法。原 `listTags` / `search` 导演模板检索完全保留。两个资料分类是一个工具、两套分类数据，不重复引入第二个 Agent 检索工具。
+主 Agent、编剧/导演及角色、场景等专业子 Agent 继续使用已有 `searchVideoPromptTemplates` 工具，不新增第二套搜索工具，不把全库塞进系统提示词。旧 `listTags/search` 视频导演模板功能不变；新增内容统一通过 `listCreativeTags/searchCreative` 按需检索，每次最多返回 10 条。
 
-数据分别维护在 `apps/server/src/agent/creativeKnowledge/memesCN.ts` 和 `absurdPrompts.ts`，按需只返回 1–10 条，不把全部资料灌入系统提示词。
-## 何时用
+## 内容分类
 
-- 用户明确要求**搞笑、抽象、沙雕、整活、玩梗、反差、热梗短剧**；或已经批准的剧情本来带喜剧段落时，才检索。
-- 普通都市爽文、严肃科幻、纪录式写实、机械展开等任务，不得自动“加热门梗”改变用户调性或镜头合同。
-- 只提“生成图片”“继续做视频”不是使用热梗的授权；仍按原工作流继续，知识库不会改变图片/视频模型或节点配置。
-- 真实热梗条目属于**参考素材而非台词强制清单**，按人物性格和叙事可选择不用；重复度过高或存在IP/人设侵权风险时应改写为原创笑点机制。
-
-## 查询方法（只返回 1–10 项）
-
-| 目标 | 工具调用示意 | 使用方式 |
+| library | 内容 | 用法 |
 | --- | --- | --- |
-| 旧导演模板分类 | `searchVideoPromptTemplates({action: "listTags"})` | 原样保留，查询剧情用途、动作、镜头等 |
-| 旧导演模板检索 | `searchVideoPromptTemplates({action: "search", tags: {scene: ["机械变形"]}, limit: 3})` | 原样保留，按 H3 工作流已核实条件筛选 |
-| 查看创意分类标签 | `searchVideoPromptTemplates({action: "listCreativeTags"})` | 查看热梗/抽象两组及其标签、数量、日期 |
-| 2026 热梗 | `searchVideoPromptTemplates({action: "searchCreative", library: "memes", query: "职场", limit: 4})` | 只取已核实的 2026 词条、观察日期和来源 |
-| 抽象图片与视频 | `searchVideoPromptTemplates({action: "searchCreative", library: "absurd", query: "飞行", limit: 3})` | 取原创构图、动作节拍、笑点机制与连续性约束 |
-| 交叉检索 | `searchVideoPromptTemplates({action: "searchCreative", library: "all", tags: ["反差"], limit: 5})` | 将两类结果在一个入口按匹配度排序 |
+| `memes` | 2026 年有日期记录的网络用语、AI 二创、魔性空耳及传播语境 | 喜剧/玩梗/抽象创意；输出来源日期和注意事项，不宣称全网实时榜 |
+| `absurd` | 20 套原创反差喜剧单镜构思 | 参考设定、笑点机制、镜头节拍和连续性 |
+| `expressions` | 38 条人物表情/颜艺，`basic` 常规、`funny` 搞怪、`extreme` 极夸张、`abstract` 抽象 | 角色表情提示词、眉眼嘴动作、肢体、起势/峰值/收束、强度 |
+| `styles` | 32 种视觉画风和 16 种滤镜观感 | 制作统一风格、光影、色板、纹理；可以选一个画风搭配一个滤镜 |
 
+当前热梗为 2026-11-11 的离线资料快照，不保证某词在 2026 年首次起源。具体词条必须保留 `observedAt`、`sourceLabel`、`sourceUrl`、`evidence`。DeepSeek 的“蓝色大肥鱼/鲸鱼娘”属于非官方社区二创，不应宣传成产品官方形象；“嘉豪文学”涉及真实同名者被嘲讽，优先借创作机制而非对真人贴标签。旧内容在 2026 年再传播时须明确说明，不冒称新发明。
 
-工具 schema 以实际返回为准；上表是使用示意。关键词不足时缩小到单词或改用标签，不因为没匹配就编造热梗。
+## 调用示例
 
-## 2026 来源与时效
+```ts
+// 原导演模板完全保留
+searchVideoPromptTemplates({action: "listTags"})
+searchVideoPromptTemplates({action: "search", tags: {scene:["机械变形"]}, limit:3})
 
-- **范围：只包含 2026 年有公开日期记录的热梗。** 当前快照截至 **2026-11-11**，共 28 条；2025 年年度回顾及仅因 2026 年搜索访问而上榜的明显旧词不再混入“2026最新”分类。
-- **2026 年 10—11 月词条**：依据 [是什么意思词典](https://www.ssmys.com/) 的按走红时间标注条目（如 11 月 2 日、10 月 25 日、10 月 14 日等），属于编辑记录，不等于全网真实热度排行。
-- **2026 上半年已获媒体报道的热点**：采用 [广告门2026-07-01专题](https://www.adquan.com/article/361636)及 [京东消费观察2026-07-29报道](https://www.xhby.net/content/s6a696efce4b03d9ce79721d1.html)，作为年度内较早的参考；优先检索更近的 10—11 月词条。
-- 每条保留 `observedAt`、`period`、`sourceUrl`、`sourceLabel`、`evidence`。**2026 有报道不等于该梗诞生于 2026**，更不能宣称当前全网排名；没有足够证据证明首次起源时不得编造。
-- **更新机制**：本库是离线随版本发布的日期快照，**不是网络实时爬虫**。下次更新必须验证新词条出处、发布日期、语义和适用场景；旧资料保留真实日期，过时内容不能改时间冒充新梗。
+// 按需发现分类
+searchVideoPromptTemplates({action: "listCreativeTags"})
 
+// 魔性空耳、搞怪剧情
+searchVideoPromptTemplates({action: "searchCreative", library:"memes", query:"比比拉布", limit:3})
+searchVideoPromptTemplates({action: "searchCreative", library:"absurd", query:"飞行", limit:3})
 
-## 抽象提示词如何落到画布
+// 人物颜艺与画风：可分别取 1 条组合，不覆盖角色设定
+searchVideoPromptTemplates({action: "searchCreative", library:"expressions", tags:["极夸张表情"], limit:3})
+searchVideoPromptTemplates({action: "searchCreative", library:"styles", query:"电影级写实", limit:3})
+searchVideoPromptTemplates({action: "searchCreative", library:"styles", tags:["滤镜"], query:"胶片", limit:3})
+```
 
-1. 从检索结果**只挑最贴合本场故事的一条喜剧机制**，如“身份反转”“宏大技术撞上生活小事”或“认真对待荒谬设定”。
-2. 保留已定稿角色、场景、道具的外形和空间锚点，先定义能看见的笑点触发、动作、反应和镜尾结果。抽象不等于无因果、无物理约束。
-3. 图片提示词：将库中 `imagePrompt` 的对象、机位、景别、光影替换为本项目已批准的设定，通过图片生成节点 `node:setPrompt` 录入。
-4. 视频提示词：`videoBeat`、`camera`、`continuity` 是拍法灵感，**不是 MiniMax H3 的最终协议提示词**；必须按当前 H3 Skill、镜头合同与审核链生成官方格式，再写入视频节点。每节点一个连续镜头，不能把“→”理解为剪辑切换。
-5. 参考图必须通过真实画布端口连接；素材未准备好时先补图，不猜 `<Picture N>` 和 `{{ref N}}`。同一角色/道具的外观应复用已确认参考。
-6. 生成要遵守原有算力授权、QC 和版本限制。知识库检索不会触发生成，也不绕过画布。
+工具 `searchCreative` 可用 `library: "all"` 混合搜索，支持 `query`、`tags`、`limit`；查询不到时不得杜撰模板。对严肃剧情不自动插入热梗；表情和画风可按剧本需要使用，不能破坏主角人设、已采用的参考图与镜头合同。
 
-## 质量审核
+## 从模板到出图/视频
 
-- **笑点可拍**：一个镜头里能看到设置、动作及结果，荒谬的点来自反差而非随机堆词。
-- **结构稳定**：身体、道具、尺寸、方位和机械连接可追踪，不能突然多手、多腿、道具穿模或瞬移。
-- **角色相符**：不能因为热梗而变成与原人物完全不同的语气或世界观。
-- **语义合适**：不玩贬低群体、恶意污名或伪健康知识的梗；尊重现实人物和创作者。
-- **原创而非照搬**：不复制别人的原视频音轨、整段受版权保护台词、独有角色外形、真人音色。
+1. **先明确目标。** 根据用户指定的镜头、角色、情绪与视觉风格选择目标分类；先查标签，后少量精准检索。
+2. **分层组合。** 选原有导演模板（镜头结构）+ 至多一个主要表情 + 一个主画风，必要时叠加一个滤镜观感；喜剧桥段按需选择热梗或原创笑点。避免将多个互斥画风、五官状态、滤镜堆成关键词垃圾。
+3. **应用到现有资产。** 对表情只改变眼、眉、嘴和肢体反应，保持脸型、发型、服装、年龄、形体；极夸张/抽象表情也必须保证人物一致。画风改变渲染表达，不随意改变机械连接、道具几何及空间。
+4. **生成方式。** 用真实画布生成节点填写提示词、配置模型、核对输入/参考并执行；视频每节点仅一个连续摄影镜头，`videoBeat` 是动作草案，需按 H3 Skill 及审核流程整理成最终提示词。
+5. **执行边界。** 检索不会调用模型生成，也不会真正施加 LUT/后期滤镜；是否能实现风格取决于当前模型/ComfyUI 工作流。保留用户算力授权和 QC 要求，生成后核对真实输出。
 
-## 维护入口
+## 源码与维护
 
-- 热梗数据：[memesCN.ts](../../../../apps/server/src/agent/creativeKnowledge/memesCN.ts)
-- 原创抽象模板：[absurdPrompts.ts](../../../../apps/server/src/agent/creativeKnowledge/absurdPrompts.ts)
-- 分类检索工具：[视频模板分类检索入口](../../../../apps/server/src/agent/videoPrompt/templates/index.ts)；[知识数据与排序](../../../../apps/server/src/agent/creativeKnowledge/index.ts)
-- 自动测试：[index.test.ts](../../../../apps/server/src/agent/creativeKnowledge/index.test.ts)
+- 网络热梗：`apps/server/src/agent/creativeKnowledge/memesCN.ts`
+- 搞怪剧情：`apps/server/src/agent/creativeKnowledge/absurdPrompts.ts`
+- 表情模板：`apps/server/src/agent/creativeKnowledge/expressionTemplates.ts`
+- 画风和滤镜：`apps/server/src/agent/creativeKnowledge/visualStyles.ts`
+- 分类索引：`apps/server/src/agent/creativeKnowledge/index.ts`
+- 唯一 Agent 工具：`apps/server/src/agent/videoPrompt/templates/index.ts`
+- 测试：`apps/server/src/agent/creativeKnowledge/index.test.ts`
 
-修改数据时确认每条稳定 ID 与来源，不删除仍被生产记录引用的 ID。运行 `bun test src/agent/creativeKnowledge/index.test.ts`（工作目录 `apps/server`）及 GitHub CI 验证。
+新增词条时给出可核实来源与日期，不因维护知识库而新增直接生成工具、侵入原有视频模板库，或重复造搜索模块。

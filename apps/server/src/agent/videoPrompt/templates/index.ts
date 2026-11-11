@@ -45,7 +45,7 @@ const searchParameters = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("listCreativeTags") }),
   z.strictObject({
     action: z.literal("searchCreative"),
-    library: z.enum(["memes", "absurd", "all"]).default("all"),
+    library: z.enum(["memes", "absurd", "expressions", "styles", "all"]).default("all"),
     query: z.string().trim().max(200).default(""),
     tags: z.array(z.string().trim().min(1).max(24)).max(8).default([]),
     limit: z.number().int().min(1).max(10).default(5),
@@ -62,8 +62,8 @@ export function createVideoTemplateSearchTool(): ToolDefinition {
   return {
     name: "searchVideoPromptTemplates",
     label: "分类检索：导演模板与创作知识库",
-    description: "统一分类检索入口：listTags/search 保留原有视频导演模板功能；listCreativeTags/searchCreative 按标签/关键词检索2026年有日期来源的中国网络热梗与原创抽象搞怪图像/视频构思。只返回匹配项，不会生成或改变画布。",
-    promptSnippet: "用户要求抽象、玩梗、无厘头、搞怪或原剧情为喜剧时，优先用本工具 listCreativeTags/searchCreative 按需查少量条目；严肃剧情不强制加梗。2026热梗为有日期的来源样本，不是全网实时热度。",
+    description: "统一分类检索：listTags/search 保留导演模板；listCreativeTags/searchCreative 检索2026有来源网络热梗、原创搞怪、人物表情（常规/搞怪/极夸张/抽象）、画风和滤镜。只读，按需返回少量结果，不执行生成或后期处理。",
+    promptSnippet: "写表情/颜艺、画风或滤镜时可用 searchCreative 查询 expressions/styles；喜剧/玩梗时查 memes/absurd。优先复用已定角色与镜头约束，少量检索后改写，不在严肃剧情自动加梗；知识库不会自动出图或执行滤镜。",
     parameters: z.toJSONSchema(searchParameters, { io: "input", target: "draft-07" }),
     async execute(_id, args, signal) {
       signal?.throwIfAborted();
@@ -75,7 +75,7 @@ export function createVideoTemplateSearchTool(): ToolDefinition {
           : input.action === "searchCreative"
             ? {
               matches: searchCreativeKnowledge(input),
-              notice: "仅保留2026年有日期的来源/快照，不能宣称全网实时热门；抽象模板需改写为当前工作流格式并按画布节点执行。",
+              notice: "热梗为2026有日期记录而非实时全网排名；表情/画风/滤镜只是可组合提示词，不能改变已有角色身份或代替真实滤镜处理；最终仍须按当前工作流审核并通过画布节点执行。",
             }
             : { templates: findVideoPromptTemplates(input.tags, input.conditions, input.limit) };
       return { details, content: [{ type: "text", text: JSON.stringify(details) }] };

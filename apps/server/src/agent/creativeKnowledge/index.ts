@@ -107,16 +107,20 @@ export type CreativeSelection = {
   absurdId?: string;
   memeId?: string;
 };
+export const creativeTones = ["neutral", "serious", "comedy"] as const;
+
 export type CreativeSelectionOptions = {
   selected: CreativeSelection;
   medium: "image" | "video";
-  tone: "neutral" | "serious" | "comedy";
+  tone?: (typeof creativeTones)[number];
   durationSeconds?: number;
+  singleShot?: boolean;
 };
 
 /** 只读检查已选模板，发现冲突时要求 Agent 做取舍，不进行 AI 生成或自动修改合同。 */
 export function checkCreativeSelection(options: CreativeSelectionOptions) {
   const { selected } = options;
+  const video = options.medium === "video";
   const errors: string[] = [], warnings: string[] = [];
   function pick<T extends { id: string }>(id: string | undefined, items: readonly T[], slot: string): T | undefined {
     if (!id) return undefined;
@@ -131,11 +135,13 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
   const absurd = pick(selected.absurdId,absurdPrompts,"absurdId");
   const meme = pick(selected.memeId,memesCN,"memeId");
 
-  if (narrative && options.medium === "video" && options.durationSeconds !== undefined && narrative.minSeconds > options.durationSeconds) {
-    warnings.push(`「${narrative.title}」至少按${narrative.minSeconds}s规划；当前${options.durationSeconds}s无法容纳完整结构，应拆分镜头或改用单镜模板，不可删情节。`);
+  // 分镜规划允许参考场次结构，进入单镜制作后按实际工作流时长拒绝不适用的模板。
+  const narrativeIssues = options.singleShot ? errors : warnings;
+  if (narrative && video && options.durationSeconds !== undefined && narrative.minSeconds > options.durationSeconds) {
+    narrativeIssues.push(`「${narrative.title}」至少按${narrative.minSeconds}s规划；当前${options.durationSeconds}s无法容纳完整结构，应拆分镜头或改用单镜模板，不可删情节。`);
   }
-  if (narrative?.scope === "scene" && options.medium === "video") {
-    warnings.push(`「${narrative.title}」是多镜场次结构，不得作为单个 H3 连续镜头直接执行。`);
+  if (narrative?.scope === "scene" && video) {
+    narrativeIssues.push(`「${narrative.title}」是多镜场次结构，不得作为单个 H3 连续镜头直接执行。`);
   }
   if (expression?.category === "extreme" && style?.group === "影视写实") {
     warnings.push("写实主画风与极夸张颜艺需收束到可见的眉眼嘴和身体反应，不应使脸型、骨骼或身份突变。");
@@ -146,17 +152,37 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
   if (filter && !style) warnings.push("只选择滤镜而无项目已批准主画风；保留项目原画风，不从滤镜推断新人物造型。");
   if (meme) warnings.push("热梗仅作文化参考：保留来源/日期，避免原录音、未授权IP形象和对真实人物的攻击。");
 
+  const visualSummary = (item: (typeof visualStyles)[number] | undefined) => item && {
+    slot: item.category, id: item.id, title: item.title,
+    look: video ? item.videoPrompt : item.imagePrompt, avoid: item.avoid,
+  };
   return {
     status: errors.length ? "invalid" : warnings.length ? "review" : "ok",
-    errors,warnings,
+    errors, warnings,
     selected: [
-      narrative && {slot:"narrative",id:narrative.id,title:narrative.title,scope:narrative.scope,visibleResult:narrative.visibleResult,verify:narrative.verify},
-      expression && {slot:"expression",id:expression.id,title:expression.title,face:expression.face,gesture:expression.gesture},
-      style && {slot:"style",id:style.id,title:style.title,look:style.imagePrompt},
-      filter && {slot:"filter",id:filter.id,title:filter.title,look:filter.imagePrompt},
-      absurd && {slot:"absurd",id:absurd.id,title:absurd.title,jokeMechanism:absurd.jokeMechanism},
-      meme && {slot:"meme",id:meme.id,title:meme.phrase,sourceUrl:meme.sourceUrl,avoid:meme.avoid},
+      narrative && {
+        slot: "narrative", id: narrative.id, title: narrative.title, scope: narrative.scope,
+        purpose: narrative.purpose, setup: narrative.setup, escalation: narrative.escalation,
+        visibleResult: narrative.visibleResult, shotGuidance: narrative.shotGuidance, verify: narrative.verify, avoid: narrative.avoid,
+      },
+      expression && {
+        slot: "expression", id: expression.id, title: expression.title,
+        face: expression.face, gesture: expression.gesture, avoid: expression.avoid,
+        ...(video ? { videoBeat: expression.videoBeat, camera: expression.camera, continuity: expression.continuity }
+          : { imagePrompt: expression.imagePrompt }),
+      },
+      visualSummary(style),
+      visualSummary(filter),
+      absurd && {
+        slot: "absurd", id: absurd.id, title: absurd.title, jokeMechanism: absurd.jokeMechanism, avoid: absurd.avoid,
+        ...(video ? { videoBeat: absurd.videoBeat, camera: absurd.camera, continuity: absurd.continuity }
+          : { imagePrompt: absurd.imagePrompt }),
+      },
+      meme && {
+        slot: "meme", id: meme.id, title: meme.phrase, sourceUrl: meme.sourceUrl, observedAt: meme.observedAt,
+        meaning: meme.meaning, usage: meme.usage, avoid: meme.avoid,
+      },
     ].filter(Boolean),
-    guidance: "先遵守剧本合同、已批准的主画风和参考图；用少量可观察的动作/表情/构图信息重写，不直接拼接模板全文。视频每次只有一个连续镜头，最终提示词交由 H3 专用流程与独立审核生成。",
+    guidance: "先遵守剧本合同、已批准的主画风和参考图；用少量可观察的动作、表情和构图信息重写，不直接拼接模板全文。视频每次只有一个连续镜头，最终提示词按 H3 专用流程制作并审核。",
   };
 }

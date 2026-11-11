@@ -29,8 +29,8 @@ searchVideoPromptTemplates({ action:"search", tags:{scene:["机械变形"]}, lim
 searchVideoPromptTemplates({ action:"searchCreative", library:"memes", query:"我超威", limit:2 })
 searchVideoPromptTemplates({ action:"searchCreative", library:"memes", query:"我 Chovy", limit:2 })
 searchVideoPromptTemplates({ action:"searchCreative", library:"narrative", query:"机械展开", limit:2 })
-searchVideoPromptTemplates({ action:"searchCreative", library:"expressions", tags:["极夸张表情"], limit:2 })
-searchVideoPromptTemplates({ action:"searchCreative", library:"styles", tags:["滤镜"], query:"胶片", limit:2 })
+searchVideoPromptTemplates({ action:"searchCreative", library:"expressions", creativeTags:["极夸张表情"], limit:2 })
+searchVideoPromptTemplates({ action:"searchCreative", library:"styles", creativeTags:["滤镜"], query:"胶片", limit:2 })
 
 // 模板组合检查：不生成媒体；无权覆盖用户明确指令
 searchVideoPromptTemplates({
@@ -42,7 +42,7 @@ searchVideoPromptTemplates({
 
 ## 与 draftVideoPrompt 的直接衔接
 
-检索工具的 `searchCreative` 返回含稳定 `id` 的匹配模板，外层 Agent 只选择符合当前镜头的少量条目。**需要让视频导演实际借鉴已选创作模板时，在 `draftVideoPrompt` 中传 `creativeSelection` 对象（字段为模板 ID），而非重复粘贴模板全文。** 服务端据 ID 取知识库详情、检查冲突，并随镜头合同传给导演专职模型；未经检索不得猜 ID。导演工具内部还会自动使用原 `findVideoPromptTemplates` 候选，和新增创作模板互补。若无需相关模板，省略 `creativeSelection`。
+检索工具的 `searchCreative` 返回含稳定 `id` 的匹配模板，外层 Agent 只选择符合当前镜头的少量条目。内置 Agent 在 `draftVideoPrompt.creativeSelection` 传模板 ID，外部 Agent 在 `videoPrompt` 的 `prepare` 操作中传 `input.creativeSelection`。已确认的镜头基调填写在合同的 `tone` 字段。服务端据 ID 取视频摘要并检查冲突，内置导演直接收到摘要，外部 Agent 从 `prepare` 的 `creativeTemplates` 读取摘要。多镜模板留在分镜规划阶段。导演工具内部还会自动使用原 `findVideoPromptTemplates` 候选。无需相关模板时省略 `creativeSelection`。
 
 ```ts
 // 检索只发生一次，返回的 id 分别为 e02、s01

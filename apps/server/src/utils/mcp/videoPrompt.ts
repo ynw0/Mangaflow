@@ -33,6 +33,7 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
     await mkdir(root, { recursive: true });
     await writeAtomic(join(root, `${preparationId}.json`), JSON.stringify({ directory, input: input.input, expires, prepared }), { exclusive: true, mode: 0o600 });
     return { preparationId, expires, shot: prepared.shot, format: prepared.format, workflow: prepared.setup,
+      creativeTemplates: prepared.creativeContext,
       expectedRevision: prepared.revision, reviewRequirements: getVideoPromptRequirements(prepared.shot),
       nextAction: "由当前外部 Agent 按 workflow、导演及 H3 技能编写中英文稿，调用 inspect 预检，再自行逐项审核并 submit；这些步骤不调用语言模型。" };
   }

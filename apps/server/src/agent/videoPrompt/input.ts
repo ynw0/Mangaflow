@@ -2,6 +2,7 @@ import { open, stat } from "@toonflow/file";
 import { z } from "zod";
 import type { CanvasContext, MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
+import { checkCreativeSelection, creativeTones } from "@/agent/creativeKnowledge";
 import { templateConditions, templateTagSchema } from "@/agent/videoPrompt/templates/schema";
 import { findWorkflow, imageReferenceRange, toMediaModel } from "@/utils/production/catalog";
 import { isWorkflowEnabled, readProduction } from "@/utils/production/config";
@@ -39,6 +40,7 @@ const shotFields = {
   mustHave: requirements.describe("必须出现的剧情事实，逐条填写字符串数组；无内容传 []，不能传字符串"),
   mustNotHave: requirements.describe("禁止出现的事实，逐条填写字符串数组；无内容传 []"),
   intent: z.enum(["dialogue", "action", "effects", "mechanical", "reveal", "environment"]),
+  tone: z.enum(creativeTones).optional().describe("镜头合同中已确认的基调，用于核对所选创作模板"),
   adjacentShots: z.string().trim().max(6000).optional(),
   regenerate: z.boolean().optional().describe("明确要求重新创作时传 true；省略则相同已审镜头直接复用审核结果"),
   templateTags: templateTagSchema.optional(),
@@ -153,6 +155,12 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
     || (requestedSampling.loraName !== undefined && !model.lora))) {
     throw new Error(`字段 sampling=${JSON.stringify(requestedSampling)} 不受工作流 ${workflow.id} 支持。实际采样能力：${JSON.stringify(spec ?? null)}。请重新核对模型能力。`);
   }
+  // 内置导演和外部 MCP 均按同一镜头合同检查模板，再读取参考素材。
+  const selection = selectedCreative && checkCreativeSelection({
+    selected: selectedCreative, medium: "video", tone: shot.tone, durationSeconds: seconds, singleShot: true,
+  });
+  if (selection?.status === "invalid") throw new Error(`创作模板无法用于当前单镜：${selection.errors.join("；")}`);
+  const creativeContext = selection && { selected: selection.selected, warnings: selection.warnings, guidance: selection.guidance };
   const approved = await Promise.all(references.map(async item => {
     signal?.throwIfAborted();
     const target = await resolveWorkspacePath(cwd, item.path);
@@ -198,7 +206,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   const snapshot = await captureVideoReview(cwd, effective, signal);
   const numbered = (items: typeof approved, name: string) => items.map((item, index) => ({ ...item, label: `<${name} ${index + 1}>` }));
   return {
-    shot, format, revision: current?.revision, templateTags, templateConditions, selectedCreative, generationRequest, snapshot,
+    shot, format, revision: current?.revision, templateTags, templateConditions, creativeContext, generationRequest, snapshot,
     setup: {
       modelId: workflow.id, duration: seconds, ratio: aspect, mode: current?.config.mode ?? format,
       host: production.videoHost, config: current?.config, usage: workflow.bindings.usage,

@@ -4,7 +4,6 @@ import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import { z } from "zod";
 import { addUsage, emptyUsage, runSubAgent, type SubAgentModel } from "@/agent/runtime/subAgent";
 import { prepareVideoPrompt, videoPromptParameters, videoPromptToolSchema } from "@/agent/videoPrompt/input";
-import { checkCreativeSelection } from "@/agent/creativeKnowledge";
 import { createReviewSchema, draftSchema, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
@@ -71,25 +70,14 @@ export function createVideoPromptTool(options: SubAgentModel & {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
     description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。相同镜头合同和模板不变时优先复用已审稿，重写才传 regenerate=true。",
-    promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。数组写真实 []，duration 填数字；已有画布节点只传 node，新镜头必须传 duration 和 ratio。先 searchVideoPromptTemplates 检索所需模板，选中的 ID 通过 creativeSelection 传入；合同与素材未变不用反复重做。",
+    promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。数组写真实 []，duration 填数字；已有画布节点只传 node，新镜头必须传 duration 和 ratio。先 searchVideoPromptTemplates 检索所需模板，选中的 ID 通过 creativeSelection 传入，已确认的镜头基调填入 tone；合同与素材未变不用反复重做。",
     parameters: { type: "object", ...videoPromptToolSchema },
     executionMode: "sequential",
     async execute(_id, params, signal, onUpdate, ctx) {
       const startedAt = performance.now();
       const input = videoPromptParameters.parse(params);
       const prepared = await prepareVideoPrompt(cwd, input, canvas, signal);
-      // 只使用外层 Agent 明确选定的模板 ID，不把整个知识库灌入导演模型。
-      const selectedCreative = prepared.selectedCreative
-        ? checkCreativeSelection({ selected: prepared.selectedCreative, medium: "video",
-          tone: "neutral", durationSeconds: prepared.setup.duration })
-        : undefined;
-      if (selectedCreative?.status === "invalid") {
-        throw new Error(`创作模板选择无效：${selectedCreative.errors.join("；")}；请重新检索可用模板 ID`);
-      }
-      const creativeContext = selectedCreative
-        ? { selected: selectedCreative.selected, warnings: selectedCreative.warnings,
-          guidance: selectedCreative.guidance }
-        : undefined;
+      const { creativeContext } = prepared;
       const tags = { scene: scenesByIntent[input.intent], ...prepared.templateTags };
       const candidates = findVideoPromptTemplates(tags, {
         ...prepared.templateConditions,

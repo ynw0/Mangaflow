@@ -7,6 +7,7 @@ import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import type { McpTool } from "@toonflow/mcp";
 import { createAgentTools } from "@/agent/tools";
 import { run as runAgent } from "@/agent";
+import { videoTemplateSearch } from "@/agent/videoPrompt/templates";
 import conf from "@/utils/conf";
 import { callControl, getConnection, listConnections } from "@/utils/mcp/control";
 import { appOperations, runAppOperation } from "@/utils/mcp/operations";
@@ -144,7 +145,9 @@ export async function getMcpTools(): Promise<McpTool[]> {
       return getMcpTask(directory!, taskSchema.parse(args).taskId, cancel);
     }));
   }
-  tools.push(wrapTool("videoPrompt", "外部 Agent 直接完成 H3 提示词：prepare 获取合同、真实配置、素材版本及验收要求；inspect 程序预检；submit 提交当前外部 Agent 的逐项审核证据并取得 reviewId/generationRequest。三个操作均不调用语言模型、不生成媒体、不写节点。仍需按 workflow 读取导演和 H3 技能；生成前另核对用户算力授权。",
+  tools.push(wrapTool(videoTemplateSearch.name, videoTemplateSearch.description, videoTemplateSearch.parameters,
+    async (args, _target, signal) => videoTemplateSearch.execute(args, signal)));
+  tools.push(wrapTool("videoPrompt", "外部 Agent 直接完成 H3 提示词：prepare 获取合同、真实配置、素材版本及验收要求；可在 input.creativeSelection 传 searchVideoPromptTemplates 返回的模板 ID，prepare 返回适用的视频摘要；inspect 程序预检；submit 提交当前外部 Agent 的逐项审核证据并取得 reviewId/generationRequest。三个操作均不调用语言模型、不生成媒体、不写节点。仍需按 workflow 读取导演和 H3 技能；生成前另核对用户算力授权。",
     z.toJSONSchema(videoPromptSchema), async (args, target, signal) => {
       const { directory, connection } = await resolveTarget(target);
       const canvas: CanvasContext | undefined = connection ? { id: connection.state.canvasId ?? "mcp", tools: connection.state.tools,

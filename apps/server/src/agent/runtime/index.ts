@@ -27,7 +27,7 @@ import { createReportTool } from "@/agent/tools/report";
 import { runDelegatedAgent } from "@/agent/runtime/delegation";
 import {
   agentAttachmentsSchema, getActiveAgentSession, getAgentStats, getParentSessionFile, getSubAgentInfo,
-  getToolResultText, goalContinueMark, hasPendingAgentQuestion, registerAgentSession, updateSubAgent,
+  getToolResultText, goalContinueMark, registerAgentSession, updateSubAgent,
   type ActiveAgentSession,
 } from "@/agent/runtime/sessions";
 import { isMemoryEnabled } from "@/utils/personalization";
@@ -157,12 +157,10 @@ export async function run(
   if (active && delivery === "restart") {
     await active.abort();
     signal?.throwIfAborted();
-  } else if (active && hasPendingAgentQuestion(active)) {
-    // ACT: 新消息结束旧提问，必须等旧执行释放文件锁后再继续，避免并发写入同一会话。
-    await active.abort();
-    signal?.throwIfAborted();
   } else if (active) {
-    throw Object.assign(new Error("对话正在运行，请等待回复完成"), { status: 409 });
+    // 常规发消息不能再隐式终止正在等待工具/提问/视频生成的会话。
+    // 中途引导统一走 /api/agent/steer，复用原 SDK owner 而不是创建第二个运行器。
+    throw Object.assign(new Error("对话正在运行；请使用引导消息，不会取消当前任务"), { status: 409 });
   }
   const { provider, runtime } = await createAgentModel(providerId, modelId, thinkingLevel);
   if (sessionPath) {

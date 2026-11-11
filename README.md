@@ -15,6 +15,8 @@
 | 图片生成与复用 | 通过所配置的图片生成工作流出图；保存提示词、参数及图像节点输出。已采用素材可固定为图片节点供后续镜头连接 |
 | 视频生成 | 通过配置的 ComfyUI 工作流生成连续镜头，支持实际工作流允许的参考、时长、二采、LoRA 与超分参数 |
 | 视频提示词制作 | H3 Ref2VA 等工作流的镜头提示词生成、审核、版本核对、参考顺序与中文对照 |
+| 中国网络热梗知识库 | 按来源日期与场景检索中国网络热梗；区分 2026 年 11 月站点关注快照与 2025 年度回顾，不冒充全网实时榜 |
+| 抽象搞怪创作库 | 20 套原创荒诞喜剧图像/单镜头视频构思，附笑点机制、机位、动作和连续性检查 |
 | 质检与整改 | 视频 QC 输出问题/证据，主 Agent 据此制定覆盖问题编号的整改计划；计划本身不等于自动重生成 |
 | 可配置的多模型 Agent | 主 Agent 与角色、场景、道具等专业子 Agent 可分别指定对话模型、思考等级；模型支持的思考档位可在设置中主动探测 |
 | 运行中引导 | 当前任务执行时可补充文字要求，加入同一 Agent 会话；不因为普通补充消息就取消已提交的生成任务 |
@@ -65,6 +67,28 @@ MangaFlow 的生产指令应当落实到**可编辑、可继续使用的画布�
 
 > 每个视频生成节点只负责一个连续摄影镜头。不得为了生成方便把多个镜头硬切塞进一个节点；没有就绪参考素材时不虚构连线。
 
+## 创作知识库：中国网络热梗与抽象搞怪
+
+两套资料由主 Agent、角色/场景/道具等子 Agent 通过只读工具 **`searchCreativeKnowledge`** 按需检索；不把整个热梗库塞进系统提示词，避免消耗上下文及在严肃剧情中强行加梗。
+
+- **中国热梗库（24 条）**：提供词语/句式、观察日期、来源、含义、适用笑点与不适合的用法。2026 年条目来自截至 2026-11-10 的[梗百科站内访问样本](https://www.geng8.com/rank/month/2026-11/)；2025 年年度语汇参考公开年度名单，**均不是实时全网热度排行**。
+- **原创抽象搞怪提示词库（20 条）**：赛博生活、职场荒诞、动物拟人、机械反差、奇幻撞科技等；每条有 `imagePrompt`、`videoBeat`、`camera`、`continuity`、`jokeMechanism`，可改写成当前角色/场景的创作方案。
+- **触发条件**：只有用户要求热梗、沙雕、抽象、搞笑、反差，或已经确定的喜剧情节需要笑点时使用；严肃故事不默认植入。
+- **执行边界**：知识库只是创意检索，不提交图片或视频任务；经过角色设定、镜头合同和必要审核后，仍在画布节点中填提示词、连线和生成。H3 视频提示词必须重新适配其专用格式与连续镜头规范。
+- **版本与更新**：初始快照日期 **2026-11-11**，目前是离线内置库，**不会自动联网爬取或每天自动更新**。补充热梗必须保留来源及观察时间，不能把旧词直接标记为最新。
+
+示例：
+
+```text
+“给飞行汽车加一点反差萌，但不要改变机械结构。”
+→ searchCreativeKnowledge：检索“飞行”“机械”“反差”
+→ 取 1 条喜剧机制，融入本次已批准的角色与场景
+→ 画布图片/视频生成节点设置经审核的提示词
+→ 检查真实参考与连接，获得算力许可后生成
+```
+
+维护：[热梗数据](apps/server/src/agent/creativeKnowledge/memesCN.ts) · [搞怪提示词](apps/server/src/agent/creativeKnowledge/absurdPrompts.ts) · [检索接口](apps/server/src/agent/creativeKnowledge/index.ts) · [创作知识库使用规范](packages/skills/workflow/references/creativeKnowledge.md)。
+
 ## 安装与使用
 
 1. 从 [Releases](https://github.com/ynw0/Mangaflow/releases/latest) 下载当前发布的 `mangaflow-<版本>-Setup.exe`，在 Windows 安装。
@@ -93,6 +117,7 @@ apps/
   web/                  画布与 Agent 对话界面
   server/
     src/agent/           主 Agent、子 Agent、生产工具与画布桥接
+    src/agent/creativeKnowledge/ 热梗与抽象搞怪知识库及只读检索
     src/utils/production/ 视频 QC、生成记录与结果
 packages/
   nodes/                图片、视频、文本等画布节点
@@ -122,7 +147,7 @@ bun run typecheck
 # Windows 客户端打包使用 GitHub Actions 的 Windows Release 工作流
 ```
 
-关键回归测试：[画布优先媒体路由](apps/server/src/agent/runtime/canvasMediaRouting.test.ts) 验证普通制作、继续制作、聊天明确直出、拒绝误判、子 Agent 权限及画布缺失等情况。发布前应核对 [GitHub Actions](https://github.com/ynw0/Mangaflow/actions) 的检查结果；类型与单元测试通过不等于已在本机 ComfyUI 完成端到端生成测试。
+关键回归测试：[画布优先媒体路由](apps/server/src/agent/runtime/canvasMediaRouting.test.ts) 验证普通制作、继续制作、聊天明确直出、拒绝误判、子 Agent 权限及画布缺失等情况。 [创作知识库回归测试](apps/server/src/agent/creativeKnowledge/index.test.ts) 验证来源、日期、检索范围及模板连续性。发布前应核对 [GitHub Actions](https://github.com/ynw0/Mangaflow/actions) 的检查结果；类型与单元测试通过不等于已在本机 ComfyUI 完成端到端生成测试。
 
 ## 版本及与上游的关系
 

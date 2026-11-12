@@ -144,9 +144,13 @@ export default function createWindowsUpdater(resourcesDirectory: string, lifecyc
     return localInfo;
   }
 
-  function artifactUrl(fileName: string) {
+  function artifactUrl(fileName: string, version?: string) {
     const baseUrl = new URL(localInfo.baseUrl.endsWith("/") ? localInfo.baseUrl : `${localInfo.baseUrl}/`);
     if (!["http:", "https:"].includes(baseUrl.protocol)) throw new Error(t`更新地址无效`);
+    // 清单由 latest 发现，更新资产绑定已检查的 Release。
+    if (version && baseUrl.origin === "https://github.com" && baseUrl.pathname.toLowerCase() === "/ynw0/mangaflow/releases/latest/download/") {
+      baseUrl.pathname = `/ynw0/Mangaflow/releases/download/v${version}/`;
+    }
     const url = new URL(fileName, baseUrl);
     url.searchParams.set("transaction", randomUUID());
     return url;
@@ -199,11 +203,11 @@ export default function createWindowsUpdater(resourcesDirectory: string, lifecyc
     return info;
   }
 
-  async function download(fileName: string, path: string) {
+  async function download(fileName: string, path: string, version: string) {
     const signal = AbortSignal.timeout(15 * 60_000);
     const progress: NonNullable<updateSnapshot["updateProgress"]> = { phase: "downloading", received: 0 };
     updateProgress = progress;
-    const response = await fetch(artifactUrl(fileName), { signal });
+    const response = await fetch(artifactUrl(fileName, version), { signal });
     if (!response.ok) throw new Error(t`下载更新失败：HTTP ${response.status}`);
     if (!response.body) throw new Error(t`下载更新失败：响应为空`);
     const contentLength = response.headers.get("content-length");
@@ -245,7 +249,7 @@ export default function createWindowsUpdater(resourcesDirectory: string, lifecyc
         // ACT: 最多追溯 8 跳；更老的安装直接使用全量包，避免无限补丁链。
         for (let count = 0; currentHash !== target.hash && count < 8; count++) {
           const patchPath = temporaryFile(".patch");
-          await download(`${localInfo.channel}-win-x64-${currentHash}.patch`, patchPath);
+          await download(`${localInfo.channel}-win-x64-${currentHash}.patch`, patchPath, target.version);
           const outputPath = temporaryFile(".tar");
           await execFileAsync(join(installDirectory, "app/bin/bspatch.exe"), [archivePath, outputPath, patchPath], { windowsHide: true, timeout: 10 * 60_000 });
           const info = await readArchiveInfo(outputPath);
@@ -258,7 +262,7 @@ export default function createWindowsUpdater(resourcesDirectory: string, lifecyc
       } catch (error) { console.warn("增量更新不可用，改用完整更新包：", error instanceof Error ? error.message : error); }
       if (!usedPatch) {
         const compressedPath = temporaryFile(".tar.zst");
-        await download(target.artifact.file, compressedPath);
+        await download(target.artifact.file, compressedPath, target.version);
         archivePath = temporaryFile(".tar");
         await execFileAsync(join(installDirectory, "app/bin/zig-zstd.exe"), ["decompress", "-i", compressedPath, "-o", archivePath, "--no-timing"], { windowsHide: true, timeout: 10 * 60_000 });
       }

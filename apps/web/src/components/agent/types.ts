@@ -38,4 +38,5 @@ export type AgentConversation = {
   subAgents?: AgentSubAgent[];
   specialist?: boolean;
   running?: boolean;
+  runId?: string;
 };

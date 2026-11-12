@@ -26,6 +26,7 @@ export const agentAttachmentsSchema = z
   .max(20);
 
 export type ActiveAgentSession = {
+  runId: string;
   history: SessionManager; session?: AgentSession; send: (event: AgentEvent) => void;
   entryOffset: number; tools: Map<string, AgentToolCall>;
   /** 同一 in-flight 请求只投递一次，旧任务不可被引导请求取消。 */
@@ -49,10 +50,13 @@ export function getActiveAgentSession(path: string) {
 
 // 新引导消息直接进入正在运行的 SDK 会话，保持唯一 owner / 原 SSE / 工具队列。
 // 不打开第二个 Agent，不拿会话文件锁，不发送 abort；无 active 时明确要求重新发起普通消息。
-export async function steerActiveAgentSession(path: string, input: { prompt: string; requestId: string }) {
+export async function steerActiveAgentSession(path: string, input: { prompt: string; requestId: string; runId: string }) {
   const active = getActiveAgentSession(path);
   if (!active) {
     throw Object.assign(new Error("当前对话未运行，请作为普通消息发送"), { status: 409 });
+  }
+  if (active.runId !== input.runId) {
+    throw Object.assign(new Error("目标运行已结束，请重新确认要引导的任务"), { status: 409 });
   }
   const queued = await enqueueAgentGuidance(active.session, active.steeringRequests, input);
   return { ...queued, waitingForAnswer: hasPendingAgentQuestion(active) };
@@ -418,6 +422,7 @@ export async function getAgentSession(cwd: string, path: string) {
     specialist: getSubAgentInfo(history)?.data.specialist,
     subAgents: [...subAgents.values()],
     running: Boolean(active),
+    runId: active?.runId,
   };
 }
 

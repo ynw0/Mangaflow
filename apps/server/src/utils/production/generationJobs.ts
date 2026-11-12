@@ -190,8 +190,9 @@ export async function runGenerationJob(options: RunOptions) {
       await saveJob(job, true);
     }
     const persist = async (phase: Phase, patch: Partial<Job> = {}) => {
-      Object.assign(job!, patch, { phase });
-      await saveJob(job!);
+      const next = { ...job!, ...patch, phase };
+      await saveJob(next);
+      job = next;
     };
     try {
       if (job.phase === "completed") {
@@ -208,7 +209,15 @@ export async function runGenerationJob(options: RunOptions) {
       if (job.phase !== "saved") {
         const output = await options.generate({
           signal: controller.signal, resume: job.phase === "submitted" ? execution : undefined,
-          submitting: submission => persist("submitting", { submission }),
+          submitting: async submission => {
+            controller.signal.throwIfAborted();
+            await persist("submitting", { submission });
+            if (controller.signal.aborted) {
+              // 本地落盘期间被取消，远端提交尚未开始。
+              await persist("preparing", { submission: undefined });
+              controller.signal.throwIfAborted();
+            }
+          },
           submitted: item => persist("submitted", { execution: item }),
         });
         controller.signal.throwIfAborted();

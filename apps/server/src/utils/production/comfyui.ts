@@ -14,16 +14,22 @@ function rootOf(baseUrl: string) {
   return value;
 }
 
-async function comfyFetch(baseUrl: string, path: string, init: RequestInit, signal?: AbortSignal) {
+async function comfyFetch(baseUrl: string, path: string, init: RequestInit, signal?: AbortSignal, beforeRequest?: () => Promise<void>) {
   const root = rootOf(baseUrl);
   const paths = path.startsWith("/api/") ? [path] : [path, `/api${path}`];
   let last = "ComfyUI 没有响应";
   for (const item of paths) {
     signal?.throwIfAborted();
+    if (beforeRequest) {
+      await beforeRequest();
+      beforeRequest = undefined;
+    }
     let response: Response;
     try {
       response = await fetch(`${root}${item}`, { ...init, signal });
     } catch (error) {
+      // 提交结果未知时交给任务对账，换路径再提交可能重复排队。
+      if (path === "/prompt" && init.method === "POST") throw error;
       last = error instanceof Error ? error.message : last;
       continue;
     }
@@ -33,13 +39,21 @@ async function comfyFetch(baseUrl: string, path: string, init: RequestInit, sign
     }
     return response;
   }
-  fail(`ComfyUI 请求失败 ${path}: ${last}`, 502);
+  fail(`ComfyUI 主机 ${new URL(root).host} 请求失败 ${path}：${last}`, 502);
 }
 
 export async function probeComfy(baseUrl: string, signal?: AbortSignal) {
-  const response = await comfyFetch(baseUrl, "/system_stats", { method: "GET" }, signal ?? AbortSignal.timeout(5000));
-  if (!response.ok) fail(`ComfyUI 未就绪：HTTP ${response.status}`, 502);
-  return { ok: true as const, baseUrl: rootOf(baseUrl) };
+  const root = rootOf(baseUrl);
+  const host = new URL(root).host;
+  const probeSignal = signal ?? AbortSignal.timeout(5000);
+  const response = await comfyFetch(root, "/system_stats", { method: "GET" }, probeSignal);
+  if (!response.ok) fail(`ComfyUI 主机 ${host} 未就绪：/system_stats 返回 HTTP ${response.status}`, 502);
+  const data = await response.json().catch(() => undefined) as { system?: unknown; devices?: unknown } | undefined;
+  probeSignal.throwIfAborted();
+  if (!data?.system || typeof data.system !== "object" || !Array.isArray(data.devices)) {
+    fail(`主机 ${host} 的 /system_stats 未返回 ComfyUI 状态，请核对服务地址和代理端口`, 502);
+  }
+  return { ok: true as const, baseUrl: root };
 }
 
 export async function uploadInput(baseUrl: string, filePath: string, subfolder: string, signal?: AbortSignal, verifiedBytes?: Uint8Array<ArrayBuffer>) {
@@ -172,9 +186,13 @@ export async function freeComfyMemory(baseUrl: string) {
 
 async function readNodeInput(baseUrl: string, classType: string, inputName: string, signal?: AbortSignal) {
   const response = await comfyFetch(baseUrl, `/object_info/${encodeURIComponent(classType)}`, { method: "GET" }, signal);
-  if (!response.ok) fail(`无法读取 ComfyUI 节点 ${classType}`, 502);
-  const data = await response.json() as Record<string, { input?: { required?: Record<string, unknown>; optional?: Record<string, unknown> } }>;
+  const host = new URL(rootOf(baseUrl)).host;
+  if (!response.ok) fail(`ComfyUI 主机 ${host} 无法读取节点 ${classType}：HTTP ${response.status}`, 502);
+  const data = await response.json().catch(() => undefined) as Record<string, { input?: { required?: Record<string, unknown>; optional?: Record<string, unknown> } }> | undefined;
+  signal?.throwIfAborted();
+  if (!data || typeof data !== "object" || Array.isArray(data)) fail(`ComfyUI 主机 ${host} 返回的节点定义无效：${classType}`, 502);
   const input = data[classType]?.input;
+  if (!input) fail(`ComfyUI 主机 ${host} 未公布节点 ${classType}`, 502);
   return input?.required?.[inputName] ?? input?.optional?.[inputName];
 }
 
@@ -283,12 +301,11 @@ export async function submitWorkflow(baseUrl: string, workflow: Record<string, u
   alignReferenceInputs(workflow);
   await alignModelNames(baseUrl, workflow, signal);
   // 模型匹配结束后才持久化 submitting，随后才可能发起远端 POST。
-  await options?.onSubmitting?.();
   const response = await comfyFetch(baseUrl, "/prompt", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt: workflow, client_id: options?.clientId ?? crypto.randomUUID() }),
-  }, signal);
+  }, signal, options?.onSubmitting);
   const data = await response.json().catch(() => undefined) as {
     prompt_id?: string;
     error?: { type?: unknown; message?: unknown; details?: unknown };

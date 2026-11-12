@@ -16,14 +16,30 @@ const usageSchema = z.strictObject({
   generationIds: z.array(z.string()),
 });
 
-export async function reserveMediaBudget(directory: string, mediaType: "image" | "video" | "audio", duration: number | undefined, signal?: AbortSignal, generationId?: string) {
+type MediaType = "image" | "video" | "audio";
+
+export function checkMediaBudget(directory: string, type: MediaType, duration: number | undefined, signal?: AbortSignal, generationId?: string) {
+  return useMediaBudget(directory, type, duration, signal, generationId, false);
+}
+
+export function reserveMediaBudget(directory: string, type: MediaType, duration: number | undefined, signal?: AbortSignal, generationId?: string,
+  beforeSubmit?: () => Promise<void>) {
+  return useMediaBudget(directory, type, duration, signal, generationId, true, beforeSubmit);
+}
+
+async function useMediaBudget(directory: string, type: MediaType, duration: number | undefined, signal: AbortSignal | undefined,
+  generationId: string | undefined, reserve: boolean, beforeSubmit?: () => Promise<void>) {
+  signal?.throwIfAborted();
   const limits = mediaBudgetSchema.parse(conf.get("settings.mediaBudget", {}));
-  if (limits.dailyRequests === undefined && limits.dailyVideoSeconds === undefined) return;
+  if (limits.dailyRequests === undefined && limits.dailyVideoSeconds === undefined) {
+    await beforeSubmit?.();
+    return;
+  }
   const workspace = process.platform === "win32" ? directory.toLowerCase() : directory;
   const workspaceKey = createHash("sha256").update(workspace).digest("hex");
   const path = join(dirname(conf.path), "mediaBudgets", workspaceKey + ".json");
   // 锁住整个额度事务，文件读写仍经由各自的文件队列。
-  await withFileAccess([path + ".lock"], "write", async () => {
+  await withFileAccess([path + ".lock"], reserve ? "write" : "read", async () => {
     const now = new Date();
     const date = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
     const text = await readFile(path, "utf8").catch((error: NodeJS.ErrnoException) => {
@@ -32,9 +48,12 @@ export async function reserveMediaBudget(directory: string, mediaType: "image" |
     });
     const previous = text === undefined ? undefined : usageSchema.parse(JSON.parse(text));
     const usage = previous?.date === date ? previous : { date, requests: 0, videoSeconds: 0, generationIds: [] };
-    if (generationId && usage.generationIds.includes(generationId)) return;
-    const seconds = mediaType === "video" && duration !== undefined ? Math.ceil(duration) : 0;
-    if (mediaType === "video" && limits.dailyVideoSeconds !== undefined && !seconds) {
+    if (generationId && usage.generationIds.includes(generationId)) {
+      await beforeSubmit?.();
+      return;
+    }
+    const seconds = type === "video" && duration !== undefined ? Math.ceil(duration) : 0;
+    if (type === "video" && limits.dailyVideoSeconds !== undefined && !seconds) {
       throw new Error("工作区设有视频总时长额度，请选择明确时长后生成");
     }
     if (limits.dailyRequests !== undefined && usage.requests >= limits.dailyRequests) {
@@ -43,11 +62,21 @@ export async function reserveMediaBudget(directory: string, mediaType: "image" |
     if (limits.dailyVideoSeconds !== undefined && seconds && usage.videoSeconds + seconds > limits.dailyVideoSeconds) {
       throw new Error(`本次视频超出工作区今日剩余额度 ${Math.max(0, limits.dailyVideoSeconds - usage.videoSeconds)} 秒`);
     }
+    if (!reserve) return;
     signal?.throwIfAborted();
+    const previousUsage = JSON.stringify(usage);
     usage.requests++;
     usage.videoSeconds += seconds;
     if (generationId) usage.generationIds.push(generationId);
     await mkdir(dirname(path), { recursive: true });
     await writeAtomic(path, JSON.stringify(usage), { mode: 0o600 });
+    try {
+      signal?.throwIfAborted();
+      await beforeSubmit?.();
+    } catch (error) {
+      // 远端请求尚未发出，持锁撤销本次扣减。
+      await writeAtomic(path, previousUsage, { mode: 0o600 });
+      throw error;
+    }
   }, signal);
 }

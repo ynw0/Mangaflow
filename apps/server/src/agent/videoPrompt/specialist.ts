@@ -25,7 +25,7 @@ export async function runVideoPromptSpecialist<T>(options: SubAgentModel & {
   const sendChild = (event: AgentEvent) => send({ type: "subAgentEvent", file: child.file, event });
   const release = lockWorkspaceFiles([path]);
   const unregister = registerAgentSession(path, {
-    history, entryOffset: history.getEntries().length, send: sendChild,
+    runId: crypto.randomUUID(), history, entryOffset: history.getEntries().length, send: sendChild,
     tools: new Map(), steeringRequests: new Map(),
     abort: () => { controller.abort(); return finished.promise; },
   });

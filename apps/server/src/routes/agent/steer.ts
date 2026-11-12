@@ -7,7 +7,8 @@ import u from "@/utils";
 
 const fields = {
   directory: z.string().trim().min(1).max(4096),
-  sessionFile: z.string().regex(/^[\\w-]+\\.jsonl$/),
+  sessionFile: z.string().regex(/^[\w-]+\.jsonl$/),
+  runId: z.uuid(),
   requestId: z.uuid(),
   prompt: z.string().trim().min(1).max(20000),
 };
@@ -15,11 +16,9 @@ const fields = {
 export default Router().post("/", validateFields(fields), async (req, res) => {
   u.mcpControl.assertAppRequest(req);
   try {
-    const { directory, sessionFile, requestId, prompt } = req.body as {
-      directory: string; sessionFile: string; requestId: string; prompt: string;
-    };
+    const { directory, sessionFile, runId, requestId, prompt } = req.body as z.infer<z.ZodObject<typeof fields>>;
     const { path } = await u.workspaceFile.resolveWorkspaceFile(req, directory, `.agent/sessions/${sessionFile}`);
-    const result = await u.agent.steerActiveAgentSession(path, { requestId, prompt });
+    const result = await u.agent.steerActiveAgentSession(path, { runId, requestId, prompt });
     res.set("Cache-Control", "no-store").json(success(result));
   } catch (cause) {
     const response = errorFromCause(cause);

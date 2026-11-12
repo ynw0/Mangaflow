@@ -254,6 +254,7 @@ const displayedMessages = computed(() => messages.value.filter(message => browse
   !message.parts?.length || message.parts.some(part => part.type !== "tool" || !isBrowserTool(part.tool))));
 const stream = createConversationStream(messages);
 const remoteRunning = ref(props.initialSession?.running ?? false);
+const activeRunId = ref(props.initialSession?.runId);
 const stats = ref(props.initialSession?.stats);
 const contextUsage = ref(props.initialSession?.contextUsage);
 const busy = ref(false);
@@ -463,7 +464,10 @@ function applyEvent(event: AgentEvent) {
       });
       break;
     case "compaction": compacting.value = event.active; break;
-    case "session": emit("session", event.file); break;
+    case "session":
+      activeRunId.value = event.runId;
+      emit("session", event.file);
+      break;
     case "stats": stats.value = event.stats; contextUsage.value = event.contextUsage; break;
     default: stream.receive(event);
   }
@@ -472,6 +476,7 @@ function applyEvent(event: AgentEvent) {
 function receiveEvent(event: AgentEvent) {
   if (event.type === "done" || event.type === "error") {
     remoteRunning.value = false;
+    activeRunId.value = undefined;
     compacting.value = false;
   } else if (["userMessage", "text", "thinking", "tool"].includes(event.type)) remoteRunning.value = true;
   applyEvent(event);
@@ -567,7 +572,8 @@ function submitMessage() {
 async function steerMessage() {
   const instance = sender;
   if (!instance || steering.value || !draftReady.value || composerLocked.value) return;
-  if (!props.sessionFile || !directory) {
+  const runId = activeRunId.value;
+  if (!props.sessionFile || !directory || !runId) {
     ElMessage.warning("会话正在初始化，当前不能接收引导；原任务仍在运行");
     return;
   }
@@ -595,7 +601,7 @@ async function steerMessage() {
     const response = await fetch("/api/agent/steer", {
       method: "POST",
       headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
-      body: JSON.stringify({ directory, sessionFile: props.sessionFile, requestId, prompt }),
+      body: JSON.stringify({ directory, sessionFile: props.sessionFile, runId, requestId, prompt }),
     });
     const result = await response.json().catch(() => null) as { code?: number; message?: string; data?: { waitingForAnswer?: boolean } } | null;
     if (!response.ok || result?.code !== 200) throw new Error(result?.message || `引导发送失败（HTTP ${response.status}）`);
@@ -899,7 +905,11 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
         body: JSON.stringify({ directory, callId, cancelled: true }), keepalive: true,
       }).catch(() => {});
     }
-    if (ownsStream && !forwarded) stream.finish();
+    if (ownsStream && !forwarded) {
+      activeRunId.value = undefined;
+      remoteRunning.value = false;
+      stream.finish();
+    }
     compacting.value = false;
     busy.value = false;
     if (controller === requestController) controller = undefined;

@@ -1,8 +1,7 @@
 import logger from "morgan";
 import express from "express";
-import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import { readFile } from "@toonflow/file";
+import { mkdir, readFile, writeAtomic } from "@toonflow/file";
 import type { Request, Response, NextFunction } from "express";
 import buildRoute from "@/core";
 import { errorFromCause } from "@/lib/responseFormat";
@@ -13,8 +12,6 @@ import syncBuiltinSkills from "@/utils/skills/builtin";
 import { languageRequest, resolveRequestLocale, runWithLocale, setLocaleFallback, translateError, translateMessage } from "@/lib/i18n";
 import { detectLocale, normalizeLocale } from "@toonflow/i18n";
 import { isPublicRequest, requireAccessToken } from "@/lib/accessToken";
-
-const autoInstallProviders = ["qwenImage.ts"];
 
 export async function createApp({
   webRoot,
@@ -51,22 +48,14 @@ export async function createApp({
     const { default: initializeExt } = await import("@/utils/plugins/initializeExt");
     await initializeExt(resolve(dataDirectory, "ext"), extRoot, pluginRevision);
   }
-  // ACT: 内置媒体供应商随构建同步，其他供应商文件和独立保存的配置保留。
+  // 供应商文件可由用户编辑，启动时仅安装缺失的内置副本。
   if (dataDirectory && providersRoot) {
-    const sourceDirectory = resolve(providersRoot, "media");
-    let providerRevision = pluginRevision;
-    if (providerRevision === undefined) {
-      const hash = createHash("sha256");
-      for (const name of autoInstallProviders) {
-        const source = await readFile(resolve(sourceDirectory, name)).catch((error: NodeJS.ErrnoException) => {
-          if (error.code === "ENOENT") return Buffer.alloc(0);
-          throw error;
-        });
-        hash.update(name).update("\0").update(source).update("\0");
-      }
-      providerRevision = hash.digest("hex");
-    }
-    await initializePlugins(resolve(dataDirectory, "providers"), sourceDirectory, autoInstallProviders, providerRevision);
+    const providersDirectory = resolve(dataDirectory, "providers");
+    const source = await readFile(resolve(providersRoot, "media", "qwenImage.ts"));
+    await mkdir(providersDirectory, { recursive: true });
+    await writeAtomic(resolve(providersDirectory, "qwenImage.ts"), source, { exclusive: true }).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== "EEXIST") throw error;
+    });
   }
   // 技能首次安装后，未改动的内置副本随模板覆盖；改过的留下待合并标记。
   if (dataDirectory && skillsRoot) {

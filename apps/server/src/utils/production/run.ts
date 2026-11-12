@@ -8,7 +8,7 @@ import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/p
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { captureVideoReview, requireVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
 import { validateH3Workflow } from "@/utils/production/h3Workflow";
-import { reserveMediaBudget } from "@/utils/media/budget";
+import { checkMediaBudget, reserveMediaBudget } from "@/utils/media/budget";
 
 type MediaRef = { path: string; mimeType?: string };
 
@@ -320,8 +320,9 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     ? await captureVideoReview(directory, prepared, signal) : undefined;
   if (snapshot) await requireVideoReview(request.reviewId, snapshot);
   const boundDuration = prepared.inputs.find(input => input.source === "duration")?.value;
-  await reserveMediaBudget(directory, mediaType, typeof boundDuration === "number" ? boundDuration : context.duration,
-    signal, mediaType === "video" ? request.generationId : undefined);
+  const duration = typeof boundDuration === "number" ? boundDuration : context.duration;
+  const generationId = mediaType === "video" ? request.generationId : undefined;
+  await checkMediaBudget(directory, mediaType, duration, signal, generationId);
   signal?.throwIfAborted();
   const baseUrl = await resolveComfyBaseUrl(signal, host);
   await probeComfy(baseUrl, signal);
@@ -351,7 +352,8 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   // 提交前存主机与真实采样参数，恢复只寻找同一 generationId 的远端任务。
   const promptId = await submitWorkflow(baseUrl, workflow, signal, {
     clientId: request.generationId,
-    onSubmitting: options.onSubmitting ? () => options.onSubmitting!(submission) : undefined,
+    onSubmitting: () => reserveMediaBudget(directory, mediaType, duration, signal, generationId,
+      options.onSubmitting ? () => options.onSubmitting!(submission) : undefined),
   });
   const execution: VideoExecution = { ...submission, promptId };
   await options.onSubmitted?.(execution);

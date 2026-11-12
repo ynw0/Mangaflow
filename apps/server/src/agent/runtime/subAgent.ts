@@ -102,14 +102,17 @@ export async function runSubAgent(options: SubAgentModel & {
       if (event.type === "tool_execution_start") onProgress?.(resultTool ? "正在校验提交结果" : `正在调用 ${event.toolName}`);
     });
     const request = resultTool
-      ? `任务：${name}。调用 ${resultTool.name} 一次提交符合字段定义的结果。\n\n${task}`
+      ? `任务：${name}。完成内部推理后，直接调用 ${resultTool.name} 一次提交符合字段定义的完整结果。正文、结论和证据全部写在工具参数中。\n\n${task}`
       : `你正在执行委派的独立子任务。仅处理下述任务，遵守系统中的授权与工作区规则。缺少信息或授权时，说明阻碍并交回调用方；若提供 requestInput 则使用它等待补充。最终返回简明结论、实际修改的文件相对路径、验证情况与未完成项；长篇产物写入已授权的工作区文件。\n\n${JSON.stringify({ name, task })}`;
     await session.prompt(request, { expandPromptTemplates: false });
     signal.throwIfAborted();
     const question = inputRequired?.();
     const reply = session.messages.findLast(message => message.role === "assistant");
     if (!reply || reply.role !== "assistant") throw new Error("子任务没有返回回复");
-    if (reply.stopReason === "error" || reply.stopReason === "aborted") throw new Error(reply.errorMessage || "子任务执行失败");
+    if (reply.stopReason === "error" || reply.stopReason === "aborted") {
+      const message = reply.errorMessage || "子任务执行失败";
+      throw new Error(resultTool ? `模型响应${reply.stopReason === "aborted" ? "已中断" : "失败"}：${message}` : message);
+    }
     if (resultTool) {
       if (reply.stopReason === "length") {
         result.status = "limited";
@@ -119,13 +122,13 @@ export async function runSubAgent(options: SubAgentModel & {
       const calls = reply.content.filter(part => part.type === "toolCall" && part.name === resultTool.name);
       const [call] = calls;
       if (calls.length !== 1 || call?.type !== "toolCall") {
-        throw new Error(calls.length ? "模型重复调用结果提交工具" : "模型未调用结果提交工具");
+        throw new Error(calls.length ? `模型重复调用 ${resultTool.name}` : `模型已结束回复，未调用 ${resultTool.name}`);
       }
       const submitted = session.messages.findLast(message => message.role === "toolResult" && message.toolCallId === call.id);
       if (!submitted || submitted.role !== "toolResult") throw new Error("结果提交未完成");
       if (submitted.isError) {
         const message = getToolResultText(submitted.content).split("\n\nReceived arguments:")[0]!;
-        throw new Error(message.slice(0, 900));
+        throw new Error(`${resultTool.name} 字段校验失败：${message.slice(0, 900)}`);
       }
       result.status = "completed";
       result.result = "结构化结果校验通过";

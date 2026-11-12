@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import conf from "conf";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync } from "@toonflow/file";
+import { existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from "@toonflow/file";
 import { join, resolve } from "node:path";
 import type { RemoteTeam } from "@/utils/teams";
 import type { A2aSettings } from "@/agent/a2a/settings";
@@ -107,18 +107,6 @@ function record(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-function installQwenImageProvider() {
-  const destination = join(configDirectory, "providers", "qwenImage.ts");
-  const source = [
-    resolve(import.meta.dirname, "../../../../../packages/providers/src/media/qwenImage.ts"),
-    resolve(import.meta.dirname, "../../../../packages/providers/src/media/qwenImage.ts"),
-  ].find(path => existsSync(path));
-  if (!source) return;
-  if (existsSync(destination) && readFileSync(destination, "utf8").includes("icon:")) return;
-  mkdirSync(join(configDirectory, "providers"), { recursive: true });
-  copyFileSync(source, destination);
-}
-
 function removeOfficialProviders() {
   const directory = join(configDirectory, "providers");
   for (const name of ["tfRouter.ts", "apiMart.ts", "metaso.ts", "compshare.ts"]) {
@@ -127,11 +115,12 @@ function removeOfficialProviders() {
   }
 }
 
-installQwenImageProvider();
 removeOfficialProviders();
 
 const settings = config.get("settings", {});
-if (removeLegacySettings(settings) || dropOfficialProviders(settings) || scrubLeakedSecrets(settings)) config.set("settings", settings);
+const legacySettingsRemoved = removeLegacySettings(settings);
+const officialProvidersDropped = dropOfficialProviders(settings);
+const leakedSecretsScrubbed = scrubLeakedSecrets(settings);
 
 const mediaProviderConfigs = record(settings.mediaProviderConfigs);
 const qwenImageConfig = record(mediaProviderConfigs.qwenImage);
@@ -140,10 +129,7 @@ if (typeof qwenImageConfig.baseUrl !== "string" || !qwenImageConfig.baseUrl.trim
   qwenImageConfig.baseUrl = qwenImageBaseUrl;
   qwenImageChanged = true;
 }
-if (qwenImageChanged) {
-  settings.mediaProviderConfigs = { ...mediaProviderConfigs, qwenImage: qwenImageConfig };
-  config.set("settings", settings);
-}
+if (qwenImageChanged) settings.mediaProviderConfigs = { ...mediaProviderConfigs, qwenImage: qwenImageConfig };
 
 
 const videoModelDefaults = record(settings.videoModel);
@@ -160,10 +146,7 @@ if (typeof videoModelDefaults.apiKey !== "string") {
   videoModelDefaults.apiKey = "";
   videoModelChanged = true;
 }
-if (videoModelChanged) {
-  settings.videoModel = videoModelDefaults;
-  config.set("settings", settings);
-}
+if (videoModelChanged) settings.videoModel = videoModelDefaults;
 
 const production = record(settings.production);
 let productionChanged = false;
@@ -219,12 +202,12 @@ if (production.imageAdvanceMode !== "auto" && production.imageAdvanceMode !== "s
   production.imageAdvanceMode = "semi";
   productionChanged = true;
 }
-if (productionChanged) {
-  settings.production = production;
+if (productionChanged) settings.production = production;
+const customProvidersMissing = !Object.hasOwn(settings, "customProviders");
+if (customProvidersMissing) settings.customProviders = [];
+if (legacySettingsRemoved || officialProvidersDropped || leakedSecretsScrubbed || qwenImageChanged || videoModelChanged || productionChanged || customProvidersMissing) {
   config.set("settings", settings);
 }
-
-if (!config.has("settings.customProviders")) config.set("settings.customProviders", []);
 
 
 // ACT: 一次性把遗留技能 v118workflow 加入默认禁用；用户之后在设置里重新启用不会被再次关掉。

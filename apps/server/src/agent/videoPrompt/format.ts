@@ -138,12 +138,17 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   if (/<d>/.test(timeline.slice(0, windows[0]?.index))) findings.push("对白必须位于编号时间段内。");
   findings.push(...inspectDialogue(timeline, setup.duration, windows));
   if (!/\p{Script=Han}/u.test(promptZh)) findings.push("提供与英文事实一致的简体中文对照。");
-  const narration = prompt.replace(/<d>[\s\S]*?<\/d>/gi, "").replace(/"[^"\n]*"/g, "");
+  // 跳过对白和引号原文，保留正文行号供导演定向返修。
+  const narration = prompt.replace(/<d>[\s\S]*?<\/d>|"[^"\n]*"/gi, match => match.replace(/[^\r\n]/g, " "));
   if (/\[[^\[\]\n]*\p{Script=Han}[^\[\]\n]*\]/u.test(narration)) {
     findings.push("英文正文仍有未替换的模板占位词，请写入镜头中的真实对象或动作。");
   }
-  if (/\b(?:no cuts|no subtitles|no dialogue|the camera cuts to|the shot cuts to)\b/i.test(narration)) {
-    findings.push("用正向可见事实描述一个连续摄影镜头。");
+  for (const match of narration.matchAll(/\b(?:no cuts|no subtitles|no dialogue|the camera cuts to|the shot cuts to)\b/gi)) {
+    const line = narration.slice(0, match.index).split("\n").length;
+    const correction = match[0].toLowerCase() === "no dialogue"
+      ? "无台词镜头的概要写实际环境声，时间轴写明可见角色闭嘴。"
+      : "请用正向可见事实描述一个连续摄影镜头。";
+    findings.push("英文正文第 " + line + " 行含“" + match[0] + "”。" + correction);
   }
   return findings;
 }

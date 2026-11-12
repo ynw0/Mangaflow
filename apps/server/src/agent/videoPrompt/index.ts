@@ -226,6 +226,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         const draft = await specialist(draftSchema, draftSubmissionParameters, round ? "导演返修" : "导演写作", [
           '通过 submitResult 提交 status=ok 的完整规划和中英文正文。时间均为镜头内秒数；持续运镜时 stopSeconds=null，无定幅要求时 holdSeconds=0。缺关键输入或无法按时交付剧情时提交 {"status":"blocked","reason":"具体原因"}。',
           "先按原台词给每段对白留足时间，再安排摄影和动作。每处开口写明说话人、开口动作或语气，并用 <d> 包裹原文。逐段交代画内说话者和沉默者，给沉默者写明闭嘴，画外音不让画内人物对口型。中文版同步。",
+          "无台词的镜头在英文概要写实际环境声，在时间轴写可见角色闭嘴。不要在概要或时间轴中用 no dialogue 概括静默。",
           `结构示例。调用参数取 submitResult 的对象，成片内容及正文格式以本次镜头为准：${JSON.stringify(directorSubmissionExample)}`,
           "先确定最终画框容纳哪些主体和身体部位，再反推开场机位与运动路径。前景道具与后景人物必须同框时，核对景别、遮挡和人物移动终点；不能一边继续逼近道具一边承诺人物头肩始终入画。规划与中英文正文必须一致。只在首次定义与必要承接处写稳定外观，避免逐段复写。",
           "规划不得新增用户未要求的人物、动作或剧情。没有人物的镜头用 performance 描述物件、环境的可见反馈，不为填字段添加表演者。",

@@ -633,7 +633,7 @@ async function resumeDetachedGeneration() {
         void refreshPersistentStatus().catch(() => { /* 服务端任务编号仍保留 */ });
     })
     .finally(() => { generationController = undefined; }));
-  return { status: "generating", generationId, resumed: true };
+  return { status: "requested", generationId, resumed: true };
 }
 
 async function startGeneration() {
@@ -691,7 +691,7 @@ async function startGeneration() {
     .finally(() => {
       generationController = undefined;
     });
-  return { status: "generating", seed, generationId: request.generationId, resumed: !!current };
+  return { status: request.generationId ? "requested" : "generating", seed, generationId: request.generationId, resumed: !!current };
 }
 
 nodeEvent.on("save", (reason) => {
@@ -918,7 +918,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "generateVideo",
-  description: "首次生成会持久化 generationId 和原始参数；刷新后再次调用只恢复原 ComfyUI 任务，不重新提交。用 getGenerationStatus 查询当前节点执行状态、getPersistentGenerationStatus 查询持久化状态，cancelGeneration 显式停止",
+  description: "返回 requested 表示节点已发起或恢复本地请求。用 getPersistentGenerationStatus 查询相同 generationId；只有 phase 为 submitted/saved/completed 且有 promptId 才能说 ComfyUI 已接收。preparing/submitting 尚待确认，failed 读取 error。刷新后只恢复原任务，cancelPersistentGeneration 显式停止。",
   parameters: z.strictObject({}),
   execute(_args, { signal }) {
     signal?.throwIfAborted();

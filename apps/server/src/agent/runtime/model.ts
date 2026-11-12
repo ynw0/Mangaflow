@@ -22,11 +22,11 @@ export async function createAgentModel(providerId: string, modelId: string, thin
   }
   const thinking = getModelThinkingProfile(model.id);
   const hostname = new URL(baseUrl).hostname;
-  const bailianChat = provider.protocol === "openai-completions"
+  const bailianPreview = model.id === "qwen4-max-preview" && provider.protocol === "openai-completions"
     && (hostname.endsWith(".maas.aliyuncs.com") || /^dashscope(?:-[a-z0-9]+)*\.aliyuncs\.com$/.test(hostname));
   // 百炼兼容接口的系统指令使用 system，思考模型也不能发 developer。
   const catalogCompat = thinking?.compat;
-  const compat = bailianChat
+  const compat = bailianPreview
     ? { ...(catalogCompat && typeof catalogCompat === "object" ? catalogCompat : {}), supportsDeveloperRole: false }
     : catalogCompat;
   const runtime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false });

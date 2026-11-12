@@ -43,7 +43,7 @@ export function findVideoPromptTemplates(tags: VideoPromptTags, conditions: Temp
 const searchFields = {
   tags: templateTagSchema.describe("search 必填：按维度提供标签对象"),
   conditions: templateConditions.describe("search 可选：镜头时长与画面条件"),
-  library: z.enum(["memes", "absurd", "expressions", "styles", "narrative", "all"]).describe("searchCreative 可选：创作知识库类别"),
+  library: z.enum(["memes", "absurd", "expressions", "styles", "narrative", "voices", "all"]).describe("searchCreative 可选：创作知识库类别"),
   query: z.string().trim().max(200).describe("searchCreative 可选：检索关键词"),
   creativeTags: z.array(z.string().trim().min(1).max(24)).max(8).describe("searchCreative 可选：标签字符串数组"),
   limit: z.number().int().min(1).max(10).describe("search 可传 1–5，searchCreative 可传 1–10"),
@@ -92,9 +92,9 @@ const searchToolInput = z.strictObject(searchFields).partial().extend({
 
 export const videoTemplateSearch = {
   name: "searchVideoPromptTemplates",
-  label: "分类检索：导演模板与创作知识库",
-  description: "统一分类创作知识库：listTags/search 检索原有导演镜头模板；listCreativeTags/searchCreative 检索2026来源网络热梗、原创喜剧、表情、画风/滤镜和叙事结构；checkCreativeSelection 检查模板组合、适用时长、风格与题材冲突。不生成、不修改画布。",
-  promptSnippet: "需要剧情节拍可查 narrative；导演拍法用原 search；人物颜艺查 expressions、画风滤镜查 styles、喜剧查 memes/absurd。先小范围按需检索，挑选 1–3 个互补模板，用 checkCreativeSelection 校验冲突后再独立改写成符合剧本/工作流的提示词，禁止直接拼接模板全文。",
+  label: "分类检索：导演、创作知识与 H3 声音模板",
+  description: "统一分类创作知识库：listTags/search 检索原有导演镜头模板；listCreativeTags/searchCreative 检索2026来源网络热梗、原创喜剧、表情、画风/滤镜和叙事结构和 H3 角色声音模板；checkCreativeSelection 检查模板组合、适用时长、风格与题材冲突。不生成、不修改画布。",
+  promptSnippet: "需要剧情节拍可查 narrative；导演拍法用原 search；人物颜艺查 expressions、画风滤镜查 styles、喜剧查 memes/absurd；有对白时检索 voices 并按角色填 voiceCast（默认约1.3倍语速）。先小范围按需检索，挑选 1–3 个互补模板，用 checkCreativeSelection 校验冲突后再独立改写成符合剧本/工作流的提示词，禁止直接拼接模板全文。",
   parameters: z.toJSONSchema(searchToolInput, { io: "input", target: "draft-07" }),
   execute(args: unknown, signal?: AbortSignal) {
     signal?.throwIfAborted();

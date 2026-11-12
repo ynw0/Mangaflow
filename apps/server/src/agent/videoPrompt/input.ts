@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { CanvasContext, MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { checkCreativeSelection, creativeTones } from "@/agent/creativeKnowledge";
+import { compileVoiceCast, type VoiceCastRole } from "@/agent/creativeKnowledge/voiceTemplates";
 import { templateConditions, templateTagSchema } from "@/agent/videoPrompt/templates/schema";
 import { findWorkflow, imageReferenceRange, toMediaModel } from "@/utils/production/catalog";
 import { isWorkflowEnabled, readProduction } from "@/utils/production/config";
@@ -46,6 +47,15 @@ const shotFields = {
   templateTags: templateTagSchema.optional(),
   templateConditions: templateConditions.pick({ subjectCount: true, anchors: true }).optional(),
   references: z.array(reference).max(24).describe("按实际槽位顺序传 JSON 对象数组，不是字符串"),
+  voiceCast: z.array(z.strictObject({
+    speakerId: z.string().regex(/^S[1-9]\d*$/).describe("当前 H3 镜头说话人编号 S1、S2..."),
+    characterName: shortText,
+    voiceIdentity: z.string().trim().min(1).max(800).optional().describe("已批准的稳定声线描述，跨镜不变"),
+    timbreId: shortText.optional(), ageId: shortText.optional(), personalityId: shortText.optional(),
+    foreignAccentId: shortText.optional(), dialectId: shortText.optional(), emotionId: shortText.optional(),
+    deliveryId: shortText.optional(), paceId: shortText.optional(),
+    speedMultiplier: z.number().min(0.7).max(1.8).optional().describe("覆盖默认1.3；与paceId二选一"),
+  })).max(8).optional().describe("H3 视频同期配音：每个说话人独立指定声音模板 ID；有对白默认约1.3倍"),
 };
 const creativeSelection = z.strictObject({
   narrativeId: shortText.optional(),
@@ -161,6 +171,10 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   });
   if (selection?.status === "invalid") throw new Error(`创作模板无法用于当前单镜：${selection.errors.join("；")}`);
   const creativeContext = selection && { selected: selection.selected, warnings: selection.warnings, guidance: selection.guidance };
+  const voiceContext = compileVoiceCast((input.voiceCast ?? []) as VoiceCastRole[]);
+  if (voiceContext.status === "invalid") throw new Error(`角色声音模板配置冲突：${voiceContext.errors.join("；")}`);
+  const audioEnabled = current ? current.config.generateAudio !== false : model.audio !== false;
+  if (voiceContext.roles.length && !audioEnabled) throw new Error("该 H3 视频节点禁用了同期音频；请先 node:setConfig 设置 generateAudio=true");
   const approved = await Promise.all(references.map(async item => {
     signal?.throwIfAborted();
     const target = await resolveWorkspacePath(cwd, item.path);
@@ -206,7 +220,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   const snapshot = await captureVideoReview(cwd, effective, signal);
   const numbered = (items: typeof approved, name: string) => items.map((item, index) => ({ ...item, label: `<${name} ${index + 1}>` }));
   return {
-    shot, format, revision: current?.revision, templateTags, templateConditions, creativeContext, generationRequest, snapshot,
+    shot, format, revision: current?.revision, templateTags, templateConditions, creativeContext, voiceContext, audioEnabled, generationRequest, snapshot,
     setup: {
       modelId: workflow.id, duration: seconds, ratio: aspect, mode: current?.config.mode ?? format,
       host: production.videoHost, config: current?.config, usage: workflow.bindings.usage,

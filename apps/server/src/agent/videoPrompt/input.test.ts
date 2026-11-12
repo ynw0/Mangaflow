@@ -31,7 +31,15 @@ describe("draftVideoPrompt：根 JSON Schema 类型化兼容", () => {
     expect(properties.duration.type).toBe("integer");
     expect(properties.sampling.type).toBe("object");
     expect(properties.creativeSelection.type).toBe("object");
+    expect(properties.voiceCast.type).toBe("array");
     expect(schema.required).toEqual(expect.arrayContaining(["shotId", "mustHave", "mustNotHave", "references", "intent"]));
+  });
+
+  test("H3 声音选择按说话人传原生数组，不接受字符串化参数或无效编号", () => {
+    const input = {...validBase(),duration:10,ratio:"9:16",voiceCast:[{speakerId:"S1",characterName:"主角",timbreId:"vt01"}]};
+    expect(videoPromptParameters.parse(input).voiceCast).toHaveLength(1);
+    expect(() => videoPromptParameters.parse({...input,voiceCast:JSON.stringify(input.voiceCast)})).toThrow();
+    expect(() => videoPromptParameters.parse({...input,voiceCast:[{speakerId:"S0",characterName:"主角"}]})).toThrow();
   });
 
   test("新镜头使用真实类型的数组、数字和可选检索模板 ID 能通过", () => {

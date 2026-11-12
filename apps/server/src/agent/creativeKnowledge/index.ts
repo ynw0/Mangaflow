@@ -4,15 +4,17 @@ import { absurdPrompts } from "@/agent/creativeKnowledge/absurdPrompts";
 import { expressionTemplates } from "@/agent/creativeKnowledge/expressionTemplates";
 import { visualStyles } from "@/agent/creativeKnowledge/visualStyles";
 import { narrativeTemplates } from "@/agent/creativeKnowledge/narrativeTemplates";
+import { voiceTemplates } from "@/agent/creativeKnowledge/voiceTemplates";
 
-export type CreativeLibrary = "memes" | "absurd" | "expressions" | "styles" | "narrative" | "all";
+export type CreativeLibrary = "memes" | "absurd" | "expressions" | "styles" | "narrative" | "voices" | "all";
 export type CreativeSearchOptions = { library: CreativeLibrary; query: string; tags: string[]; limit: number };
 type CreativeDetails =
   | (typeof memesCN)[number]
   | (typeof absurdPrompts)[number]
   | (typeof expressionTemplates)[number]
   | (typeof visualStyles)[number]
-  | (typeof narrativeTemplates)[number];
+  | (typeof narrativeTemplates)[number]
+  | (typeof voiceTemplates)[number];
 export type CreativeSearchResult = {
   library: Exclude<CreativeLibrary, "all">;
   id: string;
@@ -66,6 +68,9 @@ export function listCreativeKnowledgeCategories() {
       { id: "narrative", title: "叙事结构与剧情节拍模板", count: narrativeTemplates.length,
         tags: categoryTags(narrativeTemplates), groups: ["hook","establish","conflict","reveal","choice","payoff","aftermath"],
         caveat: "scene 是跨多个镜头的剧情结构，不能塞进一个 H3 连续镜头；shot 才可作为单镜草案。"},
+      { id: "voices", title: "H3 同期角色声音提示词模板", count: voiceTemplates.length,
+        tags: categoryTags(voiceTemplates), groups: ["timbre","emotion","personality","pace","age","foreignAccent","dialect","delivery"],
+        caveat: "H3 同期合成声音；有对白时默认约正常语速的1.3倍。口音和年龄感只是生成指导，不保证方言准确或声纹一致。"},
     ],
   };
 }
@@ -94,6 +99,9 @@ export function searchCreativeKnowledge(options: CreativeSearchOptions): Creativ
   if (wants("narrative")) for (const item of narrativeTemplates)
     add("narrative", item.id, item.title, [], item.tags,
       [item.purpose,item.setup,item.escalation,item.visibleResult,item.shotGuidance].join(" "), item);
+  if (wants("voices")) for (const item of voiceTemplates)
+    add("voices", item.id, item.title, [], item.tags,
+      [item.descriptionZh, item.englishCue, item.category].join(" "), item);
   return results.sort((a,b) => b.score - a.score
     || (b.observedAt ?? "").localeCompare(a.observedAt ?? "")
     || a.id.localeCompare(b.id)).slice(0,limit);

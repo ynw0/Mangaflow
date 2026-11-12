@@ -10,6 +10,10 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 
 视频提示词创建由 **`draftVideoPrompt`** 执行，`searchVideoPromptTemplates` 只负责检索。工具对外使用一个顶层 JSON 对象，禁止把 `mustHave`、`mustNotHave`、`references` 数组变成 JSON 字符串，`duration` 必须是数字。已有画布节点只传 `node` 及当前已确认的镜头合同/实际参考；先 `node:getConfig` → `node:setConfig` → `node:getPromptContext`，已有节点不传 `duration/ratio/modelId/sampling/seed/seedMode`。新镜头省略 `node`，必须提供 `duration` 和 `ratio`。已选创作模板通过 `creativeSelection` 中稳定的模板 ID 传入，不复制整套模版文字；独立审核与节点写回机制保持不变。
 
+### H3 同期角色声音规则
+
+视频与对白继续由 H3 同一次生成，不调用独立 TTS。有对白且当前视频节点生成音频时，默认给说话人英文指令 `speak at about 1.3 times normal conversational pace`；人物或剧情明确的特殊语速覆盖默认值。`voiceCast` 以 `(S1)`、`(S2)` 为本镜说话人分别指定固定声线、年龄感、口音、当前情绪与发声方式；角色身份声线跨镜保持，临时情绪和速度不改声音身份。不擅自改写台词或插入额外说话人，不能凭口音提示精确锁声纹/方言。没有真实音频素材时不能虚构 `<Audio N>`，静默镜头不加语速提示。详见 [声音模板规则](creativeKnowledge.md#h3-同期角色声音提示词模板)。
+
 ### 模板使用边界
 
 自动导演检索的原镜头模板已经包含拍法和约束；`creativeSelection` 为可选创作知识，优先遵守已批准剧情、角色、参考图和既定主画风。严肃镜头不因为库中有热梗就插入喜剧。多镜叙事模板要留在上游分镜，不可强塞入一个 H3 连续镜头。具体分类与选材规则见 [创作知识库](creativeKnowledge.md)。

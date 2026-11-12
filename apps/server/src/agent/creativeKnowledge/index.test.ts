@@ -6,6 +6,7 @@ import { absurdPrompts } from "./absurdPrompts";
 import { expressionTemplates } from "./expressionTemplates";
 import { visualStyles } from "./visualStyles";
 import { narrativeTemplates } from "./narrativeTemplates";
+import { voiceTemplates, voiceCategories, compileVoiceCast, DEFAULT_H3_SPEECH_RATE } from "./voiceTemplates";
 
 const signal = new AbortController().signal;
 
@@ -13,7 +14,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
   test("热梗均为2026有日期的公开记录，无2025条目或不明确的热门来源", () => {
     expect(memesCN.length).toBeGreaterThanOrEqual(49);
     expect(absurdPrompts.length).toBeGreaterThanOrEqual(20);
-    const all = [...memesCN, ...absurdPrompts, ...expressionTemplates, ...visualStyles, ...narrativeTemplates];
+    const all = [...memesCN, ...absurdPrompts, ...expressionTemplates, ...visualStyles, ...narrativeTemplates, ...voiceTemplates];
     expect(new Set(all.map(x => x.id)).size).toBe(all.length);
     for (const item of memesCN) {
       expect(item.observedAt).toMatch(/^2026-\d\d-\d\d$/);
@@ -34,6 +35,24 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
       expect(item.continuity.length).toBeGreaterThan(10);
       expect(item.jokeMechanism.length).toBeGreaterThan(5);
     }
+  });
+
+  test("声音提示词71条覆盖8维度，分角色独立选择，默认1.3倍并检查口音冲突", () => {
+    expect(voiceTemplates).toHaveLength(71);
+    for (const category of voiceCategories) expect(voiceTemplates.filter(t => t.category === category).length).toBeGreaterThanOrEqual(6);
+    expect(new Set(voiceTemplates.map(t => t.id)).size).toBe(voiceTemplates.length);
+    expect(DEFAULT_H3_SPEECH_RATE).toBe(1.3);
+    expect(searchCreativeKnowledge({library:"voices",query:"外国人说中文",tags:[],limit:10}).length).toBeGreaterThan(0);
+    expect(searchCreativeKnowledge({library:"voices",query:"四川",tags:[],limit:5})[0]?.title).toContain("四川");
+    const cast = compileVoiceCast([{speakerId:"S1",characterName:"主角",timbreId:"vt01",personalityId:"vp01"},
+      {speakerId:"S2",characterName:"债主",timbreId:"vt03",dialectId:"vd01",emotionId:"ve07",paceId:"vr04"}]);
+    expect(cast.status).toBe("ok");
+    expect(cast.roles[0]?.speedMultiplier).toBe(1.3);
+    expect(cast.roles[1]?.speedMultiplier).toBe(0.9);
+    expect(cast.roles[1]?.promptCue).toContain("Northeastern");
+    expect(compileVoiceCast([{speakerId:"S1",characterName:"A",foreignAccentId:"vf01",dialectId:"vd01"}]).status).toBe("invalid");
+    expect(compileVoiceCast([{speakerId:"S1",characterName:"A",timbreId:"vd01"}]).status).toBe("invalid");
+    expect(compileVoiceCast([{speakerId:"S1",characterName:"A",paceId:"vr04",speedMultiplier:1.2}]).status).toBe("invalid");
   });
 
   test("分类检索飞行汽车返回对应原创模板而不灌入全库", () => {

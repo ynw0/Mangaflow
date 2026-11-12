@@ -3,7 +3,8 @@ import { throttle } from "lodash-es";
 import type { AgentEvent } from "@toonflow/server/agent/types";
 import type { AgentMessage, AgentMessagePart } from "./types";
 
-export async function* readAgentEvents<T extends { type: string; message?: string } = AgentEvent>(response: Response, signal: AbortSignal) {
+export async function* readAgentEvents<T extends { type: string; message?: string } = AgentEvent>(response: Response, signal: AbortSignal,
+  onChunk?: () => void) {
   if (!response.ok) {
     const error = await response.json().catch(() => null);
     throw new Error(error?.message || `请求失败（${response.status}）`);
@@ -15,6 +16,7 @@ export async function* readAgentEvents<T extends { type: string; message?: strin
     while (true) {
       const { value, done } = await reader.read();
       signal.throwIfAborted();
+      if (value) onChunk?.();
       pending += value ?? "";
       const lines = pending.split("\n");
       pending = lines.pop() ?? "";

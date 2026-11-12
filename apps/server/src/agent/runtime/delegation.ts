@@ -27,12 +27,13 @@ export async function runDelegatedAgent(options: {
   };
   const controller = new AbortController();
   const childSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
-  const bridge = canvas ? createCanvasContext(cwd, canvas, send) : undefined;
+  const bridge = canvas ? createCanvasContext(cwd, canvas, send, error => controller.abort(error)) : undefined;
   const questions = createQuestionContext(cwd, send, () => controller.abort());
   const result: SubAgentResult = { name, status: "running", result: "准备执行" };
   try {
     await run({ prompt: task, cwd, sessionFile: child.file, providerId, modelId, thinkingLevel, canvas: bridge?.context, question: questions.context, signal: childSignal, onCancel: () => controller.abort(), goal: options.goal }, send);
-    result.status = childSignal.aborted ? "cancelled" : "completed";
+    childSignal.throwIfAborted();
+    result.status = "completed";
   } catch (error) {
     result.status = childSignal.aborted ? "cancelled" : (error as { code?: string })?.code === "AGENT_LENGTH" ? "limited" : "error";
     result.result = error instanceof Error ? translateError(error) : translateMessage("子任务执行失败");

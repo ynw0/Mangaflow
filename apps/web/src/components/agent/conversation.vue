@@ -759,27 +759,37 @@ async function uploadAttachments(attachments: AgentAttachment[], directory: stri
 }
 
 async function sendCanvasResult(event: Extract<AgentEvent, { type: "canvasCall" }>, canvasContext: CanvasContext | undefined, signal: AbortSignal) {
+  type CanvasAction = { type: "start" } | { type: "success"; result: unknown } | { type: "error" | "interrupt"; error: string };
+  const actionBody = (action: CanvasAction) => JSON.stringify({ directory, callId: event.callId, action });
+  async function postAction(body: string, cancelling = false) {
+    const response = await fetch("/api/agent/canvasResult", {
+      method: "POST",
+      headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
+      body,
+      keepalive: cancelling,
+      signal: cancelling ? AbortSignal.timeout(5000) : AbortSignal.any([signal, AbortSignal.timeout(10000)]),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      throw new Error(error?.message || `画布通信失败（HTTP ${response.status}）`);
+    }
+  }
+
+  // 先核对服务端仍在等待，过期的画布操作不能启动生成。
+  await postAction(actionBody({ type: "start" }));
   let body: string;
   try {
+    signal.throwIfAborted();
     if (!canvasContext) throw new Error("当前页面没有激活的画布");
     const result = await canvasContext.call(event, signal);
-    body = JSON.stringify({ directory, callId: event.callId, result: result ?? null });
+    body = actionBody({ type: "success", result: result ?? null });
   } catch (error) {
-    body = JSON.stringify({ directory, callId: event.callId, error: (error instanceof Error && error.message ? error.message : translate("画布操作失败")).slice(0, 8000) });
+    body = error instanceof Error && error.name === "TimeoutError"
+      ? actionBody({ type: "interrupt", error: "画布操作超时，请核对画布和已有任务" })
+      : actionBody({ type: "error", error: (error instanceof Error && error.message ? error.message : translate("画布操作失败")).slice(0, 8000) });
   }
-  const cancelled = signal.aborted;
-  if (cancelled) body = JSON.stringify({ directory, callId: event.callId, error: translate("画布操作已取消") });
-  const response = await fetch("/api/agent/canvasResult", {
-    method: "POST",
-    headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
-    body,
-    keepalive: cancelled,
-    signal: cancelled ? AbortSignal.timeout(5000) : signal,
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    throw new Error(error?.message || "画布操作结果回传失败");
-  }
+  if (signal.aborted) body = actionBody({ type: "interrupt", error: "画布操作已取消" });
+  await postAction(body, signal.aborted);
 }
 
 async function sendMessage(source?: AgentMessage, delivery?: "restart") {
@@ -823,18 +833,25 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
   const handledCanvasCalls = new Set<string>();
   const pendingQuestions = new Map<string, string>();
   const activeChildFiles = new Set<string>();
+  let canvasQueue = Promise.resolve();
+  let streamTimer: ReturnType<typeof setTimeout> | undefined;
+  const refreshStreamTimer = () => {
+    clearTimeout(streamTimer);
+    streamTimer = setTimeout(() => requestController.abort(new Error("Agent 连接已中断，请重新打开画布后继续")), 65_000);
+  };
   const finishStats = anonymousData.startAgent();
   try {
     if (!source) await instance.reset();
     requestController.signal.throwIfAborted();
     await uploadAttachments(attachments, directory, requestController.signal);
+    refreshStreamTimer();
     const response = await fetch("/api/agent", {
       method: "POST",
       headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
       body: JSON.stringify({ prompt, mentions, attachments: attachments.map(({ name, path, mimeType }) => ({ name, path, mimeType })), directory, providerId: model.providerId, modelId: model.modelId, thinkingLevel: thinkingLevelForModel(model), sessionFile: props.sessionFile, resendFrom, delivery, goal: composerDrive.value === "goal", canvas }),
       signal: requestController.signal,
     });
-    for await (const event of readAgentEvents(response, requestController.signal)) {
+    for await (const event of readAgentEvents(response, requestController.signal, refreshStreamTimer)) {
       // 子任务复用发起委派时的画布与取消通道，界面切换不改变工具执行目标。
       let toolEvent: AgentEvent = event;
       let scope = "";
@@ -849,7 +866,16 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
       if (toolEvent.type === "canvasCall") {
         if (handledCanvasCalls.has(toolEvent.callId)) throw new Error("收到重复的画布调用");
         handledCanvasCalls.add(toolEvent.callId);
-        await sendCanvasResult(toolEvent, canvasContext, requestController.signal);
+        const canvasCall = toolEvent;
+        // 画布操作保持串行，事件流继续接收工具状态和心跳。
+        canvasQueue = canvasQueue.then(async () => {
+          requestController.signal.throwIfAborted();
+          await sendCanvasResult(canvasCall, canvasContext, requestController.signal);
+        }).catch(error => {
+          if (requestController.signal.aborted) return;
+          const detail = error instanceof Error && error.name !== "TimeoutError" ? error.message : "请求超时";
+          requestController.abort(new Error(`画布通信中断（${canvasCall.name}）：${detail}`));
+        });
         continue;
       }
       switch (event.type) {
@@ -889,19 +915,26 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
         default: applyEvent(event);
       }
     }
+    await canvasQueue;
+    requestController.signal.throwIfAborted();
     if (source && !accepted) throw new Error("服务端未确认重发，请重新打开对话后重试");
     finishStats("success");
     emit("sent", mentionPlainText(prompt, mentions) || attachments[0]?.name || "新对话");
   } catch (error) {
     finishStats(requestController.signal.aborted ? "cancelled" : "failed");
     const responseMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-    const message = requestController.signal.aborted ? "已停止生成" : responseMessage || (error instanceof Error ? error.message : "发送失败，请重试");
+    const reason = requestController.signal.reason;
+    const message = requestController.signal.aborted
+      ? reason instanceof Error && reason.name !== "AbortError" ? reason.message : "已停止生成"
+      : responseMessage || (error instanceof Error ? error.message : "发送失败，请重试");
     if ((source && !accepted) || !ownsStream || forwarded) { userMessage.error = message; ElMessage.error(message); }
     else applyEvent({ type: "error", message });
     if (ownsStream && props.initialSession?.parentFile && props.sessionFile) {
       emit("event", { type: "subAgentEvent", file: props.sessionFile, event: { type: "error", message } });
     }
   } finally {
+    clearTimeout(streamTimer);
+    requestController.abort();
     for (const file of activeChildFiles) emit("event", { type: "subAgentEvent", file, event: { type: "error", message: "委派连接已结束，请重新打开子会话查看结果" } });
     // ACT: Bun 的流断开事件可能不触发；主动结束仍在等待的提问，不依赖断开通知。
     for (const callId of pendingQuestions.values()) {

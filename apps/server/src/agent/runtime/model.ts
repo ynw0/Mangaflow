@@ -21,13 +21,21 @@ export async function createAgentModel(providerId: string, modelId: string, thin
     throw new Error(`模型 ${model.label} 未声明支持思考等级 ${thinkingLevel}；请先探测实际支持档位，再重新选择。`);
   }
   const thinking = getModelThinkingProfile(model.id);
+  const hostname = new URL(baseUrl).hostname;
+  const bailianChat = provider.protocol === "openai-completions"
+    && (hostname.endsWith(".maas.aliyuncs.com") || /^dashscope(?:-[a-z0-9]+)*\.aliyuncs\.com$/.test(hostname));
+  // 百炼兼容接口的系统指令使用 system，思考模型也不能发 developer。
+  const catalogCompat = thinking?.compat;
+  const compat = bailianChat
+    ? { ...(catalogCompat && typeof catalogCompat === "object" ? catalogCompat : {}), supportsDeveloperRole: false }
+    : catalogCompat;
   const runtime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false });
   runtime.registerProvider(providerId, {
     api: provider.protocol,
     baseUrl,
     models: [{
       id: model.id, name: model.label, reasoning: thinking ? thinking.reasoning : thinkingLevel !== "off",
-      ...(thinking?.compat ? { compat: thinking.compat } : {}),
+      ...(compat ? { compat } : {}),
       ...(thinking?.thinkingLevelMap ? { thinkingLevelMap: thinking.thinkingLevelMap } : {}),
       // ACT: 保留图片输入，由实际供应方判断该模型是否支持。
       input: ["text", "image"],

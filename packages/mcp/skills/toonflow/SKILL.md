@@ -54,6 +54,7 @@ description: 通过 MangaFlow MCP 操作工作区、实时画布、节点、文�
 
 ## 生成媒体
 
+- H3 同期角色声音由 `searchVideoPromptTemplates` 的 `action=searchCreative,library=voices` 检索，不调用独立配音模型。按真实镜头说话人 `S1`、`S2` 在 `videoPrompt.prepare` 的 `input.voiceCast` 数组分别填写角色名、稳定声线及模板 ID（音色、情绪、性格、年龄感、外国人说中文感、地方口音、语速、发声方式）。`prepare` 返回解析后的 `voiceCast`、`speechPolicy`；有对白且开启生成音轨时默认语速约1.3倍，角色指定值可覆盖。不要改写原文台词或假造 `<Audio N>`，口音是近似生成指导，不能承诺精确复现。
 - H3 提示词由当前 Agent 直接制作：读取 workflow、适用导演与 H3 资料 → `videoPrompt` 的 `action=prepare`（input 为镜头合同和实际参考，已有节点只传定位）→ 根据返回的合同和配置写出 `draft` → `action=inspect` 程序预检 → 当前 Agent 自行按 `reviewRequirements` 审核 → `action=submit` 提交同一 `preparationId`、稿件与逐项证据。`draft` 为 `status=ok`、`cinematicPlan`、`prompt`、`promptZh`；审核通过须有 `status=ok`、`framingEvidence`、逐项不重复的 `coverage[{requirementId,evidence}]`、`findings=[]`。资料以发现后读取的当前技能为准。这三个操作不调用语言模型，不生成媒体，不写节点。
 - 只有 submit 返回 `status=ok` 后才使用服务端签发的 `reviewId` 与 `generationRequest`。写回已有节点时通过该节点真实 schema 提交完整提示词、审核编号和返回的 `expectedRevision`，不要直接改 JSON。素材、合同、节点配置或稿件变化后重新 prepare/inspect/submit；不自行编造审核编号或仅提交文字“通过”。
 - 从模型列表和节点工具 schema 获取可用模型、比例、分辨率、时长和声音选项，不自行猜测供应商参数。

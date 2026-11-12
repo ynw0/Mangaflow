@@ -45,6 +45,9 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
     await writeAtomic(join(root, `${preparationId}.json`), JSON.stringify({ directory, input: input.input, expires, prepared }), { exclusive: true, mode: 0o600 });
     return { preparationId, expires, reviewer, shot: prepared.shot, format: prepared.format, workflow: prepared.setup,
       creativeTemplates: prepared.creativeContext,
+      voiceCast: prepared.voiceContext.roles.length ? prepared.voiceContext : undefined,
+      speechPolicy: { audioEnabled: prepared.audioEnabled, defaultSpeechRateMultiplier: 1.3,
+        note: "仅有对白且同步音频启用时默认约1.3倍正常对话语速；个别角色覆盖值优先。语速与口音不是H3的精确控制参数；未绑定音频素材不虚构 <Audio N>。" },
       expectedRevision: prepared.revision, reviewRequirements: getVideoPromptRequirements(prepared.shot),
       nextAction: "由当前外部 Agent 按 workflow、导演及 H3 技能编写中英文稿，调用 inspect 预检，再自行逐项审核并 submit；这些步骤不调用语言模型。" };
   }

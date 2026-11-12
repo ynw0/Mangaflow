@@ -59,7 +59,7 @@ export function createMcpRouter(options: McpOptions) {
       instructions: "先调用 getAppState 获取连接和工作区；从 tools/list 读取当前工具参数。业务工具使用 {target: {connectionId, directory}, args: {...}}。画布与节点必须使用实时工具，禁止直接修改画布 JSON。"
         // 外部 Agent 从 MCP 进入制作，不会继承应用内 Agent 的系统提示词。
         + "制作或修改短剧、漫剧、剧本、分镜及相关资产前，先发现并读取已启用的 workflow 技能和当前阶段资料，按其流程写入、回读并取得阶段确认；普通咨询和连接检查不启动制作。技能不能扩大用户授权，实际生成前核对具体方案与算力授权。"
-        + "当前网页或外部 Agent 负责写作、提示词和审核，不默认调用 runAgent 委托另一模型。H3 提示词使用 videoPrompt 的 prepare/inspect/submit，三步均不调用语言模型。媒体生成等长任务必须提供顶层 taskId，返回后用 getMcpTask 查询，不因超时换 ID 重提。专用 QC 模型须显式取得授权。"
+        + "当前网页或外部 Agent 负责写作、提示词和审核，不默认调用 runAgent 委托另一模型。H3 提示词使用 videoPrompt 的 prepare/inspect/submit，三步均不调用语言模型；有对白时可以通过 searchVideoPromptTemplates 的 voices 分类选取角色声音提示词，按 videoPrompt.input.voiceCast 绑定说话人，默认约1.3倍正常语速并随剧本覆盖。媒体生成等长任务必须提供顶层 taskId，返回后用 getMcpTask 查询，不因超时换 ID 重提。专用 QC 模型须显式取得授权。"
         + "媒体制作优先通过画布节点执行；直接生成工具须在 MangaFlow 的 MCP 设置中开启，并按用户已批准的范围调用。"
         + (resources ? "通过 resources/list 发现全局技能和附属资料，再以返回的 URI 调用 resources/read 读取最新内容。" : ""),
     });

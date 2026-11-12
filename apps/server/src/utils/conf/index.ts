@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import conf from "conf";
 import { existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from "@toonflow/file";
 import { join, resolve } from "node:path";
@@ -7,6 +6,7 @@ import type { A2aSettings } from "@/agent/a2a/settings";
 import type { desktopUpdateAttempt } from "@/types/desktop";
 import type { MobileLinkConfig } from "@/utils/mobileLink";
 import { normalizeNodeMenu, serializeNodeMenu } from "@/lib/nodeMenu";
+import { leakedSettingsFields } from "@/lib/secrets";
 
 const removedProviderIds = new Set(["tfrouter", "apimart", "metaso", "compshare"]);
 const dataDirectory = process.env.TOONFLOW_DATA_DIR ?? resolve(import.meta.dirname, "../../../../../data");
@@ -83,26 +83,6 @@ export function cleanNodeMenuSettings(settings: Record<string, unknown>) {
 }
 
 const qwenImageBaseUrl = "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
-// 已泄露凭据的摘要。命中后只清空本地副本；服务商侧的钥匙仍须作废。
-const leakedSecretHashes = new Set([
-  "aecad4dd9832e363cffa28165c27b1e66242ba742e5830ed905ba206c59d682c",
-  "fe3320cb7af5a15aae802dda63f5e2479b039d5717912e760166ff808cb1a8d4",
-  "553bfd1bb1c5fd235576c4deb8eed302fff3642616db1ebe34677b14cd3ca5b5",
-]);
-
-function scrubLeakedSecrets(value: unknown): boolean {
-  if (Array.isArray(value)) return value.reduce((changed, item) => scrubLeakedSecrets(item) || changed, false);
-  if (!value || typeof value !== "object") return false;
-  let changed = false;
-  for (const [key, item] of Object.entries(value)) {
-    if (typeof item === "string" && item && leakedSecretHashes.has(createHash("sha256").update(item).digest("hex"))) {
-      (value as Record<string, unknown>)[key] = "";
-      changed = true;
-    } else if (scrubLeakedSecrets(item)) changed = true;
-  }
-  return changed;
-}
-
 function record(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -120,7 +100,7 @@ removeOfficialProviders();
 const settings = config.get("settings", {});
 const legacySettingsRemoved = removeLegacySettings(settings);
 const officialProvidersDropped = dropOfficialProviders(settings);
-const leakedSecretsScrubbed = scrubLeakedSecrets(settings);
+const clearedLeakedFields = leakedSettingsFields(settings, true);
 
 const mediaProviderConfigs = record(settings.mediaProviderConfigs);
 const qwenImageConfig = record(mediaProviderConfigs.qwenImage);
@@ -205,9 +185,10 @@ if (production.imageAdvanceMode !== "auto" && production.imageAdvanceMode !== "s
 if (productionChanged) settings.production = production;
 const customProvidersMissing = !Object.hasOwn(settings, "customProviders");
 if (customProvidersMissing) settings.customProviders = [];
-if (legacySettingsRemoved || officialProvidersDropped || leakedSecretsScrubbed || qwenImageChanged || videoModelChanged || productionChanged || customProvidersMissing) {
+if (legacySettingsRemoved || officialProvidersDropped || clearedLeakedFields.length || qwenImageChanged || videoModelChanged || productionChanged || customProvidersMissing) {
   config.set("settings", settings);
 }
+if (clearedLeakedFields.length) console.warn("已清理设置中公开泄露的凭证字段", clearedLeakedFields);
 
 
 // ACT: 一次性把遗留技能 v118workflow 加入默认禁用；用户之后在设置里重新启用不会被再次关掉。

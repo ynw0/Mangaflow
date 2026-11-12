@@ -218,7 +218,12 @@ export function saveSettings(update?: (current: Record<string, unknown>) => Reco
     const requestedNodeMenu = JSON.stringify(((patch?.general ?? settings.value.general) as { nodeMenu?: unknown } | undefined)?.nodeMenu);
     const { data } = await axios.put<{ code: number; data: { customProviders?: CustomProvider[]; mediaProvider?: { id: string }; modelRefreshErrors?: string[]; nodeMenu?: StoredNodeMenuItem[] | null } | null }>(
       "/api/settings/save", { settings: { ...settings.value, ...patch } }, { headers: { "x-toonflow-workspace": "1" } },
-    );
+    ).catch(error => {
+      if (axios.isAxiosError<{ message?: string }>(error) && error.response?.data?.message) {
+        error.message = error.response.data.message;
+      }
+      throw error;
+    });
     if (data.code !== 200) throw new Error("保存设置失败");
     const providers = data.data?.customProviders;
     if ((patch && Object.hasOwn(patch, "customProviders")) || providers) invalidateNodeModels("language");

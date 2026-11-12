@@ -2,8 +2,8 @@ import u from "@/utils";
 import { Router } from "express";
 import { z } from "zod";
 import { validateFields } from "@/lib/middleware";
-import { restoreSettingsSecrets } from "@/lib/secrets";
-import { success } from "@/lib/responseFormat";
+import { leakedSettingsFields, restoreSettingsSecrets } from "@/lib/secrets";
+import { error, success } from "@/lib/responseFormat";
 import { maxSystemPromptLength } from "@/agent/runtime/prompt";
 import { agentProfilesSchema } from "@/agent/runtime/profiles";
 import { t } from "@/lib/i18n";
@@ -25,6 +25,11 @@ export default router.put("/", validateFields({ settings: z.record(z.string(), z
 }) }), async (req, res) => {
   u.mcpControl.assertAppRequest(req);
   const { settings } = req.body;
+  const leakedFields = leakedSettingsFields(settings);
+  if (leakedFields.length) {
+    res.status(400).json(error("该凭证已公开泄露，请在服务商处更换后再保存", { fields: leakedFields }));
+    return;
+  }
   const previousSettings = u.conf.get("settings", {});
   const previousMcp = previousSettings.mcp as { publicUrl?: string } | undefined;
   if (settings.mcp?.publicUrl !== previousMcp?.publicUrl) u.mcpTunnel.useManualPublicUrl();

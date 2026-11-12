@@ -6,10 +6,20 @@ import { getShotRequirements } from "@/utils/production/qcRequirements";
 
 type Prepared = Awaited<ReturnType<typeof prepareVideoPrompt>>;
 
+const draftFields = {
+  cinematicPlan: cinematicPlanSchema, prompt: z.string().trim().min(1), promptZh: z.string().trim().min(1),
+};
+const blockedReason = z.string().trim().min(1);
 export const draftSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("ok"), cinematicPlan: cinematicPlanSchema, prompt: z.string().trim().min(1), promptZh: z.string().trim().min(1) }),
-  z.object({ status: z.literal("blocked"), reason: z.string().trim().min(1) }),
+  z.object({ status: z.literal("ok"), ...draftFields }),
+  z.object({ status: z.literal("blocked"), reason: blockedReason }),
 ]);
+const submissionOptions = { io: "input", target: "draft-07" } as const;
+export const draftSubmissionParameters = z.toJSONSchema(z.strictObject({
+  status: z.enum(["ok", "blocked"]), ...z.object(draftFields).partial().shape, reason: blockedReason.optional(),
+}), submissionOptions);
+
+const maxReviewFindings = 12;
 export function createReviewSchema(requirementIds: string[]) {
   const requirementId = z.enum(requirementIds);
   const evidence = z.string().trim().min(1).max(500);
@@ -21,8 +31,18 @@ export function createReviewSchema(requirementIds: string[]) {
     z.object({ status: z.literal("rejected"), findings: z.array(z.object({
       requirementId, location: z.string().trim().min(1).max(300), evidence,
       fixTarget: z.string().trim().min(1).max(500),
-    })).min(1).max(12) }),
+    })).min(1).max(maxReviewFindings) }),
   ]);
+}
+
+export function createReviewSubmissionParameters(schema: ReturnType<typeof createReviewSchema>) {
+  const [approved, rejected] = schema.options;
+  return z.toJSONSchema(z.strictObject({
+    status: z.enum(["ok", "rejected"]),
+    framingEvidence: approved.shape.framingEvidence.optional(),
+    coverage: approved.shape.coverage.optional(),
+    findings: z.array(rejected.shape.findings.element).max(maxReviewFindings),
+  }), submissionOptions);
 }
 
 export type VideoPromptReview = z.infer<ReturnType<typeof createReviewSchema>>;

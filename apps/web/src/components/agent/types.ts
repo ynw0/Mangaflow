@@ -36,5 +36,6 @@ export type AgentConversation = {
   contextUsage?: AgentContext;
   parentFile?: string;
   subAgents?: AgentSubAgent[];
+  specialist?: boolean;
   running?: boolean;
 };

@@ -262,7 +262,7 @@ const compacting = ref(false);
 const deletingId = ref<string>();
 const restoringAttachment = ref(false);
 const locked = computed(() => props.disabled || busy.value || deletingId.value !== undefined || restoringAttachment.value);
-const composerLocked = computed(() => props.disabled || deletingId.value !== undefined || restoringAttachment.value);
+const composerLocked = computed(() => props.disabled || props.initialSession?.specialist === true || deletingId.value !== undefined || restoringAttachment.value);
 const editingId = ref<string>();
 const draftReady = ref(false);
 const runningDraft = computed(() => !editingId.value && (busy.value || remoteRunning.value) && draftReady.value);
@@ -425,6 +425,7 @@ const composerDrive = computed({
   },
 });
 function composerPlaceholder() {
+  if (props.initialSession?.specialist) return "查看子 Agent 进度";
   if (busy.value || remoteRunning.value) return translate("输入补充要求，在当前工具完成后引导 Agent，不会停止生成…");
   return composerDrive.value === "goal"
     ? translate("输入要完成的目标，会一直做到完，可随时停止")
@@ -796,7 +797,8 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
 
   const requestController = new AbortController();
   const canvasContext = createCanvasContext?.();
-  const canvasId = canvasContext?.id.trim();
+  // 空画布 ID 表示已连接工作区但尚未选择画布，仍可调用 getCanvas 和 addCanvas。
+  const canvas = canvasContext ? { id: canvasContext.id, tools: canvasContext.tools } : undefined;
   controller = requestController;
   busy.value = true;
   compacting.value = false;
@@ -823,7 +825,7 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
     const response = await fetch("/api/agent", {
       method: "POST",
       headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
-      body: JSON.stringify({ prompt, mentions, attachments: attachments.map(({ name, path, mimeType }) => ({ name, path, mimeType })), directory, providerId: model.providerId, modelId: model.modelId, thinkingLevel: thinkingLevelForModel(model), sessionFile: props.sessionFile, resendFrom, delivery, goal: composerDrive.value === "goal", canvas: canvasContext && canvasId ? { id: canvasId, tools: canvasContext.tools } : undefined }),
+      body: JSON.stringify({ prompt, mentions, attachments: attachments.map(({ name, path, mimeType }) => ({ name, path, mimeType })), directory, providerId: model.providerId, modelId: model.modelId, thinkingLevel: thinkingLevelForModel(model), sessionFile: props.sessionFile, resendFrom, delivery, goal: composerDrive.value === "goal", canvas }),
       signal: requestController.signal,
     });
     for await (const event of readAgentEvents(response, requestController.signal)) {

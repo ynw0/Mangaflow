@@ -17,7 +17,7 @@ const inputSchema = z.object({
   goal: z.boolean().optional(),
   delivery: z.literal("restart").optional(),
   canvas: z.strictObject({
-    id: z.string().min(1).max(256),
+    id: z.string().max(256),
     tools: z.array(z.strictObject({
       nodeId: z.string().min(1).max(256),
       name: z.string().max(101).regex(/^node:[a-z][a-zA-Z0-9]*$/),

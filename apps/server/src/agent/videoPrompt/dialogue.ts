@@ -17,6 +17,9 @@ export function inspectDialogue(timeline: string, duration: number, segments: { 
       }
       const speaker = body.slice(previousEnd, block.index);
       if (!/\(S[1-9]\d*(?:,S[1-9]\d*)*\)/.test(speaker)) findings.push(`Shot ${segment.number} 的每段对白前须标明说话人 (S1) 或 (S1,S2)。`);
+      // 只拦截明确缺少开口描述的独立句，保留自然语言里的动作和语气。
+      const bareSpeech = /(?:^|[.!?。！？]\s+|\n)\s*(?:\[Shot \d+\]\s*(?:At \d{2}:\d{2}\.\d{3}\s*)?)?(?:<Subject [1-9]\d*>\s*)+\(S[1-9]\d*(?:,S[1-9]\d*)*\)\s*(?:(?:says?|asks?|replies|speaks?)\s*)?[:,]?\s*$/i;
+      if (bareSpeech.test(speaker)) findings.push(`Shot ${segment.number} 的对白须写明开口动作或语气，例如 turns toward the worker and says 或 says quietly。`);
       previousEnd = block.index + block[0].length;
       // ACT: 按项目规则估算中文 4 字/秒、英文 3 词/秒；只检查整个时间段也容纳不下的情况，不代替语音实测。
       const text = language?.[2] ?? "";

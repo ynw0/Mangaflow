@@ -7,7 +7,7 @@
       <span class="toolHeader" :data-status="tool.status">
         <icon-tool :size="14" />
         <span class="toolName">{{ renderer ? "操作工具" : tool.name || "工具调用" }}</span>
-        <span class="toolState">{{ tool.name === 'draftVideoPrompt' && tool.status === 'running' && typeof tool.result === 'string' ? tool.result : tool.name === 'subAgent' && tool.status === 'success' ? '调用已返回' : toolStatusLabels[tool.status] }}</span>
+        <span class="toolState" :title="toolState">{{ toolState }}</span>
       </span>
     </template>
     <div v-if="!collapsed" class="toolDetails">
@@ -61,6 +61,11 @@ onErrorCaptured(error => {
 });
 const collapsed = defineModel<boolean>("collapsed", { default: true });
 const toolStatusLabels = { running: "调用中…", success: "已完成", error: "调用失败", interrupted: "已中断" };
+const toolState = computed(() => {
+  if (tool.name === "draftVideoPrompt" && (tool.status === "running" || tool.status === "error")
+    && typeof tool.result === "string" && tool.result) return tool.result.split("\n")[0];
+  return tool.name === "subAgent" && tool.status === "success" ? "调用已返回" : toolStatusLabels[tool.status];
+});
 const toolCodeOptions = { maxHeight: 240, lineNumbers: false };
 const args = computed(() => formatToolData(tool.args));
 const result = computed(() => formatToolData(tool.result));

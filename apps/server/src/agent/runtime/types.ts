@@ -29,6 +29,7 @@ export type AgentSubAgent = {
   providerId?: string;
   modelId?: string;
   thinkingLevel?: string;
+  specialist?: boolean;
 };
 
 export type AgentEvent =

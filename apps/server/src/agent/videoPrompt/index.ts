@@ -2,9 +2,12 @@ import { parseFrontmatter, type ToolDefinition } from "@earendil-works/pi-coding
 import { createHash } from "node:crypto";
 import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import { z } from "zod";
-import { addUsage, emptyUsage, runSubAgent, type SubAgentModel } from "@/agent/runtime/subAgent";
+import { addUsage, emptyUsage, type SubAgentModel } from "@/agent/runtime/subAgent";
+import type { AgentEvent } from "@/agent/runtime/types";
 import { prepareVideoPrompt, videoPromptParameters, videoPromptToolSchema } from "@/agent/videoPrompt/input";
-import { createReviewSchema, draftSchema, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
+import { createReviewSchema, createReviewSubmissionParameters, draftSchema, draftSubmissionParameters, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
+import { directorSubmissionExample, reviewSubmissionExample, videoPromptInputExample } from "@/agent/videoPrompt/examples";
+import { runVideoPromptSpecialist } from "@/agent/videoPrompt/specialist";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
@@ -35,11 +38,6 @@ const skillList = z.object({ skills: z.array(z.object({
 const skillDocument = z.object({ content: z.string().min(1) });
 const reviewerSource = "independentModel";
 
-function parseReply<T>(schema: z.ZodType<T>, reply: string) {
-  const text = reply.trim().replace(/^```(?:json)?\s*|\s*```$/gi, "");
-  return schema.parse(JSON.parse(text));
-}
-
 function guideRules(text: string, format: "h3Ref2va" | "h3Frames" | "h3Text", reviewOnly = false) {
   // 只省略官方指南尾部的完整示例；格式、关系词和时间标记规则仍取自原文。
   const exampleHeading = format === "h3Ref2va" ? "\n## 7. Complete Example" : "\n## 5. Cases";
@@ -65,13 +63,15 @@ export function createVideoPromptTool(options: SubAgentModel & {
   skillOperator: ToolDefinition;
   canvas?: CanvasContext;
   primaryModel: AgentModelSelection;
+  parentFile: string;
+  send(event: AgentEvent): void;
 }): ToolDefinition {
-  const { cwd, skillOperator, canvas, primaryModel, ...model } = options;
+  const { cwd, skillOperator, canvas, primaryModel, parentFile, send, ...model } = options;
   return {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
     description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。相同镜头合同和模板不变时优先复用已审稿，重写才传 regenerate=true。",
-    promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。数组写真实 []，duration 填数字；已有画布节点只传 node，新镜头必须传 duration 和 ratio。先 searchVideoPromptTemplates 检索所需模板，选中的 ID 通过 creativeSelection 传入，已确认的镜头基调填入 tone；合同与素材未变不用反复重做。",
+    promptSnippet: `制作 H3 视频提示词时调用 draftVideoPrompt。已有画布节点传 node 和镜头合同，新镜头必须传 duration 和 ratio。先 searchVideoPromptTemplates 检索所需模板，选中的 ID 通过 creativeSelection 传入，已确认的镜头基调填入 tone。新镜头参数结构示例，内容按实际镜头填写：${JSON.stringify(videoPromptInputExample)}`,
     parameters: { type: "object", ...videoPromptToolSchema },
     executionMode: "sequential",
     async execute(_id, params, signal, onUpdate, ctx) {
@@ -93,6 +93,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const attempts: { round: number; stage: "director" | "preflight" | "review"; findings: string[]; review?: VideoPromptReview }[] = [];
       const reviewRequirements = getVideoPromptRequirements(prepared.shot);
       const reviewSchema = createReviewSchema(reviewRequirements.map(item => item.id));
+      const reviewSubmissionParameters = createReviewSubmissionParameters(reviewSchema);
       const skillCall = async (args: Record<string, string>) =>
         (await skillOperator.execute(crypto.randomUUID(), args, signal, undefined, ctx)).details;
       const available = skillList.parse(await skillCall({ action: "list" })).skills;
@@ -180,11 +181,12 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const taskInput = { shot: prepared.shot, format: prepared.format, workflow: prepared.setup,
         ...(creativeContext ? { creativeTemplates: creativeContext } : {}) };
       const specialistModels = new Map<string, SubAgentModel>();
-      async function specialist<T>(schema: z.ZodType<T>, name: string, task: string, rules: string[]) {
+      async function specialist<T>(schema: z.ZodType<T>, parameters: ToolDefinition["parameters"], name: string, task: string, rules: string[]) {
         signal?.throwIfAborted();
         const reviewer = name === "独立提示词审核";
         const selected = resolveAgentProfile(reviewer ? "videoReviewer" : "videoDirector", primaryModel);
         const thinkingLevel = toSdkThinkingLevel(selected.thinkingLevel);
+        update(`正在准备${name}（${selected.modelId} / ${thinkingLevel}）`);
         const cacheKey = JSON.stringify([selected.providerId, selected.modelId, selected.thinkingLevel]);
         let specialistModel = specialistModels.get(cacheKey);
         if (!specialistModel) {
@@ -197,10 +199,9 @@ export function createVideoPromptTool(options: SubAgentModel & {
           }
           specialistModels.set(cacheKey, specialistModel);
         }
-        update(`${name}中（${selected.modelId} / ${thinkingLevel}）`);
         const callStartedAt = performance.now();
-        const output = await runSubAgent({
-          ...specialistModel, cwd, name, task, tools: [], signal, responseFormat: "json", specialist: true,
+        const output = await runVideoPromptSpecialist({
+          ...specialistModel, cwd, parentFile, send, name, shotId: input.shotId, task, selection: selected, schema, parameters, signal,
           onProgress: message => update(`${name}：${message}`),
           instructions: [
             "这是只读的 H3 提示词制作任务。以下为宿主已实际加载的技能正文，直接按适用模式执行；当前任务的实际工作流优先于示例。仅根据传入的已确认剧情、素材用途与描述做判断。",
@@ -213,16 +214,19 @@ export function createVideoPromptTool(options: SubAgentModel & {
           providerId: selected.providerId, modelId: selected.modelId, thinkingLevel, rulesChars: rules.join("\n\n").length, taskChars: task.length, usage: output.usage });
         update(`${name}${output.result.status === "completed" ? "已完成" : "失败"}`);
         signal?.throwIfAborted();
-        if (output.result.status !== "completed") throw new Error(`${name}未完成：${output.result.result}`);
-        try { return parseReply(schema, output.result.result); }
-        catch { throw new Error(`${name}未返回有效的结构化结果`); }
+        if (output.result.status !== "completed" || output.submitted === undefined) {
+          throw new Error(`${name}（${selected.modelId}）未完成：${output.result.result}\n本阶段 ${output.usage.totalTokens.toLocaleString("zh-CN")} Token，累计 ${usage.totalTokens.toLocaleString("zh-CN")} Token。`);
+        }
+        return output.submitted;
       }
       let lastDraft: { prompt: string; promptZh: string; cinematicPlan: CinematicPlan } | undefined;
       let findings: string[] = [];
       // ACT: 初稿加最多一次定向返修；仍不合格时交回 findings，审核门禁保持关闭。
       for (let round = 0; round < 2; round++) {
-        const draft = await specialist(draftSchema, round ? "导演返修" : "导演写作", [
-          '输出 {"status":"ok","cinematicPlan":{"openingFrame":"开场构图和站位","camera":{"movement":"运镜方式与终点","stopSeconds":0},"ending":{"composition":"镜尾景别和空间关系","visible":["必须在画内的主体、身体部位或物品"],"holdSeconds":0},"beats":[{"startSeconds":0,"endSeconds":1,"action":"可见动作","performance":"眼神、停顿、手或重心的可观察变化"}]},"prompt":"英文生成正文","promptZh":"简中对照"}。时间均为镜头内秒数；持续运镜时 stopSeconds=null，无定幅要求时 holdSeconds=0。缺关键输入或无法按时交付剧情，输出 {"status":"blocked","reason":"具体原因"}。',
+        const draft = await specialist(draftSchema, draftSubmissionParameters, round ? "导演返修" : "导演写作", [
+          '通过 submitResult 提交 status=ok 的完整规划和中英文正文。时间均为镜头内秒数；持续运镜时 stopSeconds=null，无定幅要求时 holdSeconds=0。缺关键输入或无法按时交付剧情时提交 {"status":"blocked","reason":"具体原因"}。',
+          "先按原台词给每段对白留足时间，再安排摄影和动作。每处开口写明说话人、开口动作或语气，并用 <d> 包裹原文。逐段交代画内说话者和沉默者，给沉默者写明闭嘴，画外音不让画内人物对口型。中文版同步。",
+          `结构示例。调用参数取 submitResult 的对象，成片内容及正文格式以本次镜头为准：${JSON.stringify(directorSubmissionExample)}`,
           "先确定最终画框容纳哪些主体和身体部位，再反推开场机位与运动路径。前景道具与后景人物必须同框时，核对景别、遮挡和人物移动终点；不能一边继续逼近道具一边承诺人物头肩始终入画。规划与中英文正文必须一致。只在首次定义与必要承接处写稳定外观，避免逐段复写。",
           "规划不得新增用户未要求的人物、动作或剧情。没有人物的镜头用 performance 描述物件、环境的可见反馈，不为填字段添加表演者。",
           "先在内部确定镜头要交付的叙事信息，再设计可见的起点、动作、接触或变化、反馈和末态。按实际模式写 H3 正文，稳定设定与逐段变化分开，英文和中文保持同样的可见事实。",
@@ -240,8 +244,9 @@ export function createVideoPromptTool(options: SubAgentModel & {
         update(findings.length ? "程序预检未通过，准备定向返修" : "程序预检通过");
         if (findings.length) continue;
 
-        const review = await specialist(reviewSchema, "独立提示词审核", [
-          '输出 {"status":"ok","framingEvidence":"镜尾同框与运镜相容的具体依据","coverage":[{"requirementId":"给定要求编号","evidence":"对应正文位置与可核对事实"}],"findings":[]}；不通过输出 {"status":"rejected","findings":[{"requirementId":"给定要求编号","location":"时间段或句子；缺失时指出应出现的位置","evidence":"合同要求与稿件的具体矛盾或遗漏","fixTarget":"必须达到的可验证结果"}]}。只审核当前稿件，不重写正文。',
+        const review = await specialist(reviewSchema, reviewSubmissionParameters, "独立提示词审核", [
+          '通过 submitResult 提交审核结论。退回结构示例：{"status":"rejected","findings":[{"requirementId":"story","location":"Shot 1","evidence":"工友未说话，镜头内未交代其嘴部状态","fixTarget":"在该段写明工友闭嘴等候"}]}。只审核当前稿件。',
+          `通过示例。调用参数取 submitResult 的对象，实际提交须覆盖任务的全部编号：${JSON.stringify(reviewSubmissionExample)}`,
           "通过时 coverage 必须恰好覆盖 reviewRequirements 每个编号一次；每条证据用一个短句定位正文事实，禁止只写符合、已检查或复述要求。禁止项说明检查范围与实际安排；没有参考或对白时如实说明不适用及依据，不新增要求。退回只列实质缺陷，不因字数短、固定机位、没有特效或个人审美偏好退回。",
           "对照 cinematicPlan 与真实正文，逐项审核运动终点、停机时间、镜尾同框对象、人物终点及表演节拍是否相容。需要推近特写却又保持远处人物上半身可见，或定幅期间仍继续推进，属于实质缺陷。不能只因六段格式完整就判合格。",
           "逐项核对剧情硬要求、动作因果和末态、特效来源及反馈、参考用途、画面与声音可执行性以及中英事实一致性。以实际工作流对应的格式为准。只拒绝影响剧情、真实动作、关键身份/参考或可见声画结果的实质缺陷；固定机位、简洁镜头、合理的创作取舍不构成错误。每条整改意见定位到时间段或句子，说明必须达到的可验证结果。",

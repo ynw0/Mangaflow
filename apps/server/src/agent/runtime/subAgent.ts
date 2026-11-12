@@ -4,6 +4,7 @@ import type { AgentSession, CreateAgentSessionOptions, ToolDefinition } from "@e
 import type { ToolCall } from "@toonflow/tools-scaffold/runtime";
 import { createAgentResources } from "@/agent/runtime/resources";
 import { configureAgentRequests } from "@/agent/runtime/requests";
+import { getToolResultText } from "@/agent/runtime/sessions";
 
 export type SubAgentModel = Pick<CreateAgentSessionOptions, "modelRuntime" | "model" | "thinkingLevel">;
 export type SubAgentResult = {
@@ -34,10 +35,9 @@ export async function runSubAgent(options: SubAgentModel & {
   inputRequired?: () => string | undefined;
   onTool?: (tool: ToolCall) => void;
   onProgress?: (message: string) => void;
-  responseFormat?: "json";
-  specialist?: boolean;
+  resultTool?: ToolDefinition;
 }) {
-  const { cwd, name, task, tools, instructions, signal = new AbortController().signal, history, inputRequired, onTool, onProgress, responseFormat, specialist = false, ...modelOptions } = options;
+  const { cwd, name, task, tools, instructions, signal = new AbortController().signal, history, inputRequired, onTool, onProgress, resultTool, ...modelOptions } = options;
   const result: SubAgentResult = { name, status: "running", result: "准备执行" };
   const usage = emptyUsage();
   let session: AgentSession | undefined;
@@ -47,7 +47,7 @@ export async function runSubAgent(options: SubAgentModel & {
   const previousEntries = history?.getEntries().length ?? 0;
   try {
     signal.throwIfAborted();
-    const activeTools = tools.map(tool => ({
+    const activeTools = (resultTool ? [resultTool] : tools).map(tool => ({
       ...tool,
       async execute(...args: Parameters<ToolDefinition["execute"]>) {
         signal.throwIfAborted();
@@ -70,7 +70,7 @@ export async function runSubAgent(options: SubAgentModel & {
     const resources = await createAgentResources(cwd, activeTools, SettingsManager.inMemory({
       compaction: { enabled: false },
       retry: { enabled: false, provider: { maxRetries: 0 } },
-    }), instructions, false, specialist && activeTools.length === 0);
+    }), instructions, false, Boolean(resultTool));
     signal.throwIfAborted();
     ({ session } = await createAgentSession({
       ...modelOptions, ...resources, cwd,
@@ -80,28 +80,60 @@ export async function runSubAgent(options: SubAgentModel & {
     }));
     configureAgentRequests(session, undefined, modelOptions.thinkingLevel);
     signal.throwIfAborted();
-    session.agent.shouldStopAfterTurn = () => Boolean(inputRequired?.());
+    // 专家只提交一次结果，完成校验后结束本轮，避免模型再生成一段自由文本。
+    session.agent.shouldStopAfterTurn = () => Boolean(resultTool || inputRequired?.());
+    let received = 0;
+    let reportedAt = 0;
     session.subscribe(event => {
       if (signal.aborted) return;
-      if (event.type === "message_start" && event.message.role === "assistant") onProgress?.("正在处理");
-      if (event.type === "tool_execution_start") onProgress?.(`正在调用 ${event.toolName}`);
+      if (event.type === "message_start" && event.message.role === "assistant") onProgress?.(resultTool ? "等待模型输出" : "正在处理");
+      if (resultTool && event.type === "message_update") {
+        const update = event.assistantMessageEvent;
+        if (update.type === "thinking_delta" || update.type === "text_delta" || update.type === "toolcall_delta") {
+          received += update.delta.length;
+          const now = performance.now();
+          if (now - reportedAt >= 500) {
+            const stage = update.type === "thinking_delta" ? "模型正在推理" : update.type === "toolcall_delta" ? "模型正在提交结果" : "模型正在回复";
+            onProgress?.(`${stage}，已接收 ${received.toLocaleString("zh-CN")} 字符`);
+            reportedAt = now;
+          }
+        }
+      }
+      if (event.type === "tool_execution_start") onProgress?.(resultTool ? "正在校验提交结果" : `正在调用 ${event.toolName}`);
     });
-    const responseRule = responseFormat === "json" ? "按任务定义仅返回 JSON 对象。" : "最终返回简明结论、实际修改的文件相对路径、验证情况与未完成项；长篇产物写入已授权的工作区文件。";
-    await session.prompt(`你正在执行委派的独立子任务。仅处理下述任务，遵守系统中的授权与工作区规则。缺少信息或授权时，说明阻碍并交回调用方；若提供 requestInput 则使用它等待补充。${responseRule}\n\n${JSON.stringify({ name, task })}`, { expandPromptTemplates: false });
+    const request = resultTool
+      ? `任务：${name}。调用 ${resultTool.name} 一次提交符合字段定义的结果。\n\n${task}`
+      : `你正在执行委派的独立子任务。仅处理下述任务，遵守系统中的授权与工作区规则。缺少信息或授权时，说明阻碍并交回调用方；若提供 requestInput 则使用它等待补充。最终返回简明结论、实际修改的文件相对路径、验证情况与未完成项；长篇产物写入已授权的工作区文件。\n\n${JSON.stringify({ name, task })}`;
+    await session.prompt(request, { expandPromptTemplates: false });
     signal.throwIfAborted();
     const question = inputRequired?.();
     const reply = session.messages.findLast(message => message.role === "assistant");
     if (!reply || reply.role !== "assistant") throw new Error("子任务没有返回回复");
     if (reply.stopReason === "error" || reply.stopReason === "aborted") throw new Error(reply.errorMessage || "子任务执行失败");
-    const text = question ?? reply.content.filter(part => part.type === "text").map(part => part.text).join("\n").trim();
-    // 结构化结果由调用方校验，完整 JSON 不受对话摘要字数限制。
-    if (!question && responseFormat === "json" && reply.stopReason === "length") {
-      result.status = "limited";
-      result.result = "模型达到输出长度限制，未返回完整 JSON";
+    if (resultTool) {
+      if (reply.stopReason === "length") {
+        result.status = "limited";
+        result.result = "模型达到输出长度限制，未完整提交结果";
+        return { result, usage };
+      }
+      const calls = reply.content.filter(part => part.type === "toolCall" && part.name === resultTool.name);
+      const [call] = calls;
+      if (calls.length !== 1 || call?.type !== "toolCall") {
+        throw new Error(calls.length ? "模型重复调用结果提交工具" : "模型未调用结果提交工具");
+      }
+      const submitted = session.messages.findLast(message => message.role === "toolResult" && message.toolCallId === call.id);
+      if (!submitted || submitted.role !== "toolResult") throw new Error("结果提交未完成");
+      if (submitted.isError) {
+        const message = getToolResultText(submitted.content).split("\n\nReceived arguments:")[0]!;
+        throw new Error(message.slice(0, 900));
+      }
+      result.status = "completed";
+      result.result = "结构化结果校验通过";
       return { result, usage };
     }
+    const text = question ?? reply.content.filter(part => part.type === "text").map(part => part.text).join("\n").trim();
     if (!text) throw new Error("子任务没有返回文本结果");
-    const truncated = (responseFormat !== "json" || Boolean(question)) && text.length > 16000;
+    const truncated = text.length > 16000;
     result.status = question ? "inputRequired" : reply.stopReason === "length" || truncated ? "limited" : "completed";
     const summary = truncated ? `${text.slice(0, 16000)}\n[结果过长，已截断；请读取工作区产物]` : text;
     result.result = reply.stopReason === "length" ? `${summary}\n[模型输出达到长度限制，任务可能未完成]` : summary;

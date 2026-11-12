@@ -415,6 +415,7 @@ export async function getAgentSession(cwd: string, path: string) {
     modelId: model?.modelId,
     thinkingLevel: context.thinkingLevel,
     parentFile: getParentSessionFile(history),
+    specialist: getSubAgentInfo(history)?.data.specialist,
     subAgents: [...subAgents.values()],
     running: Boolean(active),
   };

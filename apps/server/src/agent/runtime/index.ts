@@ -188,6 +188,7 @@ export async function run(
     const file = basename(history.getSessionFile()!);
     const parentFile = getParentSessionFile(history);
     const child = getSubAgentInfo(history)?.data;
+    if (child?.specialist) throw Object.assign(new Error("请在主对话继续制作视频提示词"), { status: 409 });
     const liveTools = new Map<string, AgentToolCall>();
     const publish = send;
     send = event => {
@@ -218,7 +219,7 @@ export async function run(
     if (!child && skillOperator) {
       if (tools.some(tool => tool.name === "draftVideoPrompt")) throw new Error("工具名称 draftVideoPrompt 已被内置视频提示词工具占用");
       tools.push(createVideoPromptTool({
-        cwd, canvas, skillOperator, modelRuntime: runtime, model: runtime.getModel(providerId, modelId),
+        cwd, canvas, skillOperator, parentFile: file, send, modelRuntime: runtime, model: runtime.getModel(providerId, modelId),
         thinkingLevel: toSdkThinkingLevel(thinkingLevel),
         primaryModel: { providerId, modelId, thinkingLevel },
       }));

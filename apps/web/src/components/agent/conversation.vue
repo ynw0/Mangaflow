@@ -861,13 +861,18 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
           }
           break;
         case "userMessage":
+          // 首条回执绑定发起消息，后续回执由消息流归并到对应的引导气泡。
+          if (accepted) {
+            applyEvent(event);
+            break;
+          }
           if (!ownsStream) {
             messages.value.push(reply);
             stream.begin(reply);
           }
           userMessage.entryId = event.id;
           reply.replyTo = event.id;
-          if (source && !accepted) {
+          if (source) {
             messages.value.splice(resendIndex, messages.value.length - resendIndex, userMessage, reply);
             stats.value = undefined;
             contextUsage.value = undefined;
@@ -891,8 +896,8 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
     finishStats(requestController.signal.aborted ? "cancelled" : "failed");
     const responseMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
     const message = requestController.signal.aborted ? "已停止生成" : responseMessage || (error instanceof Error ? error.message : "发送失败，请重试");
-    if ((source && !accepted) || !ownsStream) { userMessage.error = message; ElMessage.error(message); }
-    else reply.error = message;
+    if ((source && !accepted) || !ownsStream || forwarded) { userMessage.error = message; ElMessage.error(message); }
+    else applyEvent({ type: "error", message });
     if (ownsStream && props.initialSession?.parentFile && props.sessionFile) {
       emit("event", { type: "subAgentEvent", file: props.sessionFile, event: { type: "error", message } });
     }

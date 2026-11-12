@@ -123,7 +123,8 @@ export function createConversationStream(messages: Ref<AgentMessage[]>) {
   }
 
   function ensureReply(userId?: string) {
-    if (reply && userId && reply.replyTo && reply.replyTo !== userId) finish();
+    // 多条引导可能同批送达，空回复继续等待模型输出。
+    if (reply?.parts?.length && userId && reply.replyTo && reply.replyTo !== userId) finish();
     if (!reply) {
       const user = messages.value.findLast(message => message.role === "user");
       const last = messages.value.findLast(message => message.role === "assistant" && message.streaming);

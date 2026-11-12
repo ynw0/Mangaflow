@@ -9,7 +9,9 @@
 - 角色开口须与 `<Subject N> (Sx)` 和 `<d>[Chinese] ...</d>` 的时间窗一致，配合呼吸与嘴部动作。
 - 悬念不必靠持续配乐填满，适当保留环境声；声音强弱转换要与画面对应事件同步。
 - 特效要有声音来源、力度与衰减；电弧是短促噼啪，冲击波是随冲击扩散的低频冲量，不能所有技能都用同一个雷鸣。
-- H3 同期音轨的有声对白默认提示“约 1.3 倍正常口语速度”（`speak at about 1.3 times normal conversational pace`），但不保证精确倍速。角色或剧本有特殊要求时覆盖默认；完整保留台词与自然换气，时间预算仍按现有保守审核规则。静默镜头不加语速。
+- 同期对白默认用约正常交谈速度 1.3 倍的自然偏快口语。吐字清晰、发音连贯、停顿紧凑，保留自然语气和情绪。明确要求慢声、迟疑、拖腔或庄重缓述时相应放慢。实际倍速由成片核对。
+- 英文示例：`speaks at a brisk, natural conversational pace, approximately 1.3 times normal speed, with crisp articulation and brief, purposeful pauses; no unnecessary slow delivery or drawn-out syllables.`
+- 声线跟角色性格匹配，用音区、共鸣或咬字让不同角色听得出区别。最后 0.2 秒留给镜尾，台词提前说完，收句闭口，环境底声可自然延续。静默镜头省略语速。
 
 ## 微型示例
 “实验室空调低鸣贯穿全镜；03.2 秒裂隙亮起时有短促细微电流嘶声，声音在半秒内衰减；角色保持沉默。”

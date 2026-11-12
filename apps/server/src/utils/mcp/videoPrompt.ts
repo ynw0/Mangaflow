@@ -6,6 +6,7 @@ import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
 import { prepareVideoPrompt, videoPromptParameters, type VideoPromptInput } from "@/agent/videoPrompt/input";
 import { createReviewSchema, draftSchema, getVideoPromptRequirements, inspectDraft } from "@/agent/videoPrompt/format";
+import { getVideoSpeechPolicy } from "@/agent/videoPrompt/dialogue";
 import { requireSameVideoReview, saveVideoReview } from "@/utils/production/videoReviews";
 import { lockWorkspaceFiles } from "@/utils/workspace/files";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
@@ -46,8 +47,7 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
     return { preparationId, expires, reviewer, shot: prepared.shot, format: prepared.format, workflow: prepared.setup,
       creativeTemplates: prepared.creativeContext,
       voiceCast: prepared.voiceContext.roles.length ? prepared.voiceContext : undefined,
-      speechPolicy: { audioEnabled: prepared.audioEnabled, defaultSpeechRateMultiplier: 1.3,
-        note: "仅有对白且同步音频启用时默认约1.3倍正常对话语速；个别角色覆盖值优先。语速与口音不是H3的精确控制参数；未绑定音频素材不虚构 <Audio N>。" },
+      speechPolicy: getVideoSpeechPolicy(prepared.audioEnabled),
       expectedRevision: prepared.revision, reviewRequirements: getVideoPromptRequirements(prepared.shot),
       nextAction: "由当前外部 Agent 按 workflow、导演及 H3 技能编写中英文稿，调用 inspect 预检，再自行逐项审核并 submit；这些步骤不调用语言模型。" };
   }

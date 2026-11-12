@@ -1,6 +1,19 @@
+import { DEFAULT_H3_SPEECH_RATE, defaultH3SpeechCue } from "@/agent/creativeKnowledge/voiceTemplates";
+
+export const endingReserveSeconds = 0.2;
+
+export function getVideoSpeechPolicy(audioEnabled: boolean) {
+  return {
+    audioEnabled,
+    defaultSpeechRateMultiplier: DEFAULT_H3_SPEECH_RATE,
+    defaultSpeechCue: defaultH3SpeechCue,
+    endingReserveSeconds,
+    note: "有对白且启用同期音轨时采用清晰连贯、自然偏快的日常口语，停顿紧凑并保留自然语气。镜头明确要求慢声、迟疑、拖腔或庄重缓述时相应放慢。台词及必要停顿须在可用时长内完成，语速提示不保证实际倍速。未绑定真实音频素材时不虚构音频标签。",
+  };
+}
+
 export function inspectDialogue(timeline: string, duration: number, segments: { index: number; number: string; start: number }[]) {
   const findings: string[] = [];
-  const startTime = (index: number) => segments[index]?.start ?? NaN;
   const allBlocks = [...timeline.matchAll(/<d>((?:(?!<\/?d>)[\s\S])*?)<\/d>/g)];
   if (allBlocks.length !== (timeline.match(/<d>/g)?.length ?? 0) || allBlocks.length !== (timeline.match(/<\/d>/g)?.length ?? 0)
     || (timeline.match(/<\/?d\b[^>]*>/gi)?.length ?? 0) !== allBlocks.length * 2) {
@@ -25,8 +38,12 @@ export function inspectDialogue(timeline: string, duration: number, segments: { 
       const text = language?.[2] ?? "";
       seconds += (text.match(/\p{Script=Han}/gu)?.length ?? 0) / 4 + (text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length ?? 0) / 3;
     }
-    const available = (index + 1 < segments.length ? startTime(index + 1) : duration) - startTime(index);
-    if (Number.isFinite(available) && available > 0 && seconds > available) findings.push(`Shot ${segment.number} 的对白估算需要 ${seconds.toFixed(1)} 秒，超过该段 ${available.toFixed(1)} 秒。`);
+    const segmentEnd = segments[index + 1]?.start ?? duration;
+    const available = Math.min(segmentEnd, duration - endingReserveSeconds) - segment.start;
+    if (seconds > 0 && Number.isFinite(available) && seconds - Math.max(available, 0) > 1e-6) {
+      const reserve = segmentEnd > duration - endingReserveSeconds ? `（镜尾保留 ${endingReserveSeconds} 秒）` : "";
+      findings.push(`Shot ${segment.number} 的对白估算需要 ${seconds.toFixed(1)} 秒，该段只剩 ${Math.max(available, 0).toFixed(1)} 秒${reserve}。请提前开口、延长镜头或按合同拆镜。`);
+    }
   }
   return findings;
 }

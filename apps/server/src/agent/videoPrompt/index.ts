@@ -15,7 +15,7 @@ import { findReusableVideoReview, requireSameVideoReview, saveVideoReview } from
 import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { resolveAgentProfile, type AgentModelSelection } from "@/agent/runtime/profiles";
 import type { CinematicPlan } from "@/utils/production/videoPlan";
-import { DEFAULT_H3_SPEECH_RATE } from "@/agent/creativeKnowledge/voiceTemplates";
+import { getVideoSpeechPolicy } from "@/agent/videoPrompt/dialogue";
 
 const directorReferences = {
   dialogue: ["characterPerformance.md", "soundDesign.md"],
@@ -121,7 +121,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const commonRules = videoCommonRules(common);
       const reviewerFormat = guideRules(guide, prepared.format, true);
       const cacheKey = createHash("sha256").update(JSON.stringify({
-        planVersion: 2,
+        planVersion: 3,
         input: { ...input, regenerate: undefined, node: input.node ? { canvasId: input.node.canvasId, nodeId: input.node.nodeId } : undefined },
         snapshot: prepared.snapshot, directorRules, guide, common, reviewRules, reviewRequirements, candidates, creativeContext, voiceContext,
         models: [resolveAgentProfile("videoDirector", primaryModel), resolveAgentProfile("videoReviewer", primaryModel)],
@@ -180,7 +180,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         }
       }
       const taskInput = { shot: prepared.shot, format: prepared.format, workflow: prepared.setup,
-        speechPolicy: { audioEnabled: prepared.audioEnabled, defaultSpeechRateMultiplier: DEFAULT_H3_SPEECH_RATE, description: "只在有对白且启用同期音轨时提示约1.3倍正常口语语速；角色或剧情明确要求可覆盖。确保全部台词清晰且自然换气；倍速是生成指引而不是模型硬控制。" },
+        speechPolicy: getVideoSpeechPolicy(prepared.audioEnabled),
         ...(voiceContext.roles.length ? { voiceCast: voiceContext } : {}),
         ...(creativeContext ? { creativeTemplates: creativeContext } : {}) };
       const specialistModels = new Map<string, SubAgentModel>();
@@ -230,11 +230,11 @@ export function createVideoPromptTool(options: SubAgentModel & {
           '通过 submitResult 提交 status=ok 的完整规划和中英文正文。时间均为镜头内秒数；持续运镜时 stopSeconds=null，无定幅要求时 holdSeconds=0。缺关键输入或无法按时交付剧情时提交 {"status":"blocked","reason":"具体原因"}。',
           "先按原台词给每段对白留足时间，再安排摄影和动作。每处开口写明说话人、开口动作或语气，并用 <d> 包裹原文。逐段交代画内说话者和沉默者，给沉默者写明闭嘴，画外音不让画内人物对口型。中文版同步。",
           "无台词的镜头在英文概要写实际环境声，在时间轴写可见角色闭嘴。不要在概要或时间轴中用 no dialogue 概括静默。",
-          "有对白且启用音轨时，默认写 speak at about 1.3 times normal conversational pace；voiceCast 中各说话人另行设定语速时覆盖。按 S1/S2 逐人保留固定声线与本镜情绪，不能混音色。外国人说中文感、地方口音只影响原台词发声，不改词；没有真实音频文件不可虚构 <Audio N>。",
+          "按 speechPolicy 为启用同期音轨的对白安排语速，在时长内完整说完原文。按 S1/S2 写各角色可辨且符合性格的稳定声线与本镜情绪。批准的角色外形保持一致，写具体可辨的脸型、眉眼或轮廓特征。镜尾保留 0.2 秒，关键动作和台词提前完成，说完闭口后自然过渡。无真实音频文件不可虚构 <Audio N>。",
           `结构示例。调用参数取 submitResult 的对象，成片内容及正文格式以本次镜头为准：${JSON.stringify(directorSubmissionExample)}`,
           "先确定最终画框容纳哪些主体和身体部位，再反推开场机位与运动路径。前景道具与后景人物必须同框时，核对景别、遮挡和人物移动终点；不能一边继续逼近道具一边承诺人物头肩始终入画。规划与中英文正文必须一致。只在首次定义与必要承接处写稳定外观，避免逐段复写。",
           "规划不得新增用户未要求的人物、动作或剧情。没有人物的镜头用 performance 描述物件、环境的可见反馈，不为填字段添加表演者。",
-          "先在内部确定镜头要交付的叙事信息，再设计可见的起点、动作、接触或变化、反馈和末态。按实际模式写 H3 正文，稳定设定与逐段变化分开，英文和中文保持同样的可见事实。",
+          "先确定镜头要交付的叙事信息，再写可见起点、动作变化和末态。正文简洁清晰，稳定信息只写一次，后续只补变化。顶视可略向斜俯倾斜，保持俯视关系与空间方向。英文和中文保持同样的可见事实。",
           "按已确认的剧情和素材取用匹配的拍法。creativeTemplates 是外层 Agent 按 ID 选中的创作参考，不是剧情合同；先处理 warnings，只抽取本镜所需的动作/表演/风格，多镜场次不得塞进单个 H3 连续镜头。模板含占位词、使用条件和验收点，满足条件后才写真实可观察的事件。返修以 findings 的要求编号、位置、问题依据和修改目标为边界；仅修改缺陷及必需的关联内容，保留正确的 Subject、参考绑定、对白和无关段落，中英文及 cinematicPlan 同步更新，仍返回完整合法正文。合理的创作选择不为迎合审核而重写。",
           JSON.stringify({ ...taskInput, ...(round ? { previousDraft: lastDraft, findings } : { candidates }) }),
         ].join("\n"), [...directorRules, commonRules, formatRules]);
@@ -254,7 +254,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
           `通过示例。调用参数取 submitResult 的对象，实际提交须覆盖任务的全部编号：${JSON.stringify(reviewSubmissionExample)}`,
           "通过时 coverage 必须恰好覆盖 reviewRequirements 每个编号一次；每条证据用一个短句定位正文事实，禁止只写符合、已检查或复述要求。禁止项说明检查范围与实际安排；没有参考或对白时如实说明不适用及依据，不新增要求。退回只列实质缺陷，不因字数短、固定机位、没有特效或个人审美偏好退回。",
           "对照 cinematicPlan 与真实正文，逐项审核运动终点、停机时间、镜尾同框对象、人物终点及表演节拍是否相容。需要推近特写却又保持远处人物上半身可见，或定幅期间仍继续推进，属于实质缺陷。不能只因六段格式完整就判合格。",
-          "逐项核对剧情硬要求、动作因果和末态、特效来源及反馈、参考用途、画面与声音可执行性以及中英事实一致性。若提供 voiceCast：核对各 speakerId、固定音色、情绪、年龄感、口音与语速，缺真实音频不可承诺声纹锁定。对白默认约正常语速1.3倍，除非有明确覆盖。以实际工作流对应的格式为准。只拒绝影响剧情、真实动作、关键身份/参考或可见声画结果的实质缺陷；固定机位、简洁镜头、合理的创作取舍不构成错误。每条整改意见定位到时间段或句子，说明必须达到的可验证结果。",
+          "核对剧情、动作因果、末态、参考和中英一致性。按 speechPolicy 核对对白语速、停顿和是否完整，最后 0.2 秒须留给镜尾。若提供 voiceCast，核对各说话人稳定而可辨的音色、性格、情绪与明确的语速覆盖。只退回影响剧情、真实动作、身份或声画结果的缺陷；重复信息定位到具体句段，轻微斜俯的顶视与简洁镜头可通过。",
           JSON.stringify({ ...taskInput, reviewRequirements, draft: lastDraft }),
         ].join("\n"), [reviewRules, commonRules, reviewerFormat, framingRules]);
         findings = review.status === "ok" ? [] : review.findings.map(item =>

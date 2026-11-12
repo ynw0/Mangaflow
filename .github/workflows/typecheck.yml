@@ -38,4 +38,4 @@ jobs:
           bun run --cwd packages/nodes/videoGenerationNode typecheck
       - name: 生产链路回归测试
         working-directory: apps/server
-        run: bun test src/utils/production/qcResult.test.ts src/utils/production/comfyui.test.ts src/utils/production/generationJobs.test.ts src/utils/ai/thinkingProbe.test.ts src/agent/runtime/steering.test.ts src/agent/runtime/canvasMediaRouting.test.ts src/agent/creativeKnowledge/index.test.ts src/agent/videoPrompt/input.test.ts
+        run: bun test src/utils/production/qcResult.test.ts src/utils/production/comfyui.test.ts src/utils/production/generationJobs.test.ts src/utils/ai/thinkingProbe.test.ts src/agent/runtime/steering.test.ts src/agent/runtime/canvasMediaRouting.test.ts src/agent/creativeKnowledge/index.test.ts src/agent/videoPrompt/input.test.ts src/agent/videoPrompt/dialogue.test.ts

@@ -54,8 +54,8 @@ describe("H3 单镜头对白时序安全预算", () => {
   });
 
   test("语速估算会计入中文逗号、句号等自然停顿", () => {
-    const plain = "[Shot 1] <Subject 1> (S1) says, <d>[Chinese] 好好好好</d>";
-    const punct = "[Shot 1] <Subject 1> (S1) says, <d>[Chinese] 好，好，好，好。</d>";
+    const plain = "[Shot 1] <Subject 1> (S1) says briskly, <d>[Chinese] 好好好好</d>";
+    const punct = "[Shot 1] <Subject 1> (S1) says briskly, <d>[Chinese] 好，好，好，好。</d>";
     const a = inspectDialogue(plain, 2.9, marks(plain));
     const b = inspectDialogue(punct, 2.9, marks(punct));
     expect(a).toEqual([]);

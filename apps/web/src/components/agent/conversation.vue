@@ -202,6 +202,7 @@ import { modelChoices, saveSettings, settings, thinkingLevelForModel } from "@/s
 import { useWorkspaceStore } from "@/stores/workspace";
 import type { AgentAttachment, AgentConversation, AgentMessage } from "./types";
 import type { AgentEvent, AgentMention, AgentToolCall } from "@toonflow/server/agent/types";
+import { canvasProtocolVersion } from "@toonflow/server/agent/types";
 import { createConversationStream, readAgentEvents } from "./replyStream";
 import type { CanvasContext } from "@toonflow/tool-canvas/runtime";
 import browserPanel from "@toonflow/tool-browser/panel";
@@ -814,7 +815,7 @@ async function sendMessage(source?: AgentMessage, delivery?: "restart") {
   const requestController = new AbortController();
   const canvasContext = createCanvasContext?.();
   // 空画布 ID 表示已连接工作区但尚未选择画布，仍可调用 getCanvas 和 addCanvas。
-  const canvas = canvasContext ? { id: canvasContext.id, tools: canvasContext.tools } : undefined;
+  const canvas = canvasContext ? { id: canvasContext.id, tools: canvasContext.tools, protocolVersion: canvasProtocolVersion } : undefined;
   controller = requestController;
   busy.value = true;
   compacting.value = false;

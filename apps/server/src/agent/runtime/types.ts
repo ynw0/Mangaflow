@@ -1,5 +1,7 @@
 import type { CanvasToolCall, QuestionRequest, ToolCall } from "@toonflow/tools-scaffold/runtime";
 
+export const canvasProtocolVersion = 1;
+
 export type AgentToolCall = ToolCall & { question?: QuestionRequest & { callId: string } };
 
 export type AgentMention = {

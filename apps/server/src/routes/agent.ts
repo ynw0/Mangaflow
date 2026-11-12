@@ -2,7 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import type { CanvasInfo } from "@toonflow/tools-scaffold/runtime";
 import type { AgentEvent } from "@/agent/runtime/types";
+import { canvasProtocolVersion } from "@/agent/runtime/types";
 import { validateFields } from "@/lib/middleware";
+import { error as errorResponse } from "@/lib/responseFormat";
 import u from "@/utils";
 import { translateError, translateMessage } from "@/lib/i18n";
 
@@ -17,6 +19,7 @@ const inputSchema = z.object({
   goal: z.boolean().optional(),
   delivery: z.literal("restart").optional(),
   canvas: z.strictObject({
+    protocolVersion: z.number().int().optional(),
     id: z.string().max(256),
     tools: z.array(z.strictObject({
       nodeId: z.string().min(1).max(256),
@@ -30,6 +33,11 @@ const inputSchema = z.object({
 
 export default Router().post("/", validateFields(inputSchema.shape), async (req, res) => {
   const { directory, canvas, ...options } = req.body as z.infer<typeof inputSchema>;
+  // 浏览器须使用同版回传协议，版本不符时在调用模型前结束请求。
+  if (canvas && canvas.protocolVersion !== canvasProtocolVersion) {
+    res.status(409).json(errorResponse("画布协议已更新，请刷新 MangaFlow 页面后重试", undefined, 409));
+    return;
+  }
   const cwd = await u.workspace.resolveWorkspace(req, directory);
   res.set({ "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" });
   res.flushHeaders();

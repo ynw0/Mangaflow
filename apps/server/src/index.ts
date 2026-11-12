@@ -33,7 +33,7 @@ const server = app.listen(realPort, listenHost, async () => {
   console.log(`[服务启动成功]: http://${listenHost}:${realPort}`);
   console.log(`[启动耗时]: ${(Date.now() - startTime).toFixed(2)}ms`);
 });
-// 长连接每 20 秒内有保活写入。120 秒没有任何数据才断开。请求体收完的时限仍是 5 分钟，给大文件上传留余量。
-server.timeout = 120_000;
+// Agent 流和远端生成使用长连接；请求头和请求体仍分别限时。
+server.timeout = 0;
 server.headersTimeout = 60_000;
 server.requestTimeout = 5 * 60_000;

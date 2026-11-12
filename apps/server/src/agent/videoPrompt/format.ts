@@ -96,39 +96,30 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   }
   const start = headings[format === "h3Ref2va" ? 3 : 0]!;
   const timeline = prompt.slice(start.index + start[0].length, headings.at(-2)!.index);
-  // H3 官方 [Shot N] 标记的是摄影切镜；一个 MangaFlow 节点只制作一个连续镜头。
-  // 同一镜头内的动作/对白时间提示单独写 At 00:SS.mmm，不能新增 [Shot 2]。
-  const shotMarkers = [...timeline.matchAll(/(?:^|\n)[\t ]*\[Shot (\d+)\]([^\n]*)/g)];
-  const shotTags = [...timeline.matchAll(/\[Shot \d+\]/g)];
-  const openingShot = shotMarkers[0];
-  if (shotMarkers.length !== 1 || shotTags.length !== 1 || openingShot?.[1] !== "1") {
-    findings.push("单个 H3 连续摄影镜头只能有一个 [Shot 1]；[Shot 2] 代表切镜。镜内动作/对白节拍请另起行写 At 00:SS.mmm，不要新增 Shot 编号。");
+  const segments = [...timeline.matchAll(/(?:^|\n)[\t ]*\[Shot (\d+)\]([^\n]*)/g)];
+  let previous = 0;
+  const windows: { index: number; number: string; start: number }[] = [];
+  if (!segments.length) findings.push("缺少 [Shot 1] 时间段。");
+  if (format === "h3Frames" && !prefix.includes(`Picture 2 (from Shot ${segments.length})`)) {
+    findings.push("尾帧对齐说明须指向实际最后一个时间段。");
   }
-  if (openingShot && /^\s*At\b/.test(openingShot[2] ?? "")) {
-    findings.push("开场 [Shot 1] 不加起始时间码，直接描述当前画面。");
-  }
-  const windows: { index: number; number: string; start: number }[] = openingShot
-    ? [{ index: openingShot.index, number: "1", start: 0 }] : [];
-  const cues = [...timeline.matchAll(/(?:^|\n)[\t ]*At (\d{2}):([0-5]\d)\.(\d{3})(?=,|\s|$)/g)];
-  const rawCues = [...timeline.matchAll(/\bAt \d{2}:\d{2}\.\d{3}\b/g)];
-  if (cues.length !== rawCues.length) findings.push("镜内 At 时间提示须在独立行开头，并使用 At MM:SS.mmm 格式；不允许嵌在动作句中或写入新 Shot。");
-  let previousCue = 0;
-  for (const cue of cues) {
-    const seconds = Number(cue[1]) * 60 + Number(cue[2]) + Number(cue[3]) / 1000;
-    if (!openingShot || cue.index < openingShot.index || seconds <= previousCue || seconds >= setup.duration) {
-      findings.push("镜内 At 时间提示须位于 [Shot 1] 之后，时间严格递增且小于视频时长。");
+  for (const [index, segment] of segments.entries()) {
+    if (Number(segment[1]) !== index + 1) {
+      findings.push("时间段编号须从 Shot 1 连续递增。");
       break;
     }
-    windows.push({ index: cue.index, number: "1", start: seconds });
-    previousCue = seconds;
-  }
-  if (format === "h3Frames") {
-    const duration = setup.duration.toFixed(2);
-    if (prefix.split("\n").length !== 1 || !/Picture 1.*0\.00-second mark/.test(prefix)
-      || !prefix.includes("Picture 2") || !prefix.includes(`${duration}-second mark`)
-      || !prefix.includes("Picture 2 (from Shot 1)")) {
-      findings.push("首行须按 H3 FL2VA 说明对齐首帧、尾帧和实际时长；单镜头的尾帧同样来自 Shot 1。");
+    const time = /^\s*At (\d{2}):([0-5]\d)\.(\d{3})(?=\D|$)/.exec(segment[2] ?? "");
+    const seconds = index && time ? Number(time[1]) * 60 + Number(time[2]) + Number(time[3]) / 1000 : 0;
+    windows.push({ index: segment.index, number: segment[1]!, start: seconds });
+    if (!index) {
+      if (/^\s*At\b/.test(segment[2] ?? "")) findings.push("首段直接从起始状态写起。");
+      continue;
     }
+    if (seconds <= previous || seconds >= setup.duration) {
+      findings.push("后续时间段须使用 At MM:SS.mmm，时点严格递增且早于镜尾。");
+      break;
+    }
+    previous = seconds;
   }
   const tags = new Set([...prompt.matchAll(/<(?:Picture|Video|Audio) \d+>/g)].map(match => match[0]));
   const approved = new Set(setup.references.map(item => item.label));

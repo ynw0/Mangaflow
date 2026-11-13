@@ -1,5 +1,5 @@
 name: MangaFlow Windows Release
-run-name: MangaFlow Windows ${{ inputs.version || 'requested' }}
+run-name: MangaFlow Windows ${{ inputs.version || github.sha }}
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
         description: Windows 安装包版本号（X.Y.Z）
         required: true
         type: string
-  # GitHub 连接未暴露 workflow_dispatch 时，可提交版本请求文件触发 Windows Release。
+  # 版本申请随发布提交生效，构建与 Release 标签使用本次触发的提交。
   push:
     branches: [master]
     paths:
@@ -61,7 +61,7 @@ jobs:
       androidRelease: false
 
   publish:
-    name: 仅发布 Windows exe 安装包
+    name: 发布 Windows 安装包和更新文件
     needs: [version, build]
     runs-on: ubuntu-24.04
     permissions:
@@ -72,7 +72,8 @@ jobs:
         with:
           name: toonflow-${{ needs.build.outputs.version }}-windowsX64
           path: artifacts
-      - name: 核对安装包
+      - name: 核对安装包及更新清单
+        id: assets
         env:
           releaseVersion: ${{ needs.build.outputs.version }}
         run: |
@@ -84,14 +85,26 @@ jobs:
             echo "::error::Windows 安装包数量应为1，实际为$count"
             exit 1
           fi
-      - name: 发布 GitHub Release（仅 exe）
+          manifest="artifacts/stable-win-x64-update.json"
+          archive="$(jq -er --arg version "$releaseVersion" '
+            select(.schemaVersion == 1 and .identifier == "local.mangaflow.desktop" and
+              .version == $version and .channel == "stable" and .platform == "win" and .arch == "x64")
+            | .artifact.file | select(test("^stable-win-x64-[A-Za-z0-9._-]+\\.tar\\.zst$"))
+          ' "$manifest")"
+          test -s "artifacts/$archive"
+          printf 'archive=%s\n' "$archive" >> "$GITHUB_OUTPUT"
+      - name: 发布 GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.build.outputs.version }}
           target_commitish: ${{ needs.build.outputs.commit }}
           name: MangaFlow v${{ needs.build.outputs.version }} · Windows
+          body: 构建提交 `${{ needs.build.outputs.commit }}`
           generate_release_notes: true
           make_latest: true
           fail_on_unmatched_files: true
           overwrite_files: false
-          files: artifacts/mangaflow-${{ needs.build.outputs.version }}-Setup.exe
+          files: |
+            artifacts/mangaflow-${{ needs.build.outputs.version }}-Setup.exe
+            artifacts/${{ steps.assets.outputs.archive }}
+            artifacts/stable-win-x64-update.json

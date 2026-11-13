@@ -1,6 +1,3 @@
 {
-  "version": "2.0.21",
-  "requestedSourceCommit": "f996d31cb422d8abf06491bded36a7ba2cb7e971",
-  "platform": "windowsX64",
-  "publish": "exe-only"
+  "version": "2.0.22"
 }

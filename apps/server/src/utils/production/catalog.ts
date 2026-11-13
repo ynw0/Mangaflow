@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseWorkflowBindings, type WorkflowBindings } from "@/utils/production/bindings";
 import { readProduction, fail } from "@/utils/production/config";
 import { resolveAppDirectory } from "@/resolveAppDirectory";
-import { validateH3Workflow } from "@/utils/production/h3Workflow";
+import { validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
 
 export type WorkflowKind = "image" | "video" | "qc";
 
@@ -16,6 +16,7 @@ export type WorkflowEntry = {
   root: string;
   bindings: WorkflowBindings;
   workflowPath: string;
+  hasVideoAudio?: boolean;
   version?: number;
   /** 二采工作流 JSON 里现成的一采、二采步数，不在代码里另写默认值。 */
   stepDefaults?: { firstPass: number; secondPass: number };
@@ -93,7 +94,12 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
   if (!insideRoot(root, workflowPath)) fail(`工作流文件越出目录: ${id}`);
   const info = await stat(workflowPath).catch(() => undefined);
   if (!info?.isFile()) fail(`工作流 JSON 不存在: ${id}`);
-  if (kind === "video") validateH3Workflow(JSON.parse(await readFile(workflowPath, "utf8")), parsed);
+  let hasVideoAudio: boolean | undefined;
+  if (kind === "video") {
+    const workflow = JSON.parse(await readFile(workflowPath, "utf8")) as Record<string, unknown>;
+    validateH3Workflow(workflow, parsed);
+    hasVideoAudio = videoAudioInputs(workflow).length > 0;
+  }
   return {
     id,
     label: parsed.label?.trim() || labels[id] || id.split("/").at(-1) || id,
@@ -101,6 +107,7 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
     root,
     bindings: parsed,
     workflowPath,
+    hasVideoAudio,
     version: parsed.version,
     stepDefaults: await readStepDefaults(workflowPath, parsed),
     loraDefaultName: await readLoraDefault(workflowPath, parsed),
@@ -246,7 +253,6 @@ export function toMediaModel(entry: WorkflowEntry) {
     ? Array.from({ length: limits.max - limits.min + 1 }, (_, index) => limits.min + index)
     : [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
   const audioSlots = entry.bindings.bindings.filter(item => item.kind === "audio").length;
-  const hasAudio = audioSlots > 0;
   const videoSlots = entry.bindings.bindings.filter(item => item.kind === "video").length;
   const frames = entry.bindings.bindings.some(item => item.source === "refs.first_frame");
   const imageReferences = imageReferenceRange(entry);
@@ -296,6 +302,6 @@ export function toMediaModel(entry: WorkflowEntry) {
       ],
     durationResolutionMap: [{ duration: durations, resolution: sampling ? [] : ["1080P"] }],
     sampling,
-    audio: hasAudio ? "optional" as const : false,
+    audio: entry.hasVideoAudio ? "optional" as const : false,
   };
 }

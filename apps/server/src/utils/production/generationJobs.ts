@@ -2,11 +2,11 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, realpath, stat, writeAtomic } from "@toonflow/file";
 import { dirname, join } from "node:path";
-import type { GeneratedMedia, MediaGenerationRequest, VideoExecution } from "@toonflow/tools-scaffold/runtime";
+import type { GeneratedMedia, MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
-import { resolveComfyBaseUrl } from "@/utils/production/autodl";
-import { cancelPrompt, findSubmittedPromptByClientId } from "@/utils/production/comfyui";
+import { resolveRecordedComfyBaseUrl, type TrackedVideoExecution } from "@/utils/production/autodl";
+import { cancelPrompt, ComfyPromptFailed, findSubmittedPromptByClientId } from "@/utils/production/comfyui";
 import { getVideoQcStatus } from "@/utils/production/videoRecords";
 
 type Phase = "preparing" | "submitting" | "submitted" | "saved" | "completed" | "cancelled" | "failed";
@@ -19,8 +19,8 @@ type Job = {
   phase: Phase;
   createdAt: string;
   updatedAt: string;
-  execution?: VideoExecution;
-  submission?: Omit<VideoExecution, "promptId">;
+  execution?: TrackedVideoExecution;
+  submission?: Omit<TrackedVideoExecution, "promptId">;
   files?: GeneratedMedia[];
   error?: string;
 };
@@ -29,12 +29,12 @@ type RunOptions = {
   request: MediaGenerationRequest;
   generate: (options: {
     signal: AbortSignal;
-    resume?: VideoExecution;
-    submitting: (submission?: Omit<VideoExecution, "promptId">) => Promise<void>;
-    submitted: (execution: VideoExecution) => Promise<void>;
-  }) => Promise<{ files: { bytes: Uint8Array; mimeType: string }[]; execution: VideoExecution }>;
+    resume?: TrackedVideoExecution;
+    submitting: (submission?: Omit<TrackedVideoExecution, "promptId">) => Promise<void>;
+    submitted: (execution: TrackedVideoExecution) => Promise<void>;
+  }) => Promise<{ files: { bytes: Uint8Array; mimeType: string }[]; execution: TrackedVideoExecution }>;
   save: (files: { bytes: Uint8Array; mimeType: string }[], id: string, signal: AbortSignal) => Promise<GeneratedMedia[]>;
-  record: (files: GeneratedMedia[], execution: VideoExecution) => Promise<void>;
+  record: (files: GeneratedMedia[], execution: TrackedVideoExecution) => Promise<void>;
 };
 
 const running = new Map<string, { promise: Promise<GeneratedMedia[]>; controller: AbortController; directory: string; fingerprint: string }>();
@@ -87,9 +87,7 @@ function publicStatus(job: Job) {
 async function reconcileSubmission(job: Job) {
   if (job.phase !== "submitting") return;
   if (!job.submission) throw Object.assign(new Error("旧任务缺少提交主机和关联编号，无法自动核对，仍禁止重提"), { status: 409 });
-  const host = job.submission.host;
-  if (host !== "local" && host !== "autodl") throw Object.assign(new Error("任务提交主机记录无效"), { status: 409 });
-  const baseUrl = await resolveComfyBaseUrl(undefined, host);
+  const baseUrl = resolveRecordedComfyBaseUrl(job.submission);
   const promptId = await findSubmittedPromptByClientId(baseUrl, job.id);
   if (!promptId) {
     throw Object.assign(new Error("远端队列与最近 500 条历史未找到原任务，提交是否成功仍不确定；未重新提交"), { status: 409 });
@@ -150,18 +148,16 @@ export async function cancelGenerationJob(cwd: string, id: string) {
   if (job.phase === "submitting") throw Object.assign(new Error("远端提交状态未知，暂不能安全取消；请先核对 ComfyUI 队列"), { status: 409 });
   const active = running.get(id);
   if (active && active.directory !== directory) throw Object.assign(new Error("任务工作区不匹配"), { status: 403 });
-  active?.controller.abort(new Error("用户取消了视频生成任务"));
   if (job.execution && job.phase === "submitted") {
-    const host = job.execution.host;
-    if (host !== "local" && host !== "autodl") throw new Error("任务记录的 ComfyUI 主机无效");
-    await cancelPrompt(await resolveComfyBaseUrl(undefined, host), job.execution.promptId);
+    await cancelPrompt(resolveRecordedComfyBaseUrl(job.execution), job.execution.promptId);
   }
+  active?.controller.abort(new Error("用户取消了视频生成任务"));
   // 等运行协程收尾之后再落取消状态，避免旧协程把 cancelled 覆盖成 submitted/saved。
   await active?.promise.catch(() => undefined);
   const latest = await checkedJob(directory, id);
   if (!latest) throw new Error("取消时未找到持久化任务记录");
   if (latest.phase === "submitting") throw Object.assign(new Error("远端提交状态未知，请先核对 ComfyUI 队列"), { status: 409 });
-  if (!["saved", "completed", "cancelled"].includes(latest.phase)) {
+  if (!["saved", "completed", "cancelled", "failed"].includes(latest.phase)) {
     latest.phase = "cancelled";
     latest.error = "用户已请求停止；远端中断可能需要时间生效";
     await saveJob(latest);
@@ -235,7 +231,7 @@ export async function runGenerationJob(options: RunOptions) {
       // 取消可能来自另一条 HTTP 请求。重新检查持久化状态，防止运行协程覆盖取消结果。
       const latest = await checkedJob(directory, id);
       if (latest?.phase === "cancelled") throw error;
-      if (job!.phase === "preparing") await persist("failed", { error: message });
+      if (job!.phase === "preparing" || error instanceof ComfyPromptFailed) await persist("failed", { error: message });
       else if (job!.phase !== "completed" && job!.phase !== "cancelled") await persist(job!.phase, { error: message });
       throw error;
     }

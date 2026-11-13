@@ -8,29 +8,58 @@
  */
 export const directMediaToolNames = ["generateImage", "generateVideo", "generateAudio"] as const;
 
-const mediaAction = /(?:生成|制作|出图|生图|出视频|做视频|出音频|做音频|画(?:一张|图)?|render)/i;
-const chatLocation = /(?:对话|聊天)(?:框|窗口|里|内|中|界面)?/;
-const deniedChat = /(?:不要|不用|别|禁止|不准|并非|不是|无需|不需要)(?:再|直接|一直|仅|只|让你|让它)?(?:在|到|放在|显示在)?(?:当前)?(?:对话|聊天)(?:框|窗口|里|内|中|界面)?/;
+type DirectMediaTool = typeof directMediaToolNames[number];
+const chatLocation = "(?:当前)?(?:对话|聊天)(?:框|窗口|界面)?(?:里|内|中)?";
+const requestPrefix = "(?:请|帮我|麻烦|直接|只|仅|给我|\\s)*";
+const directRequest = /^\s*(?:(?:请|帮我|麻烦)\s*)*直接/;
+const chatDestination = new RegExp(`^(?:(?:并|然后|再)?(?:直接)?(?:放|发|输出|显示)?[到在])${chatLocation}`);
+const chatBeforeAction = new RegExp(`^在${chatLocation}${requestPrefix}`);
+const deniedChat = new RegExp(`(?:不要|不用|别|禁止|不准|并非|不是|无需|不需要)(?:再|直接|一直|仅|只|让你|让它)?(?:在|到|放在|显示在)?${chatLocation}`);
+const noCanvas = /^(?:不要|不用|别用|别在|禁止用)(?:在|用|使用)?(?:当前)?画布(?:生成|出图|出视频|出音频)?$/;
+const canvasDestination = /(?:到|在|至)[^，,。；;！？!?]{0,12}(?:画布|节点)/;
+const mediaActions: [DirectMediaTool, RegExp][] = [
+  ["generateImage", /^(?:出图|生图|画(?:一张|图)|(?:生成|制作|出)(?:(?:一|两|几|\d+)\s*张\s*)?(?:图片|图像|参考图|图))/],
+  ["generateVideo", /^(?:生成|制作|出|做)(?:(?:一|两|几|\d+)\s*(?:段|个)\s*)?(?:(?:\d+(?:\.\d+)?\s*(?:秒|s))\s*)?视频/],
+  ["generateAudio", /^(?:生成|制作|出|做)(?:(?:一|两|几|\d+)\s*(?:段|个|条)\s*)?(?:音频|音效|配音|音乐)/],
+];
 
 /** Only an explicit request to generate *in the chat* opts out of the canvas. */
 export function explicitlyRequestsChatGeneration(prompt: string): boolean {
+  return requestedChatMediaTools(prompt).size > 0;
+}
+
+function requestedChatMediaTools(prompt: string) {
+  const tools = new Set<DirectMediaTool>();
   const normalized = prompt.replace(/\s+/g, " ").trim();
-  if (!normalized || !mediaAction.test(normalized)) return false;
-  // Questions about old chat output are not requests to produce new chat media.
-  if (/^(?:为什么|为何|怎么|如何|解释|分析|研究|论证|排查|检查|查看|看看|帮我看看)/.test(normalized)) return false;
-  if (deniedChat.test(normalized)) return false;
-  return (
-    /(?:在|到|放在|发在|直接在|只在|仅在)(?:当前)?(?:对话|聊天)(?:框|窗口|里|内|中|界面)?(?:.{0,16})(?:直接)?(?:生成|出图|生图|制作|画|显示)/.test(normalized)
-    || /(?:直接|只|仅)(?:生成|出图|生图|制作|画)(?:.{0,36})(?:到|在|放在|显示在)?(?:当前)?(?:对话|聊天)(?:框|窗口|里|内|中|界面)?/.test(normalized)
-    || /(?:不要|不用|别|禁止)(?:.{0,8})(?:画布|节点)(?:.{0,32})(?:直接)?(?:生成|出图|生图|制作|画|出视频|做视频|出音频|做音频)/.test(normalized)
-  );
+  if (deniedChat.test(normalized)) return tools;
+  const prefix = new RegExp(`^${requestPrefix}`);
+  // 生成动作和目的地须在同一分句，避免把随后聊天里的进度汇报识别为直出。
+  let previousExcludesCanvas = false;
+  for (const clause of normalized.split(/(?<=[？?])|[，,。；;！!]/)) {
+    const command = clause.replace(prefix, "");
+    if (/[吗么][？?]?$|[？?]$/.test(command)) {
+      previousExcludesCanvas = false;
+      continue;
+    }
+    const explicitChat = chatBeforeAction.test(command);
+    const action = explicitChat ? command.replace(chatBeforeAction, "") : command;
+    if (!canvasDestination.test(action)) {
+      for (const [tool, pattern] of mediaActions) {
+        const match = pattern.exec(action);
+        if (match && (explicitChat || chatDestination.test(action.slice(match[0].length).trim())
+          || (previousExcludesCanvas && directRequest.test(clause)))) tools.add(tool);
+      }
+    }
+    previousExcludesCanvas = noCanvas.test(command.trim());
+  }
+  return tools;
 }
 
 /** Apply after plugins are loaded and before delegating tools to any sub-agent. */
 export function routeAgentMediaTools<T extends { name: string }>(tools: readonly T[], prompt: string, isSubAgent: boolean): T[] {
-  if (!isSubAgent && explicitlyRequestsChatGeneration(prompt)) return [...tools];
-  const blocked = new Set<string>(directMediaToolNames);
-  return tools.filter(tool => !blocked.has(tool.name));
+  const allowed = isSubAgent ? new Set<DirectMediaTool>() : requestedChatMediaTools(prompt);
+  const direct = new Set<string>(directMediaToolNames);
+  return tools.filter(tool => !direct.has(tool.name) || allowed.has(tool.name as DirectMediaTool));
 }
 
 export function canvasMediaRoutingInstructions(hasCanvas: boolean, directChatAllowed: boolean): string {

@@ -1,13 +1,13 @@
 // 按所选工作流把提示词和参考绑进 ComfyUI API JSON，再提交并取回文件。
 import { readFile } from "@toonflow/file";
-import type { MediaGenerationRequest, VideoExecution } from "@toonflow/tools-scaffold/runtime";
-import { resolveComfyBaseUrl } from "@/utils/production/autodl";
+import type { MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
+import { resolveComfyTarget, resolveRecordedComfyBaseUrl, type TrackedVideoExecution } from "@/utils/production/autodl";
 import { downloadOutput, probeComfy, readNodeChoices, submitWorkflow, uploadInput, waitForOutput } from "@/utils/production/comfyui";
 import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
 import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { captureVideoReview, requireVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
-import { validateH3Workflow } from "@/utils/production/h3Workflow";
+import { validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
 import { checkMediaBudget, reserveMediaBudget } from "@/utils/media/budget";
 
 type MediaRef = { path: string; mimeType?: string };
@@ -221,6 +221,9 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
   if (entry.bindings.firstPassOutputNode && context.output_first_pass !== true) {
     omitFirstPassOutput(workflow, entry.bindings.firstPassOutputNode);
   }
+  if (entry.kind === "video" && context.generate_audio === false) {
+    for (const inputs of videoAudioInputs(workflow)) delete inputs.audio;
+  }
   const outputs = terminalNodeIds(workflow);
   if (!outputs.length) fail(dropped.length ? `工作流 ${entry.label} 没有输出节点。${dropped.join("；")}` : `工作流 ${entry.label} 没有输出节点`);
   return workflow;
@@ -241,6 +244,7 @@ export async function prepareComfyWorkflow(options: {
     fail(`${entry.label} 的时长需要在 ${limits.min} 到 ${limits.max} 秒`);
   }
   if (request.outputFirstPass === true && !entry.bindings.firstPassOutputNode) fail(`${entry.label} 不支持输出一采视频`);
+  if (mediaType === "video" && request.generateAudio === true && !entry.hasVideoAudio) fail(`${entry.label} 没有可用的输出音轨`);
   if (request.loraName !== undefined && !entry.bindings.optionalLoraNode) fail(`${entry.label} 不支持自选 LoRA`);
   const images = request.images ?? [];
   const { min, max: referenceSlots } = imageReferenceRange(entry);
@@ -269,6 +273,7 @@ export async function prepareComfyWorkflow(options: {
     first_pass_steps: sampling("first_pass_steps", request.firstPassSteps, 8),
     second_pass_steps: sampling("second_pass_steps", request.secondPassSteps, 4),
     output_first_pass: request.outputFirstPass === true,
+    generate_audio: mediaType === "video" && entry.hasVideoAudio === true && request.generateAudio !== false,
     lora_name: request.loraName,
     params: mediaType === "video" ? pair(videoNative, ratio) : pixels(request.size, request.ratio),
     delivery: pair(videoDelivery, ratio),
@@ -296,14 +301,14 @@ export async function prepareComfyWorkflow(options: {
 export type PreparedComfyWorkflow = Awaited<ReturnType<typeof prepareComfyWorkflow>>;
 
 export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWorkflow>[0] & {
-  resume?: VideoExecution;
-  onSubmitting?: (submission: Omit<VideoExecution, "promptId">) => Promise<void>;
-  onSubmitted?: (execution: VideoExecution) => Promise<void>;
+  resume?: TrackedVideoExecution;
+  onSubmitting?: (submission: Omit<TrackedVideoExecution, "promptId">) => Promise<void>;
+  onSubmitted?: (execution: TrackedVideoExecution) => Promise<void>;
 }) {
   const { directory, mediaType, request, signal } = options;
   if (options.resume) {
     if (mediaType !== "video" || !["local", "autodl"].includes(options.resume.host)) throw new Error("生成任务恢复记录无效");
-    const baseUrl = await resolveComfyBaseUrl(signal, options.resume.host as "local" | "autodl");
+    const baseUrl = resolveRecordedComfyBaseUrl(options.resume);
     await probeComfy(baseUrl, signal);
     const outputs = await waitForOutput(baseUrl, options.resume.promptId, "video", signal, options.onSubmitted === undefined);
     const workflow = await findWorkflow(request.modelId).catch(() => undefined);
@@ -324,7 +329,8 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   const generationId = mediaType === "video" ? request.generationId : undefined;
   await checkMediaBudget(directory, mediaType, duration, signal, generationId);
   signal?.throwIfAborted();
-  const baseUrl = await resolveComfyBaseUrl(signal, host);
+  const target = await resolveComfyTarget(signal, host);
+  const { baseUrl } = target;
   await probeComfy(baseUrl, signal);
   // 非默认的用户自选 LoRA 必须确实存在于当前 ComfyUI 主机；不静默改成其他文件。
   if (entry.bindings.optionalLoraNode && request.loraName
@@ -344,8 +350,8 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     const uploaded = await uploadInput(baseUrl, path, `${uploadDirectory}/${index}`, signal, bytes);
     writePath(workflow, binding.target, uploaded);
   }
-  const submission: Omit<VideoExecution, "promptId"> = {
-    host, seed: entry.bindings.bindings.some(item => item.source === "seed") ? context.seed : undefined,
+  const submission: Omit<TrackedVideoExecution, "promptId"> = {
+    host, target, seed: entry.bindings.bindings.some(item => item.source === "seed") ? context.seed : undefined,
     megapixels: context.megapixels, upscale: context.upscale,
     firstPassSteps: context.first_pass_steps, secondPassSteps: context.second_pass_steps,
   };
@@ -355,7 +361,7 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     onSubmitting: () => reserveMediaBudget(directory, mediaType, duration, signal, generationId,
       options.onSubmitting ? () => options.onSubmitting!(submission) : undefined),
   });
-  const execution: VideoExecution = { ...submission, promptId };
+  const execution: TrackedVideoExecution = { ...submission, promptId };
   await options.onSubmitted?.(execution);
   const outputs = await waitForOutput(baseUrl, promptId, mediaType, signal, options.onSubmitted === undefined);
   const firstPassId = entry.bindings.firstPassOutputNode;

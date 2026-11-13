@@ -18,7 +18,9 @@ describe("画布优先的生产媒体工具路由", () => {
     "明确聊天直出指令 %s 可使用直接生成工具",
     prompt => {
       expect(explicitlyRequestsChatGeneration(prompt)).toBe(true);
-      expect(routeAgentMediaTools(all, prompt, false)).toHaveLength(all.length);
+      expect(routeAgentMediaTools(all, prompt, false).map(item => item.name)).toEqual([
+        ...expectedCanvasTools.slice(0, -2), prompt.includes("视频") ? "generateVideo" : "generateImage", ...expectedCanvasTools.slice(-2),
+      ]);
     },
   );
 

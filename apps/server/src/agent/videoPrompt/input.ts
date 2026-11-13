@@ -173,8 +173,8 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   const creativeContext = selection && { selected: selection.selected, warnings: selection.warnings, guidance: selection.guidance };
   const voiceContext = compileVoiceCast((input.voiceCast ?? []) as VoiceCastRole[]);
   if (voiceContext.status === "invalid") throw new Error(`角色声音模板配置冲突：${voiceContext.errors.join("；")}`);
-  const audioEnabled = current ? current.config.generateAudio !== false : model.audio !== false;
-  if (voiceContext.roles.length && !audioEnabled) throw new Error("该 H3 视频节点禁用了同期音频；请先 node:setConfig 设置 generateAudio=true");
+  const audioEnabled = model.audio === "optional" && current?.request.generateAudio !== false;
+  if (voiceContext.roles.length && !audioEnabled) throw new Error("角色声音模板需要开启支持同期音轨的 H3 工作流");
   const approved = await Promise.all(references.map(async item => {
     signal?.throwIfAborted();
     const target = await resolveWorkspacePath(cwd, item.path);
@@ -211,7 +211,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
     resolution: spec ? undefined : capability.resolution[0],
     mode: (format === "h3Frames" ? "startEndRequired" : approved.length
       ? model.mode.find(Array.isArray) : "text") as MediaGenerationRequest["mode"],
-    generateAudio: model.audio === true || model.audio === "optional",
+    generateAudio: audioEnabled,
     ...requestedSampling, seed, seedMode,
     ...(format === "h3Frames" ? { firstFrame: mediaRefs(images)[0], lastFrame: mediaRefs(images)[1] }
       : { images: mediaRefs(images), videos: mediaRefs(videos), audios: mediaRefs(audios) }),

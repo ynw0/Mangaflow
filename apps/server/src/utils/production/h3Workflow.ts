@@ -1,6 +1,16 @@
 import type { WorkflowBindings } from "@/utils/production/bindings";
 import { fail } from "@/utils/production/config";
 
+// 这些视频输出节点的音频插口可选，与参考音频输入互不影响。
+export function videoAudioInputs(nodes: Record<string, unknown>) {
+  return Object.values(nodes).flatMap(node => {
+    const candidate = node as { class_type?: string; inputs?: Record<string, unknown> } | null;
+    if ((candidate?.class_type === "CreateVideo" || candidate?.class_type === "VHS_VideoCombine")
+      && Array.isArray(candidate.inputs?.audio)) return [candidate.inputs];
+    return [];
+  });
+}
+
 export function validateH3Workflow(nodes: unknown, bindings: WorkflowBindings) {
   if (!nodes || typeof nodes !== "object" || Array.isArray(nodes)) fail("工作流必须是 API JSON 对象");
   const classes = Object.values(nodes).flatMap(node => {

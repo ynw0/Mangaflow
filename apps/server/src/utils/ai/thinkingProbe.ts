@@ -20,9 +20,9 @@ function providerHeaders(key: string) {
   return { "Content-Type": "application/json", ...(key ? { Authorization: `Bearer ${key}` } : {}) };
 }
 
-async function discoverDeclared(configured: ReturnType<typeof getConfiguredModel>) {
+async function discoverDeclared(configured: ReturnType<typeof getConfiguredModel>, signal: AbortSignal) {
   const response = await fetch(configured.baseUrl.replace(/\/+$/, "") + "/models", {
-    headers: providerHeaders(configured.provider.apiKey), signal: AbortSignal.timeout(20000),
+    headers: providerHeaders(configured.provider.apiKey), signal: AbortSignal.any([signal, AbortSignal.timeout(20000)]),
   });
   if (!response.ok) return [];
   const body = await response.json() as { data?: unknown };
@@ -35,7 +35,8 @@ async function discoverDeclared(configured: ReturnType<typeof getConfiguredModel
   return probeLevels.filter(level => declared.includes(level));
 }
 
-async function trial(configured: ReturnType<typeof getConfiguredModel>, extra: Record<string, unknown>): Promise<Trial> {
+async function trial(configured: ReturnType<typeof getConfiguredModel>, extra: Record<string, unknown>, signal: AbortSignal): Promise<Trial> {
+  signal.throwIfAborted();
   const { provider, model } = configured;
   const path = provider.protocol === "openai-responses" ? "/responses" : "/chat/completions";
   const body = provider.protocol === "openai-responses"
@@ -45,7 +46,8 @@ async function trial(configured: ReturnType<typeof getConfiguredModel>, extra: R
       max_tokens: 128, stream: false, ...extra };
   try {
     const response = await fetch(configured.baseUrl.replace(/\/+$/, "") + path, {
-      method: "POST", headers: providerHeaders(provider.apiKey), body: JSON.stringify(body), signal: AbortSignal.timeout(15000),
+      method: "POST", headers: providerHeaders(provider.apiKey), body: JSON.stringify(body),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
     });
     if (!response.ok) {
       const raw = (await response.text()).slice(0, 2200);
@@ -64,44 +66,45 @@ async function trial(configured: ReturnType<typeof getConfiguredModel>, extra: R
     if (!message && !Array.isArray(result.output)) return { state: "unknown", reasoning: false, error: "接口返回成功但没有可识别的模型响应" };
     return { state: "accepted", reasoning: Boolean(message?.reasoning_content || message?.reasoning), error: "" };
   } catch (error) {
+    signal.throwIfAborted();
     return { state: "unknown", reasoning: false, error: error instanceof Error ? error.message : "网络调用失败" };
   }
 }
 
 // 限制并发度与 Token 消耗，不将每个档位串行等待；与 WarehouseClient 服务端探测一致。
-async function trialMany(configured: ReturnType<typeof getConfiguredModel>, items: { id: string; fields: Record<string, unknown> }[]) {
+async function trialMany(configured: ReturnType<typeof getConfiguredModel>, items: { id: string; fields: Record<string, unknown> }[], signal: AbortSignal) {
   const results = new Map<string, Trial>();
   for (let start = 0; start < items.length; start += 4) {
     const batch = items.slice(start, start + 4);
-    const values = await Promise.all(batch.map(item => trial(configured, item.fields)));
+    const values = await Promise.all(batch.map(item => trial(configured, item.fields, signal)));
     batch.forEach((item, index) => results.set(item.id, values[index]!));
   }
   return results;
 }
 
-export async function probeConfiguredThinkingLevels(providerId: string, modelId: string) {
+export async function probeConfiguredThinkingLevels(providerId: string, modelId: string, signal: AbortSignal) {
   const configured = getConfiguredModel(providerId, modelId);
   if (configured.provider.protocol === "anthropic-messages") {
     throw new Error("当前探测器针对 OpenAI 兼容接口；Anthropic Messages 的思考预算不能按 reasoning_effort 探测");
   }
   // 第一步：服务端模型目录显式声明的优先（和 warehouse model_probe.py 一致）。
   let declared: ProbeThinkingLevel[] = [];
-  try { declared = await discoverDeclared(configured); }
-  catch { /* /models 非强制，继续用实测验证 */ }
+  try { declared = await discoverDeclared(configured, signal); }
+  catch { signal.throwIfAborted(); /* /models 非强制，继续用实测验证 */ }
   if (declared.length) return {
     levels: declared, mode: "effort" as ProbeMode, source: "model-declaration",
     notice: "档位由当前服务的 /models 声明；未逐一验证实际采样行为。",
   };
 
   // 第二步：无效努力等级哨兵。若服务默默接受非法值，其他 accepted 也不能证明支持。
-  const sentinel = await trial(configured, { reasoning_effort: "__invalid_effort_probe__" });
+  const sentinel = await trial(configured, { reasoning_effort: "__invalid_effort_probe__" }, signal);
   if (sentinel.state === "rejected") {
-    const checks = await trialMany(configured, probeLevels.map(level => ({ id: level, fields: { reasoning_effort: level } })));
+    const checks = await trialMany(configured, probeLevels.map(level => ({ id: level, fields: { reasoning_effort: level } })), signal);
     const accepted = probeLevels.filter(level => checks.get(level)?.state === "accepted");
     if (accepted.length) {
       const uncertain = probeLevels.filter(level => checks.get(level)?.state === "unknown");
       return { levels: accepted, mode: "effort" as ProbeMode, source: "live-validation",
-        notice: uncertain.length ? `档位 ${uncertain.join("、")} 无法确认，未列为可用；已确认服务拒绝无效 reasoning_effort。` : "逐档实测成功，并确认服务会拒绝无效 reasoning_effort。" };
+        notice: `${uncertain.length ? `档位 ${uncertain.join("、")} 未确认。` : ""}已验证服务接收列出的档位参数。Agent 流式对话和工具调用需要单独验证。` };
     }
   } else if (sentinel.state === "unknown") {
     throw new Error(`思考档位探测未完成：${sentinel.error}；保留现有配置。`);
@@ -112,7 +115,7 @@ export async function probeConfiguredThinkingLevels(providerId: string, modelId:
     const checks = await trialMany(configured, [
       { id: "off", fields: { chat_template_kwargs: { enable_thinking: false } } },
       { id: "on", fields: { chat_template_kwargs: { enable_thinking: true } } },
-    ]);
+    ], signal);
     const off = checks.get("off"), on = checks.get("on");
     if (off?.state === "accepted" && on?.state === "accepted" && !off.reasoning && on.reasoning) {
       return { levels: ["on"], mode: "toggle" as ProbeMode, source: "observable-toggle",

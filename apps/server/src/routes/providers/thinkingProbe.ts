@@ -12,6 +12,15 @@ export default Router().post("/", validateFields({
 }), async (req, res) => {
   u.mcpControl.assertAppRequest(req);
   const { providerId, modelId } = req.body as { providerId: string; modelId: string };
-  const result = await probeConfiguredThinkingLevels(providerId, modelId);
-  res.set("Cache-Control", "no-store").json(success({ providerId, modelId, ...result }));
+  const controller = new AbortController();
+  const cancel = () => controller.abort();
+  res.once("close", cancel);
+  try {
+    const result = await probeConfiguredThinkingLevels(providerId, modelId, controller.signal);
+    if (!controller.signal.aborted) res.set("Cache-Control", "no-store").json(success({ providerId, modelId, ...result }));
+  } catch (error) {
+    if (!controller.signal.aborted) throw error;
+  } finally {
+    res.off("close", cancel);
+  }
 });

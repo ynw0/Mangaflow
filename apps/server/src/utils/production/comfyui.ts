@@ -266,7 +266,7 @@ function formatPromptError(data: { error?: { type?: unknown; message?: unknown; 
 }
 
 /** 只核对已经进入 ComfyUI 队列或历史记录的请求；未找到不允许重提。 */
-export async function findSubmittedPromptByClientId(baseUrl: string, clientId: string) {
+export async function findSubmittedPromptByClientId(baseUrl: string, clientId: string, signal?: AbortSignal) {
   const matches = new Set<string>();
   const matchRow = (row: unknown) => {
     if (!Array.isArray(row) || typeof row[1] !== "string") return;
@@ -274,14 +274,16 @@ export async function findSubmittedPromptByClientId(baseUrl: string, clientId: s
     if (extra && typeof extra === "object" && !Array.isArray(extra) &&
       (extra as { client_id?: unknown }).client_id === clientId) matches.add(row[1]);
   };
-  const queueResponse = await comfyFetch(baseUrl, "/queue", { method: "GET" }, AbortSignal.timeout(10000));
+  const queueTimeout = AbortSignal.timeout(10000);
+  const queueResponse = await comfyFetch(baseUrl, "/queue", { method: "GET" }, signal ? AbortSignal.any([signal, queueTimeout]) : queueTimeout);
   if (!queueResponse.ok) fail("ComfyUI 队列查询失败：HTTP " + queueResponse.status, 502);
   const queue = await queueResponse.json() as { queue_running?: unknown; queue_pending?: unknown };
   for (const rows of [queue.queue_running, queue.queue_pending]) {
     if (!Array.isArray(rows)) fail("ComfyUI 队列返回格式异常", 502);
     rows.forEach(matchRow);
   }
-  const historyResponse = await comfyFetch(baseUrl, "/history?max_items=500", { method: "GET" }, AbortSignal.timeout(12000));
+  const historyTimeout = AbortSignal.timeout(12000);
+  const historyResponse = await comfyFetch(baseUrl, "/history?max_items=500", { method: "GET" }, signal ? AbortSignal.any([signal, historyTimeout]) : historyTimeout);
   if (!historyResponse.ok) fail("ComfyUI 历史查询失败：HTTP " + historyResponse.status, 502);
   const history = await historyResponse.json() as Record<string, { prompt?: unknown }>;
   if (!history || typeof history !== "object" || Array.isArray(history)) fail("ComfyUI 历史返回格式异常", 502);

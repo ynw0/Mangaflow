@@ -5,6 +5,7 @@ import conf from "@/utils/conf";
 import { fail } from "@/utils/production/config";
 import type { PreparedComfyWorkflow } from "@/utils/production/run";
 import { draftCinematicPlanSchema } from "@/utils/production/videoPlan";
+import type { WorkflowBindings } from "@/utils/production/bindings";
 
 type ReviewFile = { source: string; path: string; size: number; digest: string };
 const maxReviewFileBytes = 100 * 1024 * 1024;
@@ -22,6 +23,35 @@ export type VideoReviewSnapshot = {
 function serialize(value: unknown) {
   return JSON.stringify(value, (_key, item) => item && typeof item === "object" && !Array.isArray(item)
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+}
+
+const runtimeInputs = new Set(["seed", "first_pass_steps", "second_pass_steps"]);
+
+export function videoPromptReviewScope(snapshot: VideoReviewSnapshot) {
+  const { bindings, workflow } = JSON.parse(snapshot.workflow) as {
+    bindings: WorkflowBindings;
+    workflow: Record<string, { class_type?: string; inputs?: Record<string, unknown> }>;
+  };
+  // 只归一化已绑定的运行值；节点、连线和绑定本身仍参与比较。
+  for (const { kind, source, target } of bindings.bindings) {
+    if (kind !== "value" || !runtimeInputs.has(source)) continue;
+    const [id, section, field, extra] = target.split(".");
+    const inputs = workflow[id!]?.inputs;
+    if (!inputs || section !== "inputs" || !field || extra !== undefined) continue;
+    if (typeof inputs[field] === "number" || (source === "seed" && inputs[field] === "randomSeed")) inputs[field] = "runtimeValue";
+  }
+  for (const node of Object.values(workflow)) {
+    if (node?.class_type !== "ModelAttentionBackend" || !node.inputs) continue;
+    if (node.inputs.attention === "pytorch attention" || node.inputs.attention === "comfy kitchen attention") {
+      node.inputs.attention = "runtimeValue";
+    }
+  }
+  return {
+    ...snapshot,
+    seedMode: undefined,
+    parameters: Object.fromEntries(Object.entries(snapshot.parameters).filter(([key]) => !runtimeInputs.has(key))),
+    workflow: serialize({ bindings, workflow }),
+  };
 }
 
 async function requireReviewFile(path: string) {
@@ -77,17 +107,18 @@ export async function captureVideoReview(directory: string, prepared: PreparedCo
 }
 
 export function requireSameVideoReview(approved: VideoReviewSnapshot, current: VideoReviewSnapshot) {
+  const before = videoPromptReviewScope(approved);
+  const after = videoPromptReviewScope(current);
   const changed: string[] = [];
   for (const [key, label] of [["directory", "工作区"], ["modelId", "工作流"], ["host", "GPU 主机"],
-    ["prompt", "英文提示词"], ["seedMode", "种子模式"]] as const) {
+    ["prompt", "英文提示词"]] as const) {
     if (approved[key] !== current[key]) changed.push(label);
   }
   const parameterNames: Record<string, string> = {
-    seed: "种子值", duration: "时长", aspect_ratio: "画幅", megapixels: "百万像素",
-    upscale: "放大倍率", first_pass_steps: "一采步数", second_pass_steps: "二采步数",
+    duration: "时长", aspect_ratio: "画幅", megapixels: "百万像素", upscale: "放大倍率",
   };
-  for (const key of new Set([...Object.keys(approved.parameters), ...Object.keys(current.parameters)])) {
-    if (serialize(approved.parameters[key]) !== serialize(current.parameters[key])) changed.push(parameterNames[key] ?? key);
+  for (const key of new Set([...Object.keys(before.parameters), ...Object.keys(after.parameters)])) {
+    if (serialize(before.parameters[key]) !== serialize(after.parameters[key])) changed.push(parameterNames[key] ?? key);
   }
   if (serialize(approved.references) !== serialize(current.references)) {
     const sources = new Set([...approved.references, ...current.references].map(item => item.source));
@@ -97,7 +128,7 @@ export function requireSameVideoReview(approved: VideoReviewSnapshot, current: V
       if (serialize(before) !== serialize(after)) changed.push(`参考素材 ${source} 的顺序、路径或文件内容`);
     }
   }
-  if (!changed.length && approved.workflow !== current.workflow) changed.push("工作流内容或绑定配置");
+  if (!changed.length && before.workflow !== after.workflow) changed.push("工作流内容或绑定配置");
   if (changed.length) fail(`审核已过期：${changed.join("、")}已变化，请按变化重新审核`, 409);
 }
 

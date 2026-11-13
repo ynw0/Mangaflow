@@ -411,7 +411,7 @@ async function deleteSelection(selection = selectedNodes.value) {
     }
     for (const node of nodes) {
       if (node.deletable === false || flow.findNode(node.id) !== node) continue;
-      await useNodeEvent(node.id, flow).emit("delete");
+      await useNodeEvent(node.id, flow).emit("delete", "manual");
       if (flow.getNodes.value.some(item => item.parentNode === node.id)) throw new Error("分组内容已变化，请重新删除");
       if (flow.findNode(node.id) === node) flow.removeNodes(node.id, true);
     }

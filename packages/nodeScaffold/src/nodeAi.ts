@@ -306,7 +306,7 @@ export function useNodeAi() {
     }
   }
 
-  async function generateMedia<T extends "image" | "video" | "audio">(mediaType: T, input: NodeImageRequest | NodeVideoRequest | NodeAudioRequest, signal?: AbortSignal) {
+  async function generateMedia<T extends "image" | "video" | "audio">(mediaType: T, input: NodeImageRequest | NodeVideoRequest | NodeAudioRequest, signal?: AbortSignal, manual?: true) {
     const callSignal = requestSignal(signal);
     // 生成接口要占住连接直到成片返回。先排队再发请求，避免把画布保存和结果回传挤出浏览器连接池。
     await acquireMediaGeneration(callSignal);
@@ -314,7 +314,7 @@ export function useNodeAi() {
       return await readResult<{ path: string; mimeType: string; mediaType: T }[]>(await fetch("/api/ai/media/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-toonflow-workspace": "1" },
-        body: JSON.stringify({ ...input, mediaType }),
+        body: JSON.stringify({ ...input, mediaType, manual }),
         signal: callSignal,
       }));
     } finally {
@@ -326,8 +326,8 @@ export function useNodeAi() {
     return generateMedia("image", input, signal);
   }
 
-  function generateVideo(input: NodeVideoRequest, signal?: AbortSignal) {
-    return generateMedia("video", input, signal);
+  function generateVideo(input: NodeVideoRequest, signal?: AbortSignal, manual?: true) {
+    return generateMedia("video", input, signal, manual);
   }
 
   function generateAudio(input: NodeAudioRequest, signal?: AbortSignal) {

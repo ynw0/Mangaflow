@@ -5,7 +5,7 @@ import { useNodeInputs } from "./nodeInputs";
 import type { NodeInputValue, NodeOutput } from "./values";
 
 export type NodeEventCallbacks = {
-  delete: () => void | Promise<void>;
+  delete: (source?: "manual") => void | Promise<void>;
   save: (reason?: "reload") => void | Promise<void>;
   copy: () => Record<string, unknown> | Promise<Record<string, unknown>>;
   canConnect: ValidConnectionFunc;
@@ -58,11 +58,11 @@ export function useNodeEvent(nodeId = useNodeId(), canvas = useVueFlow()) {
     return off;
   }
 
-  function emit(name: "delete"): Promise<void>;
+  function emit(name: "delete", source?: "manual"): Promise<void>;
   function emit(name: "save", reason?: "reload"): Promise<void>;
   function emit(name: "copy"): Promise<Record<string, unknown>>;
   function emit(name: "canConnect", ...args: Parameters<ValidConnectionFunc>): boolean;
-  function emit(...args: ["delete"] | ["save", "reload"?] | ["copy"] | ["canConnect", ...Parameters<ValidConnectionFunc>]) {
+  function emit(...args: ["delete", "manual"?] | ["save", "reload"?] | ["copy"] | ["canConnect", ...Parameters<ValidConnectionFunc>]) {
     const events = registry.get(nodeId);
     if (args[0] === "canConnect") {
       return [...events?.canConnect ?? []].every(callback => callback(args[1], args[2]) === true);
@@ -83,9 +83,10 @@ export function useNodeEvent(nodeId = useNodeId(), canvas = useVueFlow()) {
         for (const callback of [...events?.save ?? []]) await callback();
         if (canvas.findNode(nodeId) !== node || registry.get(nodeId) !== events) throw new Error("节点已切换，请重新操作");
       }
-      for (const callback of [...events?.[args[0]] ?? []]) {
-        if (args[0] === "save" && args[1]) await callback(args[1]);
-        else await callback();
+      if (args[0] === "delete") {
+        for (const callback of [...events?.delete ?? []]) await callback(args[1]);
+      } else {
+        for (const callback of [...events?.save ?? []]) await callback(args[1]);
       }
     })();
   }

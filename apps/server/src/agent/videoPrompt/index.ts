@@ -11,7 +11,7 @@ import { runVideoPromptSpecialist } from "@/agent/videoPrompt/specialist";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
-import { findReusableVideoReview, requireSameVideoReview, saveVideoReview } from "@/utils/production/videoReviews";
+import { findReusableVideoReview, requireSameVideoReview, saveVideoReview, videoPromptReviewScope } from "@/utils/production/videoReviews";
 import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { resolveAgentProfile, type AgentModelSelection } from "@/agent/runtime/profiles";
 import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
@@ -120,10 +120,13 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const formatRules = guideRules(guide, prepared.format);
       const commonRules = videoCommonRules(common);
       const reviewerFormat = guideRules(guide, prepared.format, true);
+      const sampling = input.sampling && { ...input.sampling, firstPassSteps: undefined, secondPassSteps: undefined };
       const cacheKey = createHash("sha256").update(JSON.stringify({
         planVersion: 4,
-        input: { ...input, regenerate: undefined, node: input.node ? { canvasId: input.node.canvasId, nodeId: input.node.nodeId } : undefined },
-        snapshot: prepared.snapshot, directorRules, guide, common, reviewRules, reviewRequirements, candidates, creativeContext, voiceContext,
+        input: { ...input, regenerate: undefined, seed: undefined, seedMode: undefined,
+          sampling: sampling && Object.values(sampling).some(value => value !== undefined) ? sampling : undefined,
+          node: input.node ? { canvasId: input.node.canvasId, nodeId: input.node.nodeId } : undefined },
+        snapshot: videoPromptReviewScope(prepared.snapshot), directorRules, guide, common, reviewRules, reviewRequirements, candidates, creativeContext, voiceContext,
         models: [resolveAgentProfile("videoDirector", primaryModel), resolveAgentProfile("videoReviewer", primaryModel)],
       })).digest("hex");
       const update = (stage: string) => {
@@ -252,7 +255,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         const review = await specialist(reviewSchema, reviewSubmissionParameters, "独立提示词审核", [
           '通过 submitResult 提交审核结论。退回结构示例：{"status":"rejected","findings":[{"requirementId":"story","location":"Shot 1","evidence":"工友未说话，镜头内未交代其嘴部状态","fixTarget":"在该段写明工友闭嘴等候"}]}。只审核当前稿件。',
           `通过示例。调用参数取 submitResult 的对象，实际提交须覆盖任务的全部编号：${JSON.stringify(reviewSubmissionExample)}`,
-          "通过时 coverage 必须恰好覆盖 reviewRequirements 每个编号一次；每条证据用一个短句定位正文事实，禁止只写符合、已检查或复述要求。禁止项说明检查范围与实际安排；没有参考或对白时如实说明不适用及依据，不新增要求。退回只列实质缺陷，不因字数短、固定机位、没有特效或个人审美偏好退回。",
+          "通过时 coverage 是 JSON 对象数组，直接填写 [{\"requirementId\":\"编号\",\"evidence\":\"短句\"}]。恰好覆盖 reviewRequirements 每个编号一次；每条证据用一个短句定位正文事实，禁止只写符合、已检查或复述要求。禁止项说明检查范围与实际安排；没有参考或对白时如实说明不适用及依据，不新增要求。退回只列实质缺陷，不因字数短、固定机位、没有特效或个人审美偏好退回。",
           "对照 cinematicPlan 与真实正文，逐项审核运动终点、停机时间、镜尾同框对象、人物终点及表演节拍是否相容。需要推近特写却又保持远处人物上半身可见，或定幅期间仍继续推进，属于实质缺陷。不能只因六段格式完整就判合格。",
           "对照 cinematicPlan.dialogue 和正文逐句核对说话人、开口触发、必须先完成的动作、停顿和收句。正文先做后说时，规划必须列出该前置节拍并先做完再开口。整句期间听者闭口。按 speechPolicy 留足口播及停顿和最后 0.2 秒，贴边时在审核证据指出起声偏移风险；有 voiceCast 时核对声线和语速覆盖。定位实际影响剧情、动作、身份或声画的缺陷，保留合理的拍法取舍。",
           JSON.stringify({ ...taskInput, reviewRequirements, draft: lastDraft }),

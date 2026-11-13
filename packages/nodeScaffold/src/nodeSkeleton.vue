@@ -399,7 +399,7 @@ async function deleteNode() {
   if (deleting.value) return;
   deleting.value = true;
   try {
-    await nodeEvent.emit("delete");
+    await nodeEvent.emit("delete", "manual");
     removeNodes(nodeId);
   } catch (error) {
     const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;

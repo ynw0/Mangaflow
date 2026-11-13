@@ -255,9 +255,9 @@ async function writeTrackedVideos(directory: string, outputDirectory: string,
 }
 
 /** 只依据受工作区保护的持久化请求恢复已有任务，绝不重建随机种子或参考图。 */
-export async function resumeStoredVideoGeneration(cwd: string, id: string): Promise<GeneratedMedia[]> {
+export async function resumeStoredVideoGeneration(cwd: string, id: string, manual = false): Promise<GeneratedMedia[]> {
   const request = await getStoredGenerationRequest(cwd, id);
-  return generateMedia(cwd, "video", request);
+  return generateMedia(cwd, "video", request, undefined, manual);
 }
 
 export async function generateMedia(
@@ -265,6 +265,7 @@ export async function generateMedia(
   mediaType: "image" | "video" | "audio",
   request: MediaGenerationRequest,
   signal?: AbortSignal,
+  manual = false,
 ): Promise<GeneratedMedia[]> {
   signal?.throwIfAborted();
   if (!request.prompt.trim()) invalid("请输入生成提示词");
@@ -277,12 +278,13 @@ export async function generateMedia(
     if (mediaType === "video") {
       const tracked = { ...request, generationId: request.generationId ?? crypto.randomUUID() };
       return runGenerationJob({
-        directory, request: tracked,
-        generate: ({ signal: jobSignal, resume, submitting, submitted }) =>
-          runComfyWorkflow({ directory, mediaType, request: tracked, signal: jobSignal, resume,
+        directory, request: tracked, manual,
+        generate: ({ signal: jobSignal, manual, resume, submitting, submitted }) =>
+          runComfyWorkflow({ directory, mediaType, request: tracked, signal: jobSignal, resume, manual,
             onSubmitting: submitting, onSubmitted: submitted }),
         save: (files, id, jobSignal) => writeTrackedVideos(directory, outputDirectory, id, files, jobSignal),
-        record: (files, { target: _target, ...execution }) => recordVideoOutputs(directory, files, tracked, execution),
+        record: (files, { target: _target, ...execution }, manual) => recordVideoOutputs(
+          directory, files, manual ? { ...tracked, reviewId: undefined } : tracked, execution),
       });
     }
     const { files, execution } = await runComfyWorkflow({ directory, mediaType, request, signal });

@@ -3,7 +3,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { success, errorFromCause } from "@/lib/responseFormat";
 import { validationOptions } from "@/lib/i18n";
-import { generationJobStatus, listGenerationJobs, cancelGenerationJob } from "@/utils/production/generationJobs";
+import { generationJobStatus, listGenerationJobs, cancelGenerationJob, abandonGenerationJob } from "@/utils/production/generationJobs";
+import { isLocalWorkspaceRequest } from "@/utils/workspace";
 import { resumeStoredVideoGeneration } from "@/utils/media/generation";
 import u from "@/utils";
 
@@ -36,9 +37,12 @@ export default Router()
   .post("/resume", async (req, res) => {
     u.mcpControl.assertAppRequest(req);
     try {
-      const input = readInput.parse(req.body, validationOptions());
+      const input = readInput.extend({ manual: z.literal(true).optional() }).parse(req.body, validationOptions());
+      if (input.manual && !isLocalWorkspaceRequest(req)) {
+        throw Object.assign(new Error("请在本机画布上继续人工视频任务"), { status: 403 });
+      }
       const cwd = await u.workspace.resolveWorkspace(req, input.directory);
-      res.set("Cache-Control", "no-store").json(success(await resumeStoredVideoGeneration(cwd, input.generationId)));
+      res.set("Cache-Control", "no-store").json(success(await resumeStoredVideoGeneration(cwd, input.generationId, input.manual)));
     } catch (cause) {
       const response = errorFromCause(cause);
       res.status(response.code >= 400 && response.code < 600 ? response.code : 500).json(response);
@@ -47,9 +51,13 @@ export default Router()
   .post("/cancel", async (req, res) => {
     u.mcpControl.assertAppRequest(req);
     try {
-      const input = readInput.parse(req.body, validationOptions());
+      const input = readInput.extend({ abandon: z.literal(true).optional() }).parse(req.body, validationOptions());
+      if (input.abandon && !isLocalWorkspaceRequest(req)) {
+        throw Object.assign(new Error("请在本机画布上放弃视频任务"), { status: 403 });
+      }
       const cwd = await u.workspace.resolveWorkspace(req, input.directory);
-      res.set("Cache-Control", "no-store").json(success(await cancelGenerationJob(cwd, input.generationId)));
+      const action = input.abandon ? abandonGenerationJob : cancelGenerationJob;
+      res.set("Cache-Control", "no-store").json(success(await action(cwd, input.generationId)));
     } catch (cause) {
       const response = errorFromCause(cause);
       res.status(response.code >= 400 && response.code < 600 ? response.code : 500).json(response);

@@ -301,6 +301,7 @@ export async function prepareComfyWorkflow(options: {
 export type PreparedComfyWorkflow = Awaited<ReturnType<typeof prepareComfyWorkflow>>;
 
 export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWorkflow>[0] & {
+  manual?: boolean;
   resume?: TrackedVideoExecution;
   onSubmitting?: (submission: Omit<TrackedVideoExecution, "promptId">) => Promise<void>;
   onSubmitted?: (execution: TrackedVideoExecution) => Promise<void>;
@@ -320,8 +321,8 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   }
   const prepared = await prepareComfyWorkflow(options);
   const { entry, workflow, context, host } = prepared;
-  // 所有画布、Agent 与 MCP 请求共用此入口，先验审再启动 AutoDL 和上传。
-  const snapshot = mediaType === "video" && entry.bindings.promptFormat
+  // 自动化先验审再启动主机；人工仍使用同一工作流和额度校验。
+  const snapshot = mediaType === "video" && entry.bindings.promptFormat && !options.manual
     ? await captureVideoReview(directory, prepared, signal) : undefined;
   if (snapshot) await requireVideoReview(request.reviewId, snapshot);
   const boundDuration = prepared.inputs.find(input => input.source === "duration")?.value;

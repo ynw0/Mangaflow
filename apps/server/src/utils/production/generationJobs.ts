@@ -4,18 +4,19 @@ import { mkdir, readFile, readdir, realpath, stat, writeAtomic } from "@toonflow
 import { dirname, join } from "node:path";
 import type { GeneratedMedia, MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
-import { resolveWorkspacePath } from "@/utils/workspace/files";
+import { lockWorkspaceFiles, resolveWorkspacePath } from "@/utils/workspace/files";
 import { resolveRecordedComfyBaseUrl, type TrackedVideoExecution } from "@/utils/production/autodl";
 import { cancelPrompt, ComfyPromptFailed, findSubmittedPromptByClientId } from "@/utils/production/comfyui";
 import { getVideoQcStatus } from "@/utils/production/videoRecords";
 
-type Phase = "preparing" | "submitting" | "submitted" | "saved" | "completed" | "cancelled" | "failed";
+type Phase = "preparing" | "submitting" | "submitted" | "saved" | "completed" | "cancelled" | "failed" | "abandoned";
 type Job = {
   id: string;
   directory: string;
   fingerprint: string;
   /** 原始请求只保存在用户本机的 0600 任务记录里，列表 API 不返回提示词或参考图。 */
   request?: MediaGenerationRequest;
+  manual?: boolean;
   phase: Phase;
   createdAt: string;
   updatedAt: string;
@@ -27,17 +28,20 @@ type Job = {
 type RunOptions = {
   directory: string;
   request: MediaGenerationRequest;
+  manual?: boolean;
   generate: (options: {
     signal: AbortSignal;
+    manual: boolean;
     resume?: TrackedVideoExecution;
     submitting: (submission?: Omit<TrackedVideoExecution, "promptId">) => Promise<void>;
     submitted: (execution: TrackedVideoExecution) => Promise<void>;
   }) => Promise<{ files: { bytes: Uint8Array; mimeType: string }[]; execution: TrackedVideoExecution }>;
   save: (files: { bytes: Uint8Array; mimeType: string }[], id: string, signal: AbortSignal) => Promise<GeneratedMedia[]>;
-  record: (files: GeneratedMedia[], execution: TrackedVideoExecution) => Promise<void>;
+  record: (files: GeneratedMedia[], execution: TrackedVideoExecution, manual: boolean) => Promise<void>;
 };
 
 const running = new Map<string, { promise: Promise<GeneratedMedia[]>; controller: AbortController; directory: string; fingerprint: string }>();
+const abandoning = new Set<string>();
 const directoryPath = join(dirname(conf.path), "generationJobs");
 
 function pathOf(id: string) {
@@ -83,12 +87,17 @@ function publicStatus(job: Job) {
     canResumeById: phaseReady && Boolean(job.request) };
 }
 
+function terminated(phase: Phase) {
+  return phase === "abandoned" || phase === "cancelled" || phase === "failed";
+}
+
 /** 只以已落盘的 client_id 对账；查不到保持锁定，绝不再次 POST。 */
-async function reconcileSubmission(job: Job) {
+async function reconcileSubmission(job: Job, signal: AbortSignal) {
   if (job.phase !== "submitting") return;
   if (!job.submission) throw Object.assign(new Error("旧任务缺少提交主机和关联编号，无法自动核对，仍禁止重提"), { status: 409 });
   const baseUrl = resolveRecordedComfyBaseUrl(job.submission);
-  const promptId = await findSubmittedPromptByClientId(baseUrl, job.id);
+  const promptId = await findSubmittedPromptByClientId(baseUrl, job.id, signal);
+  signal.throwIfAborted();
   if (!promptId) {
     throw Object.assign(new Error("远端队列与最近 500 条历史未找到原任务，提交是否成功仍不确定；未重新提交"), { status: 409 });
   }
@@ -103,14 +112,13 @@ export async function getStoredGenerationRequest(cwd: string, id: string): Promi
   const directory = await realpath(cwd);
   const job = await checkedJob(directory, id);
   if (!job) throw Object.assign(new Error("生成任务不存在"), { status: 404 });
-  if (["cancelled", "failed"].includes(job.phase)) {
+  if (terminated(job.phase)) {
     throw Object.assign(new Error("原任务已终止，禁止使用旧任务编号恢复"), { status: 409 });
   }
   if (!job.request || job.request.generationId !== id || signature(directory, job.request) !== job.fingerprint) {
     throw Object.assign(new Error("旧任务缺少可信原始生成参数，不能只凭任务 ID 重新生成"), { status: 409 });
   }
   if (job.request.providerId !== "comfyui") throw Object.assign(new Error("只有 ComfyUI 视频任务支持持久化恢复"), { status: 400 });
-  if (job.phase === "submitting" && !running.has(id)) await reconcileSubmission(job);
   return job.request;
 }
 export async function generationJobStatus(cwd: string, id: string) {
@@ -141,10 +149,19 @@ export async function listGenerationJobs(cwd: string) {
 }
 export async function cancelGenerationJob(cwd: string, id: string) {
   const directory = await realpath(cwd);
+  const release = lockWorkspaceFiles([pathOf(id)]);
+  try {
+    return await cancelJob(directory, id);
+  } finally {
+    release();
+  }
+}
+
+async function cancelJob(directory: string, id: string) {
   const job = await checkedJob(directory, id);
   if (!job) throw Object.assign(new Error("生成任务不存在"), { status: 404 });
   // 成片已经保存后不再撤销视频/QC 登记；调用方可直接取回已有结果。
-  if (["saved", "completed", "cancelled", "failed"].includes(job.phase)) return publicStatus(job);
+  if (job.phase === "saved" || job.phase === "completed" || terminated(job.phase)) return publicStatus(job);
   if (job.phase === "submitting") throw Object.assign(new Error("远端提交状态未知，暂不能安全取消；请先核对 ComfyUI 队列"), { status: 409 });
   const active = running.get(id);
   if (active && active.directory !== directory) throw Object.assign(new Error("任务工作区不匹配"), { status: 403 });
@@ -157,18 +174,49 @@ export async function cancelGenerationJob(cwd: string, id: string) {
   const latest = await checkedJob(directory, id);
   if (!latest) throw new Error("取消时未找到持久化任务记录");
   if (latest.phase === "submitting") throw Object.assign(new Error("远端提交状态未知，请先核对 ComfyUI 队列"), { status: 409 });
-  if (!["saved", "completed", "cancelled", "failed"].includes(latest.phase)) {
+  if (latest.phase !== "saved" && latest.phase !== "completed" && !terminated(latest.phase)) {
     latest.phase = "cancelled";
     latest.error = "用户已请求停止；远端中断可能需要时间生效";
     await saveJob(latest);
   }
   return publicStatus((await checkedJob(directory, id))!);
 }
+
+export async function abandonGenerationJob(cwd: string, id: string) {
+  const directory = await realpath(cwd);
+  const release = lockWorkspaceFiles([pathOf(id)]);
+  abandoning.add(id);
+  try {
+    const job = await checkedJob(directory, id);
+    const active = running.get(id);
+    if (active && active.directory !== directory) throw Object.assign(new Error("任务工作区不匹配"), { status: 403 });
+    // 先结束本地写入，再落放弃状态，避免后台协程或对账覆盖记录。
+    active?.controller.abort(new Error("用户已放弃本地视频任务"));
+    await active?.promise.catch(() => undefined);
+    const latest = active ? await checkedJob(directory, id) : job;
+    if (!latest) {
+      const now = new Date().toISOString();
+      const abandoned: Job = { id, directory, fingerprint: "", phase: "abandoned", createdAt: now, updatedAt: now };
+      await saveJob(abandoned, true);
+      return publicStatus(abandoned);
+    }
+    if (latest.phase === "abandoned") return publicStatus(latest);
+    latest.phase = "abandoned";
+    latest.error = "已放弃本地任务，远端执行状态未确认";
+    await saveJob(latest);
+    return publicStatus(latest);
+  } finally {
+    abandoning.delete(id);
+    release();
+  }
+}
+
 export async function runGenerationJob(options: RunOptions) {
   const { request } = options;
   if (!request.generationId) throw new Error("持久化生成必须有 generationId");
   const id = request.generationId;
   const directory = await realpath(options.directory);
+  if (abandoning.has(id)) throw Object.assign(new Error("正在放弃此任务"), { status: 409 });
   const fingerprint = signature(directory, request);
   const active = running.get(id);
   if (active) {
@@ -182,7 +230,7 @@ export async function runGenerationJob(options: RunOptions) {
     let job = await checkedJob(directory, id, request);
     if (!job) {
       const now = new Date().toISOString();
-      job = { id, directory, fingerprint, request, phase: "preparing", createdAt: now, updatedAt: now };
+      job = { id, directory, fingerprint, request, manual: options.manual, phase: "preparing", createdAt: now, updatedAt: now };
       await saveJob(job, true);
     }
     const persist = async (phase: Phase, patch: Partial<Job> = {}) => {
@@ -195,16 +243,19 @@ export async function runGenerationJob(options: RunOptions) {
         await validFiles(directory, job.files ?? []);
         return job.files ?? [];
       }
-      if (job.phase === "submitting") await reconcileSubmission(job);
+      if (job.phase === "submitting") await reconcileSubmission(job, controller.signal);
       if (job.phase === "submitted" && !job.execution?.promptId) {
         throw new Error("任务已提交但缺少 promptId；禁止重新提交工作流");
       }
-      if (["cancelled", "failed"].includes(job.phase)) throw new Error("任务已终止；如要重新生成，请明确新建 generationId");
+      if (terminated(job.phase)) throw new Error("任务已终止；如要重新生成，请明确新建 generationId");
+      if (job.phase === "preparing" && job.manual && !options.manual) {
+        throw Object.assign(new Error("准备中的任务须使用原来的生成入口继续"), { status: 409 });
+      }
       let files = job.files;
       let execution = job.execution;
       if (job.phase !== "saved") {
         const output = await options.generate({
-          signal: controller.signal, resume: job.phase === "submitted" ? execution : undefined,
+          signal: controller.signal, manual: job.manual === true, resume: job.phase === "submitted" ? execution : undefined,
           submitting: async submission => {
             controller.signal.throwIfAborted();
             await persist("submitting", { submission });
@@ -223,14 +274,14 @@ export async function runGenerationJob(options: RunOptions) {
       }
       if (!files?.length || !execution) throw new Error("任务缺少已保存的输出或执行记录");
       await validFiles(directory, files);
-      await options.record(files, execution);
+      await options.record(files, execution, job.manual === true);
       await persist("completed", { error: undefined });
       return files;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       // 取消可能来自另一条 HTTP 请求。重新检查持久化状态，防止运行协程覆盖取消结果。
       const latest = await checkedJob(directory, id);
-      if (latest?.phase === "cancelled") throw error;
+      if (latest?.phase === "cancelled" || latest?.phase === "abandoned") throw error;
       if (job!.phase === "preparing" || error instanceof ComfyPromptFailed) await persist("failed", { error: message });
       else if (job!.phase !== "completed" && job!.phase !== "cancelled") await persist(job!.phase, { error: message });
       throw error;

@@ -114,25 +114,39 @@ export async function runSubAgent(options: SubAgentModel & {
       throw new Error(resultTool ? `模型响应${reply.stopReason === "aborted" ? "已中断" : "失败"}：${message}` : message);
     }
     if (resultTool) {
-      if (reply.stopReason === "length") {
-        result.status = "limited";
-        result.result = "模型达到输出长度限制，未完整提交结果";
-        return { result, usage };
+      let submissionReply = reply;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        if (submissionReply.stopReason === "error" || submissionReply.stopReason === "aborted") {
+          throw new Error(submissionReply.errorMessage || "模型补交失败");
+        }
+        if (submissionReply.stopReason === "length") {
+          result.status = "limited";
+          result.result = "模型达到输出长度限制，未完整提交结果";
+          return { result, usage };
+        }
+        const calls = submissionReply.content.filter(part => part.type === "toolCall" && part.name === resultTool.name);
+        const [call] = calls;
+        if (calls.length !== 1 || call?.type !== "toolCall") {
+          throw new Error(calls.length ? `模型重复调用 ${resultTool.name}` : `模型已结束回复，未调用 ${resultTool.name}`);
+        }
+        const submitted = session.messages.findLast(message => message.role === "toolResult" && message.toolCallId === call.id);
+        if (!submitted || submitted.role !== "toolResult") throw new Error("结果提交未完成");
+        if (!submitted.isError) {
+          result.status = "completed";
+          result.result = "结构化结果校验通过";
+          return { result, usage };
+        }
+        const message = getToolResultText(submitted.content).split("\n\nReceived arguments:")[0]!.slice(0, 900);
+        if (attempt === 1) throw new Error(`${resultTool.name} 字段校验失败：${message}`);
+        // 当前专家只补交一次，保留任务、原结果和校验反馈。
+        onProgress?.("字段校验失败，正在补交");
+        const previousReply = submissionReply;
+        await session.prompt(`本阶段结果未提交成功。只修正以下字段错误，保留原结论和有效内容，重新调用 ${resultTool.name} 一次。数组使用 []，对象使用 {}，不要把它们编码成字符串。\n${message}`, { expandPromptTemplates: false });
+        signal.throwIfAborted();
+        const corrected = session.messages.findLast(item => item.role === "assistant");
+        if (!corrected || corrected.role !== "assistant" || corrected === previousReply) throw new Error("模型未返回补交结果");
+        submissionReply = corrected;
       }
-      const calls = reply.content.filter(part => part.type === "toolCall" && part.name === resultTool.name);
-      const [call] = calls;
-      if (calls.length !== 1 || call?.type !== "toolCall") {
-        throw new Error(calls.length ? `模型重复调用 ${resultTool.name}` : `模型已结束回复，未调用 ${resultTool.name}`);
-      }
-      const submitted = session.messages.findLast(message => message.role === "toolResult" && message.toolCallId === call.id);
-      if (!submitted || submitted.role !== "toolResult") throw new Error("结果提交未完成");
-      if (submitted.isError) {
-        const message = getToolResultText(submitted.content).split("\n\nReceived arguments:")[0]!;
-        throw new Error(`${resultTool.name} 字段校验失败：${message.slice(0, 900)}`);
-      }
-      result.status = "completed";
-      result.result = "结构化结果校验通过";
-      return { result, usage };
     }
     const text = question ?? reply.content.filter(part => part.type === "text").map(part => part.text).join("\n").trim();
     if (!text) throw new Error("子任务没有返回文本结果");

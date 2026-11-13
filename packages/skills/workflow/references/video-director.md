@@ -69,7 +69,7 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 - 写入视频节点时按 [canvas-use.md](canvas-use.md) 交接英文正文和简体中文对照。
 - `<d>` 内对白/歌词与画面可见文字保留原文语言。
 - 语言标签用英文全称（Chinese、English、Korean、Japanese），不要 zh/en/ja/ko/zh-CN。
-- 任务类型括号、关系词、`[Shot N]`、`At MM:SS.mmm`、`fully_preserved` 等官方记号保持英文原文。
+- 任务类型括号、关系词、`[Shot 1]`、`fully_preserved` 等官方记号保持英文原文。
 - Mangaflow 槽位标签 `<Picture N>` / `<Subject N>` 仍按本文件约束保留。
 
 ## Mangaflow 特有约束
@@ -87,7 +87,7 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 - 跨镜须保留的外形事实（服装主色与形制、道具主色与材质、发型长度、伤口位置等）写入对应 `<Subject N>` 定义，并在 `retention_analysis` 用 `fully_preserved` / `partially_preserved` 钉住；**不得**以「参考帧已经交代过」为由删掉这些锁面事实。状态变化（破损进度、持有人）写在本镜动作句，不塞进锁面。
 
 ### 连续摄影
-- 一个视频节点只有一个连续摄影镜头。`[Shot N]` 是同一镜内的时间段，不是硬切。
+- 一个视频节点对应一个连续摄影镜头，正文使用一个 `[Shot 1]`。后续动作、接话和收句用自然语言描述，必要时写近似的镜内时点。
 - 禁止切镜、反打、跨场景、时间跳跃或蒙太奇。闪回、电话对切、进门换室各自另建镜头。要换机位另建视频节点。
 - 运镜只写一种主运镜和它的起止。镜子、倒影、旋转跟拍不作为必须完成的动作。禁止只罗列运镜词，禁止堆「真实、流畅、超真实、没有闪烁」这类空词。
 - 顶视允许略微倾斜为斜俯，保持从上方观察的关系及画内方向。
@@ -98,8 +98,8 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 
 ### 说话时序
 - 中文口播按每秒约 4 字做保守估时，句间停顿及开口前必需动作另计。台词与关键动作在镜尾前完成，最后保留 0.2 秒自然收束，人物说完闭口后保持末态或延续自然底声。
-- 对白从镜头前段就开始，铺在整段时长上。长句拆成两段以上，每段写清起点；中间可以留一拍给动作。
-- 按时间段先分配原台词的时长，列明该段画内说话者和沉默者。画内人物没说话时写明嘴巴闭合，画外音时也按此处理。中英文正文的说话时序和嘴部状态须一致。
+- 按英文正文 `<d>` 顺序在 `cinematicPlan.dialogue` 逐句填 `speakerIds`、`startSeconds`、`endSeconds`、`pauseSeconds`。如果必须等动作完成，在 `beats` 中单列该动作，用从 1 开始的 `afterBeat` 引用。行走等可边做边说的动作允许重叠；无对白填空数组。
+- 写明可见的开口触发，例如手放稳文件后开口，或回头到脸可见时边走边说。逐句核对听者整句期间闭口及说话人收句后合唇；画外音保持画内人物闭口。中英文时序一致，原台词完整。
 
 ### 动作时序
 - 一次接触（伸腿绊倒、出手、撞上）写成一个连续动作，伸出和碰上落在同一时间段。拆成两段、中间留空，模型会让对方停下来等。
@@ -144,10 +144,10 @@ subject_definitions:
 <Subject 4> is the underground lab from <Picture 4>. Cool white overhead lights, pale grey bench, cabinets and a fire door behind.
 
 summary:
-[reference generation] 8s film. Lin Yuan stares at the spirit stone on the tray and delivers the story dialogue.
+[reference generation] 8s film. <Subject 1> studies <Subject 2> on <Subject 3> and speaks once.
 
 retention_analysis:
-<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - short black hair, deep indigo knit sweater, dark grey trousers.
+<Subject 1> (appears in [Shot 1]): fully_preserved - short black hair, deep indigo knit sweater, dark grey trousers.
 <Subject 2> (appears in [Shot 1]): fully_preserved - hexagonal silhouette and cracks.
 <Subject 3> (appears in [Shot 1]): fully_preserved - tray silhouette and brushed metal.
 <Subject 4> (appears in [Shot 1]): fully_preserved - lab layout and cool white overhead lights.
@@ -155,8 +155,7 @@ retention_analysis:
 detailed_description:
 Realistic-proportion 3D animation under cool overhead laboratory lighting.
 [Shot 1] Slightly high medium shot of <Subject 4> the lab. <Subject 1> Lin Yuan sits beside the bench, staring at <Subject 2> the spirit stone in <Subject 3> the tray.
-[Shot 2] At 00:03.000, the camera slowly pushes toward Lin Yuan's face; his gaze stays on the stone.
-[Shot 3] At 00:06.000, the camera holds. <Subject 1> (S1) says quietly, <d>[Chinese] 再来一次</d>.
+The camera slowly pushes toward Lin Yuan's face as his gaze stays on the stone. Once the camera settles, <Subject 1> (S1) says quietly, <d>[Chinese] 再来一次</d>. He closes his lips and holds his gaze on the stone through the ending.
 
 overall_soundscape:
 Low HVAC hum running throughout.

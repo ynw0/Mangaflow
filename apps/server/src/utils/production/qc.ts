@@ -11,7 +11,7 @@ import { findWorkflow } from "@/utils/production/catalog";
 import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, readNodeIntegerRange, submitWorkflow, uploadInput, waitForText } from "@/utils/production/comfyui";
 import { fail, isWorkflowEnabled, readProduction, type ProductionConfig } from "@/utils/production/config";
 import { resolveWorkspacePath, writeWorkspaceFile, lockWorkspaceFiles } from "@/utils/workspace/files";
-import { parseQcPayload, summarizeQc, type QcMode } from "@/utils/production/qcResult";
+import { parseQcPayload, requirementsForQc, summarizeQc, type QcMode } from "@/utils/production/qcResult";
 import type { AgentVideoQcEvidence, MediaGenerationRequest, QcRequirement, QcVideoResult } from "@toonflow/tools-scaffold/runtime";
 
 type ModelInputs = { image: boolean; video: boolean; audio: boolean };
@@ -275,7 +275,7 @@ export async function prepareAgentVideoQc(directory: string, videoPath: string, 
       written.push(target);
       frames.push({ path, time: raw.frameTimes[index]!, digest: createHash("sha256").update(bytes).digest("hex") });
     }
-    return { raw, agent: { revision, frames, requirements, technical: raw.technical, timelineCoverage: raw.timelineCoverage, audioExpected } satisfies AgentVideoQcEvidence };
+    return { raw, agent: { revision, frames, requirements: requirementsForQc(requirements, "video"), technical: raw.technical, timelineCoverage: raw.timelineCoverage, audioExpected } satisfies AgentVideoQcEvidence };
   } catch (error) {
     await Promise.all(written.map(path => unlink(path)));
     if (evidenceDirectory) await rmdir(evidenceDirectory);
@@ -368,24 +368,26 @@ async function visualParts(absoluteVideo: string, inputs: ModelInputs, frames: s
 }
 
 function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "video" = "frames", generation?: MediaGenerationRequest, requirements: QcRequirement[] = []) {
+  requirements = requirementsForQc(requirements, kind);
   const inputs = kind === "audio" ? "提供的音轨" : visual === "video" ? "提供的视频与相应音轨" : "提供的画面帧与相应音轨";
   const domains = kind === "merged" ? "分别给出画面（video）和音轨（audio）的结论。"
     : kind === "video" ? "仅审核画面，domain 用 video。" : "仅审核音轨，domain 用 audio。";
   const lines = [
     `你是 MangaFlow 成片质检员。根据${inputs}给出可观察证据。`,
     `只输出一个 JSON 对象。合法格式示例（内容须替换为真实观察）：${JSON.stringify({ checks: [
-      ...(requirements.length ? [{ requirementId: requirements[0]!.id, domain: "video", result: "unverified", evidence: "填写该项可观察事实", time: "00:00.000-00:01.000" }] : []),
+      ...(requirements.length ? [{ requirementId: requirements[0]!.id, domain: requirements[0]!.domain ?? "video", result: "unverified", evidence: "填写该项可观察事实", time: "00:00.000-00:01.000" }] : []),
       ...[...(kind !== "audio" ? ["video"] : []), ...(kind !== "video" ? ["audio"] : [])].map(domain => ({ domain, result: "unverified", evidence: "填写实际观察事实" })),
     ] })}。`,
     "domain 只能填 video、audio、general 中的一个；result 只能填 pass、fail、unverified 中的一个，不能填带竖线的组合字符串。每条 evidence 简洁描述，最多 48 个汉字左右；不输出思考过程、Markdown 或额外解释。",
     "fail 必须在 evidence 中指出具体可见或可听的错误及对应时间，不得只写未通过；可选用 problem 用不超过 16 字概括，unverified 要说明缺失的证据。不要为了额外字段延长 JSON；不填写 fixHint 也有效。根因分析、是否重生成及整改方案由主 Agent 依据 checks 和原合同单独制定。",
     domains,
     "分别检查本轮域内的验收要点。可确认符合用 pass，能指出具体偏差用 fail，证据不足用 unverified。时间无法核实时省略 time。离散帧不能证明帧间没有错误；细微接触、短暂形变、禁止项如不能确定须标 unverified。",
-    "画面检查主体、场景、动作和连续性。音轨检查对白、与画面对齐的音效和声景，以及音量遮盖。",
+    "画面检查主体、场景、动作和连续性。对可辨认的对白段落，核对说话人口型和听者是否跟着开口。仅凭抽帧无法确认整句时标为 unverified。音轨检查对白、与画面对齐的音效和声景，以及音量遮盖。",
   ];
   if (checklist?.trim()) lines.push("本镜验收要点", checklist.trim());
   if (requirements.length) lines.push(
     "以下是已批准镜头合同的强制验收清单。每个 id 必须各有且只有一条 checks，使用 requirementId 原样返回编号；技术性检查不填 requirementId。逐项检查原文中的全部事实，不得用笼统画面通过替代。",
+    "有 domain 的条目必须使用该域作答。对白计划秒数用于查找证据，实际起声、末字和收句以听到的音轨为准。",
     "请先逐项按 id 完成检查，再选择性补充最多 3 条有证据的无编号技术异常。不能重复同一 id、同一事实或用一个失败描述批量套多个不同 id；同一条不得同时给 pass 与 fail。",
     "pass 必须提供可定位的 time 和该项完整成立的证据；需要动作过程、镜尾或声音但输入不能证明时用 unverified。禁止项必须确认其适用时段，不能凭单帧未出现就通过。",
     JSON.stringify(requirements),
@@ -506,7 +508,7 @@ export async function runProductionQc(input: {
       ...await visualParts(localVideo, videoResolved.inputs, evidence.frames, evidence.frameTimes),
     ], input.signal);
     remember(videoText);
-    const audioParts: ContentPart[] = [{ type: "text", text: systemContract("audio", input.checklist, "frames", input.generation) }];
+    const audioParts: ContentPart[] = [{ type: "text", text: systemContract("audio", input.checklist, "frames", input.generation, input.requirements) }];
     if (evidence.audioBase64) {
       audioParts.push({
         type: "input_audio",
@@ -516,7 +518,10 @@ export async function runProductionQc(input: {
       audioParts.push({ type: "text", text: "无音轨可听。" });
     }
     const audioText = await completeMultimodal(audioResolved.configured, audioParts, input.signal);
-    const mergedResult = summarizeQc([...parseQcPayload(videoText, "video", true, input.requirements, visual === "video" || evidence.timelineCoverage, visual === "video").checks, ...parseQcPayload(remember(audioText), "audio", Boolean(evidence.audioBase64)).checks]);
+    const mergedResult = summarizeQc([
+      ...parseQcPayload(videoText, "video", true, input.requirements, visual === "video" || evidence.timelineCoverage, visual === "video").checks,
+      ...parseQcPayload(remember(audioText), "audio", Boolean(evidence.audioBase64), input.requirements).checks,
+    ]);
     return {
       ...mergedResult,
       technical,

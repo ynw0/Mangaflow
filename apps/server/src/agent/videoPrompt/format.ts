@@ -1,13 +1,13 @@
 import { z } from "zod";
 import type { prepareVideoPrompt } from "@/agent/videoPrompt/input";
 import { inspectDialogue } from "@/agent/videoPrompt/dialogue";
-import { cinematicPlanSchema, inspectVideoPlan, type CinematicPlan } from "@/utils/production/videoPlan";
+import { draftCinematicPlanSchema, inspectVideoPlan, type DraftCinematicPlan } from "@/utils/production/videoPlan";
 import { getShotRequirements } from "@/utils/production/qcRequirements";
 
 type Prepared = Awaited<ReturnType<typeof prepareVideoPrompt>>;
 
 const draftFields = {
-  cinematicPlan: cinematicPlanSchema, prompt: z.string().trim().min(1), promptZh: z.string().trim().min(1),
+  cinematicPlan: draftCinematicPlanSchema, prompt: z.string().trim().min(1), promptZh: z.string().trim().min(1),
 };
 const blockedReason = z.string().trim().min(1);
 export const draftSchema = z.discriminatedUnion("status", [
@@ -53,6 +53,7 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
     ...getShotRequirements(shot),
     { id: "framing", text: "镜头规划与正文中的构图、运镜终点和镜尾同框要求相容" },
     { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
+    { id: "dialogueTiming", text: "逐句对照正文与对白计划，核对开口触发、先做动作、停顿、完整台词、听者闭口及 0.2 秒镜尾；无对白时说明依据" },
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
     { id: "bilingualConsistency", text: "中英文的主体、动作、时序、对白和镜尾事实一致" },
     { id: "creativeIntent", text: `叙事目的：${shot.purpose}；视觉风格：${shot.style}` },
@@ -63,7 +64,7 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
 const refSections = ["subject_definitions", "summary", "retention_analysis", "detailed_description", "overall_soundscape", "non_diegetic_music"];
 const baseSections = ["integrated_multimodal_description", "overall_soundscape", "non_diegetic_music"];
 
-export function inspectDraft(draft: { prompt: string; promptZh: string; cinematicPlan: CinematicPlan }, prepared: Prepared) {
+export function inspectDraft(draft: { prompt: string; promptZh: string; cinematicPlan: DraftCinematicPlan }, prepared: Prepared) {
   const { prompt, promptZh } = draft;
   const { format, setup } = prepared;
   const expected = format === "h3Ref2va" ? refSections : baseSections;
@@ -85,9 +86,9 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   }
   if (format === "h3Frames") {
     const duration = setup.duration.toFixed(2);
-    if (prefix.split("\n").length !== 1 || !/Picture 1.*0\.00-second mark/.test(prefix)
-      || !prefix.includes("Picture 2") || !prefix.includes(`${duration}-second mark`)) {
-      findings.push("首行须按 H3 FL2VA 说明对齐首帧、尾帧和实际时长。");
+    if (prefix.split("\n").length !== 1 || !/Picture 1 \(from Shot 1\).*0\.00-second mark/.test(prefix)
+      || !prefix.includes("Picture 2 (from Shot 1)") || !prefix.includes(`${duration}-second mark`)) {
+      findings.push("首行须按 H3 FL2VA 说明对齐首帧、尾帧和实际时长；首尾帧均来自 Shot 1。");
     }
   } else if (prefix) findings.push("正文须直接从本模式的第一个字段开始。");
   for (const [index, heading] of headings.entries()) {
@@ -96,31 +97,16 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   }
   const start = headings[format === "h3Ref2va" ? 3 : 0]!;
   const timeline = prompt.slice(start.index + start[0].length, headings.at(-2)!.index);
-  const segments = [...timeline.matchAll(/(?:^|\n)[\t ]*\[Shot (\d+)\]([^\n]*)/g)];
-  let previous = 0;
-  const windows: { index: number; number: string; start: number }[] = [];
-  if (!segments.length) findings.push("缺少 [Shot 1] 时间段。");
-  if (format === "h3Frames" && !prefix.includes(`Picture 2 (from Shot ${segments.length})`)) {
-    findings.push("尾帧对齐说明须指向实际最后一个时间段。");
+  // 标题只在正文中识别；对白和可见文字里的引用不构成镜头标记。
+  const shotBody = timeline.replace(/<d>[\s\S]*?<\/d>|"[^"\n]*"/gi, match => match.replace(/[^\r\n]/g, " "));
+  const shotMarkers = [...shotBody.matchAll(/\[Shot (\d+)\]/g)];
+  const opening = shotMarkers[0];
+  if (shotMarkers.length !== 1 || opening?.[1] !== "1") {
+    findings.push("连续摄影镜头须用一个 [Shot 1]；镜内动作与对白用自然语言描述。");
+  } else if (/^\s*At\s+\d{2}:\d{2}/i.test(shotBody.slice(opening.index + opening[0].length))) {
+    findings.push("[Shot 1] 直接描述开场画面，近似镜内时点写在动作中。");
   }
-  for (const [index, segment] of segments.entries()) {
-    if (Number(segment[1]) !== index + 1) {
-      findings.push("时间段编号须从 Shot 1 连续递增。");
-      break;
-    }
-    const time = /^\s*At (\d{2}):([0-5]\d)\.(\d{3})(?=\D|$)/.exec(segment[2] ?? "");
-    const seconds = index && time ? Number(time[1]) * 60 + Number(time[2]) + Number(time[3]) / 1000 : 0;
-    windows.push({ index: segment.index, number: segment[1]!, start: seconds });
-    if (!index) {
-      if (/^\s*At\b/.test(segment[2] ?? "")) findings.push("首段直接从起始状态写起。");
-      continue;
-    }
-    if (seconds <= previous || seconds >= setup.duration) {
-      findings.push("后续时间段须使用 At MM:SS.mmm，时点严格递增且早于镜尾。");
-      break;
-    }
-    previous = seconds;
-  }
+  if (/<d>/.test(timeline.slice(0, opening?.index ?? timeline.length))) findings.push("对白须位于 [Shot 1] 正文中。");
   const tags = new Set([...prompt.matchAll(/<(?:Picture|Video|Audio) \d+>/g)].map(match => match[0]));
   const approved = new Set(setup.references.map(item => item.label));
   if ([...tags].some(tag => !approved.has(tag)) || (format === "h3Ref2va" && [...approved].some(tag => !tags.has(tag)))) {
@@ -136,8 +122,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     if (subjects.some(id => !retention.includes(`<Subject ${id}>`))) findings.push("retention_analysis 必须覆盖每个已定义 Subject。");
   }
   if ((prompt.match(/<\/?d\b[^>]*>/gi)?.length ?? 0) !== (timeline.match(/<\/?d\b[^>]*>/gi)?.length ?? 0)) findings.push("对白只能出现在镜头时间轴中。");
-  if (/<d>/.test(timeline.slice(0, windows[0]?.index))) findings.push("对白必须位于编号时间段内。");
-  findings.push(...inspectDialogue(timeline, setup.duration, windows));
+  findings.push(...inspectDialogue(timeline, setup.duration, draft.cinematicPlan));
   if (!/\p{Script=Han}/u.test(promptZh)) findings.push("提供与英文事实一致的简体中文对照。");
   // 跳过对白和引号原文，保留正文行号供导演定向返修。
   const narration = prompt.replace(/<d>[\s\S]*?<\/d>|"[^"\n]*"/gi, match => match.replace(/[^\r\n]/g, " "));

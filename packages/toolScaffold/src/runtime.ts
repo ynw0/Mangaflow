@@ -213,7 +213,7 @@ export type VideoQcRectificationPlan = {
   needsRegeneration: boolean;
 };
 
-export type QcRequirement = { id: string; source: string; text: string };
+export type QcRequirement = { id: string; source: string; text: string; domain?: "video" | "audio" };
 
 export interface AgentVideoQcEvidence {
   revision: string;

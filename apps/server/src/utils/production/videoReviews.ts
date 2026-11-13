@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import conf from "@/utils/conf";
 import { fail } from "@/utils/production/config";
 import type { PreparedComfyWorkflow } from "@/utils/production/run";
-import { cinematicPlanSchema } from "@/utils/production/videoPlan";
+import { draftCinematicPlanSchema } from "@/utils/production/videoPlan";
 
 type ReviewFile = { source: string; path: string; size: number; digest: string };
 const maxReviewFileBytes = 100 * 1024 * 1024;
@@ -121,7 +121,7 @@ export async function findReusableVideoReview(key: string, snapshot: VideoReview
   if (!record.snapshot.prompt || typeof promptZh !== "string" || !promptZh.trim()) {
     fail("已存审核记录缺少完整中英文提示词", 409);
   }
-  return { reviewId, prompt: record.snapshot.prompt, promptZh, cinematicPlan: cinematicPlanSchema.parse(record.audit.cinematicPlan), review: record.audit.review };
+  return { reviewId, prompt: record.snapshot.prompt, promptZh, cinematicPlan: draftCinematicPlanSchema.parse(record.audit.cinematicPlan), review: record.audit.review };
 }
 
 function reviewPath(reviewId: string) {
@@ -147,6 +147,10 @@ export async function requireVideoReview(reviewId: string | undefined, snapshot:
   if (!reviewId) fail("此 H3 请求尚无服务端审核记录，请先完成提示词审核", 409);
   const record = await readApprovedVideoReview(reviewId);
   requireSameVideoReview(record.snapshot, snapshot);
+  // 新提交的对白须经过逐句时序审核；成片读取和已提交任务恢复不经过此入口。
+  if (/<\/?d\b/i.test(snapshot.prompt) && !draftCinematicPlanSchema.safeParse(record.audit.cinematicPlan).success) {
+    fail("该审核记录缺少逐句对白时序，请重新审核后再提交生成", 409);
+  }
 }
 
 export async function readApprovedVideoReview(reviewId: string) {

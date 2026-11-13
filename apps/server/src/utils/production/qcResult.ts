@@ -3,6 +3,11 @@ import type { QcCheck, QcRequirement, QcVideoResult } from "@toonflow/tools-scaf
 
 export type QcMode = "video" | "audio" | "merged";
 
+export function requirementsForQc(requirements: QcRequirement[], mode: QcMode) {
+  return requirements.filter(requirement => mode === "merged"
+    || (mode === "audio" ? requirement.domain === "audio" : requirement.domain !== "audio"));
+}
+
 const qcPayload = z.object({
   checks: z.array(z.object({
     requirementId: z.string().trim().min(1).optional(),
@@ -95,6 +100,7 @@ export function validateRectificationCoverage(checks: QcCheck[], actions: { issu
 }
 
 export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requirements: QcRequirement[] = [], timelineEvidence = true, fullVideoEvidence = timelineEvidence) {
+  requirements = requirementsForQc(requirements, mode);
   const extracted = extractJsonObject(text);
   const parsed = qcPayload.safeParse(extracted.value);
   const diagnostic = extracted.error ?? (!parsed.success
@@ -127,18 +133,24 @@ export function parseQcPayload(text: string, mode: QcMode, hasAudio = true, requ
       continue;
     }
     check.requirement = requirement.text;
+    if (requirement.domain && check.domain !== requirement.domain) {
+      check.result = "unverified";
+      check.evidence = "结论所属的质检域与验收要求不一致。";
+      continue;
+    }
     // 只有具备足够证据的“通过”才能通过；失败依据仍保留供复核。
     const negativeEvidence = requirement.source.startsWith("mustNotHave") && !fullVideoEvidence;
-    if (check.result === "pass" && (!timelineEvidence || !check.time || negativeEvidence)) {
+    const needsVisualTimeline = requirement.domain !== "audio" && !timelineEvidence;
+    if (check.result === "pass" && (needsVisualTimeline || !check.time || negativeEvidence)) {
       check.result = "unverified";
-      const why = !timelineEvidence ? "抽帧不足以确认完整时序" : !check.time
+      const why = needsVisualTimeline ? "抽帧不足以确认完整时序" : !check.time
         ? "缺少可定位的时间证据" : "离散帧不能证明整段视频未出现禁止项";
       check.evidence = `${why}。${check.evidence}`;
     }
   }
   for (const requirement of requirements) {
     if (checks.some(check => check.requirementId === requirement.id)) continue;
-    checks.push({ domain: "video", requirementId: requirement.id, requirement: requirement.text,
+    checks.push({ domain: requirement.domain ?? "video", requirementId: requirement.id, requirement: requirement.text,
       result: "unverified", evidence: "模型未单独验收此项已审要求。" });
   }
   return summarizeQc(checks);

@@ -1,5 +1,5 @@
 name: MangaFlow Windows Release
-run-name: MangaFlow Windows ${{ inputs.version }}
+run-name: MangaFlow Windows ${{ inputs.version || 'requested' }}
 
 on:
   workflow_dispatch:
@@ -8,6 +8,11 @@ on:
         description: Windows 安装包版本号（X.Y.Z）
         required: true
         type: string
+  # GitHub 连接未暴露 workflow_dispatch 时，可提交版本请求文件触发 Windows Release。
+  push:
+    branches: [master]
+    paths:
+      - .github/windows-release-request.json
 
 permissions:
   contents: read
@@ -17,19 +22,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  version:
+    name: 确定 Windows Release 版本
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: 解析版本
+        id: version
+        env:
+          inputVersion: ${{ inputs.version }}
+          eventName: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$eventName" = "workflow_dispatch" ]; then
+            releaseVersion="$inputVersion"
+          else
+            releaseVersion="$(jq -er '.version | select(type == "string")' .github/windows-release-request.json)"
+          fi
+          if [[ ! "$releaseVersion" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Windows Release 版本号必须为 X.Y.Z"
+            exit 1
+          fi
+          echo "version=$releaseVersion" >> "$GITHUB_OUTPUT"
+
   build:
     name: 构建 Windows x64
+    needs: version
     uses: ./.github/workflows/debug.yml
     with:
       target: windowsX64
       ref: ${{ github.sha }}
-      version: ${{ inputs.version }}
+      version: ${{ needs.version.outputs.version }}
       generatePatch: false
       androidRelease: false
 
   publish:
-    name: 发布 Windows 安装包和更新文件
-    needs: build
+    name: 仅发布 Windows exe 安装包
+    needs: [version, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -39,28 +72,19 @@ jobs:
         with:
           name: toonflow-${{ needs.build.outputs.version }}-windowsX64
           path: artifacts
-      - name: 核对安装包及更新清单
-        id: assets
+      - name: 核对安装包
         env:
           releaseVersion: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
           installer="artifacts/mangaflow-${releaseVersion}-Setup.exe"
           test -s "$installer"
-          actualCount="$(find artifacts -maxdepth 1 -type f -name '*.exe' | wc -l)"
-          if [ "$actualCount" -ne 1 ]; then
-            echo "::error::Windows 安装包数量应为 1，实际为 ${actualCount}"
+          count="$(find artifacts -maxdepth 1 -type f -name '*.exe' | wc -l)"
+          if [ "$count" -ne 1 ]; then
+            echo "::error::Windows 安装包数量应为1，实际为$count"
             exit 1
           fi
-          manifest="artifacts/stable-win-x64-update.json"
-          archive="$(jq -er --arg version "$releaseVersion" '
-            select(.schemaVersion == 1 and .identifier == "local.mangaflow.desktop" and
-              .version == $version and .channel == "stable" and .platform == "win" and .arch == "x64")
-            | .artifact.file | select(test("^stable-win-x64-[A-Za-z0-9._-]+\\.tar\\.zst$"))
-          ' "$manifest")"
-          test -s "artifacts/$archive"
-          printf 'archive=%s\n' "$archive" >> "$GITHUB_OUTPUT"
-      - name: 发布 GitHub Release
+      - name: 发布 GitHub Release（仅 exe）
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ needs.build.outputs.version }}
@@ -70,7 +94,4 @@ jobs:
           make_latest: true
           fail_on_unmatched_files: true
           overwrite_files: false
-          files: |
-            artifacts/mangaflow-${{ needs.build.outputs.version }}-Setup.exe
-            artifacts/${{ steps.assets.outputs.archive }}
-            artifacts/stable-win-x64-update.json
+          files: artifacts/mangaflow-${{ needs.build.outputs.version }}-Setup.exe

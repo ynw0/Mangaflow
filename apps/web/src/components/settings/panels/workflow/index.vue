@@ -163,10 +163,11 @@
           <el-text v-else-if="videoQcModelId && !videoQcModels.some(item => item.modelId === videoQcModelId)" type="warning" role="status">当前画面质检模型不可用。</el-text>
           <el-text v-else-if="qcLevel === 'videoAudio' && audioQcModelId && !audioQcModels.some(item => item.modelId === audioQcModelId)" type="warning" role="status">当前音轨质检模型不可用。</el-text>
           <el-text v-else-if="qcLevel === 'videoAudio' && !usesGemmaQc && audioQcModelId && !audioCapableModels.some(item => item.modelId === audioQcModelId)" type="warning" role="status">当前音轨质检模型未勾选音频输入。</el-text>
-          <div v-if="usesGemmaQc" class="gemmaHost">
+        </template>
+          <div class="gemmaHost">
             <div class="field">
               <label for="workflowGemmaHost">Gemma 运行位置</label>
-              <el-select id="workflowGemmaHost" v-model="gemmaQcHost">
+              <el-select id="workflowGemmaHost" v-model="gemmaQcHost" @change="clearGemmaChoices(); refreshGemmaModels()">
                 <el-option label="本机 ComfyUI" value="local" />
                 <el-option label="AutoDL 上的 ComfyUI" value="autodl" />
               </el-select>
@@ -176,8 +177,18 @@
               {{ qcLevel === 'videoAudio' ? '同一次 Gemma 调用检查画面与音轨。' : '本次只检查画面。' }}
             </p>
           </div>
-        </template>
-        <workflowCatalog v-if="qcMethod !== 'agentFrames'" title="质检工作流" :items="qcWorkflows" :disabledIds="disabledWorkflowIds" :switchKey="workflowSwitchKey" @change="setWorkflowOn" />
+          <div class="field">
+            <div><strong>Gemma 模型文件</strong> <el-button size="small" :loading="gemmaLoading" @click="refreshGemmaModels">刷新模型</el-button></div>
+            <p class="hint">先保存 ComfyUI 地址和实例，再刷新。查询不会启动 AutoDL。新发现模型默认关闭；先启用，再从上方选择完整权重文件。</p>
+            <el-text v-if="gemmaError" type="warning">{{ gemmaError }}</el-text>
+            <el-text v-if="!gemmaLoading && !gemmaModels.length && !gemmaError" type="info">尚未发现模型，可点击刷新。</el-text>
+            <div v-for="item in gemmaModels" :key="item.file" class="field">
+              <el-switch :model-value="gemmaFileOn(item.file)" :disabled="gemmaLoading || (gemmaFileOn(item.file) && qcLevel !== 'none' && qcMethod !== 'agentFrames' && [videoQcModelId, audioQcModelId].includes(item.id))" @change="value => setGemmaFileOn(item.file, value)" />
+              <span style="overflow-wrap:anywhere">{{ item.file }} · {{ item.precision }}</span>
+            </div>
+            <el-text v-if="legacyGemmaSelection" type="warning">旧版 Gemma 仅保存模型规格，请刷新并选择实际权重后保存，不会自动选择 FP8。</el-text>
+          </div>
+        <workflowCatalog title="质检工作流" :items="qcWorkflows" :disabledIds="disabledWorkflowIds" :switchKey="workflowSwitchKey" @change="setWorkflowOn" />
       </div>
     </section>
 
@@ -354,6 +365,40 @@ const workflowNotices = ref<string[]>([]);
 const imageWorkflows = ref<WorkflowItem[]>([]);
 const videoWorkflows = ref<WorkflowItem[]>([]);
 const qcWorkflows = ref<WorkflowItem[]>([]);
+type GemmaChoice = { file: string; id: string; label: string; precision: string };
+const gemmaModels = ref<GemmaChoice[]>([]);
+const enabledGemmaQcModels = ref<Record<string, string[]>>({});
+const gemmaTarget = ref("");
+const gemmaLoading = ref(false);
+const gemmaError = ref("");
+let gemmaRequest = 0;
+const legacyGemmaSelection = computed(() => [videoQcModelId.value, audioQcModelId.value].some(id => isGemmaQc(id) && !id.startsWith("qc/gemma4:")));
+function clearGemmaChoices() { gemmaRequest++; gemmaModels.value = []; gemmaTarget.value = ""; gemmaLoading.value = false; gemmaError.value = ""; }
+function gemmaFileOn(file: string) { return enabledGemmaQcModels.value[gemmaTarget.value]?.includes(file) === true; }
+function setGemmaFileOn(file: string, value: unknown) {
+  const id = "qc/gemma4:" + file;
+  if (value !== true && qcLevel.value !== "none" && qcMethod.value !== "agentFrames" && [videoQcModelId.value, audioQcModelId.value].includes(id)) { ElMessage.warning("请先更换默认质检模型"); return; }
+  if (!gemmaTarget.value) return;
+  const files = new Set(enabledGemmaQcModels.value[gemmaTarget.value] ?? []);
+  if (value === true) files.add(file); else files.delete(file);
+  enabledGemmaQcModels.value = { ...enabledGemmaQcModels.value, [gemmaTarget.value]: [...files] };
+}
+async function refreshGemmaModels() {
+  const request = ++gemmaRequest;
+  const host = gemmaQcHost.value;
+  gemmaLoading.value = true; gemmaError.value = "";
+  try {
+    const saved = await axios.get<{ code: number; data?: { targetId: string; models: GemmaChoice[] }; message?: string }>("/api/production/comfyui/qcModels", { headers, params: { host, refresh: "false" }, timeout: 12000 });
+    if (request !== gemmaRequest) return;
+    if (saved.data.code === 200 && saved.data.data) { gemmaTarget.value = saved.data.data.targetId; gemmaModels.value = saved.data.data.models; }
+    const { data } = await axios.get<{ code: number; data?: { targetId: string; models: GemmaChoice[]; configured: GemmaChoice[] }; message?: string }>("/api/production/comfyui/qcModels", { headers, params: { host }, timeout: 12000 });
+    if (request !== gemmaRequest) return;
+    if (data.code !== 200 || !data.data) throw new Error(data.message || "查询模型失败");
+    gemmaTarget.value = data.data.targetId;
+    gemmaModels.value = [...data.data.models, ...data.data.configured.filter(item => !data.data!.models.some(live => live.file === item.file)).map(item => ({ ...item, precision: "当前未发现" }))];
+  } catch (error) { if (request === gemmaRequest) gemmaError.value = axios.isAxiosError(error) ? error.response?.data?.message || error.message : error instanceof Error ? error.message : "模型查询失败"; }
+  finally { if (request === gemmaRequest) gemmaLoading.value = false; }
+}
 const instances = ref<InstanceItem[]>([]);
 const probing = ref<ComfyHost>();
 const probeResult = ref<{ host: ComfyHost; ok: boolean; message: string }>();
@@ -388,14 +433,14 @@ const enabledImageWorkflows = computed(() => imageWorkflows.value.filter(item =>
 const textImageWorkflows = computed(() => enabledImageWorkflows.value.filter(item => item.imageReferences?.min === 0));
 const editImageWorkflows = computed(() => enabledImageWorkflows.value.filter(item => (item.imageReferences?.max ?? 0) > 0));
 const enabledMainVideoWorkflows = computed(() => mainVideoWorkflows.value.filter(item => workflowOn(item.id)));
-const enabledQcWorkflows = computed(() => qcWorkflows.value.filter(item => workflowOn(item.id)));
+const enabledQcWorkflows = computed(() => workflowOn("qc/gemma4") ? gemmaModels.value.filter(item => gemmaFileOn(item.file)).map(item => ({ id: item.id, label: item.label })) : []);
 const repairWorkflow = computed(() => videoWorkflows.value.find(item => item.id === "video/h3_flf_repair"));
 const languageModels = computed(() => modelChoices.value);
 const gemmaVideoQc = computed(() => isGemmaQc(videoQcModelId.value));
 const gemmaAudioQc = computed(() => isGemmaQc(audioQcModelId.value));
 const usesGemmaQc = computed(() => qcMethod.value !== "agentFrames" && qcLevel.value !== "none" && (gemmaVideoQc.value || (qcLevel.value === "videoAudio" && gemmaAudioQc.value)));
-const usesLocal = computed(() => (usesComfy.value && videoHost.value === "local") || (usesGemmaQc.value && gemmaQcHost.value === "local"));
-const usesAutodl = computed(() => (usesComfy.value && videoHost.value === "autodl") || (usesGemmaQc.value && gemmaQcHost.value === "autodl"));
+const usesLocal = computed(() => (usesComfy.value && videoHost.value === "local") || (gemmaQcHost.value === "local"));
+const usesAutodl = computed(() => (usesComfy.value && videoHost.value === "autodl") || (gemmaQcHost.value === "autodl"));
 const audioCapableModels = computed(() => languageModels.value.filter(item => item.inputs.audio));
 const languageVideoQcChoices = computed(() => qcModelChoices(languageModels.value, videoQcModelId.value));
 const audioQcChoices = computed(() => qcModelChoices(languageModels.value, audioQcModelId.value));
@@ -449,7 +494,7 @@ function workflowOn(id: string) {
 // 关闭后画布或质检下拉不再列出；当前默认工作流和当前画面质检保持开启。
 function setWorkflowOn(id: string, value: unknown) {
   const on = value === true;
-  const currentQc = id === videoQcModelId.value.trim() || id === audioQcModelId.value.trim();
+  const currentQc = qcLevel.value !== "none" && qcMethod.value !== "agentFrames" && (id === videoQcModelId.value.trim() || id === audioQcModelId.value.trim() || (id === "qc/gemma4" && [videoQcModelId.value, audioQcModelId.value].some(isGemmaQc)));
   if (!on && (id === imageT2iWorkflow.value || id === imageEditWorkflow.value || id === videoWorkflow.value || currentQc)) {
     workflowSwitchKey.value += 1;
     ElMessage.warning(currentQc ? "这是当前质检，请先改选再关闭" : "这是当前默认工作流，请先改选默认再关闭");
@@ -481,6 +526,7 @@ function readForm() {
   videoProviderId.value = source.videoProviderId === "videoModel" ? "videoModel" : "comfyui";
   videoHost.value = source.videoHost === "local" ? "local" : "autodl";
   gemmaQcHost.value = source.gemmaQcHost === "autodl" ? "autodl" : "local";
+  enabledGemmaQcModels.value = source.enabledGemmaQcModels && typeof source.enabledGemmaQcModels === "object" && !Array.isArray(source.enabledGemmaQcModels) ? source.enabledGemmaQcModels as Record<string, string[]> : {};
   localComfyuiBaseUrl.value = text(source.localComfyuiBaseUrl, "") || "http://127.0.0.1:8188";
   videoWorkflow.value = text(source.videoWorkflow, "") || "video/h3_ref2va_1080p";
   videoQcModelId.value = text(source.videoQcModelId, "") || "qwen3.8-omni-flash";
@@ -511,6 +557,7 @@ function productionPatch() {
     videoProviderId: videoProviderId.value === "videoModel" ? "videoModel" : "comfyui",
     videoHost: videoHost.value,
     gemmaQcHost: gemmaQcHost.value,
+    enabledGemmaQcModels: enabledGemmaQcModels.value,
     localComfyuiBaseUrl: localComfyuiBaseUrl.value.trim() || "http://127.0.0.1:8188",
     videoWorkflow: videoWorkflow.value.trim() || "video/h3_ref2va_1080p",
     videoQcModelId: videoQcModelId.value.trim() || "qwen3.8-omni-flash",
@@ -691,6 +738,7 @@ async function power(action: "on" | "off") {
 onMounted(() => {
   readForm();
   void loadWorkflows().catch(error => ElMessage.error(error instanceof Error ? error.message : "读取工作流失败"));
+  void refreshGemmaModels();
   void loadQwenModels().catch(error => ElMessage.error(error instanceof Error ? error.message : "读取图像模型失败"));
 });
 

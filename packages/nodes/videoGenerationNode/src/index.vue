@@ -57,6 +57,7 @@
         </div>
         <div v-if="outputFile && data.lastGenerationId && !data.activeGenerationRequest && !detachedGenerationId" class="pendingTask" role="status">
           <div class="pendingTaskText"><strong>最近一次视频任务</strong><span>{{ completedQcLabel }}</span>
+            <small v-if="currentQc?.result?.videoModelId" style="overflow-wrap:anywhere">质检模型：{{ currentQc.result.videoModelId.replace(/^qc\/gemma4:/, "") }}</small>
             <small v-if="completedQc.find(item => item.path === outputFile?.url)?.message">{{ completedQc.find(item => item.path === outputFile?.url)?.message }}</small>
           </div>
           <el-button text size="small" :loading="completedQcChecking" :disabled="generating || deleting"
@@ -138,9 +139,15 @@
             :lastSeed="data.lastSeed"
             :loraChoices="loraChoices"
             :checkpointChoices="checkpointChoices"
+            v-model:qcOverride="data.qcOverride"
+            :qcChoices="qcChoices"
+            :qcDefaults="qcDefaults"
+            :qcError="qcChoiceError"
+            :qcLoading="qcLoading"
+            @refresh-qc-choices="refreshQcChoices(true)"
             :loraLoading="loraLoading"
             :loraError="loraError"
-            @refresh-comfy-choices="refreshComfyChoices()"
+            @refresh-comfy-choices="refreshComfyChoices(); refreshQcChoices()"
             :ratios="ratioOptions"
             :model="selectedModel"
             :disabled="generating || deleting || !selectedModel" />
@@ -202,7 +209,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; checkpointName?: string; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
+const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; checkpointName?: string; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -231,6 +238,37 @@ const { refList, referenceMentions, setReferencePreview, removeReference } = use
 const models = ref<NodeMediaModel[]>([]);
 const loraChoices = ref<string[]>([]);
 const checkpointChoices = ref<string[]>([]);
+type QcChoice = { id: string; label: string; video: boolean; audio: boolean };
+type QcDefaults = { qcMethod: "agentFrames" | "model" | "agentFramesAndModel"; qcLevel: "video" | "videoAudio" | "none"; qcTrigger: "auto" | "manual"; videoQcModelId: string; audioQcModelId: string; gemmaQcHost: string };
+const qcChoices = ref<QcChoice[]>([]);
+const qcDefaults = ref<QcDefaults>();
+const qcChoiceError = ref("");
+const qcLoading = ref(false);
+let qcChoiceRequest = 0;
+async function refreshQcChoices(refresh = false) {
+  const request = ++qcChoiceRequest;
+  qcLoading.value = true;
+  qcChoiceError.value = "";
+  try {
+    const response = await fetch("/api/production/comfyui/qcModels?refresh=" + String(refresh), {
+      headers: { "x-toonflow-workspace": "1" }, cache: "no-store", signal: AbortSignal.timeout(12000),
+    });
+    const result = await response.json() as { code?: number; message?: string; data?: { models: {id:string;label:string;enabled:boolean}[]; languageModels: QcChoice[]; defaults: QcDefaults } };
+    if (!response.ok || result.code !== 200 || !result.data) throw new Error(result.message || "读取质检配置失败");
+    if (request !== qcChoiceRequest || disposed) return;
+    qcDefaults.value = result.data.defaults;
+    qcChoices.value = [...result.data.models.filter(item => item.enabled).map(item => ({ id: item.id, label: item.label, video: true, audio: true })), ...result.data.languageModels];
+  } catch (error) {
+    if (request === qcChoiceRequest && !disposed) qcChoiceError.value = error instanceof Error ? error.message : "质检模型查询失败";
+  } finally { if (request === qcChoiceRequest) qcLoading.value = false; }
+}
+const qcOverrideSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("off") }),
+  z.strictObject({ mode: z.literal("custom"), qcMethod: z.enum(["agentFrames","model","agentFramesAndModel"]).optional(),
+    qcLevel: z.enum(["video","videoAudio","none"]).optional(), qcTrigger: z.enum(["auto","manual"]).optional(),
+    videoQcModelId: z.string().trim().min(1).max(550).regex(/^[^\x00-\x1f]+$/).optional(),
+    audioQcModelId: z.string().trim().min(1).max(550).regex(/^[^\x00-\x1f]+$/).optional() }),
+]);
 const loraLoading = ref(false);
 const loraError = ref("");
 let choicesController: AbortController | undefined;
@@ -284,7 +322,7 @@ const { generating } = generationState;
 const persistentPhase = ref("");
 type NodeQcIssue = { id: string; requirementId?: string; domain: string; kind: "defect" | "needsEvidence"; problem: string; expected?: string; observed: string; time?: string; fixHint?: string };
 type NodeQcPlan = { summary: string; needsRegeneration: boolean; actions: { issueIds: string[]; category: string; change: string; acceptance: string }[] };
-const completedQc = ref<{ path: string; status: string; result?: { status: string; issues?: NodeQcIssue[] }; rectificationPlan?: NodeQcPlan; message?: string }[]>([]);
+const completedQc = ref<{ path: string; status: string; result?: { status: string; issues?: NodeQcIssue[]; videoModelId?: string; audioModelId?: string }; rectificationPlan?: NodeQcPlan; message?: string }[]>([]);
 const currentQc = computed(() => completedQc.value.find(item => item.path === outputFile.value?.url));
 const completedQcChecking = ref(false);
 const completedQcLabel = computed(() => {
@@ -440,6 +478,7 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     outputFirstPass: choice.supportsFirstPassOutput ? data.value.outputFirstPass === true : undefined,
     loraName: choice.lora ? (data.value.loraName ?? choice.lora.defaultName) : undefined,
     checkpointName: choice.checkpoint ? data.value.checkpointName : undefined,
+    qcOverride: data.value.qcOverride,
     ratio: data.value.ratio,
     generateAudio: choice.audio === "optional" ? data.value.generateAudio : choice.audio,
     outputDirectory: `assets/${id}`,
@@ -713,7 +752,7 @@ async function resumeDetachedGeneration(manual?: true) {
   return { status: "requested", generationId, resumed: true };
 }
 
-async function startGeneration(manual?: true) {
+async function startGeneration(manual?: true, qcModelCallAllowed?: boolean) {
   const current = data.value.activeGenerationRequest;
   const choice = selectedModel.value;
   const input = generationInput.value;
@@ -729,7 +768,7 @@ async function startGeneration(manual?: true) {
   if (choice.mode?.length && !matchingModes.value.length) throw new Error("当前模型没有适合这些参考素材的生成模式，请更换模型或调整引用");
   const seed = choice.supportsSeed ? resolveSeed() : undefined;
   const request: Omit<NodeVideoRequest, "directory"> = {
-    ...input, seed, ...(choice.providerId === "comfyui" ? { generationId: crypto.randomUUID() } : {}),
+    ...input, seed, ...(qcModelCallAllowed === undefined ? {} : { qcModelCallAllowed }), ...(choice.providerId === "comfyui" ? { generationId: crypto.randomUUID() } : {}),
   };
   if (request.generationId) {
     data.value.activeGenerationRequest = request;
@@ -823,6 +862,11 @@ function getConfig() {
     models: models.value,
     loraChoices: loraChoices.value,
     checkpointChoices: checkpointChoices.value,
+    qcOverride: data.value.qcOverride,
+    hasPendingGeneration: Boolean(data.value.activeGenerationRequest || detachedGenerationId.value),
+    qcDefaults: qcDefaults.value,
+    qcChoices: qcChoices.value,
+    qcChoiceError: qcChoiceError.value,
     loraError: loraError.value,
     ratios: ratioOptions,
     matchingModes: matchingModes.value,
@@ -840,7 +884,8 @@ function getPromptContext() {
   const config = getConfig().config;
   const { images, videos, audios, firstFrame, lastFrame } = input;
   // 版本覆盖实际请求、种子模式和已有对照，写回时在节点内同步比较。
-  const revision = JSON.stringify([input, config, data.value.promptZh]);
+  const { qcOverride: _qcOverride, ...reviewInput } = input;
+  const revision = JSON.stringify([reviewInput, config, data.value.promptZh]);
   // 随机种子留到实际生成时取值，固定上次随机必须交付具体值供审核绑定。
   const seed = config.supportsSeed && config.seedMode !== "random" ? resolveSeed() : undefined;
   return { config, images, videos, audios, firstFrame, lastFrame, revision, request: { ...input, seed } };
@@ -859,12 +904,13 @@ nodeTools.register({
 
 nodeTools.register({
   name: "getConfig",
-  description: "读取视频节点配置、工作流能力、比例和适用模式。refreshComfyChoices=true 时从当前 ComfyUI 查询可选的 checkpointChoices 和 loraChoices，不开机。二采的 sampling 给出百万像素、放大倍率与一采/二采步数。",
-  parameters: z.strictObject({ refreshComfyChoices: z.boolean().optional() }),
+  description: "读取视频节点配置、工作流能力、比例和适用模式。refreshComfyChoices=true 时从当前 ComfyUI 查询可选的 checkpointChoices 和 loraChoices，不开机。二采的 sampling 给出百万像素、放大倍率与一采/二采步数。qcChoices 返回系统已启用模型；refreshQcChoices=true 时只读查询已安装权重，不开机。",
+  parameters: z.strictObject({ refreshComfyChoices: z.boolean().optional(), refreshQcChoices: z.boolean().optional() }),
   async execute(args, { signal }) {
     signal?.throwIfAborted();
     await loadModels();
     if (args.refreshComfyChoices) await refreshComfyChoices();
+    await refreshQcChoices(args.refreshQcChoices === true);
     signal?.throwIfAborted();
     return getConfig();
   },
@@ -872,7 +918,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setConfig",
-  description: "修改视频节点配置。providerId 和 modelId 同时提供以选工作流。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，null 恢复工作流默认。loraName 为空字符串关闭 LoRA。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
+  description: "修改视频节点配置。providerId 和 modelId 同时提供以选工作流。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，null 恢复工作流默认。loraName 为空字符串关闭 LoRA。qcOverride=null 继承系统默认；mode=off 关闭自动质检；mode=custom 使用指定质检策略，模型 ID 从 getConfig.qcChoices 选择。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
   parameters: z.strictObject({
     providerId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),
@@ -885,6 +931,7 @@ nodeTools.register({
     outputFirstPass: z.boolean().optional(),
     loraName: z.string().max(512).optional(),
     checkpointName: z.string().trim().min(1).max(512).regex(/^[^\x00-\x1f]+$/).nullable().optional(),
+    qcOverride: qcOverrideSchema.nullable().optional(),
     ratio: z.enum(ratioOptions).optional(),
     mode: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     generateAudio: z.boolean().optional(),
@@ -940,6 +987,16 @@ nodeTools.register({
     const resolution = args.resolution ?? (resolutions.includes(data.value.resolution) ? data.value.resolution : resolutions[0] ?? "");
     if (args.mode !== undefined && !getMatchingModes(choice).some((item) => JSON.stringify(item) === JSON.stringify(args.mode))) throw new Error(`字段 mode=${JSON.stringify(args.mode)} 不适用于当前模型和引用。允许值：${JSON.stringify(getMatchingModes(choice))}。请重新读取 getConfig 确认。`);
     if (args.generateAudio !== undefined && choice.audio !== "optional" && args.generateAudio !== (choice.audio === true)) throw new Error("当前模型不支持切换声音，请查看 getConfig 返回的 audio 能力");
+    if (args.qcOverride?.mode === "custom") {
+      await refreshQcChoices();
+      signal?.throwIfAborted();
+      if (generating.value || deleting.value) throw new Error("节点状态已变化，请重新读取配置");
+      if (qcChoiceError.value) throw new Error(qcChoiceError.value);
+      for (const [key, capability] of [["videoQcModelId", "video"], ["audioQcModelId", "audio"]] as const) {
+        const id = args.qcOverride[key];
+        if (id !== undefined && !qcChoices.value.some(item => item.id === id && item[capability])) throw new Error(`质检模型 ${id} 未启用或不支持对应输入，请从 getConfig.qcChoices 选择`);
+      }
+    }
     data.value.model = JSON.stringify([choice.providerId, choice.modelId]);
     data.value.duration = duration;
     data.value.resolution = resolution;
@@ -961,6 +1018,7 @@ nodeTools.register({
     if (args.outputFirstPass !== undefined) data.value.outputFirstPass = args.outputFirstPass;
     if (args.loraName !== undefined) data.value.loraName = args.loraName;
     if (args.checkpointName !== undefined) data.value.checkpointName = args.checkpointName ?? undefined;
+    if (args.qcOverride !== undefined) data.value.qcOverride = args.qcOverride ?? undefined;
     if (args.seedMode !== undefined) data.value.seedMode = args.seedMode;
     if (args.seed !== undefined) data.value.seed = args.seed;
     return getConfig();
@@ -1005,10 +1063,10 @@ nodeTools.register({
 nodeTools.register({
   name: "generateVideo",
   description: "返回 requested 表示节点已发起或恢复本地请求。用 getPersistentGenerationStatus 查询相同 generationId；只有 phase 为 submitted/saved/completed 且有 promptId 才能说 ComfyUI 已接收。preparing/submitting 尚待确认，failed 读取 error。刷新后只恢复原任务，cancelPersistentGeneration 显式停止。",
-  parameters: z.strictObject({}),
-  execute(_args, { signal }) {
+  parameters: z.strictObject({ qcModelCallAllowed: z.boolean().optional() }),
+  execute(args, { signal }) {
     signal?.throwIfAborted();
-    return startGeneration();
+    return startGeneration(undefined, args.qcModelCallAllowed);
   },
 });
 </script>

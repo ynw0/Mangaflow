@@ -11,6 +11,7 @@ import { loadVideoModelProvider, readVideoModel, requireVideoModel, videoModelAs
 import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { getProviderPrice } from "@/utils/media/billing";
 import { detectMimeType, readPriceReference } from "@/utils/media/priceReference";
+import { assertQcCallAllowed, captureQcPolicy } from "@/utils/production/qcPolicy";
 import { recordVideoOutputs } from "@/utils/production/videoRecords";
 import { getStoredGenerationRequest, runGenerationJob } from "@/utils/production/generationJobs";
 import { reserveMediaBudget } from "@/utils/media/budget";
@@ -274,6 +275,12 @@ export async function generateMedia(
   }
   // 明确选择的出图后端和工作流直接执行，输入不匹配由工作流校验返回。
   const directory = await realpath(cwd);
+  const capturePolicy = () => {
+    const policy = captureQcPolicy(request.qcOverride);
+    assertQcCallAllowed(policy, request.qcModelCallAllowed, true);
+    return policy;
+  };
+  const immediateQcPolicy = mediaType === "video" && request.providerId !== "comfyui" ? capturePolicy() : undefined;
   const outputDirectory = request.outputDirectory ?? "assets/generated";
   await resolveWorkspacePath(directory, outputDirectory, true);
   if (request.providerId === "comfyui") {
@@ -281,13 +288,13 @@ export async function generateMedia(
     if (mediaType === "video") {
       const tracked = { ...request, generationId: request.generationId ?? crypto.randomUUID() };
       return runGenerationJob({
-        directory, request: tracked, manual,
+        directory, request: tracked, manual, captureQcPolicy: capturePolicy,
         generate: ({ signal: jobSignal, manual, resume, targetResolved, submitting, submitted }) =>
           runComfyWorkflow({ directory, mediaType, request: tracked, signal: jobSignal, resume, manual,
             onTargetResolved: targetResolved, onSubmitting: submitting, onSubmitted: submitted }),
         save: (files, id, jobSignal) => writeTrackedVideos(directory, outputDirectory, id, files, jobSignal),
-        record: (files, { target: _target, ...execution }, manual) => recordVideoOutputs(
-          directory, files, manual ? { ...tracked, reviewId: undefined } : tracked, execution),
+        record: (files, { target: _target, ...execution }, manual, policy) => recordVideoOutputs(
+          directory, files, manual ? { ...tracked, reviewId: undefined } : tracked, execution, policy),
       });
     }
     const { files, execution } = await runComfyWorkflow({ directory, mediaType, request, signal });
@@ -334,7 +341,7 @@ export async function generateMedia(
         } finally { release(); }
       }
       signal?.throwIfAborted();
-      await recordVideoOutputs(directory, result, request);
+      await recordVideoOutputs(directory, result, request, undefined, immediateQcPolicy);
       return result;
     } catch (err) {
       await Promise.all(written.map(path => unlink(path).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; })));
@@ -374,7 +381,7 @@ export async function generateMedia(
       } finally { release(); }
     }
     signal?.throwIfAborted();
-    if (mediaType === "video") await recordVideoOutputs(directory, result, request);
+    if (mediaType === "video") await recordVideoOutputs(directory, result, request, undefined, immediateQcPolicy);
     return result;
   } catch (err) {
     // ACT: 只回滚本次创建的文件，保留目录中已有的节点资源。

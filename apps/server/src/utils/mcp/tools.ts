@@ -18,6 +18,8 @@ import { getRuntimePlatform } from "@/lib/platform";
 import { externalVideoPrompt, videoPromptToolSchema } from "@/utils/mcp/videoPrompt";
 import { getMcpTask, startMcpTask } from "@/utils/mcp/tasks";
 import { readProduction } from "@/utils/production/config";
+import { assertQcCallAllowed, captureQcPolicy } from "@/utils/production/qcPolicy";
+import { qcOverrideSchema } from "@toonflow/tool-media-generation/runtime";
 
 const targetSchema = z.strictObject({ connectionId: z.uuid().optional(), directory: z.string().min(1).max(4096).optional(), canvasId: z.string().min(1).max(256).optional() });
 const requestSchema = z.strictObject({ target: targetSchema.optional(), args: z.record(z.string(), z.unknown()), taskId: z.uuid().optional(), modelCallConfirmed: z.boolean().optional() });
@@ -68,12 +70,19 @@ function wrapTool(name: string, description: string, schema: object, execute: (a
     async execute(input, signal) {
       const { args, target = {}, taskId, modelCallConfirmed } = requestSchema.parse(input);
       const generatesVideo = name === "generateVideo" || name === "nodeTools" && args.name === "node:generateVideo";
-      if (name === "qcVideo" || generatesVideo) {
-        const policy = readProduction();
-        if (policy.qcLevel !== "none" && policy.qcMethod !== "agentFrames"
-          && (name === "qcVideo" || generatesVideo && policy.qcTrigger === "auto") && modelCallConfirmed !== true) {
-          throw new Error("当前设置会额外调用专用 QC 模型；请先明确取得用户授权并传 modelCallConfirmed=true，或由用户将质检方式改为主 Agent 抽帧验收");
+      // 授权值由 MCP 包装层注入，调用者不能通过 args 冒充确认；实际策略在生成/质检入口解析。
+      if (name === "qcVideo" || name === "generateVideo") args.qcModelCallAllowed = modelCallConfirmed === true;
+      if (generatesVideo && name === "nodeTools") {
+        // 提交前说明额外 QC；后端仍会在真实请求中重新检查，防止设置在两次调用间被修改。
+        if (modelCallConfirmed !== true) {
+          const { connection, directory } = await resolveTarget(target);
+          if (!connection) throw new Error("请先打开视频节点所在画布");
+          const raw = await callControl(connection.id, "nodeTools", { canvasId: args.canvasId, nodeId: args.nodeId, name: "node:getConfig", args: {} }, signal, directory) as { qcOverride?: unknown; hasPendingGeneration?: boolean };
+          if (!raw || typeof raw !== "object") throw new Error("无法读取节点实际质检设置，请刷新页面");
+          if (!raw.hasPendingGeneration) assertQcCallAllowed(captureQcPolicy(qcOverrideSchema.optional().parse(raw.qcOverride)), false, true);
         }
+        const nodeArgs = args.args && typeof args.args === "object" && !Array.isArray(args.args) ? args.args as Record<string, unknown> : {};
+        args.args = { ...nodeArgs, qcModelCallAllowed: modelCallConfirmed === true };
       }
       if (background) {
         if (!taskId) throw new Error("长任务必须提供 taskId，以便重连查询并防止重复执行");
@@ -143,7 +152,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
       const production = readProduction();
       return { connections: listConnections(), workspaceRoot,
         modelExecution: { agent: "external", qcMethod: production.qcMethod, qcTrigger: production.qcTrigger,
-          qcLevel: production.qcLevel, videoQcModelId: production.videoQcModelId, audioQcModelId: production.audioQcModelId },
+          qcLevel: production.qcLevel, videoQcModelId: production.videoQcModelId, audioQcModelId: production.audioQcModelId, gemmaQcHost: production.gemmaQcHost },
         ...(pluginError ? { pluginError } : {}) };
     },
   }];

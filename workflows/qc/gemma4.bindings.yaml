@@ -1,0 +1,10 @@
+workflow: ./gemma4Api.json
+usage: 使用设置中明确启用并选择的 Gemma 4 模型文件，按验收要点质检画面及原音轨。
+label: Gemma 4 成片质检
+bindings:
+- source: prompt
+  target: 5.inputs.system_prompt
+  kind: value
+- source: media.video1
+  target: 1.inputs.file
+  kind: video

@@ -74,12 +74,11 @@ export async function autodlSnapshot(signal?: AbortSignal, config = readProducti
   return data as Record<string, unknown>;
 }
 
-export async function resolveComfyBaseUrl(signal?: AbortSignal, host?: ComfyHost, allowPowerOn = true) {
-  return (await resolveComfyTarget(signal, host, allowPowerOn)).baseUrl;
+export async function resolveComfyBaseUrl(signal?: AbortSignal, host?: ComfyHost, allowPowerOn = true, config = readProduction()) {
+  return (await resolveComfyTarget(signal, host, allowPowerOn, config)).baseUrl;
 }
 
-export async function resolveComfyTarget(signal?: AbortSignal, host?: ComfyHost, allowPowerOn = true): Promise<ComfyTarget> {
-  const config = readProduction();
+export async function resolveComfyTarget(signal?: AbortSignal, host?: ComfyHost, allowPowerOn = true, config = readProduction()): Promise<ComfyTarget> {
   if ((host ?? config.videoHost) === "local") return { baseUrl: config.localComfyuiBaseUrl };
   const override = config.comfyuiBaseUrl;
   const hasInstance = Boolean(config.autodlToken && config.autodlInstanceUuid);

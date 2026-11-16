@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { MediaGenerationRequest, GeneratedMedia, VideoExecution } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
+import { captureQcPolicy, type QcPolicySnapshot } from "./qcPolicy";
 import { generationJobStatus, getStoredGenerationRequest, listGenerationJobs, runGenerationJob } from "./generationJobs";
 
 describe("持久化视频生成任务恢复", () => {
@@ -21,8 +22,11 @@ describe("持久化视频生成任务恢复", () => {
     const generated: GeneratedMedia = { path: "original.mp4", mimeType: "video/mp4", mediaType: "video" };
     let submissions = 0;
     let registrations = 0;
+    let captured = 0;
+    const qcPolicy = captureQcPolicy({mode:"off"});
     const options = {
       directory, request,
+      captureQcPolicy: () => { captured++; return qcPolicy; },
       generate: async ({ submitting, submitted }: {
         submitting: () => Promise<void>;
         submitted: (execution: VideoExecution) => Promise<void>;
@@ -36,7 +40,7 @@ describe("持久化视频生成任务恢复", () => {
         await writeFile(join(directory, "original.mp4"), new Uint8Array([0, 0, 0, 24]));
         return [generated];
       },
-      record: async () => { registrations++; },
+      record: async (_files: GeneratedMedia[], _execution: VideoExecution, _manual: boolean, policy?: QcPolicySnapshot) => { registrations++; expect(policy).toEqual(qcPolicy); },
     };
     try {
       expect(await runGenerationJob(options)).toEqual([generated]);
@@ -51,6 +55,7 @@ describe("持久化视频生成任务恢复", () => {
       expect(await runGenerationJob(options)).toEqual([generated]);
       expect(submissions).toBe(1);
       expect(registrations).toBe(1);
+      expect(captured).toBe(1);
       await expect(runGenerationJob({
         ...options, request: { ...request, prompt: "A changed prompt" },
       })).rejects.toThrow("生成参数已改变");

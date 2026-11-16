@@ -99,6 +99,7 @@ import route96 from "./routes/production/autodl/power";
 import route97 from "./routes/production/autodl/status";
 import route98 from "./routes/production/comfyDiagnosis";
 import route99 from "./routes/production/comfyui/loras";
+import qcModelsRoute from "./routes/production/comfyui/qcModels";
 import route100 from "./routes/production/comfyui/status";
 import route101 from "./routes/production/generation";
 import route102 from "./routes/production/qc";
@@ -256,6 +257,7 @@ export default (app: Express) => {
   app.use("/api/production/autodl/status", route97);
   app.use("/api/production/comfyDiagnosis", route98);
   app.use("/api/production/comfyui/loras", route99);
+  app.use("/api/production/comfyui/qcModels", qcModelsRoute);
   app.use("/api/production/comfyui/status", route100);
   app.use("/api/production/generation", route101);
   app.use("/api/production/qc", route102);

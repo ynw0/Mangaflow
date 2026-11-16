@@ -116,6 +116,12 @@ export interface MediaReference {
   mimeType: string;
 }
 
+export type NodeQcOverride = { mode: "off" } | {
+  mode: "custom"; qcMethod?: "agentFrames" | "model" | "agentFramesAndModel";
+  qcLevel?: "video" | "videoAudio" | "none"; qcTrigger?: "auto" | "manual";
+  videoQcModelId?: string; audioQcModelId?: string;
+};
+
 export interface MediaGenerationRequest {
   providerId: string;
   modelId: string;
@@ -151,6 +157,9 @@ export interface MediaGenerationRequest {
   /** 省略沿用工作流默认 LoRA；空字符串完全旁路；非空为 ComfyUI 已安装的 LoRA 名称。 */
   loraName?: string;
   checkpointName?: string;
+  qcOverride?: NodeQcOverride;
+  /** MCP 入口注入；false 时禁止提交未经授权的自动专用 QC。 */
+  qcModelCallAllowed?: boolean;
   generateAudio?: boolean;
   voice?: string;
   speed?: number;
@@ -173,6 +182,8 @@ export interface GeneratedMedia {
 export interface QcVideoRequest {
   videoPath: string;
   checklist?: string;
+  qcOverride?: NodeQcOverride | null;
+  qcModelCallAllowed?: boolean;
 }
 
 export type QcCheck = {
@@ -252,7 +263,10 @@ export type VideoExecution = {
   firstPassSteps?: number; secondPassSteps?: number;
 };
 
+export type VideoQcPolicyInfo = { qcMethod: "agentFrames" | "model" | "agentFramesAndModel"; qcLevel: "video" | "videoAudio" | "none"; qcTrigger?: "auto" | "manual"; videoQcModelId: string; audioQcModelId: string; gemmaQcHost: string; gemmaTargetId?: string; contractVersion: number };
 export type VideoQcReport = VideoQcState & {
+  qcPolicy?: VideoQcPolicyInfo;
+  requestedQcPolicy?: VideoQcPolicyInfo;
   agentResult?: QcVideoResult;
   qcRevision?: string;
   rectificationPlan?: VideoQcRectificationPlan;

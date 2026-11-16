@@ -116,3 +116,7 @@
 ## 参考依据
 
 创作方法的公开来源见 [制作来源说明](../../script/references/sources.md)。操作时使用本手册、已安装的本地制作指南和实际工具返回值，无需访问外部资料。
+
+### 成片质检设置
+
+视频节点 getConfig 返回 qcOverride、qcDefaults、qcChoices；refreshQcChoices=true 只读刷新，不启动 GPU。setConfig 中 qcOverride=null 继承系统，{mode:"off"} 关闭自动 QC，{mode:"custom",qcMethod,qcLevel,qcTrigger,videoQcModelId,audioQcModelId} 自定义。只用用户已启用的实际模型 ID；Gemma 视听选择同一完整文件标识。用户未要求时不更改。QC 策略不属于提示词合同，不因只切 QC 重新审稿。手动质检默认采用该成片记录的策略，明确重新验收可传 qcOverride，不重复调用、不得跳过验收。

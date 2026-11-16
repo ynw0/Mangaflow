@@ -29,6 +29,8 @@ export type ProductionConfig = {
   autodlEnsureRunning: boolean;
   /** Gemma 工作流可独立选择质检所在的 ComfyUI。 */
   gemmaQcHost: ComfyHost;
+  /** 按质检实例保存启用的实际模型文件。 */
+  enabledGemmaQcModels: Record<string, string[]>;
   /** 成片画面质检模型（语言模型供应商里的 model id，或 Gemma 工作流 id） */
   videoQcModelId: string;
   /** 成片音轨质检模型（语言模型 id，或 Gemma 工作流 id） */
@@ -64,6 +66,7 @@ const defaults: ProductionConfig = {
   autodlStartCommand: "",
   autodlEnsureRunning: true,
   gemmaQcHost: "local",
+  enabledGemmaQcModels: {},
   videoQcModelId: "qwen3.8-omni-flash",
   audioQcModelId: "qwen3.8-omni-flash",
   qcLevel: "videoAudio",
@@ -86,6 +89,11 @@ function workflowIdList(value: unknown) {
     if (!ids.includes(id)) ids.push(id);
   }
   return ids.slice(0, 200);
+}
+
+function gemmaModels(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([key, files]) => /^[a-f0-9]{64}$/.test(key) && Array.isArray(files)).slice(0, 100).map(([key, files]) => [key, [...new Set((files as unknown[]).filter((file): file is string => typeof file === "string" && file.length > 0 && file.length <= 512 && !/[\x00-\x1f]/.test(file)))].slice(0, 500)]));
 }
 
 export function isWorkflowEnabled(id: string) {
@@ -119,6 +127,7 @@ export function readProduction(): ProductionConfig {
     autodlStartCommand: text(source.autodlStartCommand, ""),
     autodlEnsureRunning: source.autodlEnsureRunning === undefined ? true : source.autodlEnsureRunning === true,
     gemmaQcHost: source.gemmaQcHost === "autodl" ? "autodl" : defaults.gemmaQcHost,
+    enabledGemmaQcModels: gemmaModels(source.enabledGemmaQcModels),
     videoQcModelId: text(source.videoQcModelId, "") || defaults.videoQcModelId,
     audioQcModelId: text(source.audioQcModelId, "") || defaults.audioQcModelId,
     qcLevel: source.qcLevel === "video" || source.qcLevel === "none" ? source.qcLevel : "videoAudio",

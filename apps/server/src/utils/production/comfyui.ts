@@ -118,7 +118,7 @@ function fileName(value: string) {
 }
 
 // 按 ComfyUI 当前列表改模型名：先对齐分隔符，目录不同但同名文件只有一个时再用那个。
-async function alignModelNames(baseUrl: string, workflow: Record<string, unknown>, signal?: AbortSignal, lockedCheckpointNode?: string) {
+async function alignModelNames(baseUrl: string, workflow: Record<string, unknown>, signal?: AbortSignal, lockedCheckpointNode?: string, lockedClipNode?: string) {
   const classes = new Set<string>();
   for (const [nodeId, node] of Object.entries(workflow)) {
     if (!node || typeof node !== "object") continue;
@@ -159,7 +159,7 @@ async function alignModelNames(baseUrl: string, workflow: Record<string, unknown
     const names = record.class_type ? listed.get(record.class_type) : undefined;
     if (!names || !record.inputs) continue;
     for (const [key, value] of Object.entries(record.inputs)) {
-      if (nodeId === lockedCheckpointNode && key === "unet_name") continue;
+      if ((nodeId === lockedCheckpointNode && key === "unet_name") || (nodeId === lockedClipNode && key === "clip_name")) continue;
       if (typeof value !== "string" || !/[/\\]/.test(value)) continue;
       const exact = names.paths.get(value.replaceAll("\\", "/"));
       if (exact) {
@@ -310,9 +310,9 @@ export async function findSubmittedPromptByClientId(baseUrl: string, clientId: s
 }
 
 export async function submitWorkflow(baseUrl: string, workflow: Record<string, unknown>, signal?: AbortSignal,
-  options?: { clientId?: string; onSubmitting?: () => Promise<void>; lockedCheckpointNode?: string }) {
+  options?: { clientId?: string; onSubmitting?: () => Promise<void>; lockedCheckpointNode?: string; lockedClipNode?: string }) {
   alignReferenceInputs(workflow);
-  await alignModelNames(baseUrl, workflow, signal, options?.lockedCheckpointNode);
+  await alignModelNames(baseUrl, workflow, signal, options?.lockedCheckpointNode, options?.lockedClipNode);
   // 模型匹配结束后才持久化 submitting，随后才可能发起远端 POST。
   const response = await comfyFetch(baseUrl, "/prompt", {
     method: "POST",

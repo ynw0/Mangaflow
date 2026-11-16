@@ -7,6 +7,7 @@ import conf from "@/utils/conf";
 import { lockWorkspaceFiles, resolveWorkspacePath } from "@/utils/workspace/files";
 import { resolveRecordedComfyBaseUrl, type TrackedVideoExecution } from "@/utils/production/autodl";
 import { cancelPrompt, ComfyPromptFailed, ComfyResponseError, findSubmittedPromptByClientId, type ComfyFailureEvidence } from "@/utils/production/comfyui";
+import type { QcPolicySnapshot } from "@/utils/production/qcPolicy";
 import { getVideoQcStatus } from "@/utils/production/videoRecords";
 
 type Phase = "preparing" | "submitting" | "submitted" | "saved" | "completed" | "cancelled" | "failed" | "abandoned";
@@ -16,6 +17,7 @@ type Job = {
   fingerprint: string;
   /** 原始请求只保存在用户本机的 0600 任务记录里，列表 API 不返回提示词或参考图。 */
   request?: MediaGenerationRequest;
+  qcPolicy?: QcPolicySnapshot;
   manual?: boolean;
   phase: Phase;
   createdAt: string;
@@ -29,6 +31,7 @@ type Job = {
 type RunOptions = {
   directory: string;
   request: MediaGenerationRequest;
+  captureQcPolicy?: () => QcPolicySnapshot;
   manual?: boolean;
   generate: (options: {
     signal: AbortSignal;
@@ -39,7 +42,7 @@ type RunOptions = {
     submitted: (execution: TrackedVideoExecution) => Promise<void>;
   }) => Promise<{ files: { bytes: Uint8Array; mimeType: string }[]; execution: TrackedVideoExecution }>;
   save: (files: { bytes: Uint8Array; mimeType: string }[], id: string, signal: AbortSignal) => Promise<GeneratedMedia[]>;
-  record: (files: GeneratedMedia[], execution: TrackedVideoExecution, manual: boolean) => Promise<void>;
+  record: (files: GeneratedMedia[], execution: TrackedVideoExecution, manual: boolean, qcPolicy?: QcPolicySnapshot) => Promise<void>;
 };
 
 const running = new Map<string, { promise: Promise<GeneratedMedia[]>; controller: AbortController; directory: string; fingerprint: string }>();
@@ -248,7 +251,7 @@ export async function runGenerationJob(options: RunOptions) {
     let job = await checkedJob(directory, id, request);
     if (!job) {
       const now = new Date().toISOString();
-      job = { id, directory, fingerprint, request, manual: options.manual, phase: "preparing", createdAt: now, updatedAt: now };
+      job = { id, directory, fingerprint, request, qcPolicy: options.captureQcPolicy?.(), manual: options.manual, phase: "preparing", createdAt: now, updatedAt: now };
       await saveJob(job, true);
     }
     const persist = async (phase: Phase, patch: Partial<Job> = {}) => {
@@ -293,7 +296,7 @@ export async function runGenerationJob(options: RunOptions) {
       }
       if (!files?.length || !execution) throw new Error("任务缺少已保存的输出或执行记录");
       await validFiles(directory, files);
-      await options.record(files, execution, job.manual === true);
+      await options.record(files, execution, job.manual === true, job.qcPolicy);
       await persist("completed", { error: undefined });
       return files;
     } catch (error) {

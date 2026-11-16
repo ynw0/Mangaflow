@@ -37,9 +37,7 @@ const labels: Record<string, string> = {
   "video/h3_erca_16x9": "二采 MiniMax H3 16:9",
   "video/h3_erca_9x16": "二采 MiniMax H3 9:16",
   "video/h3_flf_repair": "H3 首尾帧",
-  "qc/gemma4E2b": "Gemma 4 E2B 质检",
-  "qc/gemma4E4b": "Gemma 4 E4B 质检",
-  "qc/gemma4_12B": "Gemma 4 12B 质检",
+  "qc/gemma4": "Gemma 4 成片质检",
 };
 
 /** 内置 workflows 目录（与 upload 共用，按仓库根解析）。 */
@@ -182,6 +180,7 @@ export async function loadWorkflowCatalog(): Promise<{ entries: WorkflowEntry[];
   const notices: string[] = [];
   for (const root of roots) {
     for (const id of (await walkBindings(root)).sort((a, b) => a.localeCompare(b, "zh-CN"))) {
+      if (["qc/gemma4E2b", "qc/gemma4E4b", "qc/gemma4_12B"].includes(id)) continue;
       const entry = await readEntry(root, id);
       const current = chosen.get(id);
       if (!current) {

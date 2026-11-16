@@ -21,9 +21,22 @@ const referenceMode = z.templateLiteral([z.enum(["image", "video", "audio"]), "R
   .refine(value => /Reference:(?:[1-9]\d?|1\d{2}|2[0-4]\d|25[0-6])$/.test(value), "参考数量必须在 1 到 256 之间");
 
 export const listMediaModelsSchema = z.strictObject({});
+export const qcOverrideSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("off") }),
+  z.strictObject({
+    mode: z.literal("custom"),
+    qcMethod: z.enum(["agentFrames", "model", "agentFramesAndModel"]).optional(),
+    qcLevel: z.enum(["video", "videoAudio", "none"]).optional(),
+    qcTrigger: z.enum(["auto", "manual"]).optional(),
+    videoQcModelId: z.string().trim().min(1).max(550).regex(/^[^\x00-\x1f]+$/).optional(),
+    audioQcModelId: z.string().trim().min(1).max(550).regex(/^[^\x00-\x1f]+$/).optional(),
+  }),
+]);
 export const qcVideoSchema = z.strictObject({
   videoPath: relativePath,
   checklist: z.string().max(8000).optional(),
+  qcOverride: qcOverrideSchema.nullable().optional(),
+  qcModelCallAllowed: z.boolean().optional(),
 });
 export const videoQcStatusSchema = qcVideoSchema.pick({ videoPath: true });
 export const qcRectificationPlanSchema = z.strictObject({
@@ -73,6 +86,8 @@ export const videoGenerationSchema = z.strictObject({
   loraName: z.string().max(512).refine(v => !/[\u0000-\u001f]/.test(v), "LoRA 文件名不能包含控制字符").optional(),
   checkpointName: z.string().trim().min(1).max(512).regex(/^[^\x00-\x1f]+$/)
     .describe("支持更换权重的 H3 工作流使用，填写当前 ComfyUI 返回的完整文件名").optional(),
+  qcOverride: qcOverrideSchema.optional(),
+  qcModelCallAllowed: z.boolean().optional(),
   generateAudio: z.boolean().optional(),
   mode: z.union([
     z.enum(["singleImage", "startEndRequired", "endFrameOptional", "startFrameOptional", "text"]),

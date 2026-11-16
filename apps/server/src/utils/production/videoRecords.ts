@@ -3,7 +3,8 @@ import { mkdir, readFile, readdir, realpath, stat, unlink, writeAtomic } from "@
 import { dirname, join, relative } from "node:path";
 import type { GeneratedMedia, MediaGenerationRequest, QcVideoResult, VideoExecution, VideoQcReport, VideoQcState } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
-import { readProduction, type ProductionConfig } from "@/utils/production/config";
+import { assertQcCallAllowed, captureQcPolicy, productionForQc, type QcPolicySnapshot } from "@/utils/production/qcPolicy";
+import type { NodeQcOverride } from "@toonflow/tools-scaffold/runtime";
 import { prepareAgentVideoQc, runProductionQc } from "@/utils/production/qc";
 import { parseQcPayload, summarizeQc, validateRectificationCoverage } from "@/utils/production/qcResult";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
@@ -22,15 +23,17 @@ type VideoRecord = {
   checklist?: string;
   rawQc?: string[];
   requirements?: QcRequirement[];
-  qcPolicy?: QcPolicy;
+  qcPolicy?: QcPolicySnapshot;
+  requestedQcPolicy?: QcPolicySnapshot;
+  qcAttemptId?: string;
+  /** 显式重新质检时保留原完成结论与原始证据；不在默认状态接口中返回大段历史。 */
+  qcHistory?: { archivedAt: string; policy?: QcPolicySnapshot; attemptId?: string; result: QcVideoResult; checklist?: string; rawQc?: string[]; rectificationPlan?: VideoQcRectificationPlan }[];
   agentResult?: QcVideoResult;
   agentDeliveredRevision?: string;
   rectificationPlan?: VideoQcRectificationPlan;
 };
 
-type QcPolicy = Pick<ProductionConfig, "qcMethod" | "qcLevel" | "videoQcModelId" | "audioQcModelId" | "gemmaQcHost"> & { contractVersion: number };
-
-const active = new Map<string, { checklist?: string; running: boolean; promise: Promise<VideoQcActionResult> }>();
+const active = new Map<string, { checklist?: string; policy: QcPolicySnapshot; running: boolean; promise: Promise<VideoQcActionResult> }>();
 const submissions = new Set<string>();
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -59,19 +62,16 @@ function newRecord(video: VideoIdentity, qc: VideoQcState): VideoRecord {
   return { workspaceDirectory: video.directory, videoPath: video.videoPath, size: video.size, mtimeMs: video.mtimeMs, createdAt: new Date().toISOString(), qc };
 }
 
-function qcPolicy({ qcMethod, qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost }: ProductionConfig): QcPolicy {
-  return { qcMethod, qcLevel, videoQcModelId, audioQcModelId, gemmaQcHost, contractVersion: 3 };
-}
-
 async function saveRecord(video: VideoIdentity, record: VideoRecord, exclusive = false) {
   await mkdir(dirname(video.recordPath), { recursive: true });
   await writeAtomic(video.recordPath, JSON.stringify(record), { mode: 0o600, exclusive });
 }
 
-export async function recordVideoOutputs(directory: string, assets: GeneratedMedia[], request: MediaGenerationRequest, execution?: VideoExecution) {
+export async function recordVideoOutputs(directory: string, assets: GeneratedMedia[], request: MediaGenerationRequest, execution?: VideoExecution, snapshot?: QcPolicySnapshot) {
   const videos = await Promise.all(assets.map(asset => videoIdentity(directory, asset.path)));
-  const production = readProduction();
-  const auto = production.qcTrigger === "auto" && production.qcLevel !== "none";
+  // 旧持久化生成任务没有可信的提交时 QC 策略，禁止恢复时新增一次自动调用。
+  const policy = snapshot ?? { ...captureQcPolicy(request.qcOverride), qcTrigger: "manual" as const };
+  const auto = policy.qcTrigger === "auto" && policy.qcLevel !== "none";
   const written: string[] = [];
   const pendingQc: VideoIdentity[] = [];
   try {
@@ -88,7 +88,7 @@ export async function recordVideoOutputs(directory: string, assets: GeneratedMed
         if (auto && (previous.qc.status === "queued" || previous.qc.status === "running")) pendingQc.push(video);
         continue;
       }
-      await saveRecord(video, { ...newRecord(video, { status: auto ? "queued" : "notRequested" }), generation: { request, execution } }, true);
+      await saveRecord(video, { ...newRecord(video, { status: auto ? "queued" : "notRequested" }), generation: { request, execution }, requestedQcPolicy: policy, ...(auto ? { qcPolicy: policy } : {}) }, true);
       written.push(video.recordPath);
       if (auto) pendingQc.push(video);
     }
@@ -98,15 +98,15 @@ export async function recordVideoOutputs(directory: string, assets: GeneratedMed
   }
   if (auto) for (const video of pendingQc) {
     // 成片已落盘，自动质检独立于发起生成的画布或对话。
-    void scheduleQc(video, undefined, production).catch(error => console.error("自动成片质检失败", video.videoPath, error));
+    void scheduleQc(video, undefined, policy).catch(error => console.error("自动成片质检失败", video.videoPath, error));
   }
 }
 
-function scheduleQc(video: VideoIdentity, checklist: string | undefined, production = readProduction(), signal?: AbortSignal) {
+function scheduleQc(video: VideoIdentity, checklist: string | undefined, policy: QcPolicySnapshot, signal?: AbortSignal) {
   if (submissions.has(video.recordPath)) throw Object.assign(new Error("主 Agent 正在提交此成片质检结论"), { status: 409 });
   const existing = active.get(video.recordPath);
   if (existing) {
-    if (checklist !== undefined && checklist !== existing.checklist) {
+    if ((checklist !== undefined && checklist !== existing.checklist) || JSON.stringify(policy) !== JSON.stringify(existing.policy)) {
       throw Object.assign(new Error("此成片正在质检，请完成后再使用新的验收要点"), { status: 409 });
     }
     return existing.promise;
@@ -116,12 +116,14 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, product
     if (current.size !== video.size || current.mtimeMs !== video.mtimeMs) throw new Error("成片在等待质检期间已变化");
     const saved = await loadRecord(video) ?? newRecord(video, { status: "notRequested" });
     const rawQc: string[] = [];
-    const record = { ...saved, agentResult: undefined, agentDeliveredRevision: undefined, rectificationPlan: undefined, checklist, rawQc, qcPolicy: qcPolicy(production) };
+    const history = saved.qc.status === "completed" ? [...(saved.qcHistory ?? []), { archivedAt: new Date().toISOString(), policy: saved.qcPolicy, attemptId: saved.qcAttemptId, result: saved.qc.result, checklist: saved.checklist, rawQc: saved.rawQc, rectificationPlan: saved.rectificationPlan }] : saved.qcHistory;
+    const record = { ...saved, qcHistory: history, qcAttemptId: crypto.randomUUID(), agentResult: undefined, agentDeliveredRevision: undefined, rectificationPlan: undefined, checklist, rawQc, qcPolicy: policy };
     await saveRecord(video, { ...record, qc: { status: "running" } });
     const task = active.get(video.recordPath);
     if (task) task.running = true;
     try {
       signal?.throwIfAborted();
+      const production = productionForQc(policy);
       const requirements = await readQcRequirements(video.directory, saved.generation?.request);
       record.requirements = requirements;
       const captured = production.qcMethod !== "model" && production.qcLevel !== "none"
@@ -167,7 +169,7 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, product
       throw error;
     }
   }).finally(() => active.delete(video.recordPath));
-  active.set(video.recordPath, { checklist, running: false, promise: job });
+  active.set(video.recordPath, { checklist, policy, running: false, promise: job });
   // 共享质检资源按队列执行，单条失败不阻断后续成片。
   queue = job.catch(() => undefined);
   return job;
@@ -175,8 +177,6 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, product
 
 /** 只恢复已获准自动 QC、并在重启前处于排队/运行中的成片；绝不重新生成视频。 */
 export async function resumePendingAutomaticQc() {
-  const production = readProduction();
-  if (production.qcTrigger !== "auto" || production.qcLevel === "none") return 0;
   const root = join(dirname(conf.path), "videoRecords");
   const entries = await readdir(root).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return [] as string[];
@@ -193,7 +193,9 @@ export async function resumePendingAutomaticQc() {
       // 视频路径、修改时间、大小和记录哈希必须与原始记录一致。
       if (video.recordPath !== recordPath || !(await loadRecord(video))) continue;
       if (active.has(video.recordPath)) continue;
-      void scheduleQc(video, saved.checklist, production).catch(error =>
+      const policy = saved.qcPolicy ?? saved.requestedQcPolicy;
+      if (policy?.contractVersion !== 4 || policy.qcTrigger !== "auto" || policy.qcLevel === "none") continue;
+      void scheduleQc(video, saved.checklist, policy).catch(error =>
         console.error("重启后自动质检失败", video.videoPath, error));
       scheduled++;
     } catch (error) {
@@ -203,8 +205,10 @@ export async function resumePendingAutomaticQc() {
   return scheduled;
 }
 
-function qcRevision(video: VideoIdentity, result: QcVideoResult) {
-  return createHash("sha256").update(JSON.stringify([video.size, video.mtimeMs, result.status, result.checks])).digest("hex");
+function qcRevision(video: VideoIdentity, result: QcVideoResult, record?: VideoRecord) {
+  const identity: unknown[] = [video.size, video.mtimeMs, result.status, result.checks];
+  if (record?.qcPolicy?.contractVersion === 4) identity.push(record.qcPolicy, record.qcAttemptId);
+  return createHash("sha256").update(JSON.stringify(identity)).digest("hex");
 }
 
 export async function getVideoQcStatus(directory: string, videoPath: string): Promise<VideoQcReport> {
@@ -218,15 +222,16 @@ export async function getVideoQcStatus(directory: string, videoPath: string): Pr
     reviewId: generation.request.reviewId,
     duration: generation.request.duration, ratio: generation.request.ratio, execution: generation.execution,
   } : undefined;
-  if (task && !task.running) return { status: "queued", generation: parameters };
-  if (!task && (state.status === "queued" || state.status === "running")) return { status: "interrupted", generation: parameters };
-  const revision = state.status === "completed" ? qcRevision(video, state.result) : undefined;
+  const policyInfo = { qcPolicy: task?.policy ?? record?.qcPolicy, requestedQcPolicy: record?.requestedQcPolicy };
+  if (task && !task.running) return { status: "queued", generation: parameters, ...policyInfo };
+  if (!task && (state.status === "queued" || state.status === "running")) return { status: "interrupted", generation: parameters, ...policyInfo };
+  const revision = state.status === "completed" ? qcRevision(video, state.result, record) : undefined;
   const rectificationPlan = record && revision && record.rectificationPlan?.qcRevision === revision ? record.rectificationPlan : undefined;
   const result = state.status === "completed" ? {
     ...state.result,
     ...(!state.result.issues ? { issues: summarizeQc(state.result.checks).issues } : {}),
   } : undefined;
-  return { ...state, ...(result ? { result } : {}), generation: parameters,
+  return { ...state, ...(result ? { result } : {}), generation: parameters, ...policyInfo,
     agentResult: record?.agentResult, qcRevision: revision, rectificationPlan };
 }
 
@@ -242,17 +247,18 @@ async function waitForQc(job: Promise<VideoQcActionResult>, signal?: AbortSignal
   finally { signal.removeEventListener("abort", abort); }
 }
 
-export async function checkRecordedVideo(directory: string, videoPath: string, checklist?: string, signal?: AbortSignal) {
+export async function checkRecordedVideo(directory: string, videoPath: string, checklist?: string, signal?: AbortSignal, override?: NodeQcOverride | null, modelCallAllowed?: boolean) {
   const video = await videoIdentity(directory, videoPath);
   signal?.throwIfAborted();
   const saved = await loadRecord(video);
   const normalized = checklist?.trim() || undefined;
-  const production = readProduction();
+  const policy = override !== undefined ? captureQcPolicy(override ?? undefined) : saved?.qcPolicy?.contractVersion === 4 ? saved.qcPolicy : saved?.requestedQcPolicy?.contractVersion === 4 ? saved.requestedQcPolicy : captureQcPolicy();
   if (saved?.qc.status === "awaitingAgent" && normalized === undefined && !active.has(video.recordPath)
-    && JSON.stringify(saved.qcPolicy) === JSON.stringify(qcPolicy(production))) return saved.qc;
+    && JSON.stringify(saved.qcPolicy) === JSON.stringify(policy)) return saved.qc;
   if (saved?.qc.status === "completed" && normalized === undefined && !active.has(video.recordPath)
-    && JSON.stringify(saved.qcPolicy) === JSON.stringify(qcPolicy(production))) return saved.qc.result;
-  return waitForQc(scheduleQc(video, normalized, production, signal), signal);
+    && JSON.stringify(saved.qcPolicy) === JSON.stringify(policy)) return saved.qc.result;
+  assertQcCallAllowed(policy, modelCallAllowed, false);
+  return waitForQc(scheduleQc(video, normalized, policy, signal), signal);
 }
 
 export async function getAgentVideoQcEvidence(directory: string, videoPath: string) {
@@ -262,7 +268,7 @@ export async function getAgentVideoQcEvidence(directory: string, videoPath: stri
   try {
     const record = await loadRecord(video);
     if (record?.qc.status !== "awaitingAgent") throw new Error("该成片当前没有待主 Agent 验收的抽帧任务");
-    if (JSON.stringify(record.qcPolicy) !== JSON.stringify(qcPolicy(readProduction()))) throw new Error("质检设置已变化，请重新发起质检");
+    if (record.qcPolicy?.contractVersion !== 4) throw new Error("旧版质检证据未绑定实际策略，请重新发起质检");
     const images: { data: string; mimeType: string }[] = [];
     for (const frame of record.qc.agent.frames) {
       const bytes = await readFile((await resolveWorkspacePath(video.directory, frame.path)).path);
@@ -285,7 +291,7 @@ export async function submitAgentVideoQc(directory: string, input: AgentVideoQcS
     const pending = record.qc;
     if (pending.agent.revision !== input.revision) throw Object.assign(new Error("抽帧版本已变化，请重新读取画面证据"), { status: 409 });
     if (record.agentDeliveredRevision !== input.revision) throw new Error("必须先调用 getVideoQcFrames 读取实际图片，再提交主 Agent 结论");
-    if (JSON.stringify(record.qcPolicy) !== JSON.stringify(qcPolicy(readProduction()))) throw new Error("质检设置已变化，请重新发起质检");
+    if (record.qcPolicy?.contractVersion !== 4) throw new Error("旧版质检证据未绑定实际策略，请重新发起质检");
     const parsed = parseQcPayload(JSON.stringify({ checks: input.checks }), "video", false, pending.agent.requirements, pending.agent.timelineCoverage, false);
     const agentResult: QcVideoResult = { ...parsed, technical: pending.agent.technical, videoModelId: "mainAgent", audioModelId: "", merged: false };
     if (pending.agent.audioExpected && !pending.modelResult) {
@@ -322,7 +328,7 @@ export async function saveVideoQcRectificationPlan(directory: string, input: {
     if (!record || record.qc.status !== "completed" || record.qc.result.status === "ok") {
       throw Object.assign(new Error("只有已完成且存在问题的 QC 结果才能制定整改计划"), { status: 409 });
     }
-    const revision = qcRevision(video, record.qc.result);
+    const revision = qcRevision(video, record.qc.result, record);
     if (input.qcRevision !== revision) {
       throw Object.assign(new Error("质检证据版本已变化，请重新读取问题后制定方案"), { status: 409 });
     }

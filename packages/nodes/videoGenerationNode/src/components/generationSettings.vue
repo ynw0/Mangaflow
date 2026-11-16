@@ -109,6 +109,41 @@
         <span class="sectionLabel">生成音频</span>
         <el-switch v-model="generateAudio" :disabled="disabled" aria-label="生成音频" />
       </div>
+      <div class="sectionLabel">成片质检</div>
+      <el-select v-model="qcMode" :teleported="false" :disabled="disabled" aria-label="质检配置模式">
+        <el-option value="inherit" label="继承系统设置" />
+        <el-option value="off" label="关闭自动质检" />
+        <el-option value="custom" label="自定义质检设置" />
+      </el-select>
+      <div v-if="qcMode === 'custom'" class="outputField">
+        <div class="sectionLabel">质检方式</div>
+        <el-select :model-value="customQc.qcMethod ?? props.qcDefaults?.qcMethod" :teleported="false" @change="value => patchQc({qcMethod:value})">
+          <el-option value="model" label="专用质检模型" /><el-option value="agentFrames" label="主 Agent 抽帧" /><el-option value="agentFramesAndModel" label="联合质检" />
+        </el-select>
+        <div class="sectionLabel">质检范围</div>
+        <el-select :model-value="customQc.qcLevel ?? props.qcDefaults?.qcLevel" :teleported="false" @change="value => patchQc({qcLevel:value})">
+          <el-option value="video" label="仅画面" /><el-option value="videoAudio" label="画面 + 音轨" /><el-option value="none" label="关闭质检" />
+        </el-select>
+        <div class="sectionLabel">触发方式</div>
+        <el-select :model-value="customQc.qcTrigger ?? props.qcDefaults?.qcTrigger" :teleported="false" @change="value => patchQc({qcTrigger:value})">
+          <el-option value="auto" label="生成后自动" /><el-option value="manual" label="手动质检" />
+        </el-select>
+        <template v-if="(customQc.qcMethod ?? props.qcDefaults?.qcMethod) !== 'agentFrames' && (customQc.qcLevel ?? props.qcDefaults?.qcLevel) !== 'none'">
+          <div class="sectionLabel">画面质检模型</div>
+          <el-select :model-value="customQc.videoQcModelId ?? props.qcDefaults?.videoQcModelId" filterable :teleported="false" @change="selectVideoQc">
+            <el-option v-for="item in props.qcChoices?.filter(item => item.video)" :key="item.id" :value="item.id" :label="item.label" />
+          </el-select>
+          <template v-if="(customQc.qcLevel ?? props.qcDefaults?.qcLevel) === 'videoAudio'">
+            <div class="sectionLabel">音轨质检模型</div>
+            <el-select :model-value="customQc.audioQcModelId ?? props.qcDefaults?.audioQcModelId" filterable :teleported="false" @change="selectAudioQc">
+              <el-option v-for="item in props.qcChoices?.filter(item => item.audio)" :key="item.id" :value="item.id" :label="item.label" />
+            </el-select>
+          </template>
+          <el-button text size="small" :loading="qcLoading" @click="emit('refreshQcChoices')">刷新已安装质检模型</el-button>
+        </template>
+      </div>
+      <div class="sizeHint" v-if="qcError" role="status">{{ qcError }}</div>
+      <div class="sizeHint" v-else>Gemma 运行位置继承系统设置，只有已启用的实际权重可选。</div>
       <template v-if="model?.supportsSeed">
         <div class="sectionLabel seedLabel">种子</div>
         <div class="seedRow">
@@ -138,10 +173,19 @@
 import { computed, ref } from "vue";
 import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch, ElInputNumber } from "element-plus";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
-import type { NodeMediaModel } from "@toonflow/nodes-scaffold/runtime";
+import type { NodeMediaModel, NodeVideoRequest } from "@toonflow/nodes-scaffold/runtime";
 
-const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number; loraChoices?: string[]; checkpointChoices?: string[]; loraLoading?: boolean; loraError?: string }>();
-const emit = defineEmits<{ refreshComfyChoices: [] }>();
+const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number; loraChoices?: string[]; checkpointChoices?: string[]; loraLoading?: boolean; loraError?: string; qcChoices?: {id:string;label:string;video:boolean;audio:boolean}[]; qcDefaults?: {qcMethod:string;qcLevel:string;qcTrigger:string;videoQcModelId:string;audioQcModelId:string;gemmaQcHost:string}; qcError?: string; qcLoading?: boolean }>();
+const emit = defineEmits<{ refreshComfyChoices: []; refreshQcChoices: [] }>();
+type CustomQc = Extract<NonNullable<NodeVideoRequest["qcOverride"]>, {mode:"custom"}>;
+const qcOverride = defineModel<NodeVideoRequest["qcOverride"]>("qcOverride");
+const qcMode = computed({ get: () => qcOverride.value?.mode ?? "inherit", set: (mode: string) => {
+  qcOverride.value = mode === "off" ? {mode:"off"} : mode === "custom" ? {mode:"custom"} : undefined;
+} });
+const customQc = computed<CustomQc>(() => qcOverride.value?.mode === "custom" ? qcOverride.value : {mode:"custom"});
+function patchQc(patch: Partial<CustomQc>) { qcOverride.value = {...customQc.value,...patch,mode:"custom"}; }
+function selectVideoQc(id: string) { patchQc({videoQcModelId:id,...(id.startsWith("qc/gemma4:") ? {audioQcModelId:id} : {})}); }
+function selectAudioQc(id: string) { patchQc({audioQcModelId:id,...(id.startsWith("qc/gemma4:") ? {videoQcModelId:id} : {})}); }
 const settingsVisible = ref(false);
 const duration = defineModel<number | undefined>("duration", { required: true });
 const resolution = defineModel<string>("resolution", { required: true });

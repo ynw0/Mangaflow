@@ -87,7 +87,7 @@ export function createAgentToolContext(cwd: string, config: Record<string, unkno
       generateImage: (request, signal) => generateMedia(cwd, "image", request, signal),
       generateVideo: (request, signal) => generateMedia(cwd, "video", request, signal),
       generateAudio: (request, signal) => generateMedia(cwd, "audio", request, signal),
-      qcVideo: (request, signal) => checkRecordedVideo(cwd, request.videoPath, request.checklist, signal),
+      qcVideo: (request, signal) => checkRecordedVideo(cwd, request.videoPath, request.checklist, signal, request.qcOverride, request.qcModelCallAllowed),
       getVideoQcStatus: videoPath => getVideoQcStatus(cwd, videoPath),
       getAgentVideoQcEvidence: videoPath => getAgentVideoQcEvidence(cwd, videoPath),
       submitAgentVideoQc: request => submitAgentVideoQc(cwd, request),

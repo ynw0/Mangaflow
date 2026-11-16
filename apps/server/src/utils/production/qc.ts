@@ -9,6 +9,7 @@ import { createWorkspaceFfmpeg } from "@/utils/ffmpeg";
 import { resolveComfyBaseUrl } from "@/utils/production/autodl";
 import { findWorkflow } from "@/utils/production/catalog";
 import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, readNodeIntegerRange, submitWorkflow, uploadInput, waitForText } from "@/utils/production/comfyui";
+import { assertGemmaModelEnabled, gemmaWorkflowId, gemmaTargetId, isGemmaQcId } from "@/utils/production/gemmaQcModels";
 import { fail, isWorkflowEnabled, readProduction, type ProductionConfig } from "@/utils/production/config";
 import { resolveWorkspacePath, writeWorkspaceFile, lockWorkspaceFiles } from "@/utils/workspace/files";
 import { parseQcPayload, requirementsForQc, summarizeQc, type QcMode } from "@/utils/production/qcResult";
@@ -28,24 +29,6 @@ function readInputs(model: { inputs?: { image?: boolean; video?: boolean; audio?
 }
 
 const defaultQcModelId = "qwen3.8-omni-flash";
-const gemmaQcVariants = {
-  "qc/gemma4E2b": "e2b",
-  "qc/gemma4E4b": "e4b",
-  "qc/gemma4_12B": "12b",
-} as const;
-
-type GemmaQcVariant = (typeof gemmaQcVariants)[keyof typeof gemmaQcVariants];
-
-const gemmaQcWorkflowIds: Record<GemmaQcVariant, string> = {
-  e2b: "qc/gemma4E2b",
-  e4b: "qc/gemma4E4b",
-  "12b": "qc/gemma4_12B",
-};
-
-function gemmaQcVariant(modelId: string) {
-  return gemmaQcVariants[modelId.trim() as keyof typeof gemmaQcVariants];
-}
-
 function readFrameRate(stream: { avg_frame_rate?: string; r_frame_rate?: string }) {
   const rate = stream.avg_frame_rate || stream.r_frame_rate || "";
   const [num, den] = rate.split("/").map(Number);
@@ -53,19 +36,11 @@ function readFrameRate(stream: { avg_frame_rate?: string; r_frame_rate?: string 
   return Number.isFinite(fps) && fps > 0 ? fps : undefined;
 }
 
-function namedChoices(names: string[], pattern: RegExp) {
-  return names.filter(name => name && !name.startsWith("[") && pattern.test(name));
-}
-
-function gemmaClipRank(variant: GemmaQcVariant) {
-  return variant === "e4b" ? [/fp8/i, /int8/i, /bf16/i] : [/int8/i, /fp8/i, /bf16/i];
-}
-
 const vramShortMessage = "显存不足，需要等待视频生成工作流释放显存";
 
 // 文件体积再留出视频帧和激活。空闲不够就等视频工作流释放，不改到 CPU。
 function gemmaVramBudget(fileName: string) {
-  const name = fileName.toLowerCase();
+  const name = fileName.toLowerCase().replaceAll("fp16", "bf16");
   if (name.includes("12b") && name.includes("bf16")) return 28 * 1024 ** 3;
   if (name.includes("12b")) return 16 * 1024 ** 3;
   if (name.includes("e4b") && name.includes("bf16")) return 18 * 1024 ** 3;
@@ -101,32 +76,9 @@ async function waitForFreeVram(baseUrl: string, needed: number, signal?: AbortSi
   fail(vramShortMessage, 503);
 }
 
-async function resolveGemmaClip(baseUrl: string, variant: GemmaQcVariant, signal?: AbortSignal) {
-  const names = namedChoices(await readNodeChoices(baseUrl, "CLIPLoader", "clip_name", signal), /gemma4/i);
-  const files = names.filter(name => new RegExp(variant, "i").test(name) && /\.safetensors$/i.test(name));
-  let model = "";
-  for (const pattern of gemmaClipRank(variant)) {
-    const hit = files.find(name => pattern.test(name));
-    if (hit) {
-      model = hit;
-      break;
-    }
-  }
-  if (!model) model = files[0] ?? "";
-  if (!model) {
-    const file = variant === "e2b"
-      ? "gemma4_e2b_it_int8_convrot.safetensors"
-      : variant === "e4b"
-        ? "gemma4_e4b_it_fp8_scaled.safetensors"
-        : "gemma4_12b_int8_convrot.safetensors";
-    fail(`ComfyUI 的 models/text_encoders 里没有 Gemma 4 ${variant.toUpperCase()}。请放入 ${file} 后重启 ComfyUI。https://huggingface.co/Comfy-Org/gemma-4/tree/main/text_encoders`);
-  }
-  return model;
-}
-
-async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string, variant: GemmaQcVariant, hearAudio: boolean, requirements: QcRequirement[], signal?: AbortSignal) {
+async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string, model: string, production: ProductionConfig, hearAudio: boolean, requirements: QcRequirement[], signal?: AbortSignal) {
   await probeComfy(baseUrl, signal);
-  const entry = await findWorkflow(gemmaQcWorkflowIds[variant]);
+  const entry = await findWorkflow(gemmaWorkflowId);
   if (!isWorkflowEnabled(entry.id)) fail(`${entry.label} 已在设置中关闭`);
   const raw = JSON.parse(await readFile(entry.workflowPath, "utf8")) as Record<string, { inputs?: Record<string, unknown> }>;
   const workflow = structuredClone(raw);
@@ -141,15 +93,23 @@ async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string
   const maxOutputTokens = Math.max(range.min, Math.ceil(Buffer.byteLength(JSON.stringify({ checks: sampleChecks }), "utf8") * 1.25));
   if (maxOutputTokens > range.max) fail(`本次 ${requirements.length} 项验收估算需要 ${maxOutputTokens} 个输出 Token，当前节点上限 ${range.max} 不足，请拆分镜头或选择支持更长输出的质检模型`);
   generate.max_length = maxOutputTokens;
-  const model = await resolveGemmaClip(baseUrl, variant, signal);
+  const names = await readNodeChoices(baseUrl, "CLIPLoader", "clip_name", signal);
+  if (!names.includes(model)) fail("当前 ComfyUI 未安装所选 Gemma 权重，请刷新模型列表。");
   await waitForFreeVram(baseUrl, gemmaVramBudget(model), signal);
   clip.device = "default";
   clip.clip_name = model;
+  const assertSelection = () => {
+    const current = readProduction();
+    if (gemmaTargetId(current) !== gemmaTargetId(production)) fail("质检实例已变化，请重新发起质检。");
+    assertGemmaModelEnabled(current, "qc/gemma4:" + model);
+  };
+  assertSelection();
   loader.file = await uploadInput(baseUrl, absoluteVideo, "toonflow", signal);
   generate.prompt = "按系统要求质检这条成片，只输出 JSON。";
   generate.system_prompt = prompt;
   if (!hearAudio) delete generate.audio;
-  const promptId = await submitWorkflow(baseUrl, workflow, signal);
+  assertSelection();
+  const promptId = await submitWorkflow(baseUrl, workflow, signal, { lockedClipNode: "4", onSubmitting: async () => assertSelection() });
   await freeComfyMemory(baseUrl);
   try {
     return { text: await waitForText(baseUrl, promptId, signal), maxOutputTokens };
@@ -427,8 +387,8 @@ export async function runProductionQc(input: {
   const { path: absoluteVideo } = await resolveWorkspacePath(input.directory, input.videoPath);
   const workDir = await mkdtemp(join(tmpdir(), "mangaflow-qc-"));
   try {
-    const videoVariant = gemmaQcVariant(videoModelId);
-    const audioVariant = production.qcLevel === "video" ? undefined : gemmaQcVariant(audioModelId);
+    const videoVariant = isGemmaQcId(videoModelId);
+    const audioVariant = production.qcLevel === "video" ? false : isGemmaQcId(audioModelId);
     // 音轨选了 Gemma 时，由这一条同时看画面和听对白。两条都是 Gemma 时用画面那一条。
     const gemmaVariant = videoVariant || audioVariant;
     const localVideo = join(workDir, qcSourceName(absoluteVideo));
@@ -438,6 +398,8 @@ export async function runProductionQc(input: {
     if (gemmaVariant) {
       const hearAudio = production.qcLevel !== "video";
       const usedId = (videoVariant ? videoModelId : audioModelId).trim();
+      const modelFile = assertGemmaModelEnabled(production, usedId);
+      if (gemmaTargetId(readProduction()) !== gemmaTargetId(production)) fail("质检实例已变化，请重新发起质检。");
       const lines = hearAudio
         ? [
           systemContract("merged", input.checklist, "video", input.generation, input.requirements),
@@ -449,8 +411,8 @@ export async function runProductionQc(input: {
         ];
       if (hearAudio && !technical.hasAudio) lines.push("本片没有音轨。对白无法核验，标 unverified。");
       // 固定本次质检选定的运行位置，生成和质检各自选择 ComfyUI。
-      const baseUrl = await resolveComfyBaseUrl(input.signal, production.gemmaQcHost);
-      const { text, maxOutputTokens } = await runGemmaQc(baseUrl, localVideo, lines.join("\n"), gemmaVariant, hearAudio, input.requirements ?? [], input.signal);
+      const baseUrl = await resolveComfyBaseUrl(input.signal, production.gemmaQcHost, true, production);
+      const { text, maxOutputTokens } = await runGemmaQc(baseUrl, localVideo, lines.join("\n"), modelFile, production, hearAudio, input.requirements ?? [], input.signal);
       const parsed = parseQcPayload(remember(text), hearAudio ? "merged" : "video", technical.hasAudio, input.requirements);
       return {
         ...parsed,

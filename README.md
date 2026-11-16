@@ -98,6 +98,8 @@ MangaFlow 内置可复用的创作知识库，帮助 Agent 在编剧、分镜、
 
 ## Ubuntu / Linux 安装及局域网 Web 访问
 
+**离线服务器**：在有网电脑从 [Linux Offline Release](https://github.com/ynw0/Mangaflow/releases) 下载部署压缩包、Docker 镜像包（如分卷全部下载）和校验文件，拷贝到 Ubuntu 后按 [离线安装指南](deploy/ubuntu-offline.md) 执行。目标机已有 Docker Engine + Compose v2 即不需要联网构建或拉取镜像。下方在线源码部署仅适用于能访问依赖源的机器。
+
 Linux 推荐使用 Docker Compose 运行独立 Web 服务；Windows 可用 Edge/Chrome 访问。在 Ubuntu 安装 Docker Engine 与 Compose v2 后，按 [Ubuntu 部署指南](deploy/ubuntu.md) 配置访问令牌及实际局域网 IP，再执行：
 
 ```bash

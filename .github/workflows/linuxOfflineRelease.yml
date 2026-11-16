@@ -1,0 +1,98 @@
+name: Ubuntu Offline Release
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/linux-offline-release-request.json"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mangaflow-linux-offline-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build Linux amd64 images
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(jq -er '.version' .github/linux-offline-release-request.json)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          docker build --platform linux/amd64 -t "mangaflow/server:$version" .
+          docker pull --platform linux/amd64 caddy:2
+          docker tag caddy:2 "mangaflow/lan-proxy:$version"
+          mkdir -p package/mangaflow-offline assets
+          cp deploy/compose.offline.yaml package/mangaflow-offline/compose.yaml
+          cp deploy/caddyLanConfig package/mangaflow-offline/
+          cp deploy/ubuntu-offline.md package/mangaflow-offline/README.md
+          printf 'MANGAFLOW_VERSION=%s\n' "$version" > package/mangaflow-offline/version.env
+          tar -czf assets/mangaflow-linux-amd64-deploy.tar.gz -C package mangaflow-offline
+          docker save "mangaflow/server:$version" "mangaflow/lan-proxy:$version" | gzip -1 > assets/mangaflow-linux-amd64-images.tar.gz
+          if [ "$(stat -c%s assets/mangaflow-linux-amd64-images.tar.gz)" -gt 1572864000 ]; then
+            split -b 1500m -d -a 3 assets/mangaflow-linux-amd64-images.tar.gz assets/mangaflow-linux-amd64-images.tar.gz.part-
+            rm assets/mangaflow-linux-amd64-images.tar.gz
+          fi
+          (cd assets && sha256sum mangaflow-linux-amd64-* > SHA256SUMS)
+      - name: Verify archive and start using loaded images only
+        run: |
+          set -euo pipefail
+          cd assets
+          sha256sum -c SHA256SUMS
+          if [ -f mangaflow-linux-amd64-images.tar.gz ]; then
+            docker load -i mangaflow-linux-amd64-images.tar.gz
+          else
+            cat mangaflow-linux-amd64-images.tar.gz.part-* | gzip -dc | docker load
+          fi
+          tar -xzf mangaflow-linux-amd64-deploy.tar.gz
+          cd mangaflow-offline
+          umask 077
+          token="$(openssl rand -hex 32)"
+          echo "::add-mask::$token"
+          printf 'TOONFLOW_TOKEN=%s\nMANGAFLOW_LAN_IP=127.0.0.1\n' "$token" > .env
+          docker compose --env-file version.env --env-file .env config --quiet
+          docker compose --env-file version.env --env-file .env --profile lan up -d --no-build --pull never
+          for attempt in $(seq 1 90); do
+            if docker compose --env-file version.env --env-file .env --profile lan cp caddy-lan:/data/caddy/pki/authorities/local/root.crt /tmp/mangaflow-offline-root.crt >/dev/null 2>&1 &&
+              curl -fsS --max-time 5 --cacert /tmp/mangaflow-offline-root.crt https://127.0.0.1:3443/api/auth/status > /tmp/offline-status.json; then
+              break
+            fi
+            sleep 2
+          done
+          jq -e '.data.required == true and .data.authenticated == false' /tmp/offline-status.json
+          curl -fsS --cacert /tmp/mangaflow-offline-root.crt https://127.0.0.1:3443/ > /tmp/offline-index.html
+          test -s /tmp/offline-index.html
+          test "$(curl -sS --cacert /tmp/mangaflow-offline-root.crt -o /dev/null -w '%{http_code}' https://127.0.0.1:3443/api/settings/get)" = 401
+          jq -nc --arg token "$token" '{token:$token}' | curl -fsS --cacert /tmp/mangaflow-offline-root.crt -c /tmp/offline-cookie -H 'Content-Type: application/json' -H 'Origin: https://127.0.0.1:3443' --data-binary @- https://127.0.0.1:3443/api/auth/login > /dev/null
+          curl -fsS --cacert /tmp/mangaflow-offline-root.crt -b /tmp/offline-cookie https://127.0.0.1:3443/api/auth/status | jq -e '.data.authenticated == true'
+          docker compose --env-file version.env --env-file .env exec -T toonflow ffmpeg -version
+          docker compose --env-file version.env --env-file .env exec -T toonflow ffprobe -version
+      - name: Cleanup test containers
+        if: always()
+        run: |
+          if [ -f assets/mangaflow-offline/.env ]; then
+            cd assets/mangaflow-offline
+            docker compose --env-file version.env --env-file .env --profile lan logs --tail=30
+            docker compose --env-file version.env --env-file .env --profile lan down -v
+          fi
+      - name: Publish offline package
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: linux-v${{ steps.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: MangaFlow Linux Offline ${{ steps.version.outputs.version }} (amd64)
+          make_latest: false
+          overwrite_files: false
+          fail_on_unmatched_files: true
+          body: "Ubuntu x86_64 离线 Docker 安装包。下载部署压缩包、完整镜像压缩包（如有分卷需全部下载）和 SHA256SUMS。解压部署包后参阅 README.md。目标机须已有 Docker Engine + Compose v2，不包含 AI 模型权重。"
+          files: |
+            assets/mangaflow-linux-amd64-*
+            assets/SHA256SUMS

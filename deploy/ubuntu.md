@@ -1,5 +1,7 @@
 # Ubuntu / Linux 部署（Docker Compose）
 
+**服务器无法访问互联网时，不要执行本文的在线构建。请使用 [离线安装指南](ubuntu-offline.md) 和 Linux Offline Release 的预构建镜像包。**
+
 MangaFlow Linux 版是独立 Web 服务，不需要 Ubuntu 图形桌面，也不需要安装 Windows EXE。模型服务（ComfyUI、语言模型）另行部署。Windows 浏览器可以连接 Ubuntu 上的同一服务，项目与生成产物保存在 Ubuntu；不等价于 Windows 原生桌面客户端。
 
 ## 前置条件

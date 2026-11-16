@@ -50,4 +50,6 @@ jobs:
           curl -fsS --cacert /tmp/mangaflow-root.crt -b /tmp/mangaflow-cookie https://127.0.0.1:3443/api/auth/status | jq -e '.data.authenticated == true'
       - name: Stop smoke-test containers
         if: always()
-        run: docker compose --profile lan down -v
+        run: |
+          docker compose --profile lan logs --tail=80 toonflow caddy-lan
+          docker compose --profile lan down -v

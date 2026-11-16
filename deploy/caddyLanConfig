@@ -1,5 +1,8 @@
 {
   auto_https disable_redirects
+  # IP 客户端通常不发送 SNI；显式选择该局域网地址的内部证书。
+  default_sni {$MANGAFLOW_LAN_IP}
+  skip_install_trust
 }
 
 https://{$MANGAFLOW_LAN_IP}:3443 {

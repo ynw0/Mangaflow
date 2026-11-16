@@ -120,7 +120,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
       const formatRules = guideRules(guide, prepared.format);
       const commonRules = videoCommonRules(common);
       const reviewerFormat = guideRules(guide, prepared.format, true);
-      const sampling = input.sampling && { ...input.sampling, firstPassSteps: undefined, secondPassSteps: undefined };
+      const sampling = input.sampling && { outputFirstPass: input.sampling.outputFirstPass, loraName: input.sampling.loraName };
       const cacheKey = createHash("sha256").update(JSON.stringify({
         planVersion: 4,
         input: { ...input, regenerate: undefined, seed: undefined, seedMode: undefined,

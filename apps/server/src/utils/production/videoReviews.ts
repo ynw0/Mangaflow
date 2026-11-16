@@ -25,7 +25,7 @@ function serialize(value: unknown) {
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
 }
 
-const runtimeInputs = new Set(["seed", "first_pass_steps", "second_pass_steps"]);
+const runtimeInputs = new Set(["seed", "first_pass_steps", "second_pass_steps", "megapixels", "upscale"]);
 
 export function videoPromptReviewScope(snapshot: VideoReviewSnapshot) {
   const { bindings, workflow } = JSON.parse(snapshot.workflow) as {
@@ -115,7 +115,7 @@ export function requireSameVideoReview(approved: VideoReviewSnapshot, current: V
     if (approved[key] !== current[key]) changed.push(label);
   }
   const parameterNames: Record<string, string> = {
-    duration: "时长", aspect_ratio: "画幅", megapixels: "百万像素", upscale: "放大倍率",
+    duration: "时长", aspect_ratio: "画幅",
   };
   for (const key of new Set([...Object.keys(before.parameters), ...Object.keys(after.parameters)])) {
     if (serialize(before.parameters[key]) !== serialize(after.parameters[key])) changed.push(parameterNames[key] ?? key);

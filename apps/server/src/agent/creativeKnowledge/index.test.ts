@@ -37,8 +37,8 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     }
   });
 
-  test("声音提示词94条覆盖9维度，分角色独立选择，默认1.3倍并检查口音冲突", () => {
-    expect(voiceTemplates).toHaveLength(94);
+  test("声音提示词111条覆盖9维度，分角色独立选择，默认1.3倍并检查口音冲突", () => {
+    expect(voiceTemplates).toHaveLength(111);
     for (const category of voiceCategories) expect(voiceTemplates.filter(t => t.category === category).length).toBeGreaterThanOrEqual(6);
     expect(new Set(voiceTemplates.map(t => t.id)).size).toBe(voiceTemplates.length);
     expect(DEFAULT_H3_SPEECH_RATE).toBe(1.3);

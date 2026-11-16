@@ -348,13 +348,15 @@ function collectOutputs(value: unknown, extensions: Set<string>, found: ComfyOut
 
 export async function waitForOutput(baseUrl: string, promptId: string, kind: "image" | "video", signal?: AbortSignal, cancelOnAbort = true) {
   // 持久化视频任务的远端取消只由显式取消接口发起，避免等待协程退出时重复中断。
-  const deadline = Date.now() + (kind === "video" ? 60 : 10) * 60_000;
+  // 视频按各自的 promptId 等待结果。ComfyUI 历史为空时可能仍在排队，不按提交时间判失败。
+  const deadline = kind === "image" ? Date.now() + 10 * 60_000 : undefined;
   const extensions = kind === "video" ? videoExtensions : imageExtensions;
   const stop = cancelOnAbort ? trackPrompt(baseUrl, promptId, signal) : () => {};
   try {
-    while (Date.now() < deadline) {
+    while (deadline === undefined || Date.now() < deadline) {
       signal?.throwIfAborted();
       const response = await comfyFetch(baseUrl, `/history/${promptId}`, { method: "GET" }, signal);
+      if (kind === "video" && !response.ok) fail(`ComfyUI 视频状态查询失败：HTTP ${response.status}`, 502);
       if (response.ok) {
         const data = await response.json() as Record<string, { status?: { status_str?: string; messages?: unknown }; outputs?: unknown }>;
         const item = data?.[promptId];
@@ -376,7 +378,7 @@ export async function waitForOutput(baseUrl: string, promptId: string, kind: "im
   } finally {
     stop();
   }
-  fail(kind === "video" ? "视频生成超时" : "出图超时", 504);
+  fail("出图超时", 504);
 }
 
 function flattenText(value: unknown): string {

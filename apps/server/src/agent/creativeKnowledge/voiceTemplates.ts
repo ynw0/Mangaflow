@@ -1,5 +1,5 @@
 /** H3 同期声音提示词库：文本指导不是声纹锁定或方言准确性的承诺。 */
-export const voiceCategories = ["timbre", "emotion", "personality", "pace", "age", "foreignAccent", "dialect", "delivery"] as const;
+export const voiceCategories = ["timbre", "emotion", "personality", "pace", "age", "foreignAccent", "dialect", "delivery", "source"] as const;
 export type VoiceCategory = (typeof voiceCategories)[number];
 export type VoiceTemplate = {
   id: string;
@@ -113,6 +113,20 @@ const rows: Record<VoiceCategory, VoiceRow[]> = {
     ["vx10", "紧凑收句", "末字发清楚并收住尾音，结束后嘴唇自然闭合", "clearly articulate the final syllable, release it promptly, and close the lips naturally afterwards", "收句,闭口,镜尾"],
     ["vx11", "正经说怪话", "表面郑重，荒诞落点只给一次短重音", "straight-faced earnest delivery with one brief accent on the absurd punch beat", "抽象,搞怪,冷幽默"],
   ],
+  // 声源层描述声音来自哪里、谁听得见，音色与语速仍由角色选配。
+  source: [
+    ["vs01", "画内对白", "声音来自可见说话人，听者保持闭口", "speech comes from the visible speaker with their mouth moving in sync", "声源,画内对白,口型"],
+    ["vs02", "剧情旁白", "旁白面向观众，画中角色不会对旁白作出反应", "an unseen narrator addresses only the audience over the scene", "声源,旁白,画外音,叙事"],
+    ["vs03", "角色内心独白", "沿用角色声线和编号，画中人物闭嘴，其他角色听不到", "the character's own voice presents unspoken thoughts, audible only to the audience", "声源,内心独白,心理活动,画外音"],
+    ["vs04", "冷漠机械系统", "无实体的网文系统播报，默认只有宿主听见，可配中性合成音", "a disembodied system announces the status to the host alone with precise, emotionally neutral delivery", "声源,系统,网文系统,系统声音,机械系统,画外音"],
+    ["vs05", "甜美女声系统", "无实体的网文系统，只有宿主听见，适合明快提示和奖励播报", "a disembodied female system voice addresses the host alone, lightly lifting the final phrase of the announcement", "声源,系统,网文系统,系统声音,甜美,萌妹,画外音"],
+    ["vs06", "AI 管家系统", "无实体智能助理，只有指定宿主听见，适合汇报结果或请求确认", "an unseen artificial intelligence assistant addresses its designated host with poised, precise wording", "声源,系统,网文系统,系统声音,AI管家,画外音"],
+    ["vs07", "搞怪系统", "无实体的搞怪网文系统，只有宿主听见，重音落在吐槽点", "a disembodied system teases its host alone, placing one crisp accent on the punch line", "声源,系统,网文系统,系统声音,搞怪,吐槽,画外音"],
+    ["vs08", "神秘传音", "无实体的定向传音，只让剧本指定的人听见", "a disembodied mystical voice reaches only its intended listener", "声源,神秘传音,心灵传音,画外音"],
+    ["vs09", "电子广播", "声音来自场景内的扩音设备，场景内可听见的人能作出反应", "an unseen announcer is heard through the scene's loudspeakers by the people within earshot", "声源,广播,电子广播,画外音"],
+    ["vs10", "回忆声音", "既有角色的回忆声沿用其声线和编号，当前场景人物按剧本反应", "a remembered voice carries the original speaker's timbre over the present scene", "声源,回忆声音,闪回,画外音"],
+    ["vs11", "电话声音", "声音从听筒传出，是否开免提由剧本决定", "the remote speaker's voice comes through the phone with light narrowband coloration", "声源,电话,电话声音,画外音"],
+  ],
 };
 export const voiceTemplates: VoiceTemplate[] = voiceCategories.flatMap(category =>
   rows[category].map(([id, title, descriptionZh, englishCue, tags, speedMultiplier]) => ({
@@ -124,6 +138,7 @@ export type VoiceCastRole = {
   speakerId: string;
   characterName: string;
   voiceIdentity?: string;
+  sourceId?: string;
   timbreId?: string;
   ageId?: string;
   personalityId?: string;
@@ -135,7 +150,7 @@ export type VoiceCastRole = {
   speedMultiplier?: number;
 };
 const slots = {
-  timbreId: "timbre", ageId: "age", personalityId: "personality", foreignAccentId: "foreignAccent",
+  sourceId: "source", timbreId: "timbre", ageId: "age", personalityId: "personality", foreignAccentId: "foreignAccent",
   dialectId: "dialect", emotionId: "emotion", deliveryId: "delivery", paceId: "pace",
 } as const;
 /** 每位说话人保有独立的声音身份；情绪、语速可逐镜调整。 */
@@ -156,7 +171,8 @@ export function compileVoiceCast(cast: readonly VoiceCastRole[]) {
       else selected.push(template);
     }
     const voiceIdentity = role.voiceIdentity?.trim();
-    if (!voiceIdentity && !selected.some(item => ["timbre", "age", "personality"].includes(item.category))) warnings.push(`${role.speakerId} 缺少长期稳定的声音身份；仅靠情绪无法保持跨镜声线`);
+    const source = selected.find(item => item.category === "source");
+    if (!voiceIdentity && !selected.some(item => ["timbre", "age", "personality"].includes(item.category))) warnings.push(`${role.speakerId} 缺少长期稳定的声线描述或音色模板`);
     const pace = selected.find(item => item.category === "pace");
     const speedMultiplier = role.speedMultiplier ?? pace?.speedMultiplier ?? DEFAULT_H3_SPEECH_RATE;
     const identityCues = selected.filter(item => ["timbre", "age", "personality", "foreignAccent", "dialect"].includes(item.category)).map(item => item.englishCue);
@@ -164,10 +180,11 @@ export function compileVoiceCast(cast: readonly VoiceCastRole[]) {
     const paceCue = speedMultiplier === DEFAULT_H3_SPEECH_RATE
       ? defaultH3SpeechCue
       : [pace?.englishCue, `speaks at about ${speedMultiplier} times normal conversational pace with clear articulation`].filter(Boolean).join("; ");
-    const cues = [voiceIdentity, ...identityCues, ...performanceCues, paceCue].filter(Boolean);
+    const cues = [source?.englishCue, voiceIdentity, ...identityCues, ...performanceCues, paceCue].filter(Boolean);
     return {
       speakerId: role.speakerId, characterName: role.characterName,
       ...(voiceIdentity ? { voiceIdentity } : {}),
+      ...(source ? { source: { id: source.id, title: source.title, cue: source.englishCue } } : {}),
       templateIds: selected.map(item => item.id), speedMultiplier, identityCues, performanceCues,
       promptCue: `${role.characterName} (${role.speakerId}): ${cues.join("; ")}.`,
     };

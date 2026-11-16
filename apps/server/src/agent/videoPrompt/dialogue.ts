@@ -10,6 +10,11 @@ export function getVideoSpeechPolicy(audioEnabled: boolean) {
     defaultSpeechRateMultiplier: DEFAULT_H3_SPEECH_RATE,
     defaultSpeechCue: defaultH3SpeechCue,
     endingReserveSeconds,
+    voiceover: {
+      phrase: "says in an off-screen voiceover",
+      identity: "画外音使用 phrase，台词外写稳定声源与 (Sx)，<d> 内只放语言标签与原台词。独立系统声和旁白按本视频首次发声顺序编号；无对应画面主体时使用声源描述。内心独白沿用角色声线及编号；同一角色画内开口时仍用该编号。",
+      timing: "每段画外音都纳入 cinematicPlan.dialogue，在 </d> 后立即说明对应画中人物闭嘴；没有可见发声者时说明画中听者闭嘴（无人入画则交代声源在画外）。按剧本写谁听得见，观众旁白不驱动画中角色反应。提示音写作音效，只有实际参考音频使用 <Audio N>。",
+    },
     note: "启用同期音轨的对白采用清晰、自然偏快的口语；剧情明确要求时按表演放慢。按 <d> 的顺序在 cinematicPlan.dialogue 安排开口、收句、停顿及必须先完成的动作，镜尾保留 0.2 秒。对刚好够用的句子，优先提前开口或减少顺序动作，给实际起声偏移留余量。语速与时间提示只指导生成，未绑定真实音频时不虚构音频标签。",
   };
 }

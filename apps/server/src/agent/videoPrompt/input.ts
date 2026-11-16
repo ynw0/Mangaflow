@@ -51,6 +51,7 @@ const shotFields = {
     speakerId: z.string().regex(/^S[1-9]\d*$/).describe("当前 H3 镜头说话人编号 S1、S2..."),
     characterName: shortText,
     voiceIdentity: z.string().trim().min(1).max(800).optional().describe("已批准的稳定声线描述，跨镜不变"),
+    sourceId: shortText.optional().describe("voices 库中 source 分类的声源模板 ID，例如网文机械系统 vs04、剧情旁白 vs02、内心独白 vs03"),
     timbreId: shortText.optional(), ageId: shortText.optional(), personalityId: shortText.optional(),
     foreignAccentId: shortText.optional(), dialectId: shortText.optional(), emotionId: shortText.optional(),
     deliveryId: shortText.optional(), paceId: shortText.optional(),

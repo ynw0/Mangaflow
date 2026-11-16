@@ -233,7 +233,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
           '通过 submitResult 提交 status=ok 的完整规划和中英文正文。时间均为镜头内秒数；持续运镜时 stopSeconds=null，无定幅要求时 holdSeconds=0。缺关键输入或无法按时交付剧情时提交 {"status":"blocked","reason":"具体原因"}。',
           "正文用一个 [Shot 1]。镜内先后关系用可见动作交代，必要时用近似时点。cinematicPlan.dialogue 按 <d> 出现顺序写 speakerIds、实际计划开口和结束秒数、句内停顿总秒数。只有动作必须先完成时才填 afterBeat，引用 beats 中独立列出的前置节拍，序号从 1 开始；走路等并行动作可以重叠。无对白填空数组。开口写明可见触发或语气，听者整句保持闭口，说完自然合唇。中文版同步。",
           "无台词的镜头在英文概要写实际环境声，在时间轴写可见角色闭嘴。不要在概要或时间轴中用 no dialogue 概括静默。",
-          "按 speechPolicy 为启用同期音轨的对白安排语速，在时长内完整说完原文。按 S1/S2 写各角色可辨且符合性格的稳定声线与本镜情绪。批准的角色外形保持一致，写具体可辨的脸型、眉眼或轮廓特征。镜尾保留 0.2 秒，关键动作和台词提前完成，说完闭口后自然过渡。无真实音频文件不可虚构 <Audio N>。",
+          "按 speechPolicy 为启用同期音轨的对白安排语速，在时长内完整说完原文。按 S1/S2 写各角色可辨且符合性格的稳定声线与本镜情绪。系统声、旁白、独白按 speechPolicy.voiceover 写入镜头正文，并应用 voiceCast 对应声源建议。批准的角色外形保持一致，写具体可辨的脸型、眉眼或轮廓特征。镜尾保留 0.2 秒，关键动作和台词提前完成，说完闭口后自然过渡。无真实音频文件不可虚构 <Audio N>。",
           `结构示例。调用参数取 submitResult 的对象，成片内容及正文格式以本次镜头为准：${JSON.stringify(directorSubmissionExample)}`,
           "先确定最终画框容纳哪些主体和身体部位，再反推开场机位与运动路径。前景道具与后景人物必须同框时，核对景别、遮挡和人物移动终点；不能一边继续逼近道具一边承诺人物头肩始终入画。规划与中英文正文必须一致。只在首次定义与必要承接处写稳定外观，避免逐段复写。",
           "规划不得新增用户未要求的人物、动作或剧情。没有人物的镜头用 performance 描述物件、环境的可见反馈，不为填字段添加表演者。",
@@ -257,7 +257,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
           `通过示例。调用参数取 submitResult 的对象，实际提交须覆盖任务的全部编号：${JSON.stringify(reviewSubmissionExample)}`,
           "通过时 coverage 是 JSON 对象数组，直接填写 [{\"requirementId\":\"编号\",\"evidence\":\"短句\"}]。恰好覆盖 reviewRequirements 每个编号一次；每条证据用一个短句定位正文事实，禁止只写符合、已检查或复述要求。禁止项说明检查范围与实际安排；没有参考或对白时如实说明不适用及依据，不新增要求。退回只列实质缺陷，不因字数短、固定机位、没有特效或个人审美偏好退回。",
           "对照 cinematicPlan 与真实正文，逐项审核运动终点、停机时间、镜尾同框对象、人物终点及表演节拍是否相容。需要推近特写却又保持远处人物上半身可见，或定幅期间仍继续推进，属于实质缺陷。不能只因六段格式完整就判合格。",
-          "对照 cinematicPlan.dialogue 和正文逐句核对说话人、开口触发、必须先完成的动作、停顿和收句。正文先做后说时，规划必须列出该前置节拍并先做完再开口。整句期间听者闭口。按 speechPolicy 留足口播及停顿和最后 0.2 秒，贴边时在审核证据指出起声偏移风险；有 voiceCast 时核对声线和语速覆盖。定位实际影响剧情、动作、身份或声画的缺陷，保留合理的拍法取舍。",
+          "对照 cinematicPlan.dialogue 和正文逐句核对说话人、开口触发、必须先完成的动作、停顿和收句。正文先做后说时，规划必须列出该前置节拍并先做完再开口。整句期间听者闭口。按 speechPolicy 留足口播及停顿和最后 0.2 秒，贴边时在审核证据指出起声偏移风险；有画外音时按 speechPolicy.voiceover 核对实际声源、固定短语、听觉关系和闭口说明。有 voiceCast 时核对声源、声线和语速覆盖。定位实际影响剧情、动作、身份或声画的缺陷，保留合理的拍法取舍。",
           JSON.stringify({ ...taskInput, reviewRequirements, draft: lastDraft }),
         ].join("\n"), [reviewRules, commonRules, reviewerFormat, framingRules]);
         findings = review.status === "ok" ? [] : review.findings.map(item =>

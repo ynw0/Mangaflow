@@ -57,7 +57,8 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
     { id: "bilingualConsistency", text: "中英文的主体、动作、时序、对白和镜尾事实一致" },
     { id: "creativeIntent", text: `叙事目的：${shot.purpose}；视觉风格：${shot.style}` },
-    ...(shot.voiceCast?.length ? [{ id: "voiceCast", text: `声音身份与说话人逐项匹配：${shot.voiceCast.map(role => `${role.characterName}(${role.speakerId})`).join("、")}；保留台词、情绪及对应语速，音轨必须开启` }] : []),
+    ...(shot.voiceCast?.length ? [{ id: "voiceCast", text: `声音身份与说话人逐项匹配：${shot.voiceCast.map(role =>
+      `${role.characterName}(${role.speakerId})${role.sourceId ? `（声源模板 ${role.sourceId}）` : ""}`).join("、")}；保留台词、情绪及对应语速，音轨必须开启${shot.voiceCast.some(role => role.sourceId) ? "；有画外音时核对固定短语、声源、听觉关系及台词后紧接的闭口说明" : ""}` }] : []),
   ];
 }
 

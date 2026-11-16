@@ -1,6 +1,22 @@
 import type { WorkflowBindings } from "@/utils/production/bindings";
 import { fail } from "@/utils/production/config";
 
+export function isH3CheckpointName(name: string) {
+  return /h3|dasiwa/i.test(name.split(/[\\/]/).at(-1) ?? "");
+}
+
+export function findH3Checkpoint(nodes: Record<string, unknown>, bindings: WorkflowBindings) {
+  if (!bindings.promptFormat || !bindings.optionalLoraNode || !bindings.firstPassOutputNode) return;
+  // 二采工作流只允许替换唯一的模型加载器，避免误改其他模型输入。
+  const loaders = Object.entries(nodes as Record<string, { class_type?: string; inputs?: { unet_name?: unknown } }>)
+    .filter(([, node]) => node?.class_type === "UNETLoader");
+  const loader = loaders[0];
+  if (loaders.length !== 1 || !loader) return;
+  const [nodeId, node] = loader;
+  const defaultName = node.inputs?.unet_name;
+  if (typeof defaultName === "string" && isH3CheckpointName(defaultName)) return { nodeId, defaultName };
+}
+
 // 这些视频输出节点的音频插口可选，与参考音频输入互不影响。
 export function videoAudioInputs(nodes: Record<string, unknown>) {
   return Object.values(nodes).flatMap(node => {

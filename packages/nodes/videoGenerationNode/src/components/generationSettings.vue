@@ -1,5 +1,6 @@
 <template>
-  <el-popover v-model:visible="settingsVisible" trigger="click" placement="top-start" width="min(340px, calc(100vw - 24px))" :disabled="disabled" :showArrow="false" :popperStyle="{ padding: '14px' }">
+  <el-popover v-model:visible="settingsVisible" trigger="click" placement="top-start" width="min(340px, calc(100vw - 24px))" :disabled="disabled" :showArrow="false" :popperStyle="{ padding: '14px' }"
+    @show="emit('refreshComfyChoices')">
     <template #reference>
       <el-button class="settingsButton" text size="small" :disabled="disabled" :aria-expanded="settingsVisible" aria-label="视频生成设置">
         <span class="ratioShape" :style="ratioStyle(ratio)" aria-hidden="true" />
@@ -84,13 +85,20 @@
         </el-button>
       </div>
       <div v-if="model?.lora" class="loraSelect">
+        <template v-if="model.checkpoint">
+          <div class="sectionLabel">使用模型</div>
+          <el-select v-model="selectedCheckpoint" :disabled="disabled" :teleported="false" filterable aria-label="选择 H3 视频模型权重">
+            <el-option :label="`默认 · ${model.checkpoint.defaultName.split(/[\\/]/).at(-1)}`" value="__workflow_checkpoint__" />
+            <el-option v-for="name in checkpointOptions" :key="name" :value="name" :label="name" />
+          </el-select>
+        </template>
         <div class="sectionLabel">使用 LoRA</div>
         <el-select v-model="selectedLora" :disabled="disabled" :teleported="false" filterable aria-label="选择 LoRA 或关闭">
           <el-option label="关闭 LoRA（基础模型）" value="__lora_disabled__" />
           <el-option v-for="name in loraOptions" :key="name" :value="name" :label="name" />
         </el-select>
-        <el-button text size="small" :disabled="disabled || loraLoading" :loading="loraLoading" @click="emit('refreshLoras')">读取 ComfyUI 已安装 LoRA</el-button>
-        <div v-if="loraError" class="sizeHint">{{ loraError }}</div>
+        <el-button text size="small" :disabled="disabled || loraLoading" :loading="loraLoading" @click="emit('refreshComfyChoices')">{{ model.checkpoint ? '刷新模型与 LoRA' : '刷新 LoRA' }}</el-button>
+        <div v-if="loraError" class="sizeHint" role="status">{{ loraError }}</div>
         <div class="sizeHint">选择其他 LoRA 前请确认与 H3 基础模型兼容。</div>
       </div>
       <div v-if="model?.supportsFirstPassOutput" class="audioOption">
@@ -132,8 +140,8 @@ import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch, ElInputNumber } from
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import type { NodeMediaModel } from "@toonflow/nodes-scaffold/runtime";
 
-const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number; loraChoices?: string[]; loraLoading?: boolean; loraError?: string }>();
-const emit = defineEmits<{ refreshLoras: [] }>();
+const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number; loraChoices?: string[]; checkpointChoices?: string[]; loraLoading?: boolean; loraError?: string }>();
+const emit = defineEmits<{ refreshComfyChoices: [] }>();
 const settingsVisible = ref(false);
 const duration = defineModel<number | undefined>("duration", { required: true });
 const resolution = defineModel<string>("resolution", { required: true });
@@ -143,6 +151,13 @@ const firstPassSteps = defineModel<number | undefined>("firstPassSteps");
 const secondPassSteps = defineModel<number | undefined>("secondPassSteps");
 const outputFirstPass = defineModel<boolean>("outputFirstPass", { required: true });
 const loraName = defineModel<string | undefined>("loraName");
+const checkpointName = defineModel<string | undefined>("checkpointName");
+const selectedCheckpoint = computed({
+  get: () => checkpointName.value ?? "__workflow_checkpoint__",
+  set: (value: string) => { checkpointName.value = value === "__workflow_checkpoint__" ? undefined : value; },
+});
+const checkpointOptions = computed(() => [...new Set([...(props.checkpointChoices ?? []), checkpointName.value])]
+  .filter((name): name is string => !!name).sort((a, b) => a.localeCompare(b)));
 const selectedLora = computed({
   get: () => loraName.value === "" ? "__lora_disabled__" : (loraName.value ?? props.model?.lora?.defaultName ?? ""),
   set: (value: string) => { loraName.value = value === "__lora_disabled__" ? "" : value; },

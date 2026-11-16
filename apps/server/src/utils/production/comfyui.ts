@@ -118,13 +118,14 @@ function fileName(value: string) {
 }
 
 // 按 ComfyUI 当前列表改模型名：先对齐分隔符，目录不同但同名文件只有一个时再用那个。
-async function alignModelNames(baseUrl: string, workflow: Record<string, unknown>, signal?: AbortSignal) {
+async function alignModelNames(baseUrl: string, workflow: Record<string, unknown>, signal?: AbortSignal, lockedCheckpointNode?: string) {
   const classes = new Set<string>();
-  for (const node of Object.values(workflow)) {
+  for (const [nodeId, node] of Object.entries(workflow)) {
     if (!node || typeof node !== "object") continue;
     const record = node as { class_type?: string; inputs?: Record<string, unknown> };
     if (!record.class_type || !record.inputs) continue;
-    if (Object.values(record.inputs).some(value => typeof value === "string" && /[/\\]/.test(value))) classes.add(record.class_type);
+    if (Object.entries(record.inputs).some(([key, value]) => (nodeId !== lockedCheckpointNode || key !== "unet_name")
+      && typeof value === "string" && /[/\\]/.test(value))) classes.add(record.class_type);
   }
   const listed = new Map<string, { paths: Map<string, string>; files: Map<string, string[]> }>();
   await Promise.all([...classes].map(async classType => {
@@ -152,12 +153,13 @@ async function alignModelNames(baseUrl: string, workflow: Record<string, unknown
     }
     listed.set(classType, { paths, files });
   }));
-  for (const node of Object.values(workflow)) {
+  for (const [nodeId, node] of Object.entries(workflow)) {
     if (!node || typeof node !== "object") continue;
     const record = node as { class_type?: string; inputs?: Record<string, unknown> };
     const names = record.class_type ? listed.get(record.class_type) : undefined;
     if (!names || !record.inputs) continue;
     for (const [key, value] of Object.entries(record.inputs)) {
+      if (nodeId === lockedCheckpointNode && key === "unet_name") continue;
       if (typeof value !== "string" || !/[/\\]/.test(value)) continue;
       const exact = names.paths.get(value.replaceAll("\\", "/"));
       if (exact) {
@@ -308,9 +310,9 @@ export async function findSubmittedPromptByClientId(baseUrl: string, clientId: s
 }
 
 export async function submitWorkflow(baseUrl: string, workflow: Record<string, unknown>, signal?: AbortSignal,
-  options?: { clientId?: string; onSubmitting?: () => Promise<void> }) {
+  options?: { clientId?: string; onSubmitting?: () => Promise<void>; lockedCheckpointNode?: string }) {
   alignReferenceInputs(workflow);
-  await alignModelNames(baseUrl, workflow, signal);
+  await alignModelNames(baseUrl, workflow, signal, options?.lockedCheckpointNode);
   // 模型匹配结束后才持久化 submitting，随后才可能发起远端 POST。
   const response = await comfyFetch(baseUrl, "/prompt", {
     method: "POST",

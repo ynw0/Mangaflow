@@ -74,17 +74,17 @@ export async function autodlSnapshot(signal?: AbortSignal, config = readProducti
   return data as Record<string, unknown>;
 }
 
-export async function resolveComfyBaseUrl(signal?: AbortSignal, host?: ComfyHost) {
-  return (await resolveComfyTarget(signal, host)).baseUrl;
+export async function resolveComfyBaseUrl(signal?: AbortSignal, host?: ComfyHost, allowPowerOn = true) {
+  return (await resolveComfyTarget(signal, host, allowPowerOn)).baseUrl;
 }
 
-export async function resolveComfyTarget(signal?: AbortSignal, host?: ComfyHost): Promise<ComfyTarget> {
+export async function resolveComfyTarget(signal?: AbortSignal, host?: ComfyHost, allowPowerOn = true): Promise<ComfyTarget> {
   const config = readProduction();
   if ((host ?? config.videoHost) === "local") return { baseUrl: config.localComfyuiBaseUrl };
   const override = config.comfyuiBaseUrl;
   const hasInstance = Boolean(config.autodlToken && config.autodlInstanceUuid);
   const instance = config.autodlInstanceUuid ? { autodlInstanceUuid: config.autodlInstanceUuid, autodlBaseUrl: config.autodlBaseUrl } : {};
-  if (hasInstance && (config.autodlEnsureRunning || !override)) await ensureAutodlRunning(config, signal);
+  if (allowPowerOn && hasInstance && (config.autodlEnsureRunning || !override)) await ensureAutodlRunning(config, signal);
   if (override) return { ...instance, baseUrl: override };
   if (!hasInstance) fail("请选择 AutoDL 实例并填写 Token，或填写该实例的 ComfyUI 地址。");
   const snapshot = await autodlSnapshot(signal, config);

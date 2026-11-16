@@ -7,7 +7,7 @@ import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/conf
 import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { captureVideoReview, requireVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
-import { validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
+import { findH3Checkpoint, isH3CheckpointName, validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
 import { checkMediaBudget, reserveMediaBudget } from "@/utils/media/budget";
 
 type MediaRef = { path: string; mimeType?: string };
@@ -218,6 +218,11 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
   if (entry.bindings.optionalLoraNode) {
     selectWorkflowLora(workflow, entry.bindings.optionalLoraNode, context.lora_name);
   }
+  if (typeof context.checkpoint_name === "string") {
+    const loader = findH3Checkpoint(workflow, entry.bindings);
+    if (!loader || loader.nodeId !== entry.checkpoint?.nodeId) fail("视频模型加载器已变化，请重新选择工作流");
+    writePath(workflow, `${loader.nodeId}.inputs.unet_name`, context.checkpoint_name);
+  }
   if (entry.bindings.firstPassOutputNode && context.output_first_pass !== true) {
     omitFirstPassOutput(workflow, entry.bindings.firstPassOutputNode);
   }
@@ -246,6 +251,9 @@ export async function prepareComfyWorkflow(options: {
   if (request.outputFirstPass === true && !entry.bindings.firstPassOutputNode) fail(`${entry.label} 不支持输出一采视频`);
   if (mediaType === "video" && request.generateAudio === true && !entry.hasVideoAudio) fail(`${entry.label} 没有可用的输出音轨`);
   if (request.loraName !== undefined && !entry.bindings.optionalLoraNode) fail(`${entry.label} 不支持自选 LoRA`);
+  if (request.checkpointName !== undefined && (!entry.checkpoint || !isH3CheckpointName(request.checkpointName))) {
+    fail(`${entry.label} 仅允许选择受支持的 H3 视频模型文件，请重新读取模型列表`);
+  }
   const images = request.images ?? [];
   const { min, max: referenceSlots } = imageReferenceRange(entry);
   if (mediaType === "image" && images.length < min) fail(`${entry.label} 至少需要 ${min} 张参考图片`);
@@ -275,6 +283,7 @@ export async function prepareComfyWorkflow(options: {
     output_first_pass: request.outputFirstPass === true,
     generate_audio: mediaType === "video" && entry.hasVideoAudio === true && request.generateAudio !== false,
     lora_name: request.loraName,
+    checkpoint_name: request.checkpointName,
     params: mediaType === "video" ? pair(videoNative, ratio) : pixels(request.size, request.ratio),
     delivery: pair(videoDelivery, ratio),
     refs,
@@ -335,6 +344,10 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   const { baseUrl } = target;
   await options.onTargetResolved?.({ host, target });
   await probeComfy(baseUrl, signal);
+  if (request.checkpointName) {
+    const names = await readNodeChoices(baseUrl, "UNETLoader", "unet_name", signal);
+    if (!names.includes(request.checkpointName)) fail("当前 ComfyUI 实例未安装所选视频模型，请刷新模型列表");
+  }
   // 非默认的用户自选 LoRA 必须确实存在于当前 ComfyUI 主机；不静默改成其他文件。
   if (entry.bindings.optionalLoraNode && request.loraName
       && request.loraName !== entry.loraDefaultName) {
@@ -361,6 +374,7 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   // 提交前存主机与真实采样参数，恢复只寻找同一 generationId 的远端任务。
   const promptId = await submitWorkflow(baseUrl, workflow, signal, {
     clientId: request.generationId,
+    lockedCheckpointNode: request.checkpointName ? entry.checkpoint?.nodeId : undefined,
     onSubmitting: () => reserveMediaBudget(directory, mediaType, duration, signal, generationId,
       options.onSubmitting ? () => options.onSubmitting!(submission) : undefined),
   });

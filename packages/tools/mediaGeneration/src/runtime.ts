@@ -71,6 +71,8 @@ export const videoGenerationSchema = z.strictObject({
   secondPassSteps: z.number().int().min(1).max(64).optional(),
   outputFirstPass: z.boolean().optional(),
   loraName: z.string().max(512).refine(v => !/[\u0000-\u001f]/.test(v), "LoRA 文件名不能包含控制字符").optional(),
+  checkpointName: z.string().trim().min(1).max(512).regex(/^[^\x00-\x1f]+$/)
+    .describe("支持更换权重的 H3 工作流使用，填写当前 ComfyUI 返回的完整文件名").optional(),
   generateAudio: z.boolean().optional(),
   mode: z.union([
     z.enum(["singleImage", "startEndRequired", "endFrameOptional", "startFrameOptional", "text"]),

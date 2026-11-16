@@ -28,6 +28,7 @@ const sampling = z.strictObject({
   secondPassSteps: z.number().int().min(1).max(64).optional(),
   outputFirstPass: z.boolean().optional(),
   loraName: z.string().max(512).optional(),
+  checkpointName: z.string().trim().min(1).max(512).regex(/^[^\x00-\x1f]+$/).optional(),
 });
 
 const ratioSchema = z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"]);
@@ -111,6 +112,7 @@ const nodeContext = z.object({
     firstPassSteps: z.number().optional(), secondPassSteps: z.number().optional(),
     outputFirstPass: z.boolean().optional(),
     loraName: z.string().max(512).optional(),
+    checkpointName: z.string().max(512).optional(),
     seed: z.number().optional(), seedMode: z.string().optional(),
     supportsSeed: z.boolean().optional(),
   }),
@@ -163,7 +165,8 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
     || (requestedSampling.firstPassSteps !== undefined && spec.firstPassDefault === undefined)
     || (requestedSampling.secondPassSteps !== undefined && spec.secondPassDefault === undefined)
     || (requestedSampling.outputFirstPass !== undefined && !model.supportsFirstPassOutput)
-    || (requestedSampling.loraName !== undefined && !model.lora))) {
+    || (requestedSampling.loraName !== undefined && !model.lora)
+    || (requestedSampling.checkpointName !== undefined && !model.checkpoint))) {
     throw new Error(`字段 sampling=${JSON.stringify(requestedSampling)} 不受工作流 ${workflow.id} 支持。实际采样能力：${JSON.stringify(spec ?? null)}。请重新核对模型能力。`);
   }
   // 内置导演和外部 MCP 均按同一镜头合同检查模板，再读取参考素材。

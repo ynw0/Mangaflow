@@ -129,6 +129,7 @@
             v-model:secondPassSteps="data.secondPassSteps"
             v-model:outputFirstPass="data.outputFirstPass"
             v-model:loraName="data.loraName"
+            v-model:checkpointName="data.checkpointName"
             v-model:ratio="data.ratio"
             v-model:mode="data.mode"
             v-model:generateAudio="data.generateAudio"
@@ -136,9 +137,10 @@
             v-model:seedMode="data.seedMode"
             :lastSeed="data.lastSeed"
             :loraChoices="loraChoices"
+            :checkpointChoices="checkpointChoices"
             :loraLoading="loraLoading"
             :loraError="loraError"
-            @refresh-loras="refreshLoraChoices"
+            @refresh-comfy-choices="refreshComfyChoices()"
             :ratios="ratioOptions"
             :model="selectedModel"
             :disabled="generating || deleting || !selectedModel" />
@@ -200,7 +202,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
+const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; checkpointName?: string; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -228,28 +230,45 @@ data.value.seed ??= defaultSeed;
 const { refList, referenceMentions, setReferencePreview, removeReference } = useNodeReferences();
 const models = ref<NodeMediaModel[]>([]);
 const loraChoices = ref<string[]>([]);
+const checkpointChoices = ref<string[]>([]);
 const loraLoading = ref(false);
 const loraError = ref("");
-async function refreshLoraChoices() {
+let choicesController: AbortController | undefined;
+let choicesRequest: Promise<void> | undefined;
+function refreshComfyChoices() {
   const selected = selectedModel.value;
-  if (!selected?.lora || loraLoading.value) return;
+  if (!selected?.lora) return;
+  if (choicesRequest) return choicesRequest;
+  const controller = choicesController = new AbortController();
   loraLoading.value = true;
   loraError.value = "";
-  try {
-    const response = await fetch(`/api/production/comfyui/loras?modelId=${encodeURIComponent(selected.modelId)}`, {
-      headers: { "x-toonflow-workspace": "1" },
-      cache: "no-store",
-    });
-    const result = await response.json() as { code?: number; message?: string; data?: { names?: string[] } };
-    if (!response.ok || result.code !== 200 || !Array.isArray(result.data?.names)) {
-      throw new Error(result.message || "读取已安装 LoRA 失败");
+  loraChoices.value = [];
+  checkpointChoices.value = [];
+  choicesRequest = (async () => {
+    try {
+      const response = await fetch(`/api/production/comfyui/loras?modelId=${encodeURIComponent(selected.modelId)}`, {
+        headers: { "x-toonflow-workspace": "1" },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const result = await response.json() as { code?: number; message?: string; data?: { names?: string[]; checkpoints?: string[] } };
+      if (!response.ok || result.code !== 200 || !Array.isArray(result.data?.names) || !Array.isArray(result.data?.checkpoints)) {
+        throw new Error(result.message || "读取已安装视频模型和 LoRA 失败");
+      }
+      if (controller.signal.aborted) return;
+      loraChoices.value = result.data.names;
+      checkpointChoices.value = result.data.checkpoints;
+    } catch (error) {
+      if (!controller.signal.aborted) loraError.value = error instanceof Error ? error.message : "ComfyUI 不可用";
+    } finally {
+      if (choicesController === controller) {
+        choicesController = undefined;
+        choicesRequest = undefined;
+        loraLoading.value = false;
+      }
     }
-    if (selectedModel.value?.modelId === selected.modelId) loraChoices.value = result.data.names;
-  } catch (error) {
-    if (selectedModel.value?.modelId === selected.modelId) loraError.value = error instanceof Error ? error.message : "ComfyUI 不可用";
-  } finally {
-    loraLoading.value = false;
-  }
+  })();
+  return choicesRequest;
 }
 const modelsLoading = ref(false);
 const uploading = ref(false);
@@ -379,9 +398,17 @@ watch([selectedModel, () => data.value.duration], ([choice]) => {
   if (!ratioOptions.includes(data.value.ratio)) data.value.ratio = "9:16";
   if (choice.audio !== "optional") data.value.generateAudio = choice.audio === true;
 }, { flush: "sync" });
-watch(() => selectedModel.value?.modelId, (current, previous) => {
-  if (previous && current !== previous) data.value.loraName = undefined;
+watch(() => data.value.model, (current, previous) => {
+  if (previous && current !== previous) {
+    data.value.loraName = undefined;
+    data.value.checkpointName = undefined;
+  }
+  choicesController?.abort();
+  choicesController = undefined;
+  choicesRequest = undefined;
+  loraLoading.value = false;
   loraChoices.value = [];
+  checkpointChoices.value = [];
   loraError.value = "";
 }, { flush: "sync" });
 const modelGroups = computed(() => groupNodeModels(models.value));
@@ -412,6 +439,7 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     secondPassSteps: choice.sampling?.secondPassDefault != null ? data.value.secondPassSteps : undefined,
     outputFirstPass: choice.supportsFirstPassOutput ? data.value.outputFirstPass === true : undefined,
     loraName: choice.lora ? (data.value.loraName ?? choice.lora.defaultName) : undefined,
+    checkpointName: choice.checkpoint ? data.value.checkpointName : undefined,
     ratio: data.value.ratio,
     generateAudio: choice.audio === "optional" ? data.value.generateAudio : choice.audio,
     outputDirectory: `assets/${id}`,
@@ -444,6 +472,7 @@ onMounted(() => {
 });
 onScopeDispose(() => {
   disposed = true;
+  choicesController?.abort();
   window.removeEventListener("toonflow:plugin-installed", refreshProviderModels);
   window.removeEventListener("toonflow:provider-config-changed", refreshProviderModels);
   generationController?.abort();
@@ -782,6 +811,7 @@ function getConfig() {
       secondPassSteps: data.value.secondPassSteps,
       outputFirstPass: data.value.outputFirstPass,
       loraName: selectedModel.value?.lora ? (data.value.loraName ?? selectedModel.value.lora.defaultName) : undefined,
+      checkpointName: selectedModel.value?.checkpoint ? (data.value.checkpointName ?? selectedModel.value.checkpoint.defaultName) : undefined,
       ratio: data.value.ratio,
       mode: selectedMode.value,
       generateAudio: data.value.generateAudio,
@@ -792,6 +822,7 @@ function getConfig() {
     },
     models: models.value,
     loraChoices: loraChoices.value,
+    checkpointChoices: checkpointChoices.value,
     loraError: loraError.value,
     ratios: ratioOptions,
     matchingModes: matchingModes.value,
@@ -828,11 +859,12 @@ nodeTools.register({
 
 nodeTools.register({
   name: "getConfig",
-  description: "读取此视频生成节点的当前配置（含种子与种子模式）、可选视频模型能力、通用比例及适合当前引用的模式，不含密钥；时长与分辨率须符合 durationResolutionMap。二采模型看 sampling：用百万像素、放大倍率和一采/二采步数，不使用分辨率；支持一采额外输出的模型还提供 outputFirstPass，默认 false",
-  parameters: z.strictObject({}),
-  async execute(_args, { signal }) {
+  description: "读取视频节点配置、工作流能力、比例和适用模式。refreshComfyChoices=true 时从当前 ComfyUI 查询可选的 checkpointChoices 和 loraChoices，不开机。二采的 sampling 给出百万像素、放大倍率与一采/二采步数。",
+  parameters: z.strictObject({ refreshComfyChoices: z.boolean().optional() }),
+  async execute(args, { signal }) {
     signal?.throwIfAborted();
     await loadModels();
+    if (args.refreshComfyChoices) await refreshComfyChoices();
     signal?.throwIfAborted();
     return getConfig();
   },
@@ -840,7 +872,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setConfig",
-  description: "修改此视频生成节点的模型、时长、分辨率、比例、模式、声音或种子；二采改为百万像素、放大倍率和一采/二采步数，可设置 outputFirstPass 控制是否额外保存一采 MP4（默认 false）；先用 getConfig 查询能力，providerId 与 modelId 必须同时提供；mode 使用返回的原始字符串或数组，须匹配当前引用；不修改提示词、不启动生成",
+  description: "修改视频节点配置。providerId 和 modelId 同时提供以选工作流。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，null 恢复工作流默认。loraName 为空字符串关闭 LoRA。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
   parameters: z.strictObject({
     providerId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),
@@ -852,6 +884,7 @@ nodeTools.register({
     secondPassSteps: z.number().int().min(1).max(64).optional(),
     outputFirstPass: z.boolean().optional(),
     loraName: z.string().max(512).optional(),
+    checkpointName: z.string().trim().min(1).max(512).regex(/^[^\x00-\x1f]+$/).nullable().optional(),
     ratio: z.enum(ratioOptions).optional(),
     mode: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     generateAudio: z.boolean().optional(),
@@ -880,6 +913,7 @@ nodeTools.register({
     if (!choice) throw new Error(`模型组合无效：providerId=${args.providerId ?? "未指定"}，modelId=${args.modelId ?? "未选择"}。可选模型：${JSON.stringify(models.value.map(({ providerId, modelId, label }) => ({ providerId, modelId, label })))}。请重新读取 getConfig 后选择，不得替换为未获用户批准的模型。`);
     if (args.outputFirstPass !== undefined && !choice.supportsFirstPassOutput) throw new Error("当前工作流不支持输出一采视频");
     if (args.loraName !== undefined && !choice.lora) throw new Error("当前工作流不支持选择 LoRA");
+    if (args.checkpointName !== undefined && !choice.checkpoint) throw new Error("当前工作流不支持更换视频模型权重");
     if (!choice.supportsSeed && (args.seed !== undefined || args.seedMode !== undefined)) throw new Error("当前工作流没有绑定种子");
     if (args.seedMode === "last" && data.value.lastSeed == null) throw new Error("暂无随机种子记录");
     if (args.seed !== undefined && (args.seedMode ?? data.value.seedMode) !== "fixed") throw new Error(`字段 seed 与种子模式冲突：当前 seedMode=${data.value.seedMode}，本次 seedMode=${args.seedMode ?? "未指定"}。指定 seed 时必须同时传 seedMode=fixed；使用 random 或 last 时不要传 seed。`);
@@ -926,6 +960,7 @@ nodeTools.register({
     if (args.generateAudio !== undefined) data.value.generateAudio = args.generateAudio;
     if (args.outputFirstPass !== undefined) data.value.outputFirstPass = args.outputFirstPass;
     if (args.loraName !== undefined) data.value.loraName = args.loraName;
+    if (args.checkpointName !== undefined) data.value.checkpointName = args.checkpointName ?? undefined;
     if (args.seedMode !== undefined) data.value.seedMode = args.seedMode;
     if (args.seed !== undefined) data.value.seed = args.seed;
     return getConfig();

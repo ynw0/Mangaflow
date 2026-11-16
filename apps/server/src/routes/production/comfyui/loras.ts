@@ -1,4 +1,4 @@
-// 按当前 ComfyUI 主机的实际节点选项列出已安装的 LoRA；只读取，不自动生成。
+// 从当前 ComfyUI 主机合并读取视频权重与 LoRA，保持主机的电源状态。
 import { Router } from "express";
 import { z } from "zod";
 import { validateFields } from "@/lib/middleware";
@@ -11,13 +11,16 @@ export default Router().get("/", validateFields({ modelId: z.string().trim().min
   if (entry.kind !== "video" || !entry.bindings.optionalLoraNode) {
     throw Object.assign(new Error("当前视频工作流没有可选 LoRA 加载器"), { status: 400 });
   }
-  const baseUrl = await u.production.resolveComfyBaseUrl();
   const signal = AbortSignal.timeout(10000);
-  await u.production.probeComfy(baseUrl, signal);
-  const names = await u.production.readNodeChoices(baseUrl, "LoraLoaderModelOnly", "lora_name", signal);
+  const baseUrl = await u.production.resolveComfyBaseUrl(signal, undefined, false);
+  const [names, checkpoints] = await Promise.all([
+    u.production.readNodeChoices(baseUrl, "LoraLoaderModelOnly", "lora_name", signal),
+    entry.checkpoint ? u.production.readNodeChoices(baseUrl, "UNETLoader", "unet_name", signal) : [],
+  ]);
   res.set("Cache-Control", "no-store").json(success({
     modelId: entry.id,
     defaultName: entry.loraDefaultName,
     names,
+    checkpoints: checkpoints.filter(u.production.isH3CheckpointName),
   }));
 });

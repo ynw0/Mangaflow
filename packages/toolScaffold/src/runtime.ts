@@ -87,6 +87,7 @@ export interface MediaModel {
   supportsFirstPassOutput?: boolean;
   /** 二采工作流可选择 LoRA 或完全关闭；defaultName 来自当前工作流。 */
   lora?: { defaultName: string };
+  checkpoint?: { defaultName: string };
   references?: { image: number; video: number; audio: number };
   imageSizes?: string[];
   imageRatios?: string[];
@@ -149,6 +150,7 @@ export interface MediaGenerationRequest {
   outputFirstPass?: boolean;
   /** 省略沿用工作流默认 LoRA；空字符串完全旁路；非空为 ComfyUI 已安装的 LoRA 名称。 */
   loraName?: string;
+  checkpointName?: string;
   generateAudio?: boolean;
   voice?: string;
   speed?: number;

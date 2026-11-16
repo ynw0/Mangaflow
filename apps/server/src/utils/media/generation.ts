@@ -269,6 +269,9 @@ export async function generateMedia(
 ): Promise<GeneratedMedia[]> {
   signal?.throwIfAborted();
   if (!request.prompt.trim()) invalid("请输入生成提示词");
+  if (request.checkpointName !== undefined && (mediaType !== "video" || request.providerId !== "comfyui")) {
+    invalid("模型权重选择仅适用于支持该选项的 ComfyUI 视频工作流");
+  }
   // 明确选择的出图后端和工作流直接执行，输入不匹配由工作流校验返回。
   const directory = await realpath(cwd);
   const outputDirectory = request.outputDirectory ?? "assets/generated";

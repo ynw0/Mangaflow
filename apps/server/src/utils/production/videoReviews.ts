@@ -93,6 +93,8 @@ export async function captureVideoReview(directory: string, prepared: PreparedCo
   }
   const parameters = Object.fromEntries(prepared.inputs.filter(input => input.kind === "value" && input.source !== "prompt" && input.source !== "image_prompt")
     .map(input => [input.source, input.value]));
+  const checkpoint = prepared.context.checkpoint_name;
+  if (checkpoint && checkpoint !== prepared.entry.checkpoint?.defaultName) parameters.checkpoint_name = checkpoint;
   return {
     directory: process.platform === "win32" ? root.toLowerCase() : root,
     modelId: prepared.entry.id,
@@ -115,7 +117,7 @@ export function requireSameVideoReview(approved: VideoReviewSnapshot, current: V
     if (approved[key] !== current[key]) changed.push(label);
   }
   const parameterNames: Record<string, string> = {
-    duration: "时长", aspect_ratio: "画幅",
+    duration: "时长", aspect_ratio: "画幅", checkpoint_name: "视频模型权重",
   };
   for (const key of new Set([...Object.keys(before.parameters), ...Object.keys(after.parameters)])) {
     if (serialize(before.parameters[key]) !== serialize(after.parameters[key])) changed.push(parameterNames[key] ?? key);

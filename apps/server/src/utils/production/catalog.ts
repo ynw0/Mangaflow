@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseWorkflowBindings, type WorkflowBindings } from "@/utils/production/bindings";
 import { readProduction, fail } from "@/utils/production/config";
 import { resolveAppDirectory } from "@/resolveAppDirectory";
-import { validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
+import { findH3Checkpoint, validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
 
 export type WorkflowKind = "image" | "video" | "qc";
 
@@ -22,6 +22,7 @@ export type WorkflowEntry = {
   stepDefaults?: { firstPass: number; secondPass: number };
   /** 原工作流内加载的 LoRA 文件名，保持旧画布默认行为。 */
   loraDefaultName?: string;
+  checkpoint?: ReturnType<typeof findH3Checkpoint>;
 };
 
 const labels: Record<string, string> = {
@@ -95,10 +96,12 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
   const info = await stat(workflowPath).catch(() => undefined);
   if (!info?.isFile()) fail(`工作流 JSON 不存在: ${id}`);
   let hasVideoAudio: boolean | undefined;
+  let checkpoint: WorkflowEntry["checkpoint"];
   if (kind === "video") {
     const workflow = JSON.parse(await readFile(workflowPath, "utf8")) as Record<string, unknown>;
     validateH3Workflow(workflow, parsed);
     hasVideoAudio = videoAudioInputs(workflow).length > 0;
+    checkpoint = findH3Checkpoint(workflow, parsed);
   }
   return {
     id,
@@ -111,6 +114,7 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
     version: parsed.version,
     stepDefaults: await readStepDefaults(workflowPath, parsed),
     loraDefaultName: await readLoraDefault(workflowPath, parsed),
+    checkpoint,
   };
 }
 
@@ -289,6 +293,7 @@ export function toMediaModel(entry: WorkflowEntry) {
     promptFormat: entry.bindings.promptFormat,
     supportsFirstPassOutput: Boolean(entry.bindings.firstPassOutputNode),
     ...(entry.loraDefaultName ? { lora: { defaultName: entry.loraDefaultName } } : {}),
+    ...(entry.checkpoint ? { checkpoint: { defaultName: entry.checkpoint.defaultName } } : {}),
     supportsSeed: entry.bindings.bindings.some(item => item.source === "seed" && item.kind === "value"),
     references,
     type: "video" as const,

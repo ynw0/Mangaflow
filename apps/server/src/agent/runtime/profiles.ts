@@ -3,7 +3,7 @@ import conf from "@/utils/conf";
 import { getConfiguredModel } from "@/utils/ai";
 
 // 各专业子任务使用统一职责名；无显式配置时沿用当前主 Agent 或通用子任务模型。
-export const agentProfileRoles = ["subAgent", "story", "character", "scene", "prop", "team", "videoDirector", "videoReviewer"] as const;
+export const agentProfileRoles = ["subAgent", "story", "character", "scene", "prop", "team", "videoDirector", "videoReviewer", "comfyDiagnosis"] as const;
 export type AgentProfileRole = (typeof agentProfileRoles)[number];
 export type AgentModelSelection = { providerId: string; modelId: string; thinkingLevel: string };
 const supportedLevels = ["off", "none", "on", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] as const;
@@ -42,7 +42,7 @@ function applyProfile(base: AgentModelSelection, role: AgentProfileRole, profile
 
 export function resolveAgentProfile(role: AgentProfileRole, main: AgentModelSelection): AgentModelSelection {
   const profiles = readProfiles();
-  const general = role !== "subAgent" && role !== "videoDirector" && role !== "videoReviewer"
+  const general = role !== "subAgent" && role !== "videoDirector" && role !== "videoReviewer" && role !== "comfyDiagnosis"
     ? applyProfile(main, "subAgent", profiles.subAgent)
     : { ...main, configured: false };
   const base = { providerId: general.providerId, modelId: general.modelId, thinkingLevel: general.thinkingLevel };

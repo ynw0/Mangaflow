@@ -58,7 +58,7 @@ export default Router().post("/", validateFields(inputSchema.shape), async (req,
   req.once("aborted", close);
   req.socket.once("close", close);
   try {
-    await u.agent.run({ ...options, cwd, canvas: bridge?.context, question: questions.context, signal: controller.signal, onCancel: close }, send);
+    await u.agent.run({ ...options, cwd, allowComfyDiagnosis: true, canvas: bridge?.context, question: questions.context, signal: controller.signal, onCancel: close }, send);
     controller.signal.throwIfAborted();
     send({ type: "done" });
   } catch (error) {

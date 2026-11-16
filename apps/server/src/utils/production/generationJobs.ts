@@ -6,7 +6,7 @@ import type { GeneratedMedia, MediaGenerationRequest } from "@toonflow/tools-sca
 import conf from "@/utils/conf";
 import { lockWorkspaceFiles, resolveWorkspacePath } from "@/utils/workspace/files";
 import { resolveRecordedComfyBaseUrl, type TrackedVideoExecution } from "@/utils/production/autodl";
-import { cancelPrompt, ComfyPromptFailed, findSubmittedPromptByClientId } from "@/utils/production/comfyui";
+import { cancelPrompt, ComfyPromptFailed, ComfyResponseError, findSubmittedPromptByClientId, type ComfyFailureEvidence } from "@/utils/production/comfyui";
 import { getVideoQcStatus } from "@/utils/production/videoRecords";
 
 type Phase = "preparing" | "submitting" | "submitted" | "saved" | "completed" | "cancelled" | "failed" | "abandoned";
@@ -22,6 +22,7 @@ type Job = {
   updatedAt: string;
   execution?: TrackedVideoExecution;
   submission?: Omit<TrackedVideoExecution, "promptId">;
+  target?: Omit<TrackedVideoExecution, "promptId">;
   files?: GeneratedMedia[];
   error?: string;
 };
@@ -33,6 +34,7 @@ type RunOptions = {
     signal: AbortSignal;
     manual: boolean;
     resume?: TrackedVideoExecution;
+    targetResolved?: (target: Omit<TrackedVideoExecution, "promptId">) => Promise<void>;
     submitting: (submission?: Omit<TrackedVideoExecution, "promptId">) => Promise<void>;
     submitted: (execution: TrackedVideoExecution) => Promise<void>;
   }) => Promise<{ files: { bytes: Uint8Array; mimeType: string }[]; execution: TrackedVideoExecution }>;
@@ -63,6 +65,22 @@ async function saveJob(job: Job, exclusive = false) {
   job.updatedAt = new Date().toISOString();
   await mkdir(directoryPath, { recursive: true });
   await writeAtomic(pathOf(job.id), JSON.stringify(job), { mode: 0o600, exclusive });
+}
+
+function evidencePath(id: string) {
+  return join(dirname(pathOf(id)), "evidence", `${id}.json`);
+}
+
+export async function readGenerationDiagnosis(cwd: string, id: string) {
+  const job = await checkedJob(await realpath(cwd), id);
+  if (!job) throw Object.assign(new Error("生成任务不存在"), { status: 404 });
+  const saved = await readFile(evidencePath(id), "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== "ENOENT") throw error;
+  });
+  const evidence = saved ? JSON.parse(saved) as ComfyFailureEvidence : undefined;
+  const target = job.execution ?? job.submission ?? job.target;
+  return { job: { id, phase: job.phase, error: job.error, modelId: job.request?.modelId,
+    host: target?.host, promptId: job.execution?.promptId, updatedAt: job.updatedAt }, target, evidence };
 }
 async function checkedJob(directory: string, id: string, request?: MediaGenerationRequest) {
   const job = await readJob(id);
@@ -256,6 +274,7 @@ export async function runGenerationJob(options: RunOptions) {
       if (job.phase !== "saved") {
         const output = await options.generate({
           signal: controller.signal, manual: job.manual === true, resume: job.phase === "submitted" ? execution : undefined,
+          targetResolved: target => persist("preparing", { target }),
           submitting: async submission => {
             controller.signal.throwIfAborted();
             await persist("submitting", { submission });
@@ -282,6 +301,15 @@ export async function runGenerationJob(options: RunOptions) {
       // 取消可能来自另一条 HTTP 请求。重新检查持久化状态，防止运行协程覆盖取消结果。
       const latest = await checkedJob(directory, id);
       if (latest?.phase === "cancelled" || latest?.phase === "abandoned") throw error;
+      if (error instanceof ComfyResponseError && !controller.signal.aborted) {
+        const path = evidencePath(id);
+        try {
+          await mkdir(dirname(path), { recursive: true });
+          await writeAtomic(path, JSON.stringify(error.evidence), { mode: 0o600 });
+        } catch (failure) {
+          console.warn("ComfyUI 错误原文无法保存", id, (failure as NodeJS.ErrnoException)?.code ?? "write");
+        }
+      }
       if (job!.phase === "preparing" || error instanceof ComfyPromptFailed) await persist("failed", { error: message });
       else if (job!.phase !== "completed" && job!.phase !== "cancelled") await persist(job!.phase, { error: message });
       throw error;

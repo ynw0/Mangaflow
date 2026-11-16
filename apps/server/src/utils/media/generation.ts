@@ -279,9 +279,9 @@ export async function generateMedia(
       const tracked = { ...request, generationId: request.generationId ?? crypto.randomUUID() };
       return runGenerationJob({
         directory, request: tracked, manual,
-        generate: ({ signal: jobSignal, manual, resume, submitting, submitted }) =>
+        generate: ({ signal: jobSignal, manual, resume, targetResolved, submitting, submitted }) =>
           runComfyWorkflow({ directory, mediaType, request: tracked, signal: jobSignal, resume, manual,
-            onSubmitting: submitting, onSubmitted: submitted }),
+            onTargetResolved: targetResolved, onSubmitting: submitting, onSubmitted: submitted }),
         save: (files, id, jobSignal) => writeTrackedVideos(directory, outputDirectory, id, files, jobSignal),
         record: (files, { target: _target, ...execution }, manual) => recordVideoOutputs(
           directory, files, manual ? { ...tracked, reviewId: undefined } : tracked, execution),

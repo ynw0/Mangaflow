@@ -7,7 +7,7 @@ import type { AgentEvent } from "@/agent/runtime/types";
 import { prepareVideoPrompt, videoPromptParameters, videoPromptToolSchema } from "@/agent/videoPrompt/input";
 import { createReviewSchema, createReviewSubmissionParameters, draftSchema, draftSubmissionParameters, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
 import { directorSubmissionExample, reviewSubmissionExample, videoPromptInputExample } from "@/agent/videoPrompt/examples";
-import { runVideoPromptSpecialist } from "@/agent/videoPrompt/specialist";
+import { runStructuredSpecialist } from "@/agent/runtime/structuredSpecialist";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
@@ -206,8 +206,8 @@ export function createVideoPromptTool(options: SubAgentModel & {
           specialistModels.set(cacheKey, specialistModel);
         }
         const callStartedAt = performance.now();
-        const output = await runVideoPromptSpecialist({
-          ...specialistModel, cwd, parentFile, send, name, shotId: input.shotId, task, selection: selected, schema, parameters, signal,
+        const output = await runStructuredSpecialist({
+          ...specialistModel, cwd, parentFile, send, name, taskLabel: `镜头 ${input.shotId}`, task, selection: selected, schema, parameters, signal,
           onProgress: message => update(`${name}：${message}`),
           instructions: [
             "这是只读的 H3 提示词制作任务。以下为宿主已实际加载的技能正文，直接按适用模式执行；当前任务的实际工作流优先于示例。仅根据传入的已确认剧情、素材用途与描述做判断。",

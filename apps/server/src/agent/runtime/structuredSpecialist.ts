@@ -7,28 +7,17 @@ import type { AgentModelSelection } from "@/agent/runtime/profiles";
 import type { AgentEvent, AgentSubAgent } from "@/agent/runtime/types";
 import { lockWorkspaceFiles, resolveWorkspacePath } from "@/utils/workspace/files";
 
-export async function runVideoPromptSpecialist<T>(options: SubAgentModel & {
-  cwd: string; parentFile: string; name: string; shotId: string; task: string; instructions: string;
+export async function runStructuredSpecialist<T>(options: SubAgentModel & {
+  cwd: string; parentFile?: string; name: string; taskLabel: string; task: string; instructions: string;
   selection: AgentModelSelection; schema: z.ZodType<T>; parameters: ToolDefinition["parameters"];
-  signal?: AbortSignal; send(event: AgentEvent): void; onProgress(text: string): void;
+  tools?: ToolDefinition[];
+  signal?: AbortSignal; send?(event: AgentEvent): void; onProgress?(text: string): void;
 }) {
-  const { cwd, parentFile, name, shotId, task, instructions, selection, schema, parameters, signal, send, onProgress, ...model } = options;
+  const { cwd, parentFile, name, taskLabel, task, instructions, selection, schema, parameters,
+    tools = [], signal, send, onProgress, ...model } = options;
   const controller = new AbortController();
   const childSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
   childSignal.throwIfAborted();
-  const info = { ...selection, parentFile, name, task: `镜头 ${shotId}`, specialist: true };
-  const child = await createAgentConversation(cwd, info);
-  const agent: AgentSubAgent = { ...info, file: child.file, status: "running" };
-  const { path } = await resolveWorkspacePath(cwd, `.agent/sessions/${child.file}`);
-  const history = SessionManager.open(path, dirname(path), cwd);
-  const finished = Promise.withResolvers<void>();
-  const sendChild = (event: AgentEvent) => send({ type: "subAgentEvent", file: child.file, event });
-  const release = lockWorkspaceFiles([path]);
-  const unregister = registerAgentSession(path, {
-    runId: crypto.randomUUID(), history, entryOffset: history.getEntries().length, send: sendChild,
-    tools: new Map(), steeringRequests: new Map(),
-    abort: () => { controller.abort(); return finished.promise; },
-  });
 
   let submitted: T | undefined;
   const resultTool: ToolDefinition = {
@@ -52,6 +41,31 @@ export async function runVideoPromptSpecialist<T>(options: SubAgentModel & {
       return { content: [{ type: "text", text: "结构化结果校验通过" }], details: {} };
     },
   };
+  async function execute(history?: SessionManager, progress = onProgress) {
+    const output = await runSubAgent({
+      ...model, cwd, name, task, instructions, tools, resultTool, history, signal: childSignal, onProgress: progress,
+    });
+    if (output.result.status === "completed" && submitted === undefined) {
+      output.result.status = "error";
+      output.result.result = "服务端未收到已校验的提交结果";
+    }
+    return { ...output, submitted };
+  }
+  if (!parentFile) return execute();
+
+  const info = { ...selection, parentFile, name, task: taskLabel, specialist: true };
+  const child = await createAgentConversation(cwd, info);
+  const agent: AgentSubAgent = { ...info, file: child.file, status: "running" };
+  const { path } = await resolveWorkspacePath(cwd, `.agent/sessions/${child.file}`);
+  const history = SessionManager.open(path, dirname(path), cwd);
+  const finished = Promise.withResolvers<void>();
+  const sendChild = (event: AgentEvent) => send?.({ type: "subAgentEvent", file: child.file, event });
+  const release = lockWorkspaceFiles([path]);
+  const unregister = registerAgentSession(path, {
+    runId: crypto.randomUUID(), history, entryOffset: history.getEntries().length, send: sendChild,
+    tools: new Map(), steeringRequests: new Map(),
+    abort: () => { controller.abort(); return finished.promise; },
+  });
 
   const startedAt = performance.now();
   let phase = "准备模型请求";
@@ -59,29 +73,22 @@ export async function runVideoPromptSpecialist<T>(options: SubAgentModel & {
   const progress = () => {
     if (childSignal.aborted) return;
     const text = `${phase} · 已用 ${Math.floor((performance.now() - startedAt) / 1000)} 秒`;
-    onProgress(text);
-    send({ type: "subAgent", agent: { ...agent, result: text } });
+    onProgress?.(text);
+    send?.({ type: "subAgent", agent: { ...agent, result: text } });
     sendChild({ type: "text", blockId: "specialistProgress", content: text });
   };
   try {
     await updateSubAgent(cwd, parentFile, agent);
     progress();
     timer = setInterval(progress, 2000);
-    const output = await runSubAgent({
-      ...model, cwd, name, task, instructions, tools: [], resultTool, history, signal: childSignal,
-      onProgress: message => { phase = message; },
-    });
+    const output = await execute(history, message => { phase = message; });
     clearInterval(timer);
-    if (output.result.status === "completed" && submitted === undefined) {
-      output.result.status = "error";
-      output.result.result = "服务端未收到已校验的提交结果";
-    }
     const summary = `${output.result.result} · ${output.usage.totalTokens.toLocaleString("zh-CN")} Token`;
     await updateSubAgent(cwd, parentFile, { ...agent, status: output.result.status, result: summary });
     sendChild({ type: "stats", stats: getAgentStats(history) });
     sendChild({ type: "text", blockId: "specialistProgress", content: summary, done: true });
     if (output.result.status !== "completed") sendChild({ type: "error", message: summary });
-    return { ...output, submitted };
+    return output;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await updateSubAgent(cwd, parentFile, { ...agent, status: childSignal.aborted ? "cancelled" : "error", result: message });

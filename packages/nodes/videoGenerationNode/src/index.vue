@@ -52,6 +52,8 @@
             aria-label="查询原视频任务状态" @click="refreshPersistentStatus().catch(error => showNodeError(error, '任务状态查询失败'))">
             刷新状态
           </el-button>
+          <el-button v-if="persistentError || ['submitting', 'submitted', 'failed'].includes(persistentPhase)"
+            text size="small" @click="openComfyDiagnosis">分析 ComfyUI 报错</el-button>
         </div>
         <div v-if="outputFile && data.lastGenerationId && !data.activeGenerationRequest && !detachedGenerationId" class="pendingTask" role="status">
           <div class="pendingTaskText"><strong>最近一次视频任务</strong><span>{{ completedQcLabel }}</span>
@@ -161,6 +163,7 @@
       </el-card>
     </template>
   </nodeSkeleton>
+  <comfyDiagnosisDialog ref="comfyDiagnosis" />
   <videoActions ref="actions" :file="outputFile" :src="previewUrl" :disabled="generating || deleting || uploading" />
 </template>
 
@@ -180,6 +183,7 @@ import referenceItem from "@toonflow/node-shared/referenceItem";
 import mediaHistory from "@toonflow/node-shared/mediaHistory";
 import mediaPrice from "@toonflow/node-shared/mediaPrice";
 import generationSettings from "./components/generationSettings.vue";
+import comfyDiagnosisDialog from "./components/comfyDiagnosisDialog.vue";
 
 defineOptions({
   inheritAttrs: false,
@@ -280,10 +284,16 @@ const completedQcLabel = computed(() => {
   return labels[current.status] ?? "质检状态待确认";
 });
 const persistentError = ref("");
+const comfyDiagnosis = ref<InstanceType<typeof comfyDiagnosisDialog>>();
 const persistentChecking = ref(false);
 const stopping = ref(false);
 const detachedGenerationId = ref("");
 const discoveringRecovery = ref(false);
+
+function openComfyDiagnosis() {
+  const generationId = data.value.activeGenerationRequest?.generationId || detachedGenerationId.value;
+  if (generationId) void comfyDiagnosis.value?.open(generationId);
+}
 const persistentPhaseLabels: Record<string, string> = {
   preparing: "准备中 · 可以恢复原任务",
   submitting: "提交状态不明 · 点击恢复只核对原任务，绝不重新提交",

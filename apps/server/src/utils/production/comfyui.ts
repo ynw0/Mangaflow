@@ -8,9 +8,14 @@ const videoExtensions = new Set([".mp4", ".webm", ".mov"]);
 
 export type ComfyOutput = { filename: string; subfolder: string; type: string; nodeId?: string };
 
-export class ComfyPromptFailed extends Error {
+export type ComfyFailureEvidence = { stage: "submit" | "execution" | "query"; response: unknown };
+
+export class ComfyResponseError extends Error {
   readonly status = 502;
+  constructor(message: string, readonly evidence: ComfyFailureEvidence) { super(message); }
 }
+
+export class ComfyPromptFailed extends ComfyResponseError {}
 
 function rootOf(baseUrl: string) {
   const value = baseUrl.trim().replace(/\/$/, "");
@@ -312,19 +317,21 @@ export async function submitWorkflow(baseUrl: string, workflow: Record<string, u
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt: workflow, client_id: options?.clientId ?? crypto.randomUUID() }),
   }, signal, options?.onSubmitting);
-  const data = await response.json().catch(() => undefined) as {
+  const raw = await response.text();
+  let data: {
     prompt_id?: string;
     error?: { type?: unknown; message?: unknown; details?: unknown };
     node_errors?: Record<string, unknown>;
   } | undefined;
+  try { data = JSON.parse(raw); } catch { /* 非 JSON 代理响应保留为诊断证据。 */ }
   // ComfyUI 可能接受部分输出，收到 prompt_id 后按已入队任务跟踪。
   if (response.ok && typeof data?.prompt_id === "string" && data.prompt_id) return data.prompt_id;
   if (response.status === 400 && !data?.prompt_id && typeof data?.error?.type === "string"
     && data.node_errors && typeof data.node_errors === "object" && !Array.isArray(data.node_errors)) {
-    throw new ComfyPromptFailed(formatPromptError(data, response.status));
+    throw new ComfyPromptFailed(formatPromptError(data, response.status), { stage: "submit", response: data });
   }
-  if (!response.ok) fail(formatPromptError(data, response.status), 502);
-  fail("ComfyUI 未返回 prompt_id", 502);
+  throw new ComfyResponseError(response.ok ? "ComfyUI 未返回 prompt_id" : formatPromptError(data, response.status),
+    { stage: "submit", response: { httpStatus: response.status, body: data ?? raw } });
 }
 
 function collectOutputs(value: unknown, extensions: Set<string>, found: ComfyOutput[], seen: Set<string>, nodeId?: string) {
@@ -356,12 +363,16 @@ export async function waitForOutput(baseUrl: string, promptId: string, kind: "im
     while (deadline === undefined || Date.now() < deadline) {
       signal?.throwIfAborted();
       const response = await comfyFetch(baseUrl, `/history/${promptId}`, { method: "GET" }, signal);
-      if (kind === "video" && !response.ok) fail(`ComfyUI 视频状态查询失败：HTTP ${response.status}`, 502);
+      if (kind === "video" && !response.ok) throw new ComfyResponseError(
+        `ComfyUI 视频状态查询失败：HTTP ${response.status}`,
+        { stage: "query", response: { httpStatus: response.status, body: await response.text() } });
       if (response.ok) {
         const data = await response.json() as Record<string, { status?: { status_str?: string; messages?: unknown }; outputs?: unknown }>;
         const item = data?.[promptId];
         if (item) {
-          if (item.status?.status_str === "error") throw new ComfyPromptFailed(`ComfyUI 生成失败：${JSON.stringify(item.status.messages ?? item.status).slice(0, 500)}`);
+          if (item.status?.status_str === "error") throw new ComfyPromptFailed(
+            `ComfyUI 生成失败：${JSON.stringify(item.status.messages ?? item.status).slice(0, 500)}`,
+            { stage: "execution", response: item.status });
           const outputs: ComfyOutput[] = [];
           const seen = new Set<string>();
           if (item.outputs && typeof item.outputs === "object" && !Array.isArray(item.outputs)) {
@@ -370,7 +381,8 @@ export async function waitForOutput(baseUrl: string, promptId: string, kind: "im
             }
           }
           if (outputs.length) return outputs;
-          if (item.status?.status_str === "success") throw new ComfyPromptFailed("ComfyUI 完成但没有图片或视频输出");
+          if (item.status?.status_str === "success") throw new ComfyPromptFailed("ComfyUI 完成但没有图片或视频输出",
+            { stage: "execution", response: item.status });
         }
       }
       await delay(2000, signal);
@@ -379,6 +391,13 @@ export async function waitForOutput(baseUrl: string, promptId: string, kind: "im
     stop();
   }
   fail("出图超时", 504);
+}
+
+export async function readComfyDiagnosticEndpoint(baseUrl: string, path: string, signal?: AbortSignal) {
+  const deadline = AbortSignal.timeout(7000);
+  const response = await comfyFetch(baseUrl, path, { method: "GET", redirect: "error" }, signal ? AbortSignal.any([signal, deadline]) : deadline);
+  if (!response.ok) fail(`ComfyUI ${path} 返回 HTTP ${response.status}`, 502);
+  return await response.json() as unknown;
 }
 
 function flattenText(value: unknown): string {

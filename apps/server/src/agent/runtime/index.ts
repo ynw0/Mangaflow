@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createComfyDiagnosisTool } from "@/agent/tools/comfyDiagnosis";
 import { basename } from "node:path";
 import { readFile, stat, unlink } from "@toonflow/file";
 import {
@@ -88,6 +89,7 @@ type AgentOptions = {
   onCancel?: () => void;
   goal?: boolean;
   allowChatMedia?: boolean;
+  allowComfyDiagnosis?: boolean;
   delivery?: "restart";
 };
 
@@ -130,6 +132,7 @@ export async function run(
   onCancel,
   goal = false,
   allowChatMedia = true,
+  allowComfyDiagnosis = false,
   delivery,
 }: AgentOptions,
   send: (event: AgentEvent) => void
@@ -215,6 +218,11 @@ export async function run(
     const searchTemplates = createVideoTemplateSearchTool();
     if (tools.some(tool => tool.name === searchTemplates.name)) throw new Error("分类检索工具名称冲突");
     tools.push(searchTemplates);
+    if (allowComfyDiagnosis && !child) {
+      const diagnosis = createComfyDiagnosisTool({ cwd, parentFile: file, send, primaryModel: { providerId, modelId, thinkingLevel } });
+      if (tools.some(tool => tool.name === diagnosis.name)) throw new Error("ComfyUI 故障分析工具名称冲突");
+      tools.push(diagnosis);
+    }
     const skillOperator = tools.find(tool => tool.name === "skillOperator");
     if (!child && skillOperator) {
       if (tools.some(tool => tool.name === "draftVideoPrompt")) throw new Error("工具名称 draftVideoPrompt 已被内置视频提示词工具占用");

@@ -47,7 +47,7 @@ export async function runSubAgent(options: SubAgentModel & {
   const previousEntries = history?.getEntries().length ?? 0;
   try {
     signal.throwIfAborted();
-    const activeTools = (resultTool ? [resultTool] : tools).map(tool => ({
+    const activeTools = (resultTool ? [...tools, resultTool] : tools).map(tool => ({
       ...tool,
       async execute(...args: Parameters<ToolDefinition["execute"]>) {
         signal.throwIfAborted();
@@ -81,7 +81,14 @@ export async function runSubAgent(options: SubAgentModel & {
     configureAgentRequests(session, undefined, modelOptions.thinkingLevel);
     signal.throwIfAborted();
     // 专家只提交一次结果，完成校验后结束本轮，避免模型再生成一段自由文本。
-    session.agent.shouldStopAfterTurn = () => Boolean(resultTool || inputRequired?.());
+    let evidenceTurns = 0;
+    session.agent.shouldStopAfterTurn = ({ message }) => {
+      if (!resultTool) return Boolean(inputRequired?.());
+      if (!tools.length) return true;
+      const calls = message.content.filter(part => part.type === "toolCall");
+      // 专家可分页取证；提交完成、未继续取证或达到轮数上限时结束。
+      return !calls.length || calls.some(call => call.name === resultTool.name) || ++evidenceTurns >= 10;
+    };
     let received = 0;
     let reportedAt = 0;
     session.subscribe(event => {
@@ -99,10 +106,10 @@ export async function runSubAgent(options: SubAgentModel & {
           }
         }
       }
-      if (event.type === "tool_execution_start") onProgress?.(resultTool ? "正在校验提交结果" : `正在调用 ${event.toolName}`);
+      if (event.type === "tool_execution_start") onProgress?.(event.toolName === resultTool?.name ? "正在校验提交结果" : `正在调用 ${event.toolName}`);
     });
     const request = resultTool
-      ? `任务：${name}。完成内部推理后，直接调用 ${resultTool.name} 一次提交符合字段定义的完整结果。正文、结论和证据全部写在工具参数中。\n\n${task}`
+      ? `任务：${name}。${tools.length ? "可按需调用本任务的只读取证工具。" : ""}完成内部推理后，调用 ${resultTool.name} 一次提交符合字段定义的完整结果。正文、结论和证据全部写在工具参数中。\n\n${task}`
       : `你正在执行委派的独立子任务。仅处理下述任务，遵守系统中的授权与工作区规则。缺少信息或授权时，说明阻碍并交回调用方；若提供 requestInput 则使用它等待补充。最终返回简明结论、实际修改的文件相对路径、验证情况与未完成项；长篇产物写入已授权的工作区文件。\n\n${JSON.stringify({ name, task })}`;
     await session.prompt(request, { expandPromptTemplates: false });
     signal.throwIfAborted();

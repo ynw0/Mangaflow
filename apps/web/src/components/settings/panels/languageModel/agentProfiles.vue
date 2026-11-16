@@ -74,6 +74,7 @@ const roles = [
   { id: "team", title: "本地团队 Agent", icon: "团", description: "本地 Team 的成员协作任务" },
   { id: "videoDirector", title: "视频导演", icon: "导", description: "H3 提示词编写及必要返修" },
   { id: "videoReviewer", title: "提示词审核", icon: "审", description: "独立核对剧情、镜头及参考一致性" },
+  { id: "comfyDiagnosis", title: "ComfyUI 故障分析", icon: "诊", description: "读取任务错误与原实例证据，分析根因" },
 ] as const;
 type Role = (typeof roles)[number]["id"];
 type Profile = { modelKey?: string; thinkingLevel?: string };

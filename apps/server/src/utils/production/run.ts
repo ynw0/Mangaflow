@@ -303,6 +303,7 @@ export type PreparedComfyWorkflow = Awaited<ReturnType<typeof prepareComfyWorkfl
 export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWorkflow>[0] & {
   manual?: boolean;
   resume?: TrackedVideoExecution;
+  onTargetResolved?: (target: Omit<TrackedVideoExecution, "promptId">) => Promise<void>;
   onSubmitting?: (submission: Omit<TrackedVideoExecution, "promptId">) => Promise<void>;
   onSubmitted?: (execution: TrackedVideoExecution) => Promise<void>;
 }) {
@@ -332,6 +333,7 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   signal?.throwIfAborted();
   const target = await resolveComfyTarget(signal, host);
   const { baseUrl } = target;
+  await options.onTargetResolved?.({ host, target });
   await probeComfy(baseUrl, signal);
   // 非默认的用户自选 LoRA 必须确实存在于当前 ComfyUI 主机；不静默改成其他文件。
   if (entry.bindings.optionalLoraNode && request.loraName

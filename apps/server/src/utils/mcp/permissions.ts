@@ -23,6 +23,10 @@ const nodeRules: Record<string, Permission> = {
   "node:setImage": "workspaceWrite", "node:setVideo": "workspaceWrite", "node:setAudio": "workspaceWrite",
   "node:generateImage": "mediaGeneration", "node:generateVideo": "mediaGeneration", "node:generateAudio": "mediaGeneration",
   "node:cancelGeneration": "mediaGeneration", "node:cancelPersistentGeneration": "mediaGeneration",
+  "node:getTimeline": "workspaceRead", "node:getTimelineRenderStatus": "workspaceRead",
+  "node:addTimelineClips": "workspaceWrite", "node:replaceTimelineClip": "workspaceWrite", "node:trimTimelineClip": "workspaceWrite",
+  "node:removeTimelineClip": "workspaceWrite", "node:reorderTimelineClips": "workspaceWrite", "node:setTimelineAspect": "workspaceWrite",
+  "node:renderTimeline": "mediaGeneration", "node:cancelTimelineRender": "mediaGeneration",
 };
 const workspaceRules: Record<string, Permission> = {
   read: "workspaceRead", ls: "workspaceRead", write: "workspaceWrite", edit: "workspaceWrite", downloadImage: "workspaceWrite",

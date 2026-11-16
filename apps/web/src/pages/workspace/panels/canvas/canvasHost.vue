@@ -235,8 +235,9 @@ function checkNodeResources(path: string) {
   const requested = path.toLowerCase();
   for (const panel of instances.values()) {
     for (const node of panel.getRetainedNodes()) {
-      const data = node.data as { textPath?: unknown; outputs?: Record<string, { value?: unknown } | undefined> } | undefined;
+      const data = node.data as { textPath?: unknown; clips?: { path?: unknown }[]; outputs?: Record<string, { value?: unknown } | undefined> } | undefined;
       const references: unknown[] = [`assets/${node.id}`, data?.textPath];
+      if (Array.isArray(data?.clips)) references.push(...data.clips.map(clip => clip?.path));
       for (const output of Object.values(data?.outputs ?? {})) {
         if (output?.value && typeof output.value === "object" && "url" in output.value) references.push(output.value.url);
       }

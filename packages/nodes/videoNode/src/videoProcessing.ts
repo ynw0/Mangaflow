@@ -1,4 +1,5 @@
-import type { BrowserFfmpegCommand, BrowserFfmpegFactory, FfprobeData } from "@toonflow/ffmpeg/browser";
+import type { BrowserFfmpegFactory } from "@toonflow/ffmpeg/browser";
+import { probeMedia, runVideoCommand } from "@toonflow/node-shared/videoCommands";
 
 export type VideoProcessingOptions = {
   action: "extractAudio" | "separate" | "trim";
@@ -15,31 +16,6 @@ function normalizePath(path: string) {
   return path.split(/[\\/]+/).filter(part => part && part !== ".").join("/").toLowerCase();
 }
 
-function probeMedia(ffmpeg: BrowserFfmpegFactory, path: string, signal?: AbortSignal) {
-  signal?.throwIfAborted();
-  const command = ffmpeg(path);
-  const cancel = () => command.kill();
-  signal?.addEventListener("abort", cancel, { once: true });
-  return new Promise<FfprobeData>((resolve, reject) => {
-    command.ffprobe((error, data) => {
-      if (signal?.aborted) reject(signal.reason);
-      else if (error) reject(error);
-      else resolve(data);
-    });
-  }).finally(() => signal?.removeEventListener("abort", cancel));
-}
-
-function runCommand(command: BrowserFfmpegCommand, signal?: AbortSignal) {
-  signal?.throwIfAborted();
-  const cancel = () => command.kill();
-  signal?.addEventListener("abort", cancel, { once: true });
-  return new Promise<void>((resolve, reject) => {
-    command.on("start", () => { if (signal?.aborted) command.kill(); });
-    command.on("error", error => reject(signal?.aborted ? signal.reason : error));
-    command.on("end", () => signal?.aborted ? reject(signal.reason) : resolve());
-    command.run();
-  }).finally(() => signal?.removeEventListener("abort", cancel));
-}
 
 /** 目录创建、唯一文件名和失败清理由调用方负责，原视频始终保留。 */
 export async function processVideo(ffmpeg: BrowserFfmpegFactory, source: string, options: VideoProcessingOptions, signal?: AbortSignal) {
@@ -78,7 +54,7 @@ export async function processVideo(ffmpeg: BrowserFfmpegFactory, source: string,
     if (options.action === "separate") command.noAudio();
     else command.duration(options.end! - options.start!).audioCodec("aac").audioBitrate(192).outputOptions("-map", "0:a:0?");
   }
-  await runCommand(command, signal);
+  await runVideoCommand(command, signal);
   const result = await probeMedia(ffmpeg, needsVideo ? options.videoPath! : options.audioPath!, signal);
   const resultVideo = result.streams.find(stream => stream.codec_type === "video");
   const resultDuration = Number(result.format.duration);

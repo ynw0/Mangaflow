@@ -11,7 +11,8 @@
     "./showNodeError": "./src/showNodeError.ts",
     "./useNodeReferences": "./src/useNodeReferences.ts",
     "./useNodeGeneration": "./src/useNodeGeneration.ts",
-    "./groupNodeModels": "./src/groupNodeModels.ts"
+    "./groupNodeModels": "./src/groupNodeModels.ts",
+    "./videoCommands": "./src/videoCommands.ts"
   },
   "scripts": {
     "typecheck": "vue-tsc --noEmit"

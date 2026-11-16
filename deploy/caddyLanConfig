@@ -1,0 +1,10 @@
+{
+  auto_https disable_redirects
+}
+
+https://{$MANGAFLOW_LAN_IP}:3443 {
+  tls internal
+  reverse_proxy toonflow:3000 {
+    flush_interval -1
+  }
+}

@@ -1,0 +1,53 @@
+name: Ubuntu Docker LAN
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "compose.yaml"
+      - "Dockerfile"
+      - "deploy/caddyLanConfig"
+      - ".github/workflows/ubuntuDocker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build and start LAN deployment
+        run: |
+          set -euo pipefail
+          umask 077
+          token="$(openssl rand -hex 32)"
+          echo "::add-mask::$token"
+          printf 'TOONFLOW_TOKEN=%s\nMANGAFLOW_LAN_IP=127.0.0.1\n' "$token" > .env
+          docker compose config --quiet
+          docker compose --profile lan up -d --build
+      - name: Verify TLS and authentication
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 90); do
+            if docker compose --profile lan cp caddy-lan:/data/caddy/pki/authorities/local/root.crt /tmp/mangaflow-root.crt >/dev/null 2>&1 &&
+              curl -fsS --max-time 5 --cacert /tmp/mangaflow-root.crt https://127.0.0.1:3443/api/auth/status > /tmp/mangaflow-status.json; then
+              break
+            fi
+            sleep 2
+          done
+          jq -e '.data.required == true and .data.authenticated == false' /tmp/mangaflow-status.json
+          curl -fsS --cacert /tmp/mangaflow-root.crt https://127.0.0.1:3443/ > /tmp/mangaflow-index.html
+          test -s /tmp/mangaflow-index.html
+          test "$(curl -sS --cacert /tmp/mangaflow-root.crt -o /dev/null -w '%{http_code}' https://127.0.0.1:3443/api/settings/get)" = 401
+          token="$(sed -n 's/^TOONFLOW_TOKEN=//p' .env)"
+          echo "::add-mask::$token"
+          jq -nc --arg token "$token" '{token:$token}' | curl -fsS --cacert /tmp/mangaflow-root.crt -c /tmp/mangaflow-cookie -H 'Content-Type: application/json' -H 'Origin: https://127.0.0.1:3443' --data-binary @- https://127.0.0.1:3443/api/auth/login > /dev/null
+          curl -fsS --cacert /tmp/mangaflow-root.crt -b /tmp/mangaflow-cookie https://127.0.0.1:3443/api/auth/status | jq -e '.data.authenticated == true'
+      - name: Stop smoke-test containers
+        if: always()
+        run: docker compose --profile lan down -v

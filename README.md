@@ -96,6 +96,16 @@ MangaFlow 内置可复用的创作知识库，帮助 Agent 在编剧、分镜、
 
 **运行中发消息**：在同一对话追加文字引导不会自动中止当前任务；引导在工具完成后的安全轮次生效，不能追溯修改已经开始的 ComfyUI 推理。停止按钮仍用于主动取消。
 
+## Ubuntu / Linux 安装及局域网 Web 访问
+
+Linux 推荐使用 Docker Compose 运行独立 Web 服务；Windows 可用 Edge/Chrome 访问。在 Ubuntu 安装 Docker Engine 与 Compose v2 后，按 [Ubuntu 部署指南](deploy/ubuntu.md) 配置访问令牌及实际局域网 IP，再执行：
+
+```bash
+docker compose --profile lan up -d --build
+```
+
+局域网入口为 `https://<Ubuntu局域网IP>:3443`；首次访问前须按指南导出并信任该部署的内部 CA 根证书。未启用 LAN profile 时宿主机只监听 127.0.0.1:3000。既有数据卷不变，保留访问认证，不需要 Linux 桌面或 GPU 显示环境。
+
 ## 本地 ComfyUI 与生产注意事项
 
 - 图片使用项目配置的文生图/图片编辑工作流；具体可选项以设置及节点 `getConfig` 查询结果为准。

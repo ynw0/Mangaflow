@@ -992,6 +992,9 @@ nodeTools.register({
     if (args.manualAccelerationLoras !== undefined) {
       if (!choice.h3Advanced) throw new Error("当前工作流不支持手动标记加速 LoRA");
       if (args.manualAccelerationLoras.length) {
+        if (selectedModel.value?.modelId !== choice.modelId || selectedModel.value?.providerId !== choice.providerId) {
+          throw new Error("请先切换到目标视频工作流，再读取该工作流的已安装 LoRA 列表进行手动标记");
+        }
         await refreshComfyChoices();
         signal?.throwIfAborted();
         if (generating.value || deleting.value) throw new Error("节点状态已变化，请重新读取配置");

@@ -48,7 +48,9 @@ describe("Ref2VA 按合同使用单镜或多镜", () => {
     expect(requiresContinuousTake({ story: "不强制 single shot", mustHave: [], mustNotHave: [] })).toBe(false);
     expect(make(body, "男主面对镜头，可以按需要切镜")).toEqual([]);
     // 禁止某一种剪辑手法不意味着禁止所有切镜。
-    expect(make(body, "男主找信", {mustNotHave: ["蒙太奇", "反打"]})).toEqual([]);
+    expect(make(body, "男主找信", {mustNotHave: ["蒙太奇"]})).toEqual([]);
+    expect(make("[Shot 1] Medium shot.\n[Shot 2] At 00:05.000, a close-up of a letter.",
+      "男主找信", {mustNotHave: ["反打"]})).toEqual([]);
   });
   test("明确一镜到底或 mustNotHave 禁止切镜时仍严格执行", () => {
     const body = "[Shot 1] Medium framing.\n[Shot 2] At 00:05.000, reverse shot.";

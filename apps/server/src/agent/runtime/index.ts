@@ -24,6 +24,9 @@ import { getAgentImageReference, getOffloadedImageText, readAgentImage } from "@
 import { createSubAgentTool } from "@/agent/tools/subAgent";
 import { createVideoPromptTool } from "@/agent/videoPrompt";
 import { createVideoTemplateSearchTool } from "@/agent/videoPrompt/templates";
+import { createH3SamplingStrategyTool } from "@/agent/tools/h3SamplingStrategy";
+import { loadAgentSkills } from "@/agent/skills";
+import { isEnabled } from "@/utils/skills/files";
 
 import { createMemoryTool } from "@/agent/tools/memory";
 import { createReportTool } from "@/agent/tools/report";
@@ -218,6 +221,12 @@ export async function run(
     const searchTemplates = createVideoTemplateSearchTool();
     if (tools.some(tool => tool.name === searchTemplates.name)) throw new Error("分类检索工具名称冲突");
     tools.push(searchTemplates);
+    // 智能采样与独立 Skill 共用设置里的技能开关；关闭后工具也不会提供。
+    if (isEnabled("h3SamplingStrategy") && loadAgentSkills(cwd).skills.some(skill => skill.name === "h3SamplingStrategy")) {
+      const strategyTool = createH3SamplingStrategyTool();
+      if (tools.some(tool => tool.name === strategyTool.name)) throw new Error("H3 采样策略工具名称冲突");
+      tools.push(strategyTool);
+    }
     if (allowComfyDiagnosis && !child) {
       const diagnosis = createComfyDiagnosisTool({ cwd, parentFile: file, send, primaryModel: { providerId, modelId, thinkingLevel } });
       if (tools.some(tool => tool.name === diagnosis.name)) throw new Error("ComfyUI 故障分析工具名称冲突");

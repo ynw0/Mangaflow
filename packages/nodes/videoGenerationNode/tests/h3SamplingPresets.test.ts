@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createH3PresetPlan, declaredAccelerationSteps, isAccelerationLora, type H3PresetInput } from "../src/components/h3SamplingPresets";
+import { createH3PresetPlan, declaredAccelerationSteps, isAccelerationLora, preferred4StepLora, type H3PresetInput } from "../src/components/h3SamplingPresets";
 
 const input = (patch: Partial<H3PresetInput> = {}): H3PresetInput => ({
   installedLoras: ["speed/H3_TaoMate_3step.safetensors", "custom/pika-v2-turbo_8steps_hd.safetensors", "style/film.safetensors"],
@@ -33,10 +33,11 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     const ordinaryPrimary=success("normal",{primaryLora:"style/cinematic.safetensors",primaryStrength:0.45});
     expect([ordinaryPrimary.primaryLora,ordinaryPrimary.primaryStrength]).toEqual(["style/cinematic.safetensors",0.45]);
   });
-  test("极速4步使用3-4步的加速 LoRA", () => {
-    const result=success("preview4");
+  test("极速4步只选 LightX2V Ref2VA ComfyUI BF16；3step 不再自动候选", () => {
+    expect(createH3PresetPlan("preview4", input()).ok).toBe(false);
+    const result=success("preview4",{installedLoras:["minimax/"+preferred4StepLora,...input().installedLoras]});
     expect([result.firstPassSteps,result.secondPassSteps]).toEqual([2,2]);
-    expect(result.primaryLora).toContain("3step");
+    expect(result.primaryLora).toContain(preferred4StepLora);
     expect(result.extraLoras).toHaveLength(1);
   });
   test("快速8步同时支持4+4和6+2，不误选3step", () => {
@@ -72,9 +73,9 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     expect(isAccelerationLora(custom)).toBe(false);
     expect(isAccelerationLora(custom,[custom.replaceAll("/", "\\")])).toBe(true);
     const patch={ installedLoras:[custom], manualAccelerationLoras:[custom], primaryLora:custom };
-    const four=success("preview4",patch);
+    const four=createH3PresetPlan("preview4",input(patch));
     const eight=success("quick44",patch);
-    expect([four.firstPassSteps,four.secondPassSteps]).toEqual([2,2]);
+    expect(four.ok).toBe(false);
     expect([eight.firstPassSteps,eight.secondPassSteps]).toEqual([4,4]);
     expect(eight.primaryLora).toBe(custom);
     expect(eight.hint).toContain("专用节点或调度器");

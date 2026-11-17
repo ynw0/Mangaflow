@@ -48,33 +48,8 @@
           aria-label="放大倍率" />
         <div v-if="outputSize" class="sizeHint">成片 {{ outputSize.width }}×{{ outputSize.height }}</div>
       </div>
-      <div v-if="stepSpec" class="passSteps">
-        <div class="outputField">
-          <div class="sectionLabel">一采步数</div>
-          <el-input-number
-            v-model="firstPassSteps"
-            class="stepInput"
-            :disabled="disabled"
-            :min="stepSpec.firstPassMin"
-            :max="stepSpec.firstPassMax"
-            :step="1"
-            :precision="0"
-            controlsPosition="right"
-            aria-label="一采步数" />
-        </div>
-        <div class="outputField">
-          <div class="sectionLabel">二采步数</div>
-          <el-input-number
-            v-model="secondPassSteps"
-            class="stepInput"
-            :disabled="disabled"
-            :min="stepSpec.secondPassMin"
-            :max="stepSpec.secondPassMax"
-            :step="1"
-            :precision="0"
-            controlsPosition="right"
-            aria-label="二采步数" />
-        </div>
+      <div v-if="stepSpec" class="sizeHint" role="status">
+        当前采样：一采 {{ firstPassSteps ?? stepSpec.firstPassDefault }} 步 + 二采 {{ secondPassSteps ?? stepSpec.secondPassDefault }} 步；手动通过下方预设切换，Agent 运行时可按已授权目标自定义。
       </div>
       <div class="sectionLabel">通用比例</div>
       <div class="ratioOptions" role="group" aria-label="视频比例">
@@ -155,11 +130,13 @@
           </div>
           <div class="sizeHint" v-if="advancedError">{{ advancedError }}</div>
           <div class="sectionLabel">实验性采样预设（不换主模型）</div>
-          <el-button size="small" :disabled="disabled || !presetPlans.normal.ok" @click="applyPreset('normal')">普通高质量 25步（20+5，仅关闭加速 LoRA）</el-button>
-          <el-button size="small" :disabled="disabled || !presetPlans.preview4.ok" @click="applyPreset('preview4')">极速样片 4步（2+2）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.normal.ok" @click="applyPreset('normal')">普通高质量 25步（20+5，Agent 可自定义25～40步）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.preview4.ok" @click="applyPreset('preview4')">极速试镜 4步（2+2，LightX2V Ref2VA）</el-button>
           <el-button size="small" :disabled="disabled || !presetPlans.quick44.ok" @click="applyPreset('quick44')">快速 8步（4+4，加速 LoRA）</el-button>
           <el-button size="small" :disabled="disabled || !presetPlans.quick62.ok" @click="applyPreset('quick62')">快速 8步（6+2，加速 LoRA）</el-button>
           <el-button size="small" :disabled="disabled || !presetPlans.fused8.ok" @click="applyPreset('fused8')">已融合 Turbo 8步（4+4，仅关闭加速 LoRA）</el-button>
+          <div class="sizeHint">试镜4步：仅快速验证构图/动作方向，不能直接当正式成片；8步4+4：普通剧情均衡；8步6+2：运动结构优先实验；25～40步：关键镜头高质量、关闭加速 LoRA；融合Turbo：仅已融合主模型使用，不额外叠加加速 LoRA。4+4/6+2优劣须实测。</div>
+          <div class="sizeHint">智能自动选档在 设置 → 插件 → 已安装 → 技能 → h3SamplingStrategy 中启停；关闭后不向 Agent 提供配套工具，仍可手动使用本预设。</div>
           <div class="sizeHint">{{ presetHint }}</div>
           <div v-if="presetAvailabilityHint" class="sizeHint">{{ presetAvailabilityHint }}</div>
           <el-button text size="small" :disabled="disabled" @click="h3Options = undefined">恢复高级参数默认（不改模型/步数/加速 LoRA）</el-button>

@@ -19,6 +19,7 @@ export type H3PresetPlan =
 
 const normalize = (name: string) => name.replaceAll("\\", "/").toLowerCase();
 const basename = (name: string) => normalize(name).split("/").at(-1) ?? "";
+export const preferred4StepLora = "minimax_h3_ref2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors";
 
 /** 识别 8step、8-steps、step_8、3step 等命名；不依赖厂商或固定文件名。 */
 export function declaredAccelerationSteps(name: string): number | undefined {
@@ -35,13 +36,18 @@ export function isAccelerationLora(name: string, manual: readonly string[] = [])
 function compatibleWith(name: string, steps: 4 | 8, manual: readonly string[]) {
   if (!isAccelerationLora(name, manual)) return false;
   const declared = declaredAccelerationSteps(name);
-  return declared === undefined || (steps === 4 ? declared === 3 || declared === 4 : declared === 8);
+  return declared === undefined || (steps === 4 ? declared === 4 : declared === 8);
 }
 function speedCandidate(installed: readonly string[], selected: string, steps: 4 | 8, manual: readonly string[]):
   { name: string } | { reason: string } {
   const options = [...new Map(installed.filter(name => compatibleWith(name, steps, manual))
     .map(name => [normalize(name), name])).values()];
   const chosen = options.find(name => normalize(name) === normalize(selected));
+  if (steps === 4) {
+    const lightx = options.find(name => basename(name) === preferred4StepLora);
+    if (lightx) return { name: lightx };
+    return { reason: "极速样片需要已安装的 LightX2V MiniMax H3 Ref2V 4-step v1.0 ComfyUI BF16，不能用 TaoMate 3step 替代。" };
+  }
   if (chosen) return { name: chosen };
   const explicit = options.filter(name => declaredAccelerationSteps(name) !== undefined);
   if (explicit.length === 1) return { name: explicit[0]! };
@@ -90,8 +96,6 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
     hint = "已选择 " + firstPassSteps + "+" + secondPassSteps + "，关闭其它加速 LoRA，保留普通 LoRA。";
     if (declaredAccelerationSteps(candidate.name) === undefined) {
       hint += " 此 LoRA 未声明适用步数，可能需要专用节点或调度器；手动标记不代表兼容，需要验证。";
-    } else if (target === 4 && declaredAccelerationSteps(candidate.name) === 3) {
-      hint += " 3step LoRA 用于 4 步属于试验配置，请核对实际效果。";
     }
   }
   return { ok: true, primaryLora, ...(primaryStrength === undefined ? {} : { primaryStrength }),

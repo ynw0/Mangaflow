@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "@toonflow/file";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseWorkflowBindings, type WorkflowBindings } from "@/utils/production/bindings";
-import { readProduction, fail } from "@/utils/production/config";
+import { readProduction, canonicalVideoWorkflowId, fail } from "@/utils/production/config";
 import { resolveAppDirectory } from "@/resolveAppDirectory";
 import { h3AdvancedCapability } from "@/utils/production/h3Advanced";
 import { findH3Checkpoint, validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
@@ -28,16 +28,11 @@ export type WorkflowEntry = {
 };
 
 const labels: Record<string, string> = {
-  "image/character_image": "角色设定图",
-  "image/scene_image": "场景图",
-  "image/prop_image": "道具原画",
   "image/flux3KleinT2i": "Flux.3 Klein 文生图",
   "image/flux3KleinDistilledT2i": "Flux.3 Klein 蒸馏文生图",
   "image/flux3KleinEdit": "Flux.3 Klein 图像编辑",
   "image/flux3KleinDistilledEdit": "Flux.3 Klein 蒸馏图像编辑",
-  "video/h3_ref2va_1080p": "H3 全参参考",
-  "video/h3_erca_16x9": "二采 MiniMax H3 16:9",
-  "video/h3_erca_9x16": "二采 MiniMax H3 9:16",
+  "video/h3_ref2va_dual": "MiniMax H3 Ref2VA 双采",
   "video/h3_flf_repair": "H3 首尾帧",
   "qc/gemma4": "Gemma 4 成片质检",
 };
@@ -147,7 +142,7 @@ async function readLoraDefault(workflowPath: string, bindings: WorkflowBindings)
   if (!id) return;
   const workflow = JSON.parse(await readFile(workflowPath, "utf8")) as Record<string, { inputs?: { lora_name?: unknown } }>;
   const name = workflow[id]?.inputs?.lora_name;
-  if (typeof name !== "string" || !name.trim()) fail(`可选 LoRA 节点 ${id} 缺少默认模型名`);
+  if (typeof name !== "string") fail(`可选 LoRA 节点 ${id} 的模型文件名字段无效`);
   return name;
 }
 
@@ -213,7 +208,7 @@ export async function listWorkflowCatalog(): Promise<WorkflowEntry[]> {
 }
 
 export async function findWorkflow(id: string) {
-  const entry = (await listWorkflowCatalog()).find(item => item.id === id);
+  const entry = (await listWorkflowCatalog()).find(item => item.id === canonicalVideoWorkflowId(id));
   if (!entry) fail(`找不到工作流: ${id}`);
   return entry;
 }
@@ -296,7 +291,7 @@ export function toMediaModel(entry: WorkflowEntry) {
     usage: entry.bindings.usage,
     promptFormat: entry.bindings.promptFormat,
     supportsFirstPassOutput: Boolean(entry.bindings.firstPassOutputNode),
-    ...(entry.loraDefaultName ? { lora: { defaultName: entry.loraDefaultName } } : {}),
+    ...(entry.bindings.optionalLoraNode ? { lora: { defaultName: entry.loraDefaultName ?? "" } } : {}),
     ...(entry.checkpoint ? { checkpoint: { defaultName: entry.checkpoint.defaultName } } : {}),
     ...(entry.h3Advanced ? { h3Advanced: entry.h3Advanced } : {}),
     supportsSeed: entry.bindings.bindings.some(item => item.source === "seed" && item.kind === "value"),

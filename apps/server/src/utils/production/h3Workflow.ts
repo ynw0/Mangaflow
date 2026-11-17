@@ -14,7 +14,7 @@ export function findH3Checkpoint(nodes: Record<string, unknown>, bindings: Workf
   if (loaders.length !== 1 || !loader) return;
   const [nodeId, node] = loader;
   const defaultName = node.inputs?.unet_name;
-  if (typeof defaultName === "string" && isH3CheckpointName(defaultName)) return { nodeId, defaultName };
+  if (typeof defaultName === "string" && (defaultName === "" || isH3CheckpointName(defaultName))) return { nodeId, defaultName };
 }
 
 // 这些视频输出节点的音频插口可选，与参考音频输入互不影响。

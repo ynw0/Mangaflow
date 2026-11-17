@@ -236,7 +236,7 @@ data.value.resolution ??= "";
 data.value.mode ??= "";
 data.value.generateAudio ??= true;
 data.value.outputFirstPass ??= false;
-data.value.ratio ??= "9:16";
+data.value.ratio ??= "16:9";
 data.value.seedMode ??= "fixed";
 data.value.seed ??= defaultSeed;
 const { refList, referenceMentions, setReferencePreview, removeReference } = useNodeReferences();
@@ -451,7 +451,7 @@ watch([selectedModel, () => data.value.duration], ([choice]) => {
   if (choice.audio !== "optional") data.value.generateAudio = choice.audio === true;
 }, { flush: "sync" });
 watch(() => data.value.model, (current, previous) => {
-  if (previous && current !== previous) {
+  if (previous && current !== previous && migrateLegacyH3Model(previous) !== current) {
     data.value.loraName = undefined;
     data.value.manualAccelerationLoras = undefined;
     data.value.checkpointName = undefined;
@@ -571,15 +571,32 @@ async function replaceOutput(event: Event) {
   }
 }
 
+const unifiedH3WorkflowId = "video/h3_ref2va_dual";
+function migrateLegacyH3Model(value: string): string {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed) || parsed.length !== 2 || parsed[0] !== "comfyui") return value;
+    if (typeof parsed[1] === "string" &&
+      /^(?:video\/h3_erca_(?:16x9|9x16)(?:_autodl)?|video\/h3_ref2va_1080p)$/.test(parsed[1])) {
+      return JSON.stringify(["comfyui", unifiedH3WorkflowId]);
+    }
+  } catch { /* Malformed legacy value remains visible until the user selects a valid workflow. */ }
+  return value;
+}
 function loadModels() {
   if (modelsRequest) return modelsRequest;
   modelsLoading.value = true;
   modelsRequest = ai.getMediaModels().then((items) => {
     if (disposed || generating.value || deleting.value) return;
     models.value = items.filter((item) => item.type === "video");
-    // ACT: 只给空配置选默认模型，保留暂时不可用的旧选择及其参数。
+    // Deleted H3 workflow IDs migrate only for saved canvases; retain explicit settings.
+    const migrated = migrateLegacyH3Model(data.value.model);
+    if (migrated !== data.value.model && models.value.some(item => JSON.stringify([item.providerId,item.modelId]) === migrated)) {
+      data.value.model = migrated;
+    }
     if (!data.value.model) {
-      const first = models.value[0];
+      const preferred = models.value.find(item => item.providerId === "comfyui" && item.modelId === unifiedH3WorkflowId);
+      const first = preferred ?? models.value[0];
       data.value.model = first ? JSON.stringify([first.providerId, first.modelId]) : "";
     }
   }).finally(() => {

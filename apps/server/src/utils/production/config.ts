@@ -59,7 +59,7 @@ const defaults: ProductionConfig = {
   imageEditWorkflow: "image/flux3KleinDistilledEdit",
   disabledWorkflowIds: [],
   videoProviderId: "comfyui",
-  videoWorkflow: "video/h3_ref2va_1080p",
+  videoWorkflow: "video/h3_ref2va_dual",
   autodlBaseUrl: "https://www.autodl.art",
   autodlToken: "",
   autodlInstanceUuid: "",
@@ -75,6 +75,12 @@ const defaults: ProductionConfig = {
   imageAdvanceMode: "semi",
 };
 
+/** Deleted H3 workflow IDs remain aliases for saved canvas/task metadata, not visible catalog entries. */
+export const unifiedH3WorkflowId = "video/h3_ref2va_dual";
+export function canonicalVideoWorkflowId(id: string): string {
+  return /^(?:video\/h3_erca_(?:16x9|9x16)(?:_autodl)?|video\/h3_ref2va_1080p)$/.test(id)
+    ? unifiedH3WorkflowId : id;
+}
 function text(value: unknown, fallback: string) {
   return typeof value === "string" ? value.trim() : fallback;
 }
@@ -120,7 +126,7 @@ export function readProduction(): ProductionConfig {
     imageEditWorkflow: text(source.imageEditWorkflow, "") || defaults.imageEditWorkflow,
     disabledWorkflowIds: workflowIdList(source.disabledWorkflowIds),
     videoProviderId: source.videoProviderId === "videoModel" ? "videoModel" : "comfyui",
-    videoWorkflow: text(source.videoWorkflow, "") || defaults.videoWorkflow,
+    videoWorkflow: canonicalVideoWorkflowId(text(source.videoWorkflow, "") || defaults.videoWorkflow),
     autodlBaseUrl: text(source.autodlBaseUrl, defaults.autodlBaseUrl) || defaults.autodlBaseUrl,
     autodlToken: text(source.autodlToken, ""),
     autodlInstanceUuid: text(source.autodlInstanceUuid, ""),

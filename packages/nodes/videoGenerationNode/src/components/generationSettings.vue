@@ -63,8 +63,8 @@
       <div v-if="model?.lora" class="loraSelect">
         <template v-if="model.checkpoint">
           <div class="sectionLabel">使用模型</div>
-          <el-select v-model="selectedCheckpoint" :disabled="disabled" :append-to="settingsHost" filterable aria-label="选择 H3 视频模型权重">
-            <el-option :label="`默认 · ${model.checkpoint.defaultName.split(/[\\/]/).at(-1)}`" value="__workflow_checkpoint__" />
+          <el-select v-model="selectedCheckpoint" :disabled="disabled" :append-to="settingsHost" filterable placeholder="请选择已安装的 H3 主模型" aria-label="选择 H3 视频模型权重">
+            <el-option v-if="model.checkpoint.defaultName" :label="`默认 · ${model.checkpoint.defaultName.split(/[\\/]/).at(-1)}`" value="__workflow_checkpoint__" />
             <el-option v-for="name in checkpointOptions" :key="name" :value="name" :label="name" />
           </el-select>
         </template>
@@ -247,13 +247,13 @@ const manualAccelerationLoras = defineModel<string[] | undefined>("manualAcceler
 const addingAccelerationLora = ref(false);
 const manualAccelerationNotice = ref("");
 const selectedCheckpoint = computed({
-  get: () => checkpointName.value ?? "__workflow_checkpoint__",
-  set: (value: string) => { checkpointName.value = value === "__workflow_checkpoint__" ? undefined : value; },
+  get: () => checkpointName.value ?? (props.model?.checkpoint?.defaultName ? "__workflow_checkpoint__" : ""),
+  set: (value: string) => { checkpointName.value = value === "__workflow_checkpoint__" || value === "" ? undefined : value; },
 });
 const checkpointOptions = computed(() => [...new Set([...(props.checkpointChoices ?? []), checkpointName.value])]
   .filter((name): name is string => !!name).sort((a, b) => a.localeCompare(b)));
 const selectedLora = computed({
-  get: () => loraName.value === "" ? "__lora_disabled__" : (loraName.value ?? props.model?.lora?.defaultName ?? ""),
+  get: () => !loraName.value && !props.model?.lora?.defaultName ? "__lora_disabled__" : loraName.value === "" ? "__lora_disabled__" : (loraName.value ?? props.model?.lora?.defaultName ?? ""),
   set: (value: string) => {
     if (value !== "__lora_disabled__" && extraLoras.value.some(item => normalized(item.name) === normalized(value))) { presetHint.value = "该 LoRA 已作为附加项，请先删除重复项。"; return; }
     loraName.value = value === "__lora_disabled__" ? "" : value;

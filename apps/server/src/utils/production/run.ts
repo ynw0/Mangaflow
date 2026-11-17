@@ -255,6 +255,9 @@ export async function prepareComfyWorkflow(options: {
   if (request.outputFirstPass === true && !entry.bindings.firstPassOutputNode) fail(`${entry.label} 不支持输出一采视频`);
   if (mediaType === "video" && request.generateAudio === true && !entry.hasVideoAudio) fail(`${entry.label} 没有可用的输出音轨`);
   if (request.loraName !== undefined && !entry.bindings.optionalLoraNode) fail(`${entry.label} 不支持自选 LoRA`);
+  if (entry.id === "video/h3_ref2va_dual" && !request.checkpointName) {
+    fail("统一 H3 双采未预设主模型。请刷新 ComfyUI 模型列表并明确选择已安装的 H3 主模型。");
+  }
   if (request.checkpointName !== undefined && (!entry.checkpoint || !isH3CheckpointName(request.checkpointName))) {
     fail(`${entry.label} 仅允许选择受支持的 H3 视频模型文件，请重新读取模型列表`);
   }

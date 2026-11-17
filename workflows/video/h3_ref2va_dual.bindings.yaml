@@ -1,11 +1,10 @@
-workflow: ./h3_erca_9x16_api.json
+workflow: ./h3_ref2va_dual_api.json
 prompt_format: h3Ref2va
 first_pass_output: 126
 optional_lora_node: 21
-usage: 竖屏 9:16 的 H3 二次采样成片。参考关系和动作按 H3 Ref2VA 写，构图保留竖屏内必要接触点。
-label: 二采 MiniMax H3 9:16
-# 二采 MiniMax H3（9:16）：9 槽参考图 + 视频/音频；duration 经 PrimitiveFloat 注入（官方输出秒 4–15）。
-# H3 节点支持 ref_image_0..8（9 槽）；节点 id 与旧 h3_erca 对齐。
+label: MiniMax H3 Ref2VA 双采（比例可选）
+usage: 统一的本机/AutoDL H3 Ref2VA 二采工作流；可选9张参考图、1路参考视频、3路参考音频。主模型必须明确选择；加速LoRA默认关闭。可配置比例和采样参数。
+version: 4
 capabilities:
   duration_seconds:
     min: 4
@@ -32,7 +31,6 @@ bindings:
   target: 151.inputs.value
   kind: value
   required: false
-# 一采写入节点 150，二采写入节点 148。总步数仍由节点 149 的 a+b 计算。
 - source: first_pass_steps
   target: 150.inputs.value
   kind: value
@@ -44,6 +42,7 @@ bindings:
 - source: refs.slot1
   target: 24.inputs.image
   kind: image
+  required: false
 - source: refs.slot2
   target: 15.inputs.image
   kind: image

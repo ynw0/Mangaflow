@@ -40,6 +40,11 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     expect(result.primaryLora).toContain(preferred4StepLora);
     expect(result.extraLoras).toHaveLength(1);
   });
+  test("LightX2V 4步使用 Euler，缺少 Euler 时禁用预设", () => {
+    const present={installedLoras:["minimax/"+preferred4StepLora,...input().installedLoras]};
+    expect(success("preview4",present).sampler).toBe("euler");
+    expect(createH3PresetPlan("preview4",input({...present,eulerAvailable:false})).ok).toBe(false);
+  });
   test("快速8步同时支持4+4和6+2，不误选3step", () => {
     const a=success("quick44"), b=success("quick62");
     expect([a.firstPassSteps,a.secondPassSteps]).toEqual([4,4]);

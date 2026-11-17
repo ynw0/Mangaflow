@@ -30,6 +30,7 @@ export const h3SamplingStrategyInput = z.strictObject({
   extraLoras: z.array(extraSchema).max(3).optional(),
   primaryStrength: z.number().min(0.01).max(2).optional(),
   samplerChoices: z.array(z.string().min(1).max(128)).max(500),
+  samplerPreference: z.string().regex(/^[a-zA-Z0-9_.-]{1,128}$/).optional().describe("若有官方或实际已验证的采样器配置，请传入；未确认时不要猜测"),
   schedulerChoices: z.array(z.string().min(1).max(128)).max(100),
   maxExtraLoras: z.number().int().min(0).max(3).optional().default(3),
   compatibilityConfirmed: z.boolean().default(false).describe("仅在已有成功的同主模型+LoRA+工作流试片或可靠配置证据时设为 true；不能根据文件名推测"),
@@ -119,7 +120,13 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
       status = "experimental";
       warning = "4 步仅用于低步数快速试镜；主模型与 LoRA 仍需实机验证，不能直接作为正式成片。";
     }
-    sampler = chooseSampler(["euler"]);
+    // LightX2V ComfyUI Ref2V 用 Euler；Pika/其他8step 保留其验证过的采样器，否则优先当前双采默认 res_multistep。
+    if (input.samplerPreference && !input.samplerChoices.includes(input.samplerPreference)) {
+      return blocked("指定的采样器未在 ComfyUI 可选列表中，不能强行应用。");
+    }
+    sampler = input.samplerPreference ?? (basename(loraName).startsWith("minimax_h3_ref2v_turbo_")
+      ? chooseSampler(["euler"])
+      : chooseSampler(["res_multistep", "euler"]));
     totalSteps = targetSteps;
     firstPassSteps = desired === "quick62" ? 6 : targetSteps === 4 ? 2 : 4;
     secondPassSteps = totalSteps - firstPassSteps;

@@ -50,6 +50,17 @@ describe("H3 智能采样策略",()=>{
     expect(p.setConfig?.h3Options.extraLoras).toEqual([{name:"style/cinema.safetensors",strength:0.8}]);
     expect(h3SamplingStrategyInput.safeParse({...get(),qualitySteps:41}).success).toBe(false);
   });
+  test("不同加速LoRA不强制用同一采样器",()=>{
+    const p=plan({intent:"quick44",phase:"normal",compatibilityConfirmed:true,
+      loraChoices:["PikaHD8step.safetensors"]});
+    expect(p.setConfig?.h3Options.sampler).toBe("res_multistep");
+    const alt=plan({intent:"quick44",phase:"normal",compatibilityConfirmed:true,
+      loraChoices:["PikaHD8step.safetensors"],samplerPreference:"euler"});
+    expect(alt.setConfig?.h3Options.sampler).toBe("euler");
+    const unavailable=plan({intent:"quick44",phase:"normal",compatibilityConfirmed:true,
+      loraChoices:["PikaHD8step.safetensors"],samplerPreference:"lcm"});
+    expect(unavailable.status).toBe("blocked");
+  });
   test("原主槽为风格LoRA时不丢失",()=>{
     const p=plan({intent:"quality",selectedLora:"style/cinema.safetensors",primaryStrength:0.55,extraLoras:[]});
     expect(p.setConfig?.h3Options.extraLoras).toEqual([{name:"style/cinema.safetensors",strength:0.55}]);

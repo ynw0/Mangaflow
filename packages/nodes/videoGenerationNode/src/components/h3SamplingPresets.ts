@@ -91,6 +91,11 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
     }
     primaryLora = candidate.name;
     primaryStrength = 1;
+    const lightxRef = basename(candidate.name).startsWith("minimax_h3_ref2v_turbo_");
+    if (lightxRef) {
+      if (!input.eulerAvailable) return { ok: false, reason: "LightX2V Ref2V Turbo 需要 Euler 采样器，请刷新 ComfyUI 选项。" };
+      sampler = "euler";
+    }
     firstPassSteps = preset === "preview4" ? 2 : preset === "quick62" ? 6 : 4;
     secondPassSteps = preset === "preview4" ? 2 : preset === "quick62" ? 2 : 4;
     hint = "已选择 " + firstPassSteps + "+" + secondPassSteps + "，关闭其它加速 LoRA，保留普通 LoRA。";

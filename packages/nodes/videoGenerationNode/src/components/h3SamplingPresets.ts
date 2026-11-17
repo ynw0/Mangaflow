@@ -89,7 +89,7 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
     secondPassSteps = preset === "preview4" ? 2 : preset === "quick62" ? 2 : 4;
     hint = "已选择 " + firstPassSteps + "+" + secondPassSteps + "，关闭其它加速 LoRA，保留普通 LoRA。";
     if (declaredAccelerationSteps(candidate.name) === undefined) {
-      hint += " 此 LoRA 未声明适用步数，可能需要专用节点或调度器；手动标记不代表兼容，必须验证。";
+      hint += " 此 LoRA 未声明适用步数，可能需要专用节点或调度器；手动标记不代表兼容，需要验证。";
     } else if (target === 4 && declaredAccelerationSteps(candidate.name) === 3) {
       hint += " 3step LoRA 用于 4 步属于试验配置，请核对实际效果。";
     }

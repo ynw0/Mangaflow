@@ -93,9 +93,9 @@
             <el-option v-for="name in checkpointOptions" :key="name" :value="name" :label="name" />
           </el-select>
         </template>
-        <div class="sectionLabel">主 LoRA（加速或其它用途）</div>
+        <div class="sectionLabel">加速 LoRA（普通风格 LoRA 请放在附加列表）</div>
         <el-select v-model="selectedLora" :disabled="disabled" :append-to="settingsHost" filterable aria-label="选择 LoRA 或关闭">
-          <el-option label="关闭 LoRA（基础模型）" value="__lora_disabled__" />
+          <el-option label="关闭加速 LoRA" value="__lora_disabled__" />
           <el-option v-for="name in loraOptions" :key="name" :value="name" :label="name" />
         </el-select>
         <el-button text size="small" :disabled="disabled || loraLoading" :loading="loraLoading" @click="emit('refreshComfyChoices')">{{ model.checkpoint ? '刷新模型与 LoRA' : '刷新 LoRA' }}</el-button>
@@ -103,7 +103,7 @@
         <div v-if="model.h3Advanced" class="h3Advanced">
           <div class="sectionLabel">高级采样与附加 LoRA</div>
           <div v-if="selectedLora !== '__lora_disabled__'" class="h3AdvancedRow">
-            <span>主 LoRA 强度</span>
+            <span>加速 LoRA 强度</span>
             <el-input-number :model-value="h3Options?.loraStrength ?? model.h3Advanced.loraStrength" :disabled="disabled" :min="0.01" :max="2" :step="0.05" :precision="2" controls-position="right" @update:model-value="value => patchAdvanced('loraStrength', value)" />
           </div>
           <div class="sectionLabel">附加 LoRA（从上往下加载，最多 3 个）</div>
@@ -141,12 +141,15 @@
           </div>
           <div class="sizeHint" v-if="advancedError">{{ advancedError }}</div>
           <div class="sectionLabel">实验性采样预设（不换主模型）</div>
-          <el-button size="small" :disabled="disabled || isTurboCheckpoint" @click="applyPreset('normal')">普通 25步（关闭全部 LoRA）</el-button>
-          <el-button size="small" :disabled="disabled || !pikaHdName || isTurboCheckpoint" @click="applyPreset('pika')">Pika HD 8步（保留附加 LoRA）</el-button>
-          <el-button size="small" :disabled="disabled || !isTurboCheckpoint || !samplerChoices?.includes('euler')" @click="applyPreset('turbo')">已融合 Turbo 8步（关闭全部 LoRA）</el-button>
-          <div class="sizeHint">{{presetHint}}</div>
-          <el-button text size="small" :disabled="disabled" @click="h3Options = undefined">恢复高级参数默认（不改模型/步数/主 LoRA）</el-button>
-          <div class="sizeHint">总步数 {{ (firstPassSteps ?? 0)+(secondPassSteps ?? 0) }}；一二采共用同一套采样序列。预设需确认主模型兼容，不自动叠加蒸馏 LoRA。</div>
+          <el-button size="small" :disabled="disabled || !presetPlans.normal.ok" @click="applyPreset('normal')">普通高质量 25步（20+5，仅关闭加速 LoRA）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.preview4.ok" @click="applyPreset('preview4')">极速样片 4步（2+2）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.quick44.ok" @click="applyPreset('quick44')">快速 8步（4+4，加速 LoRA）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.quick62.ok" @click="applyPreset('quick62')">快速 8步（6+2，加速 LoRA）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.fused8.ok" @click="applyPreset('fused8')">已融合 Turbo 8步（4+4，仅关闭加速 LoRA）</el-button>
+          <div class="sizeHint">{{ presetHint }}</div>
+          <div v-if="presetAvailabilityHint" class="sizeHint">{{ presetAvailabilityHint }}</div>
+          <el-button text size="small" :disabled="disabled" @click="h3Options = undefined">恢复高级参数默认（不改模型/步数/加速 LoRA）</el-button>
+          <div class="sizeHint">总步数 {{ (firstPassSteps ?? 0)+(secondPassSteps ?? 0) }}；一二采共用同一套采样序列。预设按文件名筛选加速 LoRA，实际兼容性需验证。</div>
         </div>
         <div class="sizeHint">选择其他 LoRA 前请确认与 H3 基础模型兼容。</div>
       </div>
@@ -224,6 +227,7 @@ import { computed, ref } from "vue";
 import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch, ElInputNumber } from "element-plus";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import type { H3Options, NodeMediaModel, NodeVideoRequest } from "@toonflow/nodes-scaffold/runtime";
+import { createH3PresetPlan, isAccelerationLora, type H3SamplingPreset } from "./h3SamplingPresets";
 
 const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number; loraChoices?: string[]; checkpointChoices?: string[]; samplerChoices?: string[]; schedulerChoices?: string[]; advancedError?: string; loraLoading?: boolean; loraError?: string; qcChoices?: {id:string;label:string;video:boolean;audio:boolean}[]; qcDefaults?: {qcMethod:string;qcLevel:string;qcTrigger:string;videoQcModelId:string;audioQcModelId:string;gemmaQcHost:string}; qcError?: string; qcLoading?: boolean }>();
 const emit = defineEmits<{ refreshComfyChoices: []; refreshQcChoices: [] }>();
@@ -266,8 +270,10 @@ const loraOptions = computed(() => [...new Set([
   props.model?.lora?.defaultName,
   ...(props.loraChoices ?? []),
   loraName.value,
-].filter((name): name is string => Boolean(name)))].sort((a, b) => a.localeCompare(b)));
-const presetHint = ref("预设为初始实验配置，不是画质保证。");
+].filter((name): name is string => Boolean(name)))]
+  .filter(name => isAccelerationLora(name) || normalized(name) === normalized(selectedLora.value))
+  .sort((a, b) => a.localeCompare(b)));
+const presetHint = ref("预设仅改变采样参数和加速 LoRA；普通附加 LoRA 将保留。");
 const normalized = (name: string) => name.replaceAll("\\","/");
 const extraLoras = computed(() => h3Options.value?.extraLoras ?? []);
 const samplerOptions = computed(() => [...new Set([...(props.samplerChoices ?? []),h3Options.value?.sampler])].filter((x):x is string => !!x));
@@ -299,22 +305,41 @@ function moveExtra(index:number, direction:number) {
   if (other<0 || other>=items.length || !items[index] || !items[other]) return;
   [items[index],items[other]]=[items[other]!,items[index]!]; patchAdvanced("extraLoras",items);
 }
-const pikaHdName=computed(() => {
-  const matches=(props.loraChoices ?? []).filter(name=>normalized(name).split("/").at(-1)?.toLowerCase()==="pika_h3_flex_turbo_8step_hd_ref2va.safetensors");
-  return matches.length===1 ? matches[0] : undefined;
+const isTurboCheckpoint = computed(() => /turbo/i.test(normalized(checkpointName.value ?? props.model?.checkpoint?.defaultName ?? "").split("/").at(-1) ?? ""));
+const presetInput = computed(() => ({
+  installedLoras: props.loraChoices ?? [],
+  primaryLora: selectedLora.value === "__lora_disabled__" ? "" : selectedLora.value,
+  primaryStrength: h3Options.value?.loraStrength ?? props.model?.h3Advanced?.loraStrength ?? 1,
+  extraLoras: extraLoras.value,
+  maxExtraLoras: props.model?.h3Advanced?.maxExtraLoras ?? 3,
+  turboCheckpoint: isTurboCheckpoint.value,
+  eulerAvailable: props.samplerChoices?.includes("euler") ?? false,
+}));
+const presetPlans = computed(() => ({
+  normal: createH3PresetPlan("normal", presetInput.value),
+  preview4: createH3PresetPlan("preview4", presetInput.value),
+  quick44: createH3PresetPlan("quick44", presetInput.value),
+  quick62: createH3PresetPlan("quick62", presetInput.value),
+  fused8: createH3PresetPlan("fused8", presetInput.value),
+}));
+const presetAvailabilityHint = computed(() => {
+  if (props.loraLoading || props.loraError || isTurboCheckpoint.value) return "";
+  const quick = presetPlans.value.quick44;
+  return quick.ok ? "" : quick.reason;
 });
-const isTurboCheckpoint=computed(() => /turbo/i.test(normalized(checkpointName.value ?? props.model?.checkpoint?.defaultName ?? "").split("/").at(-1) ?? ""));
-function applyPreset(preset:"normal"|"pika"|"turbo") {
+function applyPreset(preset: H3SamplingPreset) {
   if (!props.model?.h3Advanced) return;
-  if (preset==="normal" && isTurboCheckpoint.value) { presetHint.value="普通25步预设需要普通主模型。"; return; }
-  if (preset==="pika" && (!pikaHdName.value || isTurboCheckpoint.value || extraLoras.value.some(item=>normalized(item.name)===normalized(pikaHdName.value!)))) { presetHint.value="请选择普通主模型，且 Pika HD 不得已经在附加列表中。"; return; }
-  if (preset==="turbo" && (!isTurboCheckpoint.value || !props.samplerChoices?.includes("euler"))) { presetHint.value="请先选已融合 Turbo 模型并刷新采样器列表。"; return; }
-  loraName.value=preset==="pika"?pikaHdName.value:"";
-  firstPassSteps.value=preset==="normal"?20:6;
-  secondPassSteps.value=preset==="normal"?5:2;
-  h3Options.value={sampler:preset==="turbo"?"euler":"res_multistep",scheduler:"simple",videoShift:12,audioShift:3,
-    ...(preset==="pika"?{loraStrength:1,extraLoras:extraLoras.value}:{})};
-  presetHint.value="已应用实验预设，请检查模型/LoRA 兼容后生成。";
+  const plan = presetPlans.value[preset];
+  if (!plan.ok) { presetHint.value = plan.reason; return; }
+  loraName.value = plan.primaryLora;
+  firstPassSteps.value = plan.firstPassSteps;
+  secondPassSteps.value = plan.secondPassSteps;
+  h3Options.value = {
+    sampler: plan.sampler, scheduler: "simple", videoShift: 12, audioShift: 3,
+    ...(plan.primaryStrength === undefined ? {} : { loraStrength: plan.primaryStrength }),
+    ...(plan.extraLoras.length ? { extraLoras: plan.extraLoras } : {}),
+  };
+  presetHint.value = plan.hint;
 }
 const ratio = defineModel<string>("ratio", { required: true });
 const mode = defineModel<string>("mode", { required: true });

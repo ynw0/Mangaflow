@@ -28,6 +28,7 @@ import { createVideoTemplateSearchTool } from "@/agent/videoPrompt/templates";
 import { createMemoryTool } from "@/agent/tools/memory";
 import { createReportTool } from "@/agent/tools/report";
 import { runDelegatedAgent } from "@/agent/runtime/delegation";
+import { continueGoalUntilFinished } from "@/agent/runtime/goalContinuation";
 import {
   agentAttachmentsSchema, getActiveAgentSession, getAgentStats, getParentSessionFile, getSubAgentInfo,
   getToolResultText, goalContinueMark, registerAgentSession, updateSubAgent,
@@ -40,7 +41,6 @@ import { decodeTextFile } from "@/lib/documentFormats";
 
 const goalContinuePrompt = `${goalContinueMark}
 目标还没完成。不要提问，也不要停在汇报、排队或等别人安排下一步。按已有信息自己决定，继续做这条目标里还没做完的事，包括目标写明要生成的成片。全部做完，或只剩同一处连续两次仍失败的部分，再调用 completeGoal。`;
-const goalRoundLimit = 8;
 const compactionReserveTokens = 16384;
 
 function compactionTrigger(contextWindow: number) {
@@ -525,17 +525,17 @@ export async function run(
         : mentionPrompt(prompt, mentions);
       // SDK 仅以空格分隔技能名；兼容换行输入与追加的附件说明。
       await promptSession(content.replace(/^(\/skill:\S+)\s+/, "$1 "));
-      // ACT: 目标模式最多再续跑 8 轮。模型停笔但没调用 completeGoal 就继续；上限到了停下来说明。
-      if (goal && !child && !modelError && !compactionError) {
-        for (let round = 0; round < goalRoundLimit && !goalDone; round += 1) {
-          signal?.throwIfAborted();
-          if (goalDone || signal?.aborted || modelError || compactionError) break;
-          await promptSession(goalContinuePrompt, false);
-          if (modelError || compactionError) break;
-        }
-        if (!goalDone && !signal?.aborted && !modelError && !compactionError) {
-          send({ type: "text", blockId: "goal-limit", content: "目标还没完成，这一轮续跑已到上限。可以再发一次目标继续。", done: true });
-        }
+      // ACT: 目标模式不设固定续跑轮次。每轮复用同一会话并正常压缩上下文；
+      // 仅目标完成、用户主动停止、模型错误或上下文压缩错误时结束。
+      if (goal && !child) {
+        await continueGoalUntilFinished({
+          isComplete: () => goalDone,
+          isStopped: () => Boolean(signal?.aborted || modelError || compactionError),
+          continueOnce: async () => {
+            signal?.throwIfAborted();
+            await promptSession(goalContinuePrompt, false);
+          },
+        });
       }
       if (compactionError) throw new Error(compactionError);
       if (modelError) throw Object.assign(new Error(modelError), limited ? { code: "AGENT_LENGTH" } : {});

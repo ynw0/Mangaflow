@@ -127,7 +127,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
         previousCut = at;
       }
     }
-    if (shotMarkers.length > 1 && /(?:单一连续镜头|全程不切镜|禁止切镜|one continuous shot|single continuous take|no cuts)/i.test(
+    if (shotMarkers.length > 1 && /(?:单一连续镜头|单镜头|单一镜头|一镜到底|全程不切镜|禁止切镜|one continuous shot|single continuous take|single shot|one shot|no cuts)/i.test(
       [prepared.shot.story,...prepared.shot.mustHave,...prepared.shot.mustNotHave].join(" ")))
       findings.push("用户明确要求单镜到底，但正文包含多个镜头；需保持一个 [Shot 1]。");
   }

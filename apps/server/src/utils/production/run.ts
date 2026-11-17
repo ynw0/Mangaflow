@@ -274,7 +274,7 @@ export async function prepareComfyWorkflow(options: {
   refs.last_frame = await localFile(directory, request.lastFrame) ?? (images.length > 1 ? await localFile(directory, images[1]) : undefined);
   const ratio = request.ratio?.trim() ?? "";
   const bound = new Set(entry.bindings.bindings.map(item => item.source));
-  // 用户没指定采样时：一采 8 步、二采 4 步、百万像素 0.2、放大 2。工作流没绑的项不写。
+  // 用户没指定采样时：一采 4 步、二采 4 步、百万像素 0.2、放大 2。工作流没绑的项不写。
   const sampling = (source: string, given: number | undefined, fallback: number) => bound.has(source) ? given ?? fallback : undefined;
   const context = {
     prompt: request.prompt,
@@ -286,7 +286,7 @@ export async function prepareComfyWorkflow(options: {
     aspect_ratio: videoAspect[ratio],
     megapixels: sampling("megapixels", request.megapixels, 0.2),
     upscale: sampling("upscale", request.upscale, 2),
-    first_pass_steps: sampling("first_pass_steps", request.firstPassSteps, 8),
+    first_pass_steps: sampling("first_pass_steps", request.firstPassSteps, 4),
     second_pass_steps: sampling("second_pass_steps", request.secondPassSteps, 4),
     output_first_pass: request.outputFirstPass === true,
     generate_audio: mediaType === "video" && entry.hasVideoAudio === true && request.generateAudio !== false,

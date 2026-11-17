@@ -238,11 +238,11 @@ function samplingFor(entry: WorkflowEntry) {
     upscaleMax: 4,
     upscaleStep: 0.05,
     upscaleDefault: 2,
-    // 范围与生成请求校验一致。用户没指定时固定一采 8、二采 4，不跟工作流 JSON 里的旧步数。
+    // 统一 H3 双采未指定时默认一采 4、二采 4，避免与工作流 JSON 默认值不一致。
     ...(steps ? {
       firstPassMin: 1,
       firstPassMax: 64,
-      firstPassDefault: 8,
+      firstPassDefault: 4,
       secondPassMin: 1,
       secondPassMax: 64,
       secondPassDefault: 4,

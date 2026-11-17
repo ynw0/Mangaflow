@@ -225,7 +225,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     });
     expect(result.status).toBe("review");
     const notes = result.warnings.join(" ");
-    expect(notes).toContain("不得作为单个 H3");
+    expect(notes).toContain("允许切镜");
     expect(notes).toContain("至少按15s");
     expect(notes).toContain("颜艺");
     expect(notes).toContain("严肃基调");

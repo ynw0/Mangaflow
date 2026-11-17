@@ -25,6 +25,17 @@ describe("H3 智能采样策略",()=>{
     expect(p.totalSteps).toBe(25);
     expect(p.setConfig?.loraName).toBe("");
   });
+  test("未安装8步时自动模式保守回退25步，不改用低步数样片",()=>{
+    const p=plan({phase:"normal",loraChoices:["TaoMate-3step.safetensors"]});
+    expect([p.status,p.preset,p.totalSteps,p.setConfig?.loraName]).toEqual(["ready","quality",25,""]);
+  });
+  test("已验证兼容的多版本8步优先选择 LightX2V v1.1",()=>{
+    const p=plan({phase:"normal",compatibilityConfirmed:true,loraChoices:[
+      "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
+      "minimax_h3_ref2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors"]});
+    expect(p.status).toBe("ready");
+    expect(p.setConfig?.loraName).toContain("v1.1");
+  });
   test("经兼容验证的8步4+4、6+2",()=>{
     const a=plan({phase:"normal",compatibilityConfirmed:true});
     const b=plan({phase:"motion",compatibilityConfirmed:true});

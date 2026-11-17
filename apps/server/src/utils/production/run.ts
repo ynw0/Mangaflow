@@ -1,6 +1,6 @@
 // 按所选工作流把提示词和参考绑进 ComfyUI API JSON，再提交并取回文件。
 import { readFile } from "@toonflow/file";
-import type { MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
+import type { H3Options, MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import { resolveComfyTarget, resolveRecordedComfyBaseUrl, type TrackedVideoExecution } from "@/utils/production/autodl";
 import { downloadOutput, probeComfy, readNodeChoices, submitWorkflow, uploadInput, waitForOutput } from "@/utils/production/comfyui";
 import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
@@ -8,6 +8,7 @@ import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/p
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { captureVideoReview, requireVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
 import { findH3Checkpoint, isH3CheckpointName, validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
+import { applyH3Options, effectiveH3Options } from "@/utils/production/h3Advanced";
 import { checkMediaBudget, reserveMediaBudget } from "@/utils/media/budget";
 
 type MediaRef = { path: string; mimeType?: string };
@@ -215,7 +216,10 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
     // 先组装本地实际请求，审核通过之前不上传素材或连接 GPU 主机。
     writePath(workflow, binding.target, value);
   }
+  const advanced = context.h3_options as H3Options | undefined;
+  const lockedLoraNodes = advanced !== undefined ? applyH3Options(workflow, entry.bindings, advanced, context.lora_name as string | undefined) : [];
   if (entry.bindings.optionalLoraNode) {
+    if (typeof context.lora_name === "string" && context.lora_name && context.lora_name !== entry.loraDefaultName) lockedLoraNodes.unshift(entry.bindings.optionalLoraNode);
     selectWorkflowLora(workflow, entry.bindings.optionalLoraNode, context.lora_name);
   }
   if (typeof context.checkpoint_name === "string") {
@@ -231,7 +235,7 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
   }
   const outputs = terminalNodeIds(workflow);
   if (!outputs.length) fail(dropped.length ? `工作流 ${entry.label} 没有输出节点。${dropped.join("；")}` : `工作流 ${entry.label} 没有输出节点`);
-  return workflow;
+  return { workflow, lockedLoraNodes };
 }
 
 export async function prepareComfyWorkflow(options: {
@@ -254,6 +258,7 @@ export async function prepareComfyWorkflow(options: {
   if (request.checkpointName !== undefined && (!entry.checkpoint || !isH3CheckpointName(request.checkpointName))) {
     fail(`${entry.label} 仅允许选择受支持的 H3 视频模型文件，请重新读取模型列表`);
   }
+  if (request.h3Options !== undefined && (mediaType !== "video" || !entry.h3Advanced)) fail("当前工作流不支持 H3 高级设置");
   const images = request.images ?? [];
   const { min, max: referenceSlots } = imageReferenceRange(entry);
   if (mediaType === "image" && images.length < min) fail(`${entry.label} 至少需要 ${min} 张参考图片`);
@@ -284,6 +289,7 @@ export async function prepareComfyWorkflow(options: {
     generate_audio: mediaType === "video" && entry.hasVideoAudio === true && request.generateAudio !== false,
     lora_name: request.loraName,
     checkpoint_name: request.checkpointName,
+    h3_options: request.h3Options,
     params: mediaType === "video" ? pair(videoNative, ratio) : pixels(request.size, request.ratio),
     delivery: pair(videoDelivery, ratio),
     refs,
@@ -296,7 +302,7 @@ export async function prepareComfyWorkflow(options: {
   };
   const seedMode = request.seedMode ?? (request.seed === undefined ? "random" : "fixed");
   if (bound.has("seed") && seedMode !== "random" && request.seed === undefined) fail("固定种子模式需要提供具体种子");
-  const workflow = await renderWorkflow(entry, context);
+  const { workflow, lockedLoraNodes } = await renderWorkflow(entry, context);
   const reviewWorkflow = structuredClone(workflow);
   for (const binding of entry.bindings.bindings) {
     if (seedMode === "random" && binding.source === "seed") writePath(reviewWorkflow, binding.target, "randomSeed");
@@ -304,7 +310,7 @@ export async function prepareComfyWorkflow(options: {
     if (binding.source === "prompt" || binding.source === "image_prompt") writePath(reviewWorkflow, binding.target, "approvedPrompt");
   }
   const inputs = entry.bindings.bindings.map(binding => ({ ...binding, value: readPath(reviewWorkflow, binding.target) }));
-  return { entry, workflow, reviewWorkflow, inputs, context, host, seedMode };
+  return { entry, workflow, reviewWorkflow, inputs, context, host, seedMode, lockedLoraNodes };
 }
 
 export type PreparedComfyWorkflow = Awaited<ReturnType<typeof prepareComfyWorkflow>>;
@@ -330,7 +336,7 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     return { files, execution: options.resume };
   }
   const prepared = await prepareComfyWorkflow(options);
-  const { entry, workflow, context, host } = prepared;
+  const { entry, workflow, context, host, lockedLoraNodes } = prepared;
   // 自动化先验审再启动主机；人工仍使用同一工作流和额度校验。
   const snapshot = mediaType === "video" && entry.bindings.promptFormat && !options.manual
     ? await captureVideoReview(directory, prepared, signal) : undefined;
@@ -348,13 +354,21 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     const names = await readNodeChoices(baseUrl, "UNETLoader", "unet_name", signal);
     if (!names.includes(request.checkpointName)) fail("当前 ComfyUI 实例未安装所选视频模型，请刷新模型列表");
   }
-  // 非默认的用户自选 LoRA 必须确实存在于当前 ComfyUI 主机；不静默改成其他文件。
-  if (entry.bindings.optionalLoraNode && request.loraName
-      && request.loraName !== entry.loraDefaultName) {
+  // 明确选择的完整文件名禁止替换。
+  if (lockedLoraNodes.length) {
     const names = await readNodeChoices(baseUrl, "LoraLoaderModelOnly", "lora_name", signal);
-    if (!names.includes(request.loraName)) {
-      fail("当前 ComfyUI 未安装所选 LoRA，请刷新画布节点的 LoRA 列表或改为关闭 LoRA");
+    for (const id of lockedLoraNodes) {
+      const name = (workflow[id] as { inputs: { lora_name: string } }).inputs.lora_name;
+      if (!names.includes(name)) fail(`当前 ComfyUI 未安装所选 LoRA：${name}，请刷新画布模型列表`);
     }
+  }
+  if (request.h3Options?.sampler !== undefined) {
+    const names = await readNodeChoices(baseUrl, "KSamplerSelect", "sampler_name", signal);
+    if (!names.includes(request.h3Options.sampler)) fail("当前 ComfyUI 不支持所选采样器");
+  }
+  if (request.h3Options?.scheduler !== undefined) {
+    const names = await readNodeChoices(baseUrl, "BasicScheduler", "scheduler", signal);
+    if (!names.includes(request.h3Options.scheduler)) fail("当前 ComfyUI 不支持所选调度器");
   }
   const uploadDirectory = `toonflow/${crypto.randomUUID()}`;
   for (const [index, binding] of entry.bindings.bindings.entries()) {
@@ -375,8 +389,13 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   const promptId = await submitWorkflow(baseUrl, workflow, signal, {
     clientId: request.generationId,
     lockedCheckpointNode: request.checkpointName ? entry.checkpoint?.nodeId : undefined,
-    onSubmitting: () => reserveMediaBudget(directory, mediaType, duration, signal, generationId,
-      options.onSubmitting ? () => options.onSubmitting!(submission) : undefined),
+    lockedLoraNodes,
+    onSubmitting: () => {
+      // 模型名已对齐，记录真正提交的参数。原始请求仍用于任务指纹。
+      if (request.h3Options !== undefined) Object.assign(submission, effectiveH3Options(workflow, lockedLoraNodes));
+      return reserveMediaBudget(directory, mediaType, duration, signal, generationId,
+        options.onSubmitting ? () => options.onSubmitting!(submission) : undefined);
+    },
   });
   const execution: TrackedVideoExecution = { ...submission, promptId };
   await options.onSubmitted?.(execution);

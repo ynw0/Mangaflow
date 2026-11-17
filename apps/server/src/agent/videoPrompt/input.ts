@@ -1,6 +1,6 @@
 import { open, stat } from "@toonflow/file";
 import { z } from "zod";
-import type { CanvasContext, MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
+import { h3OptionsSchema, type CanvasContext, type MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { checkCreativeSelection, creativeTones } from "@/agent/creativeKnowledge";
 import { compileVoiceCast, type VoiceCastRole } from "@/agent/creativeKnowledge/voiceTemplates";
@@ -28,6 +28,7 @@ const sampling = z.strictObject({
   secondPassSteps: z.number().int().min(1).max(64).optional(),
   outputFirstPass: z.boolean().optional(),
   loraName: z.string().max(512).optional(),
+  h3Options: h3OptionsSchema.optional(),
   checkpointName: z.string().trim().min(1).max(512).regex(/^[^\x00-\x1f]+$/).optional(),
 });
 
@@ -112,6 +113,7 @@ const nodeContext = z.object({
     firstPassSteps: z.number().optional(), secondPassSteps: z.number().optional(),
     outputFirstPass: z.boolean().optional(),
     loraName: z.string().max(512).optional(),
+    h3Options: h3OptionsSchema.optional(),
     checkpointName: z.string().max(512).optional(),
     seed: z.number().optional(), seedMode: z.string().optional(),
     supportsSeed: z.boolean().optional(),
@@ -165,6 +167,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
     || (requestedSampling.firstPassSteps !== undefined && spec.firstPassDefault === undefined)
     || (requestedSampling.secondPassSteps !== undefined && spec.secondPassDefault === undefined)
     || (requestedSampling.outputFirstPass !== undefined && !model.supportsFirstPassOutput)
+    || (requestedSampling.h3Options !== undefined && !model.h3Advanced)
     || (requestedSampling.loraName !== undefined && !model.lora)
     || (requestedSampling.checkpointName !== undefined && !model.checkpoint))) {
     throw new Error(`字段 sampling=${JSON.stringify(requestedSampling)} 不受工作流 ${workflow.id} 支持。实际采样能力：${JSON.stringify(spec ?? null)}。请重新核对模型能力。`);

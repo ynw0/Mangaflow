@@ -17,6 +17,7 @@ describe("持久化视频生成任务恢复", () => {
     const request: MediaGenerationRequest = {
       providerId: "comfyui", modelId: "video/h3_erca_16x9", prompt: "Original prompt",
       generationId: id, outputDirectory: "assets/test-node", duration: 8, ratio: "16:9",
+      h3Options: { audioShift: 3, extraLoras: [{name:"combat.safetensors",strength:.9}] },
     };
     const execution: VideoExecution = { promptId: "comfy-original-id", host: "local" };
     const generated: GeneratedMedia = { path: "original.mp4", mimeType: "video/mp4", mediaType: "video" };
@@ -59,6 +60,7 @@ describe("持久化视频生成任务恢复", () => {
       await expect(runGenerationJob({
         ...options, request: { ...request, prompt: "A changed prompt" },
       })).rejects.toThrow("生成参数已改变");
+      await expect(runGenerationJob({...options, request: {...request, h3Options: {...request.h3Options,audioShift:5}}})).rejects.toThrow("生成参数已改变");
       await expect(getStoredGenerationRequest(another, id)).rejects.toThrow("任务不属于当前工作区");
     } finally {
       await rm(jobPath, { force: true });

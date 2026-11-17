@@ -9,3 +9,5 @@ export * from "./workspaceFiles";
 
 export * from "./nodeAi";
 export * from "./nodeFfmpeg";
+
+export { h3OptionsSchema, type H3Options } from "@toonflow/tools-scaffold/runtime";

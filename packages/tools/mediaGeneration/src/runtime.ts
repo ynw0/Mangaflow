@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { h3OptionsSchema } from "@toonflow/tools-scaffold/runtime";
 
 export type { MediaModel, MediaReference, MediaGenerationRequest, GeneratedMedia, MediaContext } from "@toonflow/tools-scaffold/runtime";
 
@@ -86,6 +87,7 @@ export const videoGenerationSchema = z.strictObject({
   loraName: z.string().max(512).refine(v => !/[\u0000-\u001f]/.test(v), "LoRA 文件名不能包含控制字符").optional(),
   checkpointName: z.string().trim().min(1).max(512).regex(/^[^\x00-\x1f]+$/)
     .describe("支持更换权重的 H3 工作流使用，填写当前 ComfyUI 返回的完整文件名").optional(),
+  h3Options: h3OptionsSchema.optional(),
   qcOverride: qcOverrideSchema.optional(),
   qcModelCallAllowed: z.boolean().optional(),
   generateAudio: z.boolean().optional(),

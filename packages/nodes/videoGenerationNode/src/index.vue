@@ -130,6 +130,10 @@
             v-model:secondPassSteps="data.secondPassSteps"
             v-model:outputFirstPass="data.outputFirstPass"
             v-model:loraName="data.loraName"
+            v-model:h3Options="data.h3Options"
+            :samplerChoices="samplerChoices"
+            :schedulerChoices="schedulerChoices"
+            :advancedError="advancedError"
             v-model:checkpointName="data.checkpointName"
             v-model:ratio="data.ratio"
             v-model:mode="data.mode"
@@ -180,7 +184,7 @@
 import { computed, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
 import { ElButton, ElCard, ElSelect, ElOption, ElOptionGroup, ElLoading, ElDropdown, ElDropdownMenu, ElDropdownItem, ElMessageBox } from "element-plus";
 import { IconCameraAi, IconSparkles, IconArrowUp, IconPlayerStop, IconTransfer, IconMusic, IconLayersSubtract, IconScissors, IconPhotoScan, IconPlayerSkipBack, IconPlayerSkipForward } from "@tabler/icons-vue";
-import { nodeSkeleton, nodeTools, useNode, z, type NodeMediaModel, type NodeVideoRequest, type NodeHandle } from "@toonflow/nodes-scaffold/runtime";
+import { nodeSkeleton, nodeTools, useNode, z, h3OptionsSchema, type NodeMediaModel, type NodeVideoRequest, type NodeHandle } from "@toonflow/nodes-scaffold/runtime";
 import { groupNodeModels } from "@toonflow/node-shared/groupNodeModels";
 import { showNodeError } from "@toonflow/node-shared/showNodeError";
 import { useNodeGeneration } from "@toonflow/node-shared/useNodeGeneration";
@@ -209,7 +213,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; checkpointName?: string; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
+const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; checkpointName?: string; h3Options?: NodeVideoRequest["h3Options"]; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -238,6 +242,9 @@ const { refList, referenceMentions, setReferencePreview, removeReference } = use
 const models = ref<NodeMediaModel[]>([]);
 const loraChoices = ref<string[]>([]);
 const checkpointChoices = ref<string[]>([]);
+const samplerChoices = ref<string[]>([]);
+const schedulerChoices = ref<string[]>([]);
+const advancedError = ref("");
 type QcChoice = { id: string; label: string; video: boolean; audio: boolean };
 type QcDefaults = { qcMethod: "agentFrames" | "model" | "agentFramesAndModel"; qcLevel: "video" | "videoAudio" | "none"; qcTrigger: "auto" | "manual"; videoQcModelId: string; audioQcModelId: string; gemmaQcHost: string };
 const qcChoices = ref<QcChoice[]>([]);
@@ -282,6 +289,9 @@ function refreshComfyChoices() {
   loraError.value = "";
   loraChoices.value = [];
   checkpointChoices.value = [];
+  samplerChoices.value = [];
+  schedulerChoices.value = [];
+  advancedError.value = "";
   choicesRequest = (async () => {
     try {
       const response = await fetch(`/api/production/comfyui/loras?modelId=${encodeURIComponent(selected.modelId)}`, {
@@ -289,13 +299,16 @@ function refreshComfyChoices() {
         cache: "no-store",
         signal: controller.signal,
       });
-      const result = await response.json() as { code?: number; message?: string; data?: { names?: string[]; checkpoints?: string[] } };
+      const result = await response.json() as { code?: number; message?: string; data?: { names?: string[]; checkpoints?: string[]; samplers?: string[]; schedulers?: string[]; advancedError?: string } };
       if (!response.ok || result.code !== 200 || !Array.isArray(result.data?.names) || !Array.isArray(result.data?.checkpoints)) {
         throw new Error(result.message || "读取已安装视频模型和 LoRA 失败");
       }
       if (controller.signal.aborted) return;
       loraChoices.value = result.data.names;
       checkpointChoices.value = result.data.checkpoints;
+      samplerChoices.value = Array.isArray(result.data.samplers) ? result.data.samplers : [];
+      schedulerChoices.value = Array.isArray(result.data.schedulers) ? result.data.schedulers : [];
+      advancedError.value = result.data.advancedError ?? "";
     } catch (error) {
       if (!controller.signal.aborted) loraError.value = error instanceof Error ? error.message : "ComfyUI 不可用";
     } finally {
@@ -440,6 +453,7 @@ watch(() => data.value.model, (current, previous) => {
   if (previous && current !== previous) {
     data.value.loraName = undefined;
     data.value.checkpointName = undefined;
+    data.value.h3Options = undefined;
   }
   choicesController?.abort();
   choicesController = undefined;
@@ -447,6 +461,9 @@ watch(() => data.value.model, (current, previous) => {
   loraLoading.value = false;
   loraChoices.value = [];
   checkpointChoices.value = [];
+  samplerChoices.value = [];
+  schedulerChoices.value = [];
+  advancedError.value = "";
   loraError.value = "";
 }, { flush: "sync" });
 const modelGroups = computed(() => groupNodeModels(models.value));
@@ -478,6 +495,7 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     outputFirstPass: choice.supportsFirstPassOutput ? data.value.outputFirstPass === true : undefined,
     loraName: choice.lora ? (data.value.loraName ?? choice.lora.defaultName) : undefined,
     checkpointName: choice.checkpoint ? data.value.checkpointName : undefined,
+    h3Options: choice.h3Advanced ? data.value.h3Options : undefined,
     qcOverride: data.value.qcOverride,
     ratio: data.value.ratio,
     generateAudio: choice.audio === "optional" ? data.value.generateAudio : choice.audio,
@@ -851,6 +869,7 @@ function getConfig() {
       outputFirstPass: data.value.outputFirstPass,
       loraName: selectedModel.value?.lora ? (data.value.loraName ?? selectedModel.value.lora.defaultName) : undefined,
       checkpointName: selectedModel.value?.checkpoint ? (data.value.checkpointName ?? selectedModel.value.checkpoint.defaultName) : undefined,
+      h3Options: selectedModel.value?.h3Advanced ? data.value.h3Options : undefined,
       ratio: data.value.ratio,
       mode: selectedMode.value,
       generateAudio: data.value.generateAudio,
@@ -862,6 +881,9 @@ function getConfig() {
     models: models.value,
     loraChoices: loraChoices.value,
     checkpointChoices: checkpointChoices.value,
+    samplerChoices: samplerChoices.value,
+    schedulerChoices: schedulerChoices.value,
+    advancedError: advancedError.value,
     qcOverride: data.value.qcOverride,
     hasPendingGeneration: Boolean(data.value.activeGenerationRequest || detachedGenerationId.value),
     qcDefaults: qcDefaults.value,
@@ -904,7 +926,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "getConfig",
-  description: "读取视频节点配置、工作流能力、比例和适用模式。refreshComfyChoices=true 时从当前 ComfyUI 查询可选的 checkpointChoices 和 loraChoices，不开机。二采的 sampling 给出百万像素、放大倍率与一采/二采步数。qcChoices 返回系统已启用模型；refreshQcChoices=true 时只读查询已安装权重，不开机。",
+  description: "读取视频节点配置、工作流能力、比例和适用模式。refreshComfyChoices=true 时从当前 ComfyUI 查询可选的 checkpointChoices 和 loraChoices，不开机。二采的 sampling 给出百万像素、放大倍率与一采/二采步数；h3Advanced 为高级设置能力和默认值，samplerChoices、schedulerChoices 是远端实报可用值。qcChoices 返回系统已启用模型；refreshQcChoices=true 时只读查询已安装权重，不开机。",
   parameters: z.strictObject({ refreshComfyChoices: z.boolean().optional(), refreshQcChoices: z.boolean().optional() }),
   async execute(args, { signal }) {
     signal?.throwIfAborted();
@@ -918,7 +940,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setConfig",
-  description: "修改视频节点配置。providerId 和 modelId 同时提供以选工作流。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，null 恢复工作流默认。loraName 为空字符串关闭 LoRA。qcOverride=null 继承系统默认；mode=off 关闭自动质检；mode=custom 使用指定质检策略，模型 ID 从 getConfig.qcChoices 选择。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
+  description: "修改视频节点配置。providerId 和 modelId 同时提供以选工作流。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，null 恢复工作流默认。loraName 为空字符串关闭主 LoRA。h3Options 整体替换可选高级设置：loraStrength、extraLoras（有序数组，每项 name/strength，最多3个）、sampler、scheduler、videoShift、audioShift；null 恢复高级参数默认值。只使用实际发现的文件和采样选项，不擅自更换已选模型。qcOverride=null 继承系统默认；mode=off 关闭自动质检；mode=custom 使用指定质检策略，模型 ID 从 getConfig.qcChoices 选择。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
   parameters: z.strictObject({
     providerId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),
@@ -931,6 +953,7 @@ nodeTools.register({
     outputFirstPass: z.boolean().optional(),
     loraName: z.string().max(512).optional(),
     checkpointName: z.string().trim().min(1).max(512).regex(/^[^\x00-\x1f]+$/).nullable().optional(),
+    h3Options: h3OptionsSchema.nullable().optional(),
     qcOverride: qcOverrideSchema.nullable().optional(),
     ratio: z.enum(ratioOptions).optional(),
     mode: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
@@ -961,6 +984,7 @@ nodeTools.register({
     if (args.outputFirstPass !== undefined && !choice.supportsFirstPassOutput) throw new Error("当前工作流不支持输出一采视频");
     if (args.loraName !== undefined && !choice.lora) throw new Error("当前工作流不支持选择 LoRA");
     if (args.checkpointName !== undefined && !choice.checkpoint) throw new Error("当前工作流不支持更换视频模型权重");
+    if (args.h3Options != null && !choice.h3Advanced) throw new Error("当前工作流不支持高级采样或多 LoRA");
     if (!choice.supportsSeed && (args.seed !== undefined || args.seedMode !== undefined)) throw new Error("当前工作流没有绑定种子");
     if (args.seedMode === "last" && data.value.lastSeed == null) throw new Error("暂无随机种子记录");
     if (args.seed !== undefined && (args.seedMode ?? data.value.seedMode) !== "fixed") throw new Error(`字段 seed 与种子模式冲突：当前 seedMode=${data.value.seedMode}，本次 seedMode=${args.seedMode ?? "未指定"}。指定 seed 时必须同时传 seedMode=fixed；使用 random 或 last 时不要传 seed。`);
@@ -997,6 +1021,11 @@ nodeTools.register({
         if (id !== undefined && !qcChoices.value.some(item => item.id === id && item[capability])) throw new Error(`质检模型 ${id} 未启用或不支持对应输入，请从 getConfig.qcChoices 选择`);
       }
     }
+    const sameModel = data.value.model === JSON.stringify([choice.providerId, choice.modelId]);
+    const nextLora = args.loraName ?? (sameModel ? data.value.loraName : undefined) ?? choice.lora?.defaultName;
+    const nextAdvanced = args.h3Options === null ? undefined : args.h3Options ?? (sameModel ? data.value.h3Options : undefined);
+    if (nextAdvanced?.loraStrength !== undefined && nextLora === "" && args.h3Options != null) throw new Error("关闭主 LoRA 时不能指定主 LoRA 强度");
+    if (nextLora && nextAdvanced?.extraLoras?.some(item => item.name.replaceAll("\\", "/") === nextLora.replaceAll("\\", "/"))) throw new Error("主 LoRA 与附加 LoRA 不能重复");
     data.value.model = JSON.stringify([choice.providerId, choice.modelId]);
     data.value.duration = duration;
     data.value.resolution = resolution;
@@ -1018,6 +1047,11 @@ nodeTools.register({
     if (args.outputFirstPass !== undefined) data.value.outputFirstPass = args.outputFirstPass;
     if (args.loraName !== undefined) data.value.loraName = args.loraName;
     if (args.checkpointName !== undefined) data.value.checkpointName = args.checkpointName ?? undefined;
+    if (args.h3Options !== undefined) data.value.h3Options = args.h3Options ?? undefined;
+    if (args.loraName === "" && data.value.h3Options?.loraStrength !== undefined) {
+      const { loraStrength: _strength, ...rest } = data.value.h3Options;
+      data.value.h3Options = Object.keys(rest).length ? rest : undefined;
+    }
     if (args.qcOverride !== undefined) data.value.qcOverride = args.qcOverride ?? undefined;
     if (args.seedMode !== undefined) data.value.seedMode = args.seedMode;
     if (args.seed !== undefined) data.value.seed = args.seed;

@@ -17,10 +17,15 @@ export default Router().get("/", validateFields({ modelId: z.string().trim().min
     u.production.readNodeChoices(baseUrl, "LoraLoaderModelOnly", "lora_name", signal),
     entry.checkpoint ? u.production.readNodeChoices(baseUrl, "UNETLoader", "unet_name", signal) : [],
   ]);
+  const advanced = entry.h3Advanced ? await Promise.allSettled([
+    u.production.readNodeChoices(baseUrl, "KSamplerSelect", "sampler_name", signal),
+    u.production.readNodeChoices(baseUrl, "BasicScheduler", "scheduler", signal),
+  ]) : undefined;
   res.set("Cache-Control", "no-store").json(success({
     modelId: entry.id,
     defaultName: entry.loraDefaultName,
     names,
     checkpoints: checkpoints.filter(u.production.isH3CheckpointName),
+    ...(advanced ? { samplers: advanced[0]?.status === "fulfilled" ? advanced[0].value : [], schedulers: advanced[1]?.status === "fulfilled" ? advanced[1].value : [], advancedError: advanced.some(item => item.status === "rejected") ? "部分高级选项读取失败，请刷新重试" : undefined } : {}),
   }));
 });

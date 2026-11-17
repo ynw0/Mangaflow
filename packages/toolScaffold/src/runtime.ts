@@ -71,6 +71,21 @@ export interface CanvasContext extends CanvasInfo {
   call(request: CanvasToolCall, signal?: AbortSignal): Promise<unknown>;
 }
 
+/** 新字段省略时保留原工作流。附加 LoRA 按列表顺序连接。 */
+export const h3OptionsSchema = z.strictObject({
+  loraStrength: z.number().finite().min(0.01).max(2).optional(),
+  extraLoras: z.array(z.strictObject({
+    name: z.string().min(1).max(512).regex(/^[^\x00-\x1f]+$/).refine(name => name.trim() === name),
+    strength: z.number().finite().min(0.01).max(2),
+  })).max(3).refine(items => new Set(items.map(item => item.name.replaceAll("\\", "/"))).size === items.length, "附加 LoRA 文件不得重复").optional(),
+  sampler: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.-]+$/).optional(),
+  scheduler: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.-]+$/).optional(),
+  videoShift: z.number().finite().min(0.1).max(30).optional(),
+  audioShift: z.number().finite().min(0.1).max(30).optional(),
+});
+export type H3Options = z.infer<typeof h3OptionsSchema>;
+export type H3AdvancedCapability = { loraStrength: number; sampler: string; scheduler: string; videoShift: number; audioShift: number; maxExtraLoras: number };
+
 export interface MediaModel {
   supportsPrice?: boolean;
   providerId: string;
@@ -88,6 +103,7 @@ export interface MediaModel {
   /** 二采工作流可选择 LoRA 或完全关闭；defaultName 来自当前工作流。 */
   lora?: { defaultName: string };
   checkpoint?: { defaultName: string };
+  h3Advanced?: H3AdvancedCapability;
   references?: { image: number; video: number; audio: number };
   imageSizes?: string[];
   imageRatios?: string[];
@@ -157,6 +173,7 @@ export interface MediaGenerationRequest {
   /** 省略沿用工作流默认 LoRA；空字符串完全旁路；非空为 ComfyUI 已安装的 LoRA 名称。 */
   loraName?: string;
   checkpointName?: string;
+  h3Options?: H3Options;
   qcOverride?: NodeQcOverride;
   /** MCP 入口注入；false 时禁止提交未经授权的自动专用 QC。 */
   qcModelCallAllowed?: boolean;
@@ -261,6 +278,9 @@ export type VideoQcState =
 export type VideoExecution = {
   promptId: string; host: string; seed?: number; megapixels?: number; upscale?: number;
   firstPassSteps?: number; secondPassSteps?: number;
+  h3Options?: H3Options;
+  h3Checkpoint?: string;
+  h3Loras?: { name: string; strength: number }[];
 };
 
 export type VideoQcPolicyInfo = { qcMethod: "agentFrames" | "model" | "agentFramesAndModel"; qcLevel: "video" | "videoAudio" | "none"; qcTrigger?: "auto" | "manual"; videoQcModelId: string; audioQcModelId: string; gemmaQcHost: string; gemmaTargetId?: string; contractVersion: number };

@@ -92,13 +92,61 @@
             <el-option v-for="name in checkpointOptions" :key="name" :value="name" :label="name" />
           </el-select>
         </template>
-        <div class="sectionLabel">使用 LoRA</div>
+        <div class="sectionLabel">主 LoRA（加速或其它用途）</div>
         <el-select v-model="selectedLora" :disabled="disabled" :teleported="false" filterable aria-label="选择 LoRA 或关闭">
           <el-option label="关闭 LoRA（基础模型）" value="__lora_disabled__" />
           <el-option v-for="name in loraOptions" :key="name" :value="name" :label="name" />
         </el-select>
         <el-button text size="small" :disabled="disabled || loraLoading" :loading="loraLoading" @click="emit('refreshComfyChoices')">{{ model.checkpoint ? '刷新模型与 LoRA' : '刷新 LoRA' }}</el-button>
         <div v-if="loraError" class="sizeHint" role="status">{{ loraError }}</div>
+        <div v-if="model.h3Advanced" class="h3Advanced">
+          <div class="sectionLabel">高级采样与附加 LoRA</div>
+          <div v-if="selectedLora !== '__lora_disabled__'" class="h3AdvancedRow">
+            <span>主 LoRA 强度</span>
+            <el-input-number :model-value="h3Options?.loraStrength ?? model.h3Advanced.loraStrength" :disabled="disabled" :min="0.01" :max="2" :step="0.05" :precision="2" controls-position="right" @update:model-value="value => patchAdvanced('loraStrength', value)" />
+          </div>
+          <div class="sectionLabel">附加 LoRA（从上往下加载，最多 3 个）</div>
+          <div v-for="(item, index) in extraLoras" :key="index" class="h3LoraRow">
+            <el-select :model-value="item.name" filterable :teleported="false" :disabled="disabled" aria-label="附加 LoRA" @change="value => updateExtra(index, {name:value})">
+              <el-option v-for="name in availableExtraNames(index)" :key="name" :value="name" :label="name" />
+            </el-select>
+            <div class="h3AdvancedRow">
+              <el-input-number :model-value="item.strength" :disabled="disabled" :min="0.01" :max="2" :step="0.05" :precision="2" controls-position="right" aria-label="附加 LoRA 强度" @update:model-value="value => {if (value !== undefined) updateExtra(index, {strength:value})}" />
+              <el-button size="small" text :disabled="disabled || index===0" @click="moveExtra(index,-1)">上移</el-button>
+              <el-button size="small" text :disabled="disabled || index===extraLoras.length-1" @click="moveExtra(index,1)">下移</el-button>
+              <el-button size="small" text type="danger" :disabled="disabled" @click="removeExtra(index)">删除</el-button>
+            </div>
+          </div>
+          <el-select v-if="extraLoras.length < model.h3Advanced.maxExtraLoras" :model-value="undefined" placeholder="添加已安装 LoRA" filterable :teleported="false" :disabled="disabled || !availableExtraNames(-1).length" @change="addExtra">
+            <el-option v-for="name in availableExtraNames(-1)" :key="name" :value="name" :label="name"/>
+          </el-select>
+          <div class="sectionLabel">采样器</div>
+          <el-select :model-value="h3Options?.sampler ?? '__workflow_default__'" filterable :teleported="false" :disabled="disabled" @change="value => patchAdvanced('sampler',value === '__workflow_default__' ? undefined : value)">
+            <el-option :label="'默认 · '+model.h3Advanced.sampler" value="__workflow_default__"/>
+            <el-option v-for="name in samplerOptions" :key="name" :value="name" :label="name"/>
+          </el-select>
+          <div class="sectionLabel">调度器</div>
+          <el-select :model-value="h3Options?.scheduler ?? '__workflow_default__'" filterable :teleported="false" :disabled="disabled" @change="value => patchAdvanced('scheduler',value === '__workflow_default__' ? undefined : value)">
+            <el-option :label="'默认 · '+model.h3Advanced.scheduler" value="__workflow_default__"/>
+            <el-option v-for="name in schedulerOptions" :key="name" :value="name" :label="name"/>
+          </el-select>
+          <div class="h3AdvancedRow">
+            <span>Video Shift</span>
+            <el-input-number :model-value="h3Options?.videoShift ?? model.h3Advanced.videoShift" :disabled="disabled" :min="0.1" :max="30" :step="0.5" :precision="2" controls-position="right" @update:model-value="value => patchAdvanced('videoShift', value)"/>
+          </div>
+          <div class="h3AdvancedRow">
+            <span>Audio Shift</span>
+            <el-input-number :model-value="h3Options?.audioShift ?? model.h3Advanced.audioShift" :disabled="disabled" :min="0.1" :max="30" :step="0.5" :precision="2" controls-position="right" @update:model-value="value => patchAdvanced('audioShift', value)"/>
+          </div>
+          <div class="sizeHint" v-if="advancedError">{{ advancedError }}</div>
+          <div class="sectionLabel">实验性采样预设（不换主模型）</div>
+          <el-button size="small" :disabled="disabled || isTurboCheckpoint" @click="applyPreset('normal')">普通 25步（关闭全部 LoRA）</el-button>
+          <el-button size="small" :disabled="disabled || !pikaHdName || isTurboCheckpoint" @click="applyPreset('pika')">Pika HD 8步（保留附加 LoRA）</el-button>
+          <el-button size="small" :disabled="disabled || !isTurboCheckpoint || !samplerChoices?.includes('euler')" @click="applyPreset('turbo')">已融合 Turbo 8步（关闭全部 LoRA）</el-button>
+          <div class="sizeHint">{{presetHint}}</div>
+          <el-button text size="small" :disabled="disabled" @click="h3Options = undefined">恢复高级参数默认（不改模型/步数/主 LoRA）</el-button>
+          <div class="sizeHint">总步数 {{ (firstPassSteps ?? 0)+(secondPassSteps ?? 0) }}；一二采共用同一套采样序列。预设需确认主模型兼容，不自动叠加蒸馏 LoRA。</div>
+        </div>
         <div class="sizeHint">选择其他 LoRA 前请确认与 H3 基础模型兼容。</div>
       </div>
       <div v-if="model?.supportsFirstPassOutput" class="audioOption">
@@ -173,9 +221,9 @@
 import { computed, ref } from "vue";
 import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch, ElInputNumber } from "element-plus";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
-import type { NodeMediaModel, NodeVideoRequest } from "@toonflow/nodes-scaffold/runtime";
+import type { H3Options, NodeMediaModel, NodeVideoRequest } from "@toonflow/nodes-scaffold/runtime";
 
-const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number; loraChoices?: string[]; checkpointChoices?: string[]; loraLoading?: boolean; loraError?: string; qcChoices?: {id:string;label:string;video:boolean;audio:boolean}[]; qcDefaults?: {qcMethod:string;qcLevel:string;qcTrigger:string;videoQcModelId:string;audioQcModelId:string;gemmaQcHost:string}; qcError?: string; qcLoading?: boolean }>();
+const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number; loraChoices?: string[]; checkpointChoices?: string[]; samplerChoices?: string[]; schedulerChoices?: string[]; advancedError?: string; loraLoading?: boolean; loraError?: string; qcChoices?: {id:string;label:string;video:boolean;audio:boolean}[]; qcDefaults?: {qcMethod:string;qcLevel:string;qcTrigger:string;videoQcModelId:string;audioQcModelId:string;gemmaQcHost:string}; qcError?: string; qcLoading?: boolean }>();
 const emit = defineEmits<{ refreshComfyChoices: []; refreshQcChoices: [] }>();
 type CustomQc = Extract<NonNullable<NodeVideoRequest["qcOverride"]>, {mode:"custom"}>;
 const qcOverride = defineModel<NodeVideoRequest["qcOverride"]>("qcOverride");
@@ -196,6 +244,7 @@ const secondPassSteps = defineModel<number | undefined>("secondPassSteps");
 const outputFirstPass = defineModel<boolean>("outputFirstPass", { required: true });
 const loraName = defineModel<string | undefined>("loraName");
 const checkpointName = defineModel<string | undefined>("checkpointName");
+const h3Options = defineModel<H3Options | undefined>("h3Options");
 const selectedCheckpoint = computed({
   get: () => checkpointName.value ?? "__workflow_checkpoint__",
   set: (value: string) => { checkpointName.value = value === "__workflow_checkpoint__" ? undefined : value; },
@@ -204,13 +253,66 @@ const checkpointOptions = computed(() => [...new Set([...(props.checkpointChoice
   .filter((name): name is string => !!name).sort((a, b) => a.localeCompare(b)));
 const selectedLora = computed({
   get: () => loraName.value === "" ? "__lora_disabled__" : (loraName.value ?? props.model?.lora?.defaultName ?? ""),
-  set: (value: string) => { loraName.value = value === "__lora_disabled__" ? "" : value; },
+  set: (value: string) => {
+    if (value !== "__lora_disabled__" && extraLoras.value.some(item => normalized(item.name) === normalized(value))) { presetHint.value = "该 LoRA 已作为附加项，请先删除重复项。"; return; }
+    loraName.value = value === "__lora_disabled__" ? "" : value;
+    if (loraName.value === "") patchAdvanced("loraStrength",undefined);
+  },
 });
 const loraOptions = computed(() => [...new Set([
   props.model?.lora?.defaultName,
   ...(props.loraChoices ?? []),
   loraName.value,
 ].filter((name): name is string => Boolean(name)))].sort((a, b) => a.localeCompare(b)));
+const presetHint = ref("预设为初始实验配置，不是画质保证。");
+const normalized = (name: string) => name.replaceAll("\\","/");
+const extraLoras = computed(() => h3Options.value?.extraLoras ?? []);
+const samplerOptions = computed(() => [...new Set([...(props.samplerChoices ?? []),h3Options.value?.sampler])].filter((x):x is string => !!x));
+const schedulerOptions = computed(() => [...new Set([...(props.schedulerChoices ?? []),h3Options.value?.scheduler])].filter((x):x is string => !!x));
+function patchAdvanced<K extends keyof H3Options>(key: K, value: H3Options[K] | undefined) {
+  if (!props.model?.h3Advanced) return;
+  const next = {...h3Options.value};
+  if (value === undefined) delete next[key]; else next[key] = value;
+  h3Options.value = Object.keys(next).length ? next : undefined;
+}
+function availableExtraNames(index: number) {
+  const selected = extraLoras.value[index]?.name;
+  const primary = selectedLora.value;
+  return [...new Set([...(props.loraChoices ?? []),selected])].filter((name):name is string => !!name)
+    .filter(name => name === selected || (normalized(name) !== normalized(primary) && !extraLoras.value.some((item,i) => i!==index && normalized(item.name)===normalized(name))));
+}
+function updateExtra(index: number, patch: {name?:string;strength?:number}) {
+  const item = extraLoras.value[index];
+  if (!item || (patch.strength !== undefined && !Number.isFinite(patch.strength))) return;
+  patchAdvanced("extraLoras",extraLoras.value.map((previous,i) => i===index ? {...previous,...patch} : previous));
+}
+function addExtra(name: string) {
+  if (extraLoras.value.length >= (props.model?.h3Advanced?.maxExtraLoras ?? 0) || !availableExtraNames(-1).includes(name)) return;
+  patchAdvanced("extraLoras",[...extraLoras.value,{name,strength:0.9}]);
+}
+function removeExtra(index: number) { const items=extraLoras.value.filter((_,i)=>i!==index); patchAdvanced("extraLoras",items.length ? items : undefined); }
+function moveExtra(index:number, direction:number) {
+  const items=[...extraLoras.value]; const other=index+direction;
+  if (other<0 || other>=items.length || !items[index] || !items[other]) return;
+  [items[index],items[other]]=[items[other]!,items[index]!]; patchAdvanced("extraLoras",items);
+}
+const pikaHdName=computed(() => {
+  const matches=(props.loraChoices ?? []).filter(name=>normalized(name).split("/").at(-1)?.toLowerCase()==="pika_h3_flex_turbo_8step_hd_ref2va.safetensors");
+  return matches.length===1 ? matches[0] : undefined;
+});
+const isTurboCheckpoint=computed(() => /turbo/i.test(normalized(checkpointName.value ?? props.model?.checkpoint?.defaultName ?? "").split("/").at(-1) ?? ""));
+function applyPreset(preset:"normal"|"pika"|"turbo") {
+  if (!props.model?.h3Advanced) return;
+  if (preset==="normal" && isTurboCheckpoint.value) { presetHint.value="普通25步预设需要普通主模型。"; return; }
+  if (preset==="pika" && (!pikaHdName.value || isTurboCheckpoint.value || extraLoras.value.some(item=>normalized(item.name)===normalized(pikaHdName.value!)))) { presetHint.value="请选择普通主模型，且 Pika HD 不得已经在附加列表中。"; return; }
+  if (preset==="turbo" && (!isTurboCheckpoint.value || !props.samplerChoices?.includes("euler"))) { presetHint.value="请先选已融合 Turbo 模型并刷新采样器列表。"; return; }
+  loraName.value=preset==="pika"?pikaHdName.value:"";
+  firstPassSteps.value=preset==="normal"?20:6;
+  secondPassSteps.value=preset==="normal"?5:2;
+  h3Options.value={sampler:preset==="turbo"?"euler":"res_multistep",scheduler:"simple",videoShift:12,audioShift:3,
+    ...(preset==="pika"?{loraStrength:1,extraLoras:extraLoras.value}:{})};
+  presetHint.value="已应用实验预设，请检查模型/LoRA 兼容后生成。";
+}
 const ratio = defineModel<string>("ratio", { required: true });
 const mode = defineModel<string>("mode", { required: true });
 const generateAudio = defineModel<boolean>("generateAudio", { required: true });
@@ -404,4 +506,10 @@ function ratioStyle(value: string) {
     }
   }
 }
+
+.h3Advanced { display:flex; flex-direction:column; gap:7px; border-top:1px solid var(--el-border-color); margin-top:8px; padding-top:8px; }
+.h3AdvancedRow { display:flex; align-items:center; justify-content:space-between; gap:4px; }
+.h3AdvancedRow .el-input-number { width:120px; flex-shrink:0; }
+.h3LoraRow { display:flex; flex-direction:column; gap:4px; padding:5px; border:1px solid var(--el-border-color); border-radius:6px; }
+.generationSettings { max-height:min(70vh, 650px); overflow-y:auto; }
 </style>

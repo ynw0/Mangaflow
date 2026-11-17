@@ -95,6 +95,7 @@ export async function captureVideoReview(directory: string, prepared: PreparedCo
     .map(input => [input.source, input.value]));
   const checkpoint = prepared.context.checkpoint_name;
   if (checkpoint && checkpoint !== prepared.entry.checkpoint?.defaultName) parameters.checkpoint_name = checkpoint;
+  if (prepared.context.h3_options !== undefined) parameters.h3_options = prepared.context.h3_options;
   return {
     directory: process.platform === "win32" ? root.toLowerCase() : root,
     modelId: prepared.entry.id,

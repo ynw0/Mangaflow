@@ -5,6 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseWorkflowBindings, type WorkflowBindings } from "@/utils/production/bindings";
 import { readProduction, fail } from "@/utils/production/config";
 import { resolveAppDirectory } from "@/resolveAppDirectory";
+import { h3AdvancedCapability } from "@/utils/production/h3Advanced";
 import { findH3Checkpoint, validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
 
 export type WorkflowKind = "image" | "video" | "qc";
@@ -23,6 +24,7 @@ export type WorkflowEntry = {
   /** 原工作流内加载的 LoRA 文件名，保持旧画布默认行为。 */
   loraDefaultName?: string;
   checkpoint?: ReturnType<typeof findH3Checkpoint>;
+  h3Advanced?: ReturnType<typeof h3AdvancedCapability>;
 };
 
 const labels: Record<string, string> = {
@@ -95,11 +97,13 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
   if (!info?.isFile()) fail(`工作流 JSON 不存在: ${id}`);
   let hasVideoAudio: boolean | undefined;
   let checkpoint: WorkflowEntry["checkpoint"];
+  let h3Advanced: WorkflowEntry["h3Advanced"];
   if (kind === "video") {
     const workflow = JSON.parse(await readFile(workflowPath, "utf8")) as Record<string, unknown>;
     validateH3Workflow(workflow, parsed);
     hasVideoAudio = videoAudioInputs(workflow).length > 0;
     checkpoint = findH3Checkpoint(workflow, parsed);
+    h3Advanced = h3AdvancedCapability(workflow, parsed);
   }
   return {
     id,
@@ -113,6 +117,7 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
     stepDefaults: await readStepDefaults(workflowPath, parsed),
     loraDefaultName: await readLoraDefault(workflowPath, parsed),
     checkpoint,
+    h3Advanced,
   };
 }
 
@@ -293,6 +298,7 @@ export function toMediaModel(entry: WorkflowEntry) {
     supportsFirstPassOutput: Boolean(entry.bindings.firstPassOutputNode),
     ...(entry.loraDefaultName ? { lora: { defaultName: entry.loraDefaultName } } : {}),
     ...(entry.checkpoint ? { checkpoint: { defaultName: entry.checkpoint.defaultName } } : {}),
+    ...(entry.h3Advanced ? { h3Advanced: entry.h3Advanced } : {}),
     supportsSeed: entry.bindings.bindings.some(item => item.source === "seed" && item.kind === "value"),
     references,
     type: "video" as const,

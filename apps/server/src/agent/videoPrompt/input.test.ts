@@ -81,3 +81,10 @@ describe("draftVideoPrompt：根 JSON Schema 类型化兼容", () => {
     expect(() => videoPromptParameters.parse({ ...input, creativeSelection: "{\"styleId\":\"s01\"}" })).toThrow();
   });
 });
+
+test("新镜头高级采样接受原生对象，已有节点仍禁止重复传配置",()=>{
+  const sampling={h3Options:{sampler:"res_multistep",scheduler:"simple",extraLoras:[{name:"combat.safetensors",strength:.9}],videoShift:12,audioShift:3}};
+  expect(videoPromptParameters.parse({...validBase(),duration:5,ratio:"16:9",sampling}).sampling).toEqual(sampling);
+  expect(()=>videoPromptParameters.parse({...validBase(),node:{canvasId:"c",nodeId:"n"},sampling})).toThrow();
+  expect(()=>videoPromptParameters.parse({...validBase(),duration:5,ratio:"16:9",sampling:{h3Options:{extraLoras:"[]"}}})).toThrow();
+});

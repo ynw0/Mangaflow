@@ -87,3 +87,5 @@ description: 通过 MangaFlow MCP 操作工作区、实时画布、节点、文�
 - 只有用户明确要求委托 MangaFlow 内置 Agent 且知晓额外模型消耗时使用 `runAgent`。`args` 必填 `delegationConfirmed=true`、`providerId`、`modelId`、`prompt`，可选 `sessionFile` 继续已有对话；顶层 taskId 规则同长任务。模型标识来自实际配置，结果由 getMcpTask 返回的 result 提供。不要用它测试连接，也不要为普通写作、自审或生成报告额外委托。
 
 - 视频节点 `node:getConfig` 返回 `qcOverride`、`qcDefaults`、`qcChoices`；`refreshQcChoices:true` 只读刷新当前 ComfyUI 已安装的 Gemma 权重，不开机。通过 `node:setConfig` 的 `qcOverride:null` 继承，`{mode:"off"}` 关闭自动质检，`{mode:"custom",qcMethod,qcLevel,qcTrigger,videoQcModelId,audioQcModelId}` 按实际选项配置。Gemma 使用返回的完整模型 ID（qc/gemma4:文件名），不猜精度、不选择禁用模型；视听使用同一个 Gemma。用户未要求修改 QC 时不要修改。实际节点策略可能不同于全局；有额外专用 QC 调用时必须遵守顶层 modelCallConfirmed 授权。成片手动 qcVideo 默认沿用已记录策略，用户明确要求换模型时传 qcOverride；null 表示当前系统设置。禁止把调用参数 qcModelCallAllowed 当作授权。
+
+- H3 高级设置仅在节点 getConfig.models[].h3Advanced 声明支持时可用。refreshComfyChoices:true 读取实际 samplerChoices/schedulerChoices 与已安装模型；setConfig 的 h3Options 为完整可选对象（loraStrength、extraLoras:[{name,strength}] 最多3、有序、sampler、scheduler、videoShift、audioShift），null 恢复高级默认。loraName="" 关闭主 LoRA，附加项需单独清除。禁止猜文件、切换主模型或给 Turbo 自动叠加蒸馏 LoRA。修改高级设置后按既有审核合同流程执行；同一 generationId 不得改参数。

@@ -8,6 +8,19 @@
         <el-button v-if="rendering" size="small" @click="cancel()">取消导出</el-button>
         <el-button v-else type="primary" size="small" :disabled="busy || !clips.length" @click="exportVideo">导出 MP4</el-button>
       </div>
+      <div v-if="output" class="fileActions" @pointerdown.stop @mousedown.stop @dblclick.stop>
+        <el-button
+          size="small"
+          :icon="IconDownload"
+          :tag="outputUrl && !rendering ? 'a' : 'button'"
+          :href="outputUrl && !rendering ? outputUrl : undefined"
+          :download="outputName"
+          :loading="downloading"
+          :disabled="!outputUrl || rendering || downloading"
+          @downloadstate="downloading = $event.detail"
+          @click.stop>下载视频</el-button>
+        <el-button size="small" :icon="IconFolder" :loading="revealing" :disabled="rendering || revealing" title="在本机文件管理器中定位成片（远程访问请下载）" @click.stop="revealOutput">打开文件位置</el-button>
+      </div>
       <div v-if="rendering" class="renderProgress" role="status">正在导出 {{ progress }}%<el-progress :percentage="progress" :showText="false" /></div>
       <p v-else-if="renderError" class="error" role="alert">{{ renderError }}</p>
       <p v-else-if="renderStatus === 'cancelled'" class="status" role="status">已取消导出</p>
@@ -68,7 +81,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { ElButton, ElDialog, ElInputNumber, ElOption, ElProgress, ElSelect } from "element-plus";
-import { IconScissors } from "@tabler/icons-vue";
+import { IconScissors, IconDownload, IconFolder } from "@tabler/icons-vue";
 import { nodeSkeleton, type NodeHandle } from "@toonflow/nodes-scaffold/runtime";
 import { showNodeError } from "@toonflow/node-shared/showNodeError";
 import { aspectSchema, maxClips, type Clip } from "./timeline";
@@ -100,6 +113,20 @@ const offsets = computed(() => {
 const sourceUrl = files.useFileUrl(computed(() => visible.value && selected.value ? { url: selected.value.path, mimeType: "video/mp4" } : undefined),
   error => showNodeError(error, "片段预览失败"));
 const outputUrl = files.useFileUrl(output, error => showNodeError(error, "成片预览失败"));
+const outputName = computed(() => output.value?.url.split(/[\\/]/).at(-1) || "video.mp4");
+const downloading = ref(false);
+const revealing = ref(false);
+async function revealOutput() {
+  const path = output.value?.url;
+  if (!path || rendering.value || revealing.value) return;
+  revealing.value = true;
+  try {
+    const workspace = files.getWorkspaceFiles();
+    if (!workspace.reveal) throw new Error("当前宿主不支持定位文件，请下载视频后查看。");
+    await workspace.reveal(path);
+  } catch (error) { showNodeError(error, "打开文件位置失败"); }
+  finally { revealing.value = false; }
+}
 
 watch(() => [selected.value?.id, selected.value?.path, selected.value?.start, selected.value?.end], () => {
   start.value = selected.value?.start;
@@ -201,6 +228,12 @@ function exportVideo() {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+  }
+  .fileActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    :deep(.el-button + .el-button) { margin-left: 0; }
   }
   .renderProgress, .status {
     margin: 0;

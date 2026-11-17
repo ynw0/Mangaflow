@@ -15,6 +15,8 @@ export interface WorkspaceFiles {
   rename(path: string, target: string): Promise<void>;
   remove(path: string, recursive?: boolean): Promise<void>;
   mkdir(path: string): Promise<void>;
+  /** Optional native-host reveal; remote/browser restrictions are enforced by the host. */
+  reveal?(path: string): Promise<void>;
 }
 
 function getNodeDirectory(nodeId: string) {

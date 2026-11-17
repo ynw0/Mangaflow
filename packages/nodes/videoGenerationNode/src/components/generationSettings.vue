@@ -8,27 +8,28 @@
         <component :is="settingsVisible ? IconChevronDown : IconChevronUp" :size="14" aria-hidden="true" />
       </el-button>
     </template>
-    <div class="generationSettings nodrag nopan nowheel" @pointerdown.stop @mousedown.stop @dblclick.stop @keydown.stop @wheel.stop>
+    <div ref="settingsHost" class="generationSettingsHost nodrag nopan nowheel" @pointerdown.stop @mousedown.stop @dblclick.stop @keydown.stop @wheel.stop>
+    <div class="generationSettings" tabindex="0" role="region" aria-label="视频生成参数（可上下滚动）">
       <div v-if="modes.length" class="sectionLabel">生成模式</div>
-      <el-select v-if="modes.length" v-model="mode" :disabled="disabled" :teleported="false" aria-label="视频生成模式">
+      <el-select v-if="modes.length" v-model="mode" :disabled="disabled" :append-to="settingsHost" aria-label="视频生成模式">
         <el-option v-for="item in modes" :key="item.value" :value="item.value" :label="item.label" />
       </el-select>
       <div v-if="durations.length || resolutions.length || sampling" class="outputOptions">
         <div v-if="durations.length" class="outputField">
           <div class="sectionLabel">时长</div>
-          <el-select v-model="duration" :disabled="disabled" :teleported="false" aria-label="视频时长">
+          <el-select v-model="duration" :disabled="disabled" :append-to="settingsHost" aria-label="视频时长">
             <el-option v-for="item in durations" :key="item" :value="item" :label="`${item}秒`" />
           </el-select>
         </div>
         <div v-if="sampling" class="outputField">
           <div class="sectionLabel">百万像素</div>
-          <el-select v-model="megapixels" :disabled="disabled" :teleported="false" aria-label="采样百万像素">
+          <el-select v-model="megapixels" :disabled="disabled" :append-to="settingsHost" aria-label="采样百万像素">
             <el-option v-for="item in megapixelOptions" :key="item.value" :value="item.value" :label="item.label" />
           </el-select>
         </div>
         <div v-else-if="resolutions.length" class="outputField">
           <div class="sectionLabel">分辨率</div>
-          <el-select v-model="resolution" :disabled="disabled" :teleported="false" aria-label="视频分辨率">
+          <el-select v-model="resolution" :disabled="disabled" :append-to="settingsHost" aria-label="视频分辨率">
             <el-option v-for="item in resolutions" :key="item" :value="item" :label="item" />
           </el-select>
         </div>
@@ -87,13 +88,13 @@
       <div v-if="model?.lora" class="loraSelect">
         <template v-if="model.checkpoint">
           <div class="sectionLabel">使用模型</div>
-          <el-select v-model="selectedCheckpoint" :disabled="disabled" :teleported="false" filterable aria-label="选择 H3 视频模型权重">
+          <el-select v-model="selectedCheckpoint" :disabled="disabled" :append-to="settingsHost" filterable aria-label="选择 H3 视频模型权重">
             <el-option :label="`默认 · ${model.checkpoint.defaultName.split(/[\\/]/).at(-1)}`" value="__workflow_checkpoint__" />
             <el-option v-for="name in checkpointOptions" :key="name" :value="name" :label="name" />
           </el-select>
         </template>
         <div class="sectionLabel">主 LoRA（加速或其它用途）</div>
-        <el-select v-model="selectedLora" :disabled="disabled" :teleported="false" filterable aria-label="选择 LoRA 或关闭">
+        <el-select v-model="selectedLora" :disabled="disabled" :append-to="settingsHost" filterable aria-label="选择 LoRA 或关闭">
           <el-option label="关闭 LoRA（基础模型）" value="__lora_disabled__" />
           <el-option v-for="name in loraOptions" :key="name" :value="name" :label="name" />
         </el-select>
@@ -107,7 +108,7 @@
           </div>
           <div class="sectionLabel">附加 LoRA（从上往下加载，最多 3 个）</div>
           <div v-for="(item, index) in extraLoras" :key="index" class="h3LoraRow">
-            <el-select :model-value="item.name" filterable :teleported="false" :disabled="disabled" aria-label="附加 LoRA" @change="value => updateExtra(index, {name:value})">
+            <el-select :model-value="item.name" filterable :append-to="settingsHost" :disabled="disabled" aria-label="附加 LoRA" @change="value => updateExtra(index, {name:value})">
               <el-option v-for="name in availableExtraNames(index)" :key="name" :value="name" :label="name" />
             </el-select>
             <div class="h3AdvancedRow">
@@ -117,16 +118,16 @@
               <el-button size="small" text type="danger" :disabled="disabled" @click="removeExtra(index)">删除</el-button>
             </div>
           </div>
-          <el-select v-if="extraLoras.length < model.h3Advanced.maxExtraLoras" :model-value="undefined" placeholder="添加已安装 LoRA" filterable :teleported="false" :disabled="disabled || !availableExtraNames(-1).length" @change="addExtra">
+          <el-select v-if="extraLoras.length < model.h3Advanced.maxExtraLoras" :model-value="undefined" placeholder="添加已安装 LoRA" filterable :append-to="settingsHost" :disabled="disabled || !availableExtraNames(-1).length" @change="addExtra">
             <el-option v-for="name in availableExtraNames(-1)" :key="name" :value="name" :label="name"/>
           </el-select>
           <div class="sectionLabel">采样器</div>
-          <el-select :model-value="h3Options?.sampler ?? '__workflow_default__'" filterable :teleported="false" :disabled="disabled" @change="value => patchAdvanced('sampler',value === '__workflow_default__' ? undefined : value)">
+          <el-select :model-value="h3Options?.sampler ?? '__workflow_default__'" filterable :append-to="settingsHost" :disabled="disabled" @change="value => patchAdvanced('sampler',value === '__workflow_default__' ? undefined : value)">
             <el-option :label="'默认 · '+model.h3Advanced.sampler" value="__workflow_default__"/>
             <el-option v-for="name in samplerOptions" :key="name" :value="name" :label="name"/>
           </el-select>
           <div class="sectionLabel">调度器</div>
-          <el-select :model-value="h3Options?.scheduler ?? '__workflow_default__'" filterable :teleported="false" :disabled="disabled" @change="value => patchAdvanced('scheduler',value === '__workflow_default__' ? undefined : value)">
+          <el-select :model-value="h3Options?.scheduler ?? '__workflow_default__'" filterable :append-to="settingsHost" :disabled="disabled" @change="value => patchAdvanced('scheduler',value === '__workflow_default__' ? undefined : value)">
             <el-option :label="'默认 · '+model.h3Advanced.scheduler" value="__workflow_default__"/>
             <el-option v-for="name in schedulerOptions" :key="name" :value="name" :label="name"/>
           </el-select>
@@ -158,32 +159,32 @@
         <el-switch v-model="generateAudio" :disabled="disabled" aria-label="生成音频" />
       </div>
       <div class="sectionLabel">成片质检</div>
-      <el-select v-model="qcMode" :teleported="false" :disabled="disabled" aria-label="质检配置模式">
+      <el-select v-model="qcMode" :append-to="settingsHost" :disabled="disabled" aria-label="质检配置模式">
         <el-option value="inherit" label="继承系统设置" />
         <el-option value="off" label="关闭自动质检" />
         <el-option value="custom" label="自定义质检设置" />
       </el-select>
       <div v-if="qcMode === 'custom'" class="outputField">
         <div class="sectionLabel">质检方式</div>
-        <el-select :model-value="customQc.qcMethod ?? props.qcDefaults?.qcMethod" :teleported="false" @change="value => patchQc({qcMethod:value})">
+        <el-select :model-value="customQc.qcMethod ?? props.qcDefaults?.qcMethod" :append-to="settingsHost" @change="value => patchQc({qcMethod:value})">
           <el-option value="model" label="专用质检模型" /><el-option value="agentFrames" label="主 Agent 抽帧" /><el-option value="agentFramesAndModel" label="联合质检" />
         </el-select>
         <div class="sectionLabel">质检范围</div>
-        <el-select :model-value="customQc.qcLevel ?? props.qcDefaults?.qcLevel" :teleported="false" @change="value => patchQc({qcLevel:value})">
+        <el-select :model-value="customQc.qcLevel ?? props.qcDefaults?.qcLevel" :append-to="settingsHost" @change="value => patchQc({qcLevel:value})">
           <el-option value="video" label="仅画面" /><el-option value="videoAudio" label="画面 + 音轨" /><el-option value="none" label="关闭质检" />
         </el-select>
         <div class="sectionLabel">触发方式</div>
-        <el-select :model-value="customQc.qcTrigger ?? props.qcDefaults?.qcTrigger" :teleported="false" @change="value => patchQc({qcTrigger:value})">
+        <el-select :model-value="customQc.qcTrigger ?? props.qcDefaults?.qcTrigger" :append-to="settingsHost" @change="value => patchQc({qcTrigger:value})">
           <el-option value="auto" label="生成后自动" /><el-option value="manual" label="手动质检" />
         </el-select>
         <template v-if="(customQc.qcMethod ?? props.qcDefaults?.qcMethod) !== 'agentFrames' && (customQc.qcLevel ?? props.qcDefaults?.qcLevel) !== 'none'">
           <div class="sectionLabel">画面质检模型</div>
-          <el-select :model-value="customQc.videoQcModelId ?? props.qcDefaults?.videoQcModelId" filterable :teleported="false" @change="selectVideoQc">
+          <el-select :model-value="customQc.videoQcModelId ?? props.qcDefaults?.videoQcModelId" filterable :append-to="settingsHost" @change="selectVideoQc">
             <el-option v-for="item in props.qcChoices?.filter(item => item.video)" :key="item.id" :value="item.id" :label="item.label" />
           </el-select>
           <template v-if="(customQc.qcLevel ?? props.qcDefaults?.qcLevel) === 'videoAudio'">
             <div class="sectionLabel">音轨质检模型</div>
-            <el-select :model-value="customQc.audioQcModelId ?? props.qcDefaults?.audioQcModelId" filterable :teleported="false" @change="selectAudioQc">
+            <el-select :model-value="customQc.audioQcModelId ?? props.qcDefaults?.audioQcModelId" filterable :append-to="settingsHost" @change="selectAudioQc">
               <el-option v-for="item in props.qcChoices?.filter(item => item.audio)" :key="item.id" :value="item.id" :label="item.label" />
             </el-select>
           </template>
@@ -195,7 +196,7 @@
       <template v-if="model?.supportsSeed">
         <div class="sectionLabel seedLabel">种子</div>
         <div class="seedRow">
-          <el-select v-model="seedMode" class="seedModeSelect" :disabled="disabled" :teleported="false" aria-label="种子模式">
+          <el-select v-model="seedMode" class="seedModeSelect" :disabled="disabled" :append-to="settingsHost" aria-label="种子模式">
             <el-option value="fixed" label="固定" />
             <el-option value="random" label="随机" />
             <el-option value="last" label="固定上次随机" :disabled="lastSeed == null" />
@@ -213,6 +214,7 @@
             aria-label="种子值" />
         </div>
       </template>
+    </div>
     </div>
   </el-popover>
 </template>
@@ -235,6 +237,7 @@ function patchQc(patch: Partial<CustomQc>) { qcOverride.value = {...customQc.val
 function selectVideoQc(id: string) { patchQc({videoQcModelId:id,...(id.startsWith("qc/gemma4:") ? {audioQcModelId:id} : {})}); }
 function selectAudioQc(id: string) { patchQc({audioQcModelId:id,...(id.startsWith("qc/gemma4:") ? {videoQcModelId:id} : {})}); }
 const settingsVisible = ref(false);
+const settingsHost = ref<HTMLElement>();
 const duration = defineModel<number | undefined>("duration", { required: true });
 const resolution = defineModel<string>("resolution", { required: true });
 const megapixels = defineModel<number | undefined>("megapixels");
@@ -511,5 +514,14 @@ function ratioStyle(value: string) {
 .h3AdvancedRow { display:flex; align-items:center; justify-content:space-between; gap:4px; }
 .h3AdvancedRow .el-input-number { width:120px; flex-shrink:0; }
 .h3LoraRow { display:flex; flex-direction:column; gap:4px; padding:5px; border:1px solid var(--el-border-color); border-radius:6px; }
-.generationSettings { max-height:min(70vh, 650px); overflow-y:auto; }
+.generationSettingsHost { position: relative; min-width: 0; }
+.generationSettings {
+  max-height: min(65vh, 620px);
+  max-height: min(65dvh, 620px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  padding-right: 6px;
+  &:focus-visible { outline: 1px solid var(--el-color-primary); outline-offset: -1px; }
+}
 </style>

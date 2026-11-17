@@ -1,5 +1,5 @@
 <template>
-  <el-popover v-model:visible="settingsVisible" trigger="click" placement="top-start" width="min(340px, calc(100vw - 24px))" :disabled="disabled" :showArrow="false" :popperStyle="{ padding: '14px' }"
+  <el-popover v-model:visible="settingsVisible" trigger="click" placement="top-start" width="min(560px, calc(100vw - 24px))" :disabled="disabled" :showArrow="false" :popperStyle="{ padding: '14px' }"
     @show="emit('refreshComfyChoices')">
     <template #reference>
       <el-button class="settingsButton" text size="small" :disabled="disabled" :aria-expanded="settingsVisible" aria-label="视频生成设置">
@@ -453,7 +453,7 @@ function ratioStyle(value: string) {
 
   .ratioOptions {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(64px, 100%), 1fr));
     gap: 8px;
 
     .ratioButton {
@@ -511,15 +511,44 @@ function ratioStyle(value: string) {
 }
 
 .h3Advanced { display:flex; flex-direction:column; gap:7px; border-top:1px solid var(--el-border-color); margin-top:8px; padding-top:8px; }
-.h3AdvancedRow { display:flex; align-items:center; justify-content:space-between; gap:4px; }
+.h3AdvancedRow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.h3AdvancedRow :deep(.el-button + .el-button) { margin-left: 0; }
+.h3Advanced > :deep(.el-button) {
+  margin-left: 0;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  min-height: 24px;
+  white-space: normal;
+  line-height: 1.5;
+  padding: 5px 9px;
+  > span { min-width: 0; overflow-wrap: anywhere; }
+}
 .h3AdvancedRow .el-input-number { width:120px; flex-shrink:0; }
 .h3LoraRow { display:flex; flex-direction:column; gap:4px; padding:5px; border:1px solid var(--el-border-color); border-radius:6px; }
-.generationSettingsHost { position: relative; min-width: 0; }
+.generationSettingsHost {
+  position: relative;
+  min-width: 0;
+  :deep(.el-select-dropdown__item) {
+    height: auto;
+    min-height: 34px;
+    line-height: 1.5;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
 .generationSettings {
   max-height: min(65vh, 620px);
   max-height: min(65dvh, 620px);
   overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  box-sizing: border-box;
   overscroll-behavior-y: contain;
+  :deep(.el-select) { min-width: 0; max-width: 100%; }
+  .sizeHint, .sectionLabel { overflow-wrap: anywhere; }
   scrollbar-gutter: stable;
   padding-right: 6px;
   &:focus-visible { outline: 1px solid var(--el-color-primary); outline-offset: -1px; }

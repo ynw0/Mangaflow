@@ -98,9 +98,14 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
     } else {
       const candidates = input.loraChoices.filter(name => declaredSteps(name) === 8 && !knownSpecial.test(basename(name)));
       const selected = candidates.find(name => normalize(name) === normalize(input.selectedLora));
+      const lightxV11 = candidates.filter(name => basename(name) === "minimax_h3_ref2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors");
       if (selected) loraName = selected;
       else if (candidates.length === 1) loraName = candidates[0]!;
-      else return blocked(candidates.length ? "存在多个 8-step LoRA，请先明确选择一个已验证兼容的版本。" : "未找到明确声明 8step 的普通加速 LoRA；PDD/PTD/HyperFlow 不能通过普通加载器替代。");
+      else if (input.compatibilityConfirmed && lightxV11.length === 1) loraName = lightxV11[0]!;
+      else if (input.intent === "auto" && candidates.length === 0) {
+        // 自动模式不能为了追求速度把正式镜头回退至4步；用常规25步保守完成。
+        return planH3Sampling({ ...input, intent: "quality", qualitySteps: input.qualitySteps ?? 25 });
+      } else return blocked(candidates.length ? "存在多个 8-step LoRA，请明确选择已验证兼容的版本；不能凭文件名随意叠加。" : "未找到明确声明 8step 的普通加速 LoRA；PDD/PTD/HyperFlow 不能通过普通加载器替代。");
     }
     if (!input.compatibilityConfirmed && targetSteps === 8) {
       // 质量要求高的正式镜头不得仅凭文件名自动切换至尚未验证的加速器。

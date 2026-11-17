@@ -66,7 +66,7 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
  * Negated mentions (e.g. “不要求单镜头”) are not an instruction to prohibit cuts.
  */
 export function requiresContinuousTake(shot: { story: string; mustHave: string[]; mustNotHave: string[] }): boolean {
-  if (shot.mustNotHave.some(item => /(?:切镜|切换机位|蒙太奇|反打|camera cuts|jump cuts|montage)/i.test(item))) return true;
+  if (shot.mustNotHave.some(item => /(?:切镜|镜头切换|切换机位|camera cuts|all cuts|every cut)/i.test(item))) return true;
   const requirement = [shot.story, ...shot.mustHave].join("；");
   const single = /单一连续镜头|一个连续镜头|单镜头|单一镜头|一镜到底|全程不切镜|禁止切镜|不允许切镜|不得切镜|不许切镜|不切镜|one continuous shot|single continuous take|single shot|one shot|no cuts/gi;
   for (const match of requirement.matchAll(single)) {

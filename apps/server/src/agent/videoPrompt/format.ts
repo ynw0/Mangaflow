@@ -62,6 +62,21 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
   ];
 }
 
+/** Interpret existing story/mustHave/mustNotHave; do not add a second shot-mode field.
+ * Negated mentions (e.g. “不要求单镜头”) are not an instruction to prohibit cuts.
+ */
+export function requiresContinuousTake(shot: { story: string; mustHave: string[]; mustNotHave: string[] }): boolean {
+  if (shot.mustNotHave.some(item => /(?:切镜|切换机位|蒙太奇|反打|camera cuts|jump cuts|montage)/i.test(item))) return true;
+  const requirement = [shot.story, ...shot.mustHave].join("；");
+  const single = /单一连续镜头|一个连续镜头|单镜头|单一镜头|一镜到底|全程不切镜|禁止切镜|不允许切镜|不得切镜|不许切镜|不切镜|one continuous shot|single continuous take|single shot|one shot|no cuts/gi;
+  for (const match of requirement.matchAll(single)) {
+    const before = requirement.slice(Math.max(0, (match.index ?? 0) - 22), match.index);
+    if (/(?:不再要求|不要求|无需|无须|不必|无需强制|不强制|不限定|不限于|不是|并非|可以不是|允许|取消|放弃|改成|改为)\s*$/i.test(before)) continue;
+    return true;
+  }
+  return false;
+}
+
 const refSections = ["subject_definitions", "summary", "retention_analysis", "detailed_description", "overall_soundscape", "non_diegetic_music"];
 const baseSections = ["integrated_multimodal_description", "overall_soundscape", "non_diegetic_music"];
 
@@ -127,8 +142,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
         previousCut = at;
       }
     }
-    if (shotMarkers.length > 1 && /(?:单一连续镜头|单镜头|单一镜头|一镜到底|全程不切镜|禁止切镜|one continuous shot|single continuous take|single shot|one shot|no cuts)/i.test(
-      [prepared.shot.story,...prepared.shot.mustHave,...prepared.shot.mustNotHave].join(" ")))
+    if (shotMarkers.length > 1 && requiresContinuousTake(prepared.shot))
       findings.push("用户明确要求单镜到底，但正文包含多个镜头；需保持一个 [Shot 1]。");
   }
   if (/<d>/.test(timeline.slice(0, opening?.index ?? timeline.length))) findings.push("对白须位于 [Shot 1] 正文中。");

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { inspectDraft } from "./format";
+import { inspectDraft, requiresContinuousTake } from "./format";
+import { draftCinematicPlanSchema } from "@/utils/production/videoPlan";
 import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
 
 const cinematicPlan: DraftCinematicPlan = {
@@ -23,14 +24,45 @@ const prompt = (body: string) => [
   "non_diegetic_music:",
   "N/A",
 ].join("\n");
-const make = (body: string, story = "女主进入大厅找到一封信") => inspectDraft({
+const make = (
+  body: string, story = "女主进入大厅找到一封信",
+  extra: { mustHave?: string[]; mustNotHave?: string[] } = {},
+) => inspectDraft({
   cinematicPlan, prompt: prompt(body), promptZh: "女主进入大厅，镜头反打展示发现信件的反应。",
 }, {
   format: "h3Ref2va", setup: { duration: 15, references: [] },
-  shot: { story, mustHave: [], mustNotHave: [] },
+  shot: { story, mustHave: extra.mustHave ?? [], mustNotHave: extra.mustNotHave ?? [] },
 } as unknown as Parameters<typeof inspectDraft>[1]);
 
 describe("Ref2VA 按合同使用单镜或多镜", () => {
+  test("不引入 shotMode 或 shots 结构，历史 cinematicPlan 可继续使用", () => {
+    expect(Object.keys(draftCinematicPlanSchema.shape).sort()).toEqual(
+      ["openingFrame","camera","ending","beats","dialogue"].sort(),
+    );
+    expect(draftCinematicPlanSchema.parse(cinematicPlan)).toEqual(cinematicPlan);
+  });
+  test("用户未锁定镜头数量时，使用现有合同判断；否定表述不能误判单镜", () => {
+    const body = "[Shot 1] Medium framing.\\n[Shot 2] At 00:05.000, reverse shot.";
+    expect(make(body, "可以反打，不要求单镜头")).toEqual([]);
+    expect(make(body, "不必一镜到底，导演可以自由决定")).toEqual([]);
+    expect(requiresContinuousTake({ story: "不强制 single shot", mustHave: [], mustNotHave: [] })).toBe(false);
+    expect(make(body, "男主面对镜头，可以按需要切镜")).toEqual([]);
+  });
+  test("明确一镜到底或 mustNotHave 禁止切镜时仍严格执行", () => {
+    const body = "[Shot 1] Medium framing.\\n[Shot 2] At 00:05.000, reverse shot.";
+    expect(make(body, "15秒一个连续镜头").some(x => x.includes("明确要求单镜到底"))).toBe(true);
+    expect(make(body, "男主找信", {mustNotHave: ["切镜"]})
+      .some(x => x.includes("明确要求单镜到底"))).toBe(true);
+  });
+  test("无效切点、倒序切点及超出片段时长均被拦截", () => {
+    const late = make("[Shot 1] Establishing.\\n[Shot 2] At 00:15.000, too late.");
+    expect(late.some(x => x.includes("切镜时间必须递增"))).toBe(true);
+    const backward = make(
+      "[Shot 1] Establishing.\\n[Shot 2] At 00:10.000, reverse.\\n[Shot 3] At 00:05.000, cut.",
+    );
+    expect(backward.some(x => x.includes("切镜时间必须递增"))).toBe(true);
+  });
+
   test("允许标准切点、反打、蒙太奇和多镜头动作描述", () => {
     const findings = make([
       "[Shot 1] A medium shot establishes the woman at the entrance.",

@@ -2,7 +2,7 @@
 name: workflow
 description: 按小说或用户query制作漫剧。先编剧，再资产规划，再角色、场景、道具原画与对应审核，再视频导演、视频提示词审核与成片审核。出图按系统设置走 Qwen 图像 API 或 ComfyUI 工作流。出视频用 AutoDL 或本机的 ComfyUI。用户要做短剧、漫剧、分镜、资产或镜头时使用。
 metadata:
-  version: "1.11.0"
+  version: "1.11.1"
   displayName: 漫剧制作
   author: Manga
 ---
@@ -17,7 +17,7 @@ references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前
 
 公共规则读 [common.md](references/common.md)。小说改编定调读 [adaptationStrategy.md](references/adaptationStrategy.md)（原则门，不抄外部死数字）。需要完整场次正文读 [episodeScript.md](references/episodeScript.md)；分场情绪与注意事项读 [directorPlan.md](references/directorPlan.md)。审核分流及原画通用审核顺序见 [prompt-review.md](references/prompt-review.md)。合同怎么落到画布读 [canvas-use.md](references/canvas-use.md)。每阶段写入后须用户明确确认才进入下一阶段，规则见 canvas-use「逐步确认关卡」，节点操作再读 canvas 技能。开始某一阶段前，只读该阶段的参考，不要一次读完。
 
-MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画布读写继续使用。一个视频节点只放一个连续摄影镜头。
+MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画布读写继续使用。一个 H3 视频节点可以按已确认剧情合同包含一个连续摄影镜头，或多个以 `[Shot N]` 明确切点的内部镜头；反打、蒙太奇、闪回等剪辑手法在用户允许且时长可执行时可以使用。用户明确要求一镜到底时只允许 `[Shot 1]`，不能私自切镜、删减剧情。新多镜导演稿须在 `cinematicPlan.shots` 逐镜记录起止时间、机位与动作，并与正文切点对齐；单镜及历史审核记录可省略该数组，不另加 `shotMode`。
 
 | 阶段 | 先读 | 完成后 |
 | --- | --- | --- |
@@ -33,11 +33,11 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 
 ### 创作知识库（按阶段取用，严禁堆砌）
 
-按当前创作目标，从 [创作知识库说明](references/creativeKnowledge.md) 精准检索，而不是每镜套用全库。统一入口仍为 `searchVideoPromptTemplates`：原 `listTags/search` 保留导演镜头模板；`listCreativeTags/searchCreative` 支持 `narrative` 剧情节拍、`memes` 热梗、`absurd` 喜剧、`expressions` 颜艺和 `styles` 画风/滤镜。每镜只选择与已批准剧情、人物和参考图相容的少量条目；导演阶段存在更精确的原有拍法模板时优先用它。已选条目可用 `checkCreativeSelection` 检查多镜场次误塞单镜、时长不足、严肃剧情强加梗、写实人脸过度夸张和错误滤镜 ID。
+按当前创作目标，从 [创作知识库说明](references/creativeKnowledge.md) 精准检索，而不是每镜套用全库。统一入口仍为 `searchVideoPromptTemplates`：原 `listTags/search` 保留导演镜头模板；`listCreativeTags/searchCreative` 支持 `narrative` 剧情节拍、`memes` 热梗、`absurd` 喜剧、`expressions` 颜艺和 `styles` 画风/滤镜。每镜只选择与已批准剧情、人物和参考图相容的少量条目；导演阶段存在更精确的原有拍法模板时优先用它。已选条目可用 `checkCreativeSelection` 检查多镜场次是否在当前时长可执行、是否违背用户的单镜头合同，以及严肃剧情强加梗、写实人脸过度夸张和错误滤镜 ID。
 
 **工具联动：** Agent 先用 `searchVideoPromptTemplates` 取得匹配模板及其稳定 ID，需要其影响 H3 导演成稿时，将 ID 放到 `draftVideoPrompt.creativeSelection`。不要复制 1–10 条全文到提示词；无需模板就省略。`draftVideoPrompt` 参数使用原生 JSON 类型，`mustHave/mustNotHave/references` 必须是数组，`duration` 必须是数字。已有节点只传 `node`，不要与 `duration/ratio/modelId/sampling/seed` 同传；具体示例见 [创作知识库说明](references/creativeKnowledge.md)。
 
-**叙事模板不等于单镜脚本。** `scope:scene` 是多镜结构，不准压进单个 H3 连续镜头；所有 `scope:shot` 也须经现有镜头合同、独立提示词审查和算力授权。表情模板只控制表演，画风由项目设定锁定；滤镜用于指导画面观感。热梗库保留截至 2026-11-11 的有来源传播记录（含“我超威”）；剧情有喜剧空间时适当借用热梗或抽象搞怪的表现方式。尊重已确认的剧情与基调，使用有授权的音轨和声线，正文只写当前镜头需要的内容。
+**叙事模板不等于可直接生成的 H3 提示词。** `scope:scene` 是多镜场次框架：允许剪辑且时长足够时，可以将其合理拆解成一个 H3 视频片段中的多个 `[Shot N]`，在 `cinematicPlan.shots` 中记录切点与动作；不得为了塞进短片而删减剧情或合并不可执行的动作。用户明确要求单镜时仍须遵守一个连续摄影镜头的合同。`scope:shot` 仅提供单个镜头的创作素材，不代替原有合同、独立审核与算力授权。表情模板只控制表演，画风由项目设定锁定；滤镜用于指导画面观感。热梗库保留截至 2026-11-11 的有来源传播记录（含“我超威”）；剧情有喜剧空间时适当借用热梗或抽象搞怪的表现方式。尊重已确认的剧情与基调，使用有授权的音轨和声线，正文只写当前镜头需要的内容。
 
 ### 原画案例参考（不替换生产合同）
 
@@ -45,6 +45,6 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 
 官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing + cinematicPromptCraft 导演知识 → video-director → video-prompt-review → Comfy H3 Ref2VA）。
 
-画布出图时先通过图片生成节点的 `node:getConfig` 查询可用模型与当前配置，并由 `node:setConfig` 配置；可用 `listMediaModels` 交叉核实已启用项，但不得因此跳过画布生成节点。先按用户指定、配置的出图后端、是否有底图及参考图数量筛选，再读候选的 `usage`，按草稿速度、细节、底图保留需求选择。设置中的文生图和编辑工作流是对应任务的默认选项。Qwen-Image-2.1 Turbo 适合快速探索，标准版适合细节任务，具体以目录和验收结果为准。编辑用 `<image1>` 指代底图，补充参考图按实际槽位编号。编写、原画审核与生成均使用同一个工作流。出视频只用 ComfyUI 工作流，`providerId` 为 `comfyui`；`production.video.host` 为 `local` 时用本机地址，为 `autodl` 时用 AutoDL 实例。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片 16:9。
+画布出图时先通过图片生成节点的 `node:getConfig` 查询可用模型与当前配置，并由 `node:setConfig` 配置；可用 `listMediaModels` 交叉核实已启用项，但不得因此跳过画布生成节点。先按用户指定、配置的出图后端、是否有底图及参考图数量筛选，再读候选的 `usage`，按草稿速度、细节、底图保留需求选择。设置中的文生图和编辑工作流是对应任务的默认选项。Qwen-Image-2.1 Turbo 适合快速探索，标准版适合细节任务，具体以目录和验收结果为准。编辑用 `<image1>` 指代底图，补充参考图按实际槽位编号。编写、原画审核与生成均使用同一个工作流。出视频只用 ComfyUI 工作流，`providerId` 为 `comfyui`；`production.video.host` 为 `local` 时用本机地址，为 `autodl` 时用 AutoDL 实例。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片画幅遵从用户确认的镜头合同、项目生产配置与实际视频节点的比例设置；统一 H3 Ref2VA 工作流支持按能力选择 16:9、9:16 等比例，16:9 只是未指定时的默认值，不是强制规格。模型/工作流不支持所选比例或节点设置冲突时须先校验并处理，不能靠提示词文字静默覆盖。
 
 生成前把方案里的提示词、参考图和所选工作流给用户看。用户同意后才生成。出视频失败先看当前选中的 ComfyUI 是否连通，不换工作流重试。

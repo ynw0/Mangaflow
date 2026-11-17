@@ -16,7 +16,8 @@
     "./nodeAi": "./src/nodeAi.ts",
     "./nodeFfmpeg": "./src/nodeFfmpeg.ts",
     "./workspaceFiles": "./src/workspaceFiles.ts",
-    "./nodeTools": "./src/nodeTools.ts"
+    "./nodeTools": "./src/nodeTools.ts",
+    "./h3Sampling": "./src/h3Sampling.ts"
   },
   "scripts": {
     "typecheck": "vue-tsc --noEmit"

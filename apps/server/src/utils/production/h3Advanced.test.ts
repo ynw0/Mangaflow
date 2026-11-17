@@ -15,6 +15,32 @@ const read=async (name:string) => ({
   bindings:parseWorkflowBindings(await Bun.file(join(root,name+".bindings.yaml")).text()),
 });
 describe("H3 双采高级参数",()=>{
+  test("未指定加速 LoRA 自动旁路空加载器，附加 LoRA 正确重连",async()=>{
+    const dir=await realpath(await mkdtemp(join(tmpdir(),"manga-h3-lora-")));
+    try {
+      const base=videoGenerationSchema.parse({providerId:"comfyui",modelId:"video/h3_ref2va_dual",
+        checkpointName:"minimax/DasiwaMinimaxH3_dasiwaHybridV2_int8.safetensors",
+        prompt:"test",duration:5,ratio:"16:9"});
+      const implicit=(await prepareComfyWorkflow({directory:dir,mediaType:"video",request:base})).workflow as Record<string,any>;
+      const explicit=(await prepareComfyWorkflow({directory:dir,mediaType:"video",request:{...base,loraName:""}})).workflow as Record<string,any>;
+      expect(implicit["21"]).toBeUndefined();
+      expect(explicit["21"]).toBeUndefined();
+      expect(implicit["156"].inputs.model).toEqual(explicit["156"].inputs.model);
+      const withExtra=(await prepareComfyWorkflow({directory:dir,mediaType:"video",request:{
+        ...base,h3Options:{extraLoras:[{name:"style.safetensors",strength:0.8}]}
+      }})).workflow as Record<string,any>;
+      expect(withExtra["21"]).toBeUndefined();
+      const extra=Object.entries(withExtra).find(([,n])=>(n as any)?.inputs?.lora_name==="style.safetensors");
+      expect(extra).toBeDefined();
+      expect((extra?.[1] as any).inputs.model).toEqual(["20",0]);
+      expect(withExtra["156"].inputs.model).toEqual([extra?.[0],0]);
+      const named=(await prepareComfyWorkflow({directory:dir,mediaType:"video",request:{
+        ...base,loraName:"speed_8step.safetensors"
+      }})).workflow as Record<string,any>;
+      expect(named["21"].inputs.lora_name).toBe("speed_8step.safetensors");
+    }finally{await rm(dir,{recursive:true,force:true});}
+  });
+
   test("统一工作流无参考图、参考视频/音频可选，未选主模型时不可提交",async()=>{
     const {graph,bindings}=await read(names[0]!);
     expect([graph["150"].inputs.value,graph["148"].inputs.value]).toEqual([4,4]);

@@ -159,10 +159,6 @@
         <el-option value="custom" label="自定义质检设置" />
       </el-select>
       <div v-if="qcMode === 'custom'" class="outputField">
-        <div class="sectionLabel">质检方式</div>
-        <el-select :model-value="customQc.qcMethod ?? props.qcDefaults?.qcMethod" :append-to="settingsHost" @change="value => patchQc({qcMethod:value})">
-          <el-option value="model" label="专用质检模型" /><el-option value="agentFrames" label="主 Agent 抽帧" /><el-option value="agentFramesAndModel" label="联合质检" />
-        </el-select>
         <div class="sectionLabel">质检范围</div>
         <el-select :model-value="customQc.qcLevel ?? props.qcDefaults?.qcLevel" :append-to="settingsHost" @change="value => patchQc({qcLevel:value})">
           <el-option value="video" label="仅画面" /><el-option value="videoAudio" label="画面 + 音轨" /><el-option value="none" label="关闭质检" />
@@ -170,6 +166,15 @@
         <div class="sectionLabel">触发方式</div>
         <el-select :model-value="customQc.qcTrigger ?? props.qcDefaults?.qcTrigger" :append-to="settingsHost" @change="value => patchQc({qcTrigger:value})">
           <el-option value="auto" label="生成后自动" /><el-option value="manual" label="手动质检" />
+        </el-select>
+        <div class="sizeHint" v-if="(customQc.qcLevel ?? props.qcDefaults?.qcLevel) === 'videoAudio' && (customQc.qcMethod ?? props.qcDefaults?.qcMethod) === 'agentFrames'">
+          主 Agent 仅抽帧时无法听辨音轨，声音验收会标为未验证；请选择支持音频输入的专用模型。
+        </div>
+        <details class="outputField">
+          <summary>高级设置：质检方式与模型</summary>
+        <div class="sectionLabel">质检方式</div>
+        <el-select :model-value="customQc.qcMethod ?? props.qcDefaults?.qcMethod" :append-to="settingsHost" @change="value => patchQc({qcMethod:value})">
+          <el-option value="model" label="专用质检模型" /><el-option value="agentFrames" label="主 Agent 抽帧" /><el-option value="agentFramesAndModel" label="联合质检" />
         </el-select>
         <template v-if="(customQc.qcMethod ?? props.qcDefaults?.qcMethod) !== 'agentFrames' && (customQc.qcLevel ?? props.qcDefaults?.qcLevel) !== 'none'">
           <div class="sectionLabel">画面质检模型</div>
@@ -184,6 +189,7 @@
           </template>
           <el-button text size="small" :loading="qcLoading" @click="emit('refreshQcChoices')">刷新已安装质检模型</el-button>
         </template>
+        </details>
       </div>
       <div class="sizeHint" v-if="qcError" role="status">{{ qcError }}</div>
       <div class="sizeHint" v-else>Gemma 运行位置继承系统设置，只有已启用的实际权重可选。</div>

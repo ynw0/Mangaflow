@@ -15,7 +15,7 @@ metadata:
 
 references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前画布的文本节点；审核通过后才生成。审核不通过时，只把 findings 退回原来的专职重写，总控不改 prompt、不改槽位。
 
-公共规则读 [common.md](references/common.md)。小说改编定调读 [adaptationStrategy.md](references/adaptationStrategy.md)（原则门，不抄外部死数字）。需要完整场次正文读 [episodeScript.md](references/episodeScript.md)；分场情绪与注意事项读 [directorPlan.md](references/directorPlan.md)。审核分流及原画通用审核顺序见 [prompt-review.md](references/prompt-review.md)。合同怎么落到画布读 [canvas-use.md](references/canvas-use.md)。每阶段写入后须用户明确确认才进入下一阶段，规则见 canvas-use「逐步确认关卡」，节点操作再读 canvas 技能。开始某一阶段前，只读该阶段的参考，不要一次读完。
+公共规则读 [common.md](references/common.md)。小说改编定调读 [adaptationStrategy.md](references/adaptationStrategy.md)（原则门，不抄外部死数字）。需要完整场次正文读 [episodeScript.md](references/episodeScript.md)；分场情绪与注意事项读 [directorPlan.md](references/directorPlan.md)。审核分流及原画通用审核顺序见 [prompt-review.md](references/prompt-review.md)。合同怎么落到画布读 [canvas-use.md](references/canvas-use.md)。每阶段按当前运行模式和已有授权推进；普通/半自动确认规则见 canvas-use「逐步确认关卡」，节点操作再读 canvas 技能。开始某一阶段前，只读该阶段的参考，不要一次读完。
 
 MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画布读写继续使用。一个 H3 视频节点可以按已确认剧情合同包含一个连续摄影镜头，或多个以 `[Shot N]` 明确切点的内部镜头；反打、蒙太奇、闪回等剪辑手法在用户允许且时长可执行时可以使用。用户明确要求一镜到底时只允许 `[Shot 1]`，不能私自切镜、删减剧情。新多镜导演稿须在 `cinematicPlan.shots` 逐镜记录起止时间、机位与动作，并与正文切点对齐；单镜及历史审核记录可省略该数组，不另加 `shotMode`。
 
@@ -47,4 +47,4 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 
 画布出图时先通过图片生成节点的 `node:getConfig` 查询可用模型与当前配置，并由 `node:setConfig` 配置；可用 `listMediaModels` 交叉核实已启用项，但不得因此跳过画布生成节点。先按用户指定、配置的出图后端、是否有底图及参考图数量筛选，再读候选的 `usage`，按草稿速度、细节、底图保留需求选择。设置中的文生图和编辑工作流是对应任务的默认选项。Qwen-Image-2.1 Turbo 适合快速探索，标准版适合细节任务，具体以目录和验收结果为准。编辑用 `<image1>` 指代底图，补充参考图按实际槽位编号。编写、原画审核与生成均使用同一个工作流。出视频只用 ComfyUI 工作流，`providerId` 为 `comfyui`；`production.video.host` 为 `local` 时用本机地址，为 `autodl` 时用 AutoDL 实例。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片画幅遵从用户确认的镜头合同、项目生产配置与实际视频节点的比例设置；统一 H3 Ref2VA 工作流支持按能力选择 16:9、9:16 等比例，16:9 只是未指定时的默认值，不是强制规格。模型/工作流不支持所选比例或节点设置冲突时须先校验并处理，不能靠提示词文字静默覆盖。
 
-生成前把方案里的提示词、参考图和所选工作流给用户看。用户同意后才生成。出视频失败先看当前选中的 ComfyUI 是否连通，不换工作流重试。
+生成前展示提示词、参考图和工作流。普通/半自动按关卡确认；目标模式在用户已授权的目标及算力范围内直接继续，超范围付费或生成次数不得自行扩张。出视频失败先检查 ComfyUI 连通性，不换工作流重试。

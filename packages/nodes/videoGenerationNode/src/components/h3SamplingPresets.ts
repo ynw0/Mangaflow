@@ -1,4 +1,7 @@
-/** H3 二采预设：根据模型实际 LoRA 列表识别加速模型，保留普通 LoRA。 */
+/** H3 二采预设：底层识别与 Agent 共享；手动实验档可提示风险而 Agent 自动档必须验证。 */
+import { preferred4StepLora, normalizeH3LoraName as normalize, basenameH3Lora as basename,
+  declaredAccelerationSteps, isAccelerationLora } from "@toonflow/nodes-scaffold/h3Sampling";
+export { preferred4StepLora, declaredAccelerationSteps, isAccelerationLora } from "@toonflow/nodes-scaffold/h3Sampling";
 export type H3SamplingPreset = "normal" | "preview4" | "quick44" | "quick62" | "fused8";
 export type ExtraLora = { name: string; strength: number };
 export type H3PresetInput = {
@@ -17,22 +20,6 @@ export type H3PresetPlan =
       firstPassSteps: number; secondPassSteps: number; sampler: string; hint: string }
   | { ok: false; reason: string };
 
-const normalize = (name: string) => name.replaceAll("\\", "/").toLowerCase();
-const basename = (name: string) => normalize(name).split("/").at(-1) ?? "";
-export const preferred4StepLora = "minimax_h3_ref2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors";
-
-/** 识别 8step、8-steps、step_8、3step 等命名；不依赖厂商或固定文件名。 */
-export function declaredAccelerationSteps(name: string): number | undefined {
-  const file = basename(name);
-  const match = file.match(/(\d{1,2})[\s._-]*steps?/i) ?? file.match(/steps?[\s._-]*(\d{1,2})/i);
-  return match ? Number(match[1]) : undefined;
-}
-export function isAccelerationLora(name: string, manual: readonly string[] = []): boolean {
-  const file = basename(name);
-  return manual.some(item => normalize(item) === normalize(name))
-    || /turbo/i.test(file) || declaredAccelerationSteps(name) !== undefined
-    || /(?:^|[\s._-])steps?(?:$|[\s._-])/i.test(file);
-}
 function compatibleWith(name: string, steps: 4 | 8, manual: readonly string[]) {
   if (!isAccelerationLora(name, manual)) return false;
   const declared = declaredAccelerationSteps(name);

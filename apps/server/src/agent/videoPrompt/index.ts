@@ -236,7 +236,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
           "按 speechPolicy 为启用同期音轨的对白安排语速，在时长内完整说完原文。按 S1/S2 写各角色可辨且符合性格的稳定声线与本镜情绪。系统声、旁白、独白按 speechPolicy.voiceover 写入镜头正文，并应用 voiceCast 对应声源建议。批准的角色外形保持一致，写具体可辨的脸型、眉眼或轮廓特征。镜尾保留 0.2 秒，关键动作和台词提前完成，说完闭口后自然过渡。无真实音频文件不可虚构 <Audio N>。",
           `结构示例。调用参数取 submitResult 的对象，成片内容及正文格式以本次镜头为准：${JSON.stringify(directorSubmissionExample)}`,
           "先确定最终画框容纳哪些主体和身体部位，再反推开场机位与运动路径。前景道具与后景人物必须同框时，核对景别、遮挡和人物移动终点；不能一边继续逼近道具一边承诺人物头肩始终入画。规划与中英文正文必须一致。只在首次定义与必要承接处写稳定外观，避免逐段复写。",
-          "规划不得新增用户未要求的人物、动作或剧情。没有人物的镜头用 performance 描述物件、环境的可见反馈，不为填字段添加表演者。",
+          "规划不得新增人物、动作或剧情。单镜头、单一动作/状态变化、无复杂对白或依赖时属于低协调负荷：cinematicPlan 用一个有意义的 beats，shots 可以省略，camera 只写实际机位/固定状态，dialogue 无台词填空数组；不要制造额外节拍。存在多镜、依赖动作、多段精密机械、精确台词同步或重要空间承接时则逐项充分展开。简单/复杂不是额外模式字段，也不依靠视频时长或字数判定。没有人物的镜头只写物件与环境反馈。",
           "先确定镜头要交付的叙事信息，再写可见起点、动作变化和末态。正文简洁清晰，稳定信息只写一次，后续只补变化。顶视可略向斜俯倾斜，保持俯视关系与空间方向。英文和中文保持同样的可见事实。",
           "按已确认的剧情和素材取用匹配的拍法。creativeTemplates 是外层 Agent 按 ID 选中的创作参考，不是剧情合同；先处理 warnings，只抽取本镜所需的动作/表演/风格，多镜段落在用户允许且总时长可执行时可写入同一视频提示词；明确单镜合同时不得擅自切镜。模板含占位词、使用条件和验收点，满足条件后才写真实可观察的事件。返修以 findings 的要求编号、位置、问题依据和修改目标为边界；仅修改缺陷及必需的关联内容，保留正确的 Subject、参考绑定、对白和无关段落，中英文及 cinematicPlan 同步更新，仍返回完整合法正文。合理的创作选择不为迎合审核而重写。",
           JSON.stringify({ ...taskInput, ...(round ? { previousDraft: lastDraft, findings } : { candidates }) }),
@@ -255,7 +255,7 @@ export function createVideoPromptTool(options: SubAgentModel & {
         const review = await specialist(reviewSchema, reviewSubmissionParameters, "独立提示词审核", [
           '通过 submitResult 提交审核结论。退回结构示例：{"status":"rejected","findings":[{"requirementId":"story","location":"Shot 1","evidence":"工友未说话，镜头内未交代其嘴部状态","fixTarget":"在该段写明工友闭嘴等候"}]}。只审核当前稿件。',
           `通过示例。调用参数取 submitResult 的对象，实际提交须覆盖任务的全部编号：${JSON.stringify(reviewSubmissionExample)}`,
-          "通过时 coverage 是 JSON 对象数组，直接填写 [{\"requirementId\":\"编号\",\"evidence\":\"短句\"}]。恰好覆盖 reviewRequirements 每个编号一次；每条证据用一个短句定位正文事实，禁止只写符合、已检查或复述要求。禁止项说明检查范围与实际安排；没有参考或对白时如实说明不适用及依据，不新增要求。退回只列实质缺陷，不因字数短、固定机位、没有特效或个人审美偏好退回。",
+          "通过时 coverage 是 JSON 对象数组，直接填写 [{\"requirementId\":\"编号\",\"evidence\":\"短句\"}]。恰好覆盖 reviewRequirements 每个编号一次；每项用一句话定位可验证事实，禁止只写符合或逐字复述要求。framingEvidence 只写镜尾构图与停机时间的独特证明，不重复 coverage 已说明的事实。无参考、无对白时简述不适用依据。退回只列实质缺陷，不因字数短、固定机位、没有特效或个人审美偏好退回。",
           "对照 cinematicPlan 与真实正文逐项审核运动终点、停机时间、镜尾同框对象、人物终点及表演节拍。存在 cinematicPlan.shots 时逐镜核对镜号、开始结束时间、机位、动作及入出状态与 [Shot N] 和 At MM:SS.mmm 切点相符；全局时间轴仍用于对白，不得逐镜归零。需要推近特写却又保持远处人物上半身可见，或定幅期间仍继续推进，属于实质缺陷。不能只因六段格式完整就判合格。",
           "对照 cinematicPlan.dialogue 和正文逐句核对说话人、开口触发、必须先完成的动作、停顿和收句。正文先做后说时，规划必须列出该前置节拍并先做完再开口。整句期间听者闭口。按 speechPolicy 留足口播及停顿和最后 0.2 秒，贴边时在审核证据指出起声偏移风险；有画外音时按 speechPolicy.voiceover 核对实际声源、固定短语、听觉关系和闭口说明。有 voiceCast 时核对声源、声线和语速覆盖。定位实际影响剧情、动作、身份或声画的缺陷，保留合理的拍法取舍。",
           JSON.stringify({ ...taskInput, reviewRequirements, draft: lastDraft }),

@@ -11,6 +11,15 @@ import { voiceTemplates, voiceCategories, compileVoiceCast, DEFAULT_H3_SPEECH_RA
 const signal = new AbortController().signal;
 
 describe("创作知识库：热梗、搞怪、表情与画风", () => {
+  test("单镜合同时多镜场次模板必须报错，非单镜时保持警告", () => {
+    const single=checkCreativeSelection({selected:{narrativeId:"n02"},medium:"video",durationSeconds:15,singleShot:true});
+    expect(single.status).toBe("invalid");
+    expect(single.errors.some(x=>x.includes("多镜场次"))).toBe(true);
+    const multi=checkCreativeSelection({selected:{narrativeId:"n02"},medium:"video",durationSeconds:15,singleShot:false});
+    expect(multi.status).toBe("review");
+    expect(multi.warnings.some(x=>x.includes("多镜场次"))).toBe(true);
+  });
+
   test("热梗均为2026有日期的公开记录，无2025条目或不明确的热门来源", () => {
     expect(memesCN.length).toBeGreaterThanOrEqual(49);
     expect(absurdPrompts.length).toBeGreaterThanOrEqual(20);

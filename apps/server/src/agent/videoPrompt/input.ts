@@ -3,6 +3,7 @@ import { z } from "zod";
 import { h3OptionsSchema, type CanvasContext, type MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { checkCreativeSelection, creativeTones } from "@/agent/creativeKnowledge";
+import { requiresContinuousTake } from "@/agent/videoPrompt/format";
 import { compileVoiceCast, type VoiceCastRole } from "@/agent/creativeKnowledge/voiceTemplates";
 import { templateConditions, templateTagSchema } from "@/agent/videoPrompt/templates/schema";
 import { findWorkflow, imageReferenceRange, toMediaModel } from "@/utils/production/catalog";
@@ -174,7 +175,8 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   }
   // 内置导演和外部 MCP 均按同一镜头合同检查模板，再读取参考素材。
   const selection = selectedCreative && checkCreativeSelection({
-    selected: selectedCreative, medium: "video", tone: shot.tone, durationSeconds: seconds, singleShot: false,
+    selected: selectedCreative, medium: "video", tone: shot.tone, durationSeconds: seconds,
+    singleShot: requiresContinuousTake(shot),
   });
   if (selection?.status === "invalid") throw new Error(`创作模板无法用于当前视频片段：${selection.errors.join("；")}`);
   const creativeContext = selection && { selected: selection.selected, warnings: selection.warnings, guidance: selection.guidance };

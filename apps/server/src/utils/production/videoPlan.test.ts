@@ -16,6 +16,16 @@ const shots = [
 const make = (next: object) => draftCinematicPlanSchema.parse({ ...base, shots, ...next });
 
 describe("cinematicPlan 单镜与多镜兼容", () => {
+  test("简单镜头只需要一个真实动作节拍，保持原结构而不新增复杂度字段", () => {
+    const plan = draftCinematicPlanSchema.parse({
+      openingFrame:"车间的固定中景",camera:{movement:"固定机位",stopSeconds:0},
+      ending:{composition:"仪表盘保持在画框中央",visible:["仪表盘"],holdSeconds:1},
+      beats:[{startSeconds:0,endSeconds:5,action:"指示灯亮起",performance:"灯光从暗到亮"}],
+      dialogue:[],
+    });
+    expect(plan.shots).toBeUndefined();
+    expect(inspectVideoPlan(plan,5)).toEqual([]);
+  });
   test("历史五字段计划依旧能读；不需要 shotMode", () => {
     expect(cinematicPlanSchema.parse(base)).toEqual(base);
     expect(draftCinematicPlanSchema.parse(base)).toEqual(base);

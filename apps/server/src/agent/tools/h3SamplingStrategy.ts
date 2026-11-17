@@ -1,16 +1,10 @@
 import { z } from "zod";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { isEnabled } from "@/utils/skills/files";
+import { preferred4StepLora, normalizeH3LoraName as normalize, basenameH3Lora as basename,
+  declaredAccelerationSteps, isAccelerationLora, isSpecializedAccelerationLora } from "@toonflow/tools-scaffold/h3Sampling";
+export { preferred4StepLora } from "@toonflow/tools-scaffold/h3Sampling";
 
-export const preferred4StepLora = "minimax_h3_ref2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors";
-const knownSpecial = /(?:^|[_/.-])(pdd|ptd|hyperflow)(?:[_/.-]|$)/i;
-const normalize = (value: string) => value.replaceAll("\\", "/").toLowerCase();
-const basename = (value: string) => normalize(value).split("/").at(-1) ?? "";
-const declaredSteps = (value: string) => {
-  const file = basename(value);
-  const match = file.match(/(\d{1,2})[\s._-]*steps?/i) ?? file.match(/steps?[\s._-]*(\d{1,2})/i);
-  return match ? Number(match[1]) : undefined;
-};
 const extraSchema = z.strictObject({ name: z.string().trim().min(1).max(512), strength: z.number().min(0.01).max(2) });
 const advancedSchema = z.strictObject({
   loraStrength: z.number().min(0.01).max(2).optional(),
@@ -63,9 +57,7 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
   if (desired === "fused8" && input.checkpointKind !== "fused") return blocked("当前并非已验证的融合 Turbo 主模型。");
   if (desired !== "fused8" && input.checkpointKind === "fused") return blocked("已融合 Turbo 的主模型只允许选择融合档位，不能叠加普通加速 LoRA。");
 
-  const manual = new Set((input.manualAccelerationLoras ?? []).map(normalize));
-  const acceleration = (name: string) => !!name && (manual.has(normalize(name)) || /turbo/i.test(basename(name))
-    || declaredSteps(name) !== undefined || /(?:^|[_.-])step(?:[_.-]|$)/i.test(basename(name)));
+  const acceleration = (name: string) => isAccelerationLora(name, input.manualAccelerationLoras ?? []);
   const extras = (input.extraLoras ?? []).filter(item => !acceleration(item.name));
   const primaryOrdinary = input.selectedLora && !acceleration(input.selectedLora) ? input.selectedLora : "";
   if (primaryOrdinary && !extras.some(item => normalize(item.name) === normalize(primaryOrdinary))) {
@@ -97,7 +89,7 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
       loraName = input.loraChoices.find(name => basename(name) === preferred4StepLora) ?? "";
       if (!loraName) return blocked("未在已安装 LoRA 列表找到 LightX2V Ref2VA 4-step v1.0 ComfyUI BF16；不以 3step LoRA 冒充。");
     } else {
-      const candidates = input.loraChoices.filter(name => declaredSteps(name) === 8 && !knownSpecial.test(basename(name)));
+      const candidates = input.loraChoices.filter(name => declaredAccelerationSteps(name) === 8 && !isSpecializedAccelerationLora(name));
       const selected = candidates.find(name => normalize(name) === normalize(input.selectedLora));
       const lightxV11 = candidates.filter(name => basename(name) === "minimax_h3_ref2v_turbo_8step_v1.1_768p_comfyui_bf16.safetensors");
       if (selected) loraName = selected;

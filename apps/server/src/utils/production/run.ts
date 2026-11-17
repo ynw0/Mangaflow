@@ -220,7 +220,11 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
   const lockedLoraNodes = advanced !== undefined ? applyH3Options(workflow, entry.bindings, advanced, context.lora_name as string | undefined) : [];
   if (entry.bindings.optionalLoraNode) {
     if (typeof context.lora_name === "string" && context.lora_name && context.lora_name !== entry.loraDefaultName) lockedLoraNodes.unshift(entry.bindings.optionalLoraNode);
-    selectWorkflowLora(workflow, entry.bindings.optionalLoraNode, context.lora_name);
+    // Unified H3 intentionally has no default LoRA. Undefined must bypass the blank
+    // loader; older/custom workflows retain their previous "undefined = keep" semantics.
+    const name = entry.id === "video/h3_ref2va_dual" && context.lora_name === undefined
+      ? "" : context.lora_name;
+    selectWorkflowLora(workflow, entry.bindings.optionalLoraNode, name);
   }
   if (typeof context.checkpoint_name === "string") {
     const loader = findH3Checkpoint(workflow, entry.bindings);

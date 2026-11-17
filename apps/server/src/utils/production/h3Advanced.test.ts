@@ -65,6 +65,31 @@ describe("H3 双采高级参数",()=>{
       for(const id of ["7","113","117","149","18","19","26","118","126"]) expect(graph[id]).toEqual(before[id]);
     }
   });
+  test("视频参考与三路参考音频都能由同一份图绑定；不强制图片",async()=>{
+    const dir=await realpath(await mkdtemp(join(tmpdir(),"manga-h3-refs-")));
+    try{
+      for(const file of ["clip.mp4","voice1.mp3","voice2.mp3","voice3.mp3"])
+        await writeFile(join(dir,file),new Uint8Array([1,2,3,4]));
+      const request=videoGenerationSchema.parse({
+        providerId:"comfyui",modelId:"video/h3_ref2va_dual",
+        checkpointName:"minimax/DasiwaMinimaxH3_dasiwaHybridV2_int8.safetensors",
+        loraName:"",prompt:"A cinematic reverse shot",duration:15,ratio:"16:9",
+        videos:[{path:"clip.mp4",mimeType:"video/mp4"}],
+        audios:["voice1.mp3","voice2.mp3","voice3.mp3"].map(path=>({path,mimeType:"audio/mpeg"})),
+      });
+      const prepared=await prepareComfyWorkflow({directory:dir,mediaType:"video",request});
+      const graph=prepared.workflow as Record<string,any>;
+      expect(String(graph["135"].inputs.video).endsWith("clip.mp4")).toBe(true);
+      expect(graph["6"].inputs["ref_videos.ref_video_0"]).toEqual(["135",0]);
+      expect(graph["6"].inputs["ref_video_audios.ref_video_audio_0"]).toEqual(["135",2]);
+      for(const [slot,id] of ["27","41","134"].entries()){
+        expect(String(graph[id].inputs.audio).endsWith("voice"+(slot+1)+".mp3")).toBe(true);
+        expect(graph["6"].inputs["ref_audios.ref_audio_"+slot]).toEqual([id,0]);
+      }
+      expect(graph["24"]).toBeUndefined();
+      expect(graph["21"]).toBeUndefined();
+    } finally {await rm(dir,{recursive:true,force:true});}
+  });
   test("未知拓扑或重复/非法 LoRA 不允许改图",async()=>{
     const {graph,bindings}=await read(names[0]!);
     expect(()=>applyH3Options(graph,bindings,{extraLoras:[{name:"test.safetensors",strength:1}]},"test.safetensors")).toThrow("不得重复");

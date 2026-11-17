@@ -109,7 +109,7 @@
         </div>
         <div v-if="manualAccelerationLoras?.length && model.h3Advanced" class="manualAccelerationTags">
           <div class="sectionLabel">手动标记的加速 LoRA</div>
-          <el-tag v-for="name in manualAccelerationLoras" :key="name" closable :disable-transitions="true" :title="name" @close="removeManualAccelerationLora(name)">{{ name }}</el-tag>
+          <el-tag v-for="name in manualAccelerationLoras" :key="name" :closable="!disabled" :disable-transitions="true" :title="name" @close="removeManualAccelerationLora(name)">{{ name }}</el-tag>
         </div>
         <div v-if="manualAccelerationNotice" class="sizeHint" role="status">{{ manualAccelerationNotice }}</div>
         <el-button text size="small" :disabled="disabled || loraLoading" :loading="loraLoading" @click="emit('refreshComfyChoices')">{{ model.checkpoint ? '刷新模型与 LoRA' : '刷新 LoRA' }}</el-button>
@@ -297,6 +297,7 @@ const manualAccelerationCandidates = computed(() => (props.loraChoices ?? [])
   .filter(name => !isAccelerationLora(name, manualAccelerationLoras.value ?? []))
   .sort((a, b) => a.localeCompare(b)));
 function addManualAccelerationLora(name: string) {
+  if (props.disabled) return;
   const actual = (props.loraChoices ?? []).find(item => sameLora(item, name));
   if (!actual || isAccelerationLora(actual, manualAccelerationLoras.value ?? [])) {
     manualAccelerationNotice.value = "此文件不在已安装列表中，或已被识别为加速 LoRA；请刷新列表后重试。";
@@ -308,6 +309,7 @@ function addManualAccelerationLora(name: string) {
   manualAccelerationNotice.value = "已加入加速 LoRA 候选列表。请在上方选择并核对采样兼容性。";
 }
 function removeManualAccelerationLora(name: string) {
+  if (props.disabled) return;
   manualAccelerationLoras.value = (manualAccelerationLoras.value ?? []).filter(item => !sameLora(item, name));
   manualAccelerationNotice.value = "已取消手动加速标记，不会删除 ComfyUI 中的文件。";
 }

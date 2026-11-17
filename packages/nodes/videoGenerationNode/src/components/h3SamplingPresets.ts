@@ -3,6 +3,8 @@ export type H3SamplingPreset = "normal" | "preview4" | "quick44" | "quick62" | "
 export type ExtraLora = { name: string; strength: number };
 export type H3PresetInput = {
   installedLoras: readonly string[];
+  /** Names explicitly marked as accelerator LoRAs in this canvas node; does not guarantee compatibility. */
+  manualAccelerationLoras?: readonly string[];
   primaryLora: string;
   primaryStrength: number;
   extraLoras: readonly ExtraLora[];
@@ -24,19 +26,20 @@ export function declaredAccelerationSteps(name: string): number | undefined {
   const match = file.match(/(\d{1,2})[\s._-]*steps?/i) ?? file.match(/steps?[\s._-]*(\d{1,2})/i);
   return match ? Number(match[1]) : undefined;
 }
-export function isAccelerationLora(name: string): boolean {
+export function isAccelerationLora(name: string, manual: readonly string[] = []): boolean {
   const file = basename(name);
-  return /turbo/i.test(file) || declaredAccelerationSteps(name) !== undefined
+  return manual.some(item => normalize(item) === normalize(name))
+    || /turbo/i.test(file) || declaredAccelerationSteps(name) !== undefined
     || /(?:^|[\s._-])steps?(?:$|[\s._-])/i.test(file);
 }
-function compatibleWith(name: string, steps: 4 | 8) {
-  if (!isAccelerationLora(name)) return false;
+function compatibleWith(name: string, steps: 4 | 8, manual: readonly string[]) {
+  if (!isAccelerationLora(name, manual)) return false;
   const declared = declaredAccelerationSteps(name);
   return declared === undefined || (steps === 4 ? declared === 3 || declared === 4 : declared === 8);
 }
-function speedCandidate(installed: readonly string[], selected: string, steps: 4 | 8):
+function speedCandidate(installed: readonly string[], selected: string, steps: 4 | 8, manual: readonly string[]):
   { name: string } | { reason: string } {
-  const options = [...new Map(installed.filter(name => compatibleWith(name, steps))
+  const options = [...new Map(installed.filter(name => compatibleWith(name, steps, manual))
     .map(name => [normalize(name), name])).values()];
   const chosen = options.find(name => normalize(name) === normalize(selected));
   if (chosen) return { name: chosen };
@@ -57,8 +60,9 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
   if (preset === "fused8" && !input.eulerAvailable) {
     return { ok: false, reason: "未检测到 euler 采样器，请刷新 ComfyUI 采样器列表。" };
   }
-  const ordinaryExtras = input.extraLoras.filter(item => !isAccelerationLora(item.name)).map(item => ({ ...item }));
-  let primaryLora = isAccelerationLora(input.primaryLora) ? "" : input.primaryLora;
+  const manual = input.manualAccelerationLoras ?? [];
+  const ordinaryExtras = input.extraLoras.filter(item => !isAccelerationLora(item.name, manual)).map(item => ({ ...item }));
+  let primaryLora = isAccelerationLora(input.primaryLora, manual) ? "" : input.primaryLora;
   let primaryStrength = primaryLora ? input.primaryStrength : undefined;
   let firstPassSteps = 20, secondPassSteps = 5, sampler = "res_multistep";
   let hint = "已切换普通 25 步，仅关闭加速 LoRA，保留普通 LoRA。";
@@ -69,7 +73,7 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
     hint = "已切换融合 Turbo 8 步，仅关闭加速 LoRA，保留普通 LoRA。";
   } else if (preset !== "normal") {
     const target: 4 | 8 = preset === "preview4" ? 4 : 8;
-    const candidate = speedCandidate(input.installedLoras, input.primaryLora, target);
+    const candidate = speedCandidate(input.installedLoras, input.primaryLora, target, manual);
     if ("reason" in candidate) return { ok: false, reason: candidate.reason };
     // 兼容旧项目：普通 LoRA 处于主槽时，切加速档前迁入附加槽，防止静默丢失。
     if (primaryLora && normalize(primaryLora) !== normalize(candidate.name)
@@ -85,7 +89,7 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
     secondPassSteps = preset === "preview4" ? 2 : preset === "quick62" ? 2 : 4;
     hint = "已选择 " + firstPassSteps + "+" + secondPassSteps + "，关闭其它加速 LoRA，保留普通 LoRA。";
     if (declaredAccelerationSteps(candidate.name) === undefined) {
-      hint += " 文件名没有注明适用步数，需要验证 LoRA 与该档的兼容性。";
+      hint += " 此 LoRA 未声明适用步数，可能需要专用节点或调度器；手动标记不代表兼容，必须验证。";
     } else if (target === 4 && declaredAccelerationSteps(candidate.name) === 3) {
       hint += " 3step LoRA 用于 4 步属于试验配置，请核对实际效果。";
     }

@@ -67,6 +67,35 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     expect(createH3PresetPlan("fused8",input({turboCheckpoint:true,eulerAvailable:false})).ok).toBe(false);
     expect(createH3PresetPlan("normal",input({turboCheckpoint:true})).ok).toBe(false);
   });
+  test("手动标记的 LoRA 即使无 turbo/step 命名，也能被快速档识别", () => {
+    const custom="experimental/special-pdd.safetensors";
+    expect(isAccelerationLora(custom)).toBe(false);
+    expect(isAccelerationLora(custom,[custom.replaceAll("/", "\\")])).toBe(true);
+    const patch={ installedLoras:[custom], manualAccelerationLoras:[custom], primaryLora:custom };
+    const four=success("preview4",patch);
+    const eight=success("quick44",patch);
+    expect([four.firstPassSteps,four.secondPassSteps]).toEqual([2,2]);
+    expect([eight.firstPassSteps,eight.secondPassSteps]).toEqual([4,4]);
+    expect(eight.primaryLora).toBe(custom);
+    expect(eight.hint).toContain("专用节点或调度器");
+  });
+  test("普通25步与融合Turbo会移除手动标记的加速 LoRA，但保留真正的风格 LoRA", () => {
+    const tagged="custom/acceleration.safetensors";
+    const patch={ manualAccelerationLoras:[tagged],primaryLora:tagged,
+      extraLoras:[{name:tagged,strength:1},{name:"style/film.safetensors",strength:0.6}]};
+    const normal=success("normal",patch);
+    expect(normal.primaryLora).toBe("");
+    expect(normal.extraLoras).toEqual([{name:"style/film.safetensors",strength:0.6}]);
+    const fused=success("fused8",{...patch,turboCheckpoint:true});
+    expect(fused.extraLoras).toEqual([{name:"style/film.safetensors",strength:0.6}]);
+  });
+  test("没有手动标记的旧节点保持原有行为；已声明的3step不能用于8步", () => {
+    const unknown="s/unmarked.safetensors";
+    expect(createH3PresetPlan("quick44",input({installedLoras:[unknown],primaryLora:unknown})).ok).toBe(false);
+    expect(createH3PresetPlan("quick44",input({
+      installedLoras:["s/3step.safetensors"],manualAccelerationLoras:["s/3step.safetensors"],primaryLora:"s/3step.safetensors"
+    })).ok).toBe(false);
+  });
   test("未知步数 Turbo 候选提示验证", () => {
     const result=success("quick44",{installedLoras:["misc/AnyTurbo.safetensors"],primaryLora:"misc/AnyTurbo.safetensors"});
     expect(result.hint).toContain("需要验证");

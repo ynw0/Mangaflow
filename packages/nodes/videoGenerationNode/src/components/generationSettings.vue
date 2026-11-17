@@ -98,6 +98,20 @@
           <el-option label="关闭加速 LoRA" value="__lora_disabled__" />
           <el-option v-for="name in loraOptions" :key="name" :value="name" :label="name" />
         </el-select>
+        <el-button v-if="model.h3Advanced" size="small" text :disabled="disabled" @click="addingAccelerationLora = !addingAccelerationLora">不在列表中？手动添加加速 LoRA</el-button>
+        <div v-if="addingAccelerationLora && model.h3Advanced" class="manualAccelerationPicker">
+          <el-select :model-value="undefined" filterable :append-to="settingsHost" :disabled="disabled || loraLoading || !manualAccelerationCandidates.length"
+            placeholder="从 ComfyUI 已安装 LoRA 选择" aria-label="手动标记加速 LoRA" @change="addManualAccelerationLora">
+            <el-option v-for="name in manualAccelerationCandidates" :key="name" :label="name" :value="name" />
+          </el-select>
+          <div class="sizeHint">仅标记已有文件，不上传 LoRA。手动标记不保证 4/8 步、主模型和采样器兼容。PDD / PTD / HyperFlow 可能需要专用节点或调度器。</div>
+          <div v-if="!loraLoading && !loraChoices?.length" class="sizeHint">尚未读取到已安装 LoRA，请先刷新列表。</div>
+        </div>
+        <div v-if="manualAccelerationLoras?.length && model.h3Advanced" class="manualAccelerationTags">
+          <div class="sectionLabel">手动标记的加速 LoRA</div>
+          <el-tag v-for="name in manualAccelerationLoras" :key="name" closable :disable-transitions="true" :title="name" @close="removeManualAccelerationLora(name)">{{ name }}</el-tag>
+        </div>
+        <div v-if="manualAccelerationNotice" class="sizeHint" role="status">{{ manualAccelerationNotice }}</div>
         <el-button text size="small" :disabled="disabled || loraLoading" :loading="loraLoading" @click="emit('refreshComfyChoices')">{{ model.checkpoint ? '刷新模型与 LoRA' : '刷新 LoRA' }}</el-button>
         <div v-if="loraError" class="sizeHint" role="status">{{ loraError }}</div>
         <div v-if="model.h3Advanced" class="h3Advanced">
@@ -149,7 +163,7 @@
           <div class="sizeHint">{{ presetHint }}</div>
           <div v-if="presetAvailabilityHint" class="sizeHint">{{ presetAvailabilityHint }}</div>
           <el-button text size="small" :disabled="disabled" @click="h3Options = undefined">恢复高级参数默认（不改模型/步数/加速 LoRA）</el-button>
-          <div class="sizeHint">总步数 {{ (firstPassSteps ?? 0)+(secondPassSteps ?? 0) }}；一二采共用同一套采样序列。预设按文件名筛选加速 LoRA，实际兼容性需验证。</div>
+          <div class="sizeHint">总步数 {{ (firstPassSteps ?? 0)+(secondPassSteps ?? 0) }}；一二采共用同一套采样序列。预设采用文件名识别及手动标记加速 LoRA；实际兼容性需验证。</div>
         </div>
         <div class="sizeHint">选择其他 LoRA 前请确认与 H3 基础模型兼容。</div>
       </div>
@@ -224,7 +238,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch, ElInputNumber } from "element-plus";
+import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch, ElInputNumber, ElTag } from "element-plus";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import type { H3Options, NodeMediaModel, NodeVideoRequest } from "@toonflow/nodes-scaffold/runtime";
 import { createH3PresetPlan, isAccelerationLora, type H3SamplingPreset } from "./h3SamplingPresets";
@@ -252,6 +266,9 @@ const outputFirstPass = defineModel<boolean>("outputFirstPass", { required: true
 const loraName = defineModel<string | undefined>("loraName");
 const checkpointName = defineModel<string | undefined>("checkpointName");
 const h3Options = defineModel<H3Options | undefined>("h3Options");
+const manualAccelerationLoras = defineModel<string[] | undefined>("manualAccelerationLoras");
+const addingAccelerationLora = ref(false);
+const manualAccelerationNotice = ref("");
 const selectedCheckpoint = computed({
   get: () => checkpointName.value ?? "__workflow_checkpoint__",
   set: (value: string) => { checkpointName.value = value === "__workflow_checkpoint__" ? undefined : value; },
@@ -271,10 +288,29 @@ const loraOptions = computed(() => [...new Set([
   ...(props.loraChoices ?? []),
   loraName.value,
 ].filter((name): name is string => Boolean(name)))]
-  .filter(name => isAccelerationLora(name) || normalized(name) === normalized(selectedLora.value))
+  .filter(name => isAccelerationLora(name, manualAccelerationLoras.value ?? []) || normalized(name) === normalized(selectedLora.value))
   .sort((a, b) => a.localeCompare(b)));
 const presetHint = ref("预设仅改变采样参数和加速 LoRA；普通附加 LoRA 将保留。");
 const normalized = (name: string) => name.replaceAll("\\","/");
+const sameLora = (a: string, b: string) => normalized(a).toLowerCase() === normalized(b).toLowerCase();
+const manualAccelerationCandidates = computed(() => (props.loraChoices ?? [])
+  .filter(name => !isAccelerationLora(name, manualAccelerationLoras.value ?? []))
+  .sort((a, b) => a.localeCompare(b)));
+function addManualAccelerationLora(name: string) {
+  const actual = (props.loraChoices ?? []).find(item => sameLora(item, name));
+  if (!actual || isAccelerationLora(actual, manualAccelerationLoras.value ?? [])) {
+    manualAccelerationNotice.value = "此文件不在已安装列表中，或已被识别为加速 LoRA；请刷新列表后重试。";
+    return;
+  }
+  const current = manualAccelerationLoras.value ?? [];
+  if (current.length >= 32) { manualAccelerationNotice.value = "最多允许手动标记 32 个加速 LoRA。"; return; }
+  manualAccelerationLoras.value = [...current, actual];
+  manualAccelerationNotice.value = "已加入加速 LoRA 候选列表。请在上方选择并核对采样兼容性。";
+}
+function removeManualAccelerationLora(name: string) {
+  manualAccelerationLoras.value = (manualAccelerationLoras.value ?? []).filter(item => !sameLora(item, name));
+  manualAccelerationNotice.value = "已取消手动加速标记，不会删除 ComfyUI 中的文件。";
+}
 const extraLoras = computed(() => h3Options.value?.extraLoras ?? []);
 const samplerOptions = computed(() => [...new Set([...(props.samplerChoices ?? []),h3Options.value?.sampler])].filter((x):x is string => !!x));
 const schedulerOptions = computed(() => [...new Set([...(props.schedulerChoices ?? []),h3Options.value?.scheduler])].filter((x):x is string => !!x));
@@ -308,6 +344,7 @@ function moveExtra(index:number, direction:number) {
 const isTurboCheckpoint = computed(() => /turbo/i.test(normalized(checkpointName.value ?? props.model?.checkpoint?.defaultName ?? "").split("/").at(-1) ?? ""));
 const presetInput = computed(() => ({
   installedLoras: props.loraChoices ?? [],
+  manualAccelerationLoras: manualAccelerationLoras.value ?? [],
   primaryLora: selectedLora.value === "__lora_disabled__" ? "" : selectedLora.value,
   primaryStrength: h3Options.value?.loraStrength ?? props.model?.h3Advanced?.loraStrength ?? 1,
   extraLoras: extraLoras.value,

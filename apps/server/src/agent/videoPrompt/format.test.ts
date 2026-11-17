@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { inspectDraft, requiresContinuousTake } from "./format";
-import { draftCinematicPlanSchema } from "@/utils/production/videoPlan";
+import { cinematicShotSchema, draftCinematicPlanSchema } from "@/utils/production/videoPlan";
 import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
 
 const cinematicPlan: DraftCinematicPlan = {
@@ -26,20 +26,57 @@ const prompt = (body: string) => [
 ].join("\n");
 const make = (
   body: string, story = "女主进入大厅找到一封信",
-  extra: { mustHave?: string[]; mustNotHave?: string[] } = {},
+  extra: { mustHave?: string[]; mustNotHave?: string[]; plan?: DraftCinematicPlan } = {},
 ) => inspectDraft({
-  cinematicPlan, prompt: prompt(body), promptZh: "女主进入大厅，镜头反打展示发现信件的反应。",
+  cinematicPlan: extra.plan ?? cinematicPlan, prompt: prompt(body), promptZh: "女主进入大厅，镜头反打展示发现信件的反应。",
 }, {
   format: "h3Ref2va", setup: { duration: 15, references: [] },
   shot: { story, mustHave: extra.mustHave ?? [], mustNotHave: extra.mustNotHave ?? [] },
 } as unknown as Parameters<typeof inspectDraft>[1]);
 
 describe("Ref2VA 按合同使用单镜或多镜", () => {
-  test("不引入 shotMode 或 shots 结构，历史 cinematicPlan 可继续使用", () => {
+  test("不引入 shotMode，历史 cinematicPlan 可继续使用且允许可选 shots", () => {
     expect(Object.keys(draftCinematicPlanSchema.shape).sort()).toEqual(
-      ["openingFrame","camera","ending","beats","dialogue"].sort(),
+      ["openingFrame","camera","ending","beats","dialogue","shots"].sort(),
     );
     expect(draftCinematicPlanSchema.parse(cinematicPlan)).toEqual(cinematicPlan);
+  });
+  test("多镜规划可选且与正文三个 [Shot N] 严格对齐", () => {
+    const shots = [
+      { id: 1, startSeconds: 0, endSeconds: 5, camera: "Wide establishing shot",
+        action: "Woman enters the hall", continuityOut: "Woman by the entrance" },
+      { id: 2, startSeconds: 5, endSeconds: 10, camera: "Reverse shot",
+        action: "Companion looks at the woman", continuityIn: "Companion faces the entrance" },
+      { id: 3, startSeconds: 10, endSeconds: 15, camera: "Close-up",
+        action: "Letter becomes visible", continuityOut: "Letter in frame" },
+    ];
+    const plan = draftCinematicPlanSchema.parse({ ...cinematicPlan, shots });
+    expect(cinematicShotSchema.parse(shots[1])).toEqual(shots[1]);
+    const body = [
+      "[Shot 1] A medium shot establishes the woman at the entrance.",
+      "[Shot 2] At 00:05.000, the camera cuts to her companion.",
+      "[Shot 3] At 00:10.000, a close-up of a letter.",
+    ].join("\n");
+    expect(make(body, "女主进入大厅，看到信件", { plan })).toEqual([]);
+    expect(make(body, "十五秒连续单镜头", { plan })
+      .some(x => x.includes("明确要求单镜到底"))).toBe(true);
+    const misaligned = body.replace("At 00:10.000", "At 00:09.000");
+    expect(make(misaligned, "女主进入大厅，看到信件", { plan })
+      .some(x => x.includes("cinematicPlan.shots[2] 从 10 秒开始"))).toBe(true);
+    const missing = body.replace("[Shot 3]", "[Shot 4]");
+    expect(make(missing, "女主进入大厅，看到信件", { plan })
+      .some(x => x.includes("连续编号"))).toBe(true);
+    const fewer = body.split("\n").slice(0,2).join("\n");
+    expect(make(fewer, "女主进入大厅，看到信件", { plan })
+      .some(x => x.includes("数量不一致"))).toBe(true);
+  });
+  test("新多镜规划不能和单镜提示词矛盾", () => {
+    const plan = draftCinematicPlanSchema.parse({ ...cinematicPlan, shots: [
+      { id:1, startSeconds:0, endSeconds:5, camera:"medium", action:"Enter" },
+      { id:2, startSeconds:5, endSeconds:15, camera:"close-up", action:"React" },
+    ] });
+    expect(make("[Shot 1] The camera stays on the man.", "15秒一镜到底", { plan })
+      .some(x => x.includes("cinematicPlan.shots 规划了多镜头"))).toBe(true);
   });
   test("用户未锁定镜头数量时，使用现有合同判断；否定表述不能误判单镜", () => {
     const body = "[Shot 1] Medium framing.\n[Shot 2] At 00:05.000, reverse shot.";

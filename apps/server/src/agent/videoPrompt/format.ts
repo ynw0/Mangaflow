@@ -51,7 +51,7 @@ export type VideoPromptReview = z.infer<ReturnType<typeof createReviewSchema>>;
 export function getVideoPromptRequirements(shot: Prepared["shot"]) {
   return [
     ...getShotRequirements(shot),
-    { id: "framing", text: "镜头数量及切点符合用户合同；镜头规划、最后一镜构图和镜尾同框要求相容" },
+    { id: "framing", text: "镜头数量及切点符合用户合同；cinematicPlan.shots（如有）与 [Shot N] 的时间和顺序一致，镜尾构图与同框要求相容" },
     { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
     { id: "dialogueTiming", text: "逐句对照正文与对白计划，核对开口触发、先做动作、停顿、完整台词、听者闭口及 0.2 秒镜尾；无对白时说明依据" },
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
@@ -144,6 +144,32 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     }
     if (shotMarkers.length > 1 && requiresContinuousTake(prepared.shot))
       findings.push("用户明确要求单镜到底，但正文包含多个镜头；需保持一个 [Shot 1]。");
+    // Historical reviewed drafts may have no shots plan. New planned shots must agree with
+    // the actual [Shot N] markers, cut times and the whole-clip time axis.
+    const plannedShots = draft.cinematicPlan.shots;
+    if (plannedShots?.length) {
+      if (plannedShots.length !== shotMarkers.length) {
+        findings.push(`cinematicPlan.shots 规划 ${plannedShots.length} 镜，提示词实际 ${shotMarkers.length} 个 [Shot N]，数量不一致。`);
+      }
+      for (const [index, planShot] of plannedShots.entries()) {
+        const marker = shotMarkers[index];
+        if (!marker) break;
+        if (Number(marker[1]) !== planShot.id) {
+          findings.push(`cinematicPlan.shots[${index}].id 与正文 [Shot ${marker[1]}] 不一致。`);
+        }
+        if (index === 0) continue;
+        const following = shotBody.slice((marker.index ?? 0) + marker[0].length);
+        const time = /^\s*At\s+(\d{2}):(\d{2})\.(\d{3})(?:\b|,)/i.exec(following);
+        if (!time) continue; // The existing cut-marker preflight already reports its format.
+        const at = Number(time[1]) * 60 + Number(time[2]) + Number(time[3]) / 1000;
+        if (Math.abs(at - planShot.startSeconds) > 0.001) {
+          findings.push(`cinematicPlan.shots[${index}] 从 ${planShot.startSeconds} 秒开始，但正文 [Shot ${marker[1]}] 在 ${at} 秒切入。`);
+        }
+      }
+      if (plannedShots.length > 1 && requiresContinuousTake(prepared.shot) && shotMarkers.length <= 1) {
+        findings.push("用户明确要求单镜到底，但 cinematicPlan.shots 规划了多镜头。");
+      }
+    }
   }
   if (/<d>/.test(timeline.slice(0, opening?.index ?? timeline.length))) findings.push("对白须位于 [Shot 1] 正文中。");
   const tags = new Set([...prompt.matchAll(/<(?:Picture|Video|Audio) \d+>/g)].map(match => match[0]));

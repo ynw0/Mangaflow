@@ -26,6 +26,7 @@
 ### 镜头结构与槽位
 - 按实际引用方式核对素材。Subject 定义及 retention_analysis 属于 Ref2VA；首尾帧按 base-en.txt 检查帧对齐说明与镜尾锚点。
 - 按用户批准的镜头合同审核：明确单镜到底时，正文出现内部切镜、反打或蒙太奇才应退回；允许剪辑时，反打、跨场景、闪回、蒙太奇、时间跳跃均可，按 [Shot N] 和递增切点核对时长、场面与对白连续性，不因剪辑形式本身退回。
+- 新多镜稿须提供 `cinematicPlan.shots`：逐镜核对 id、起止时间、实际构图/机位、动作和必要的 `continuityIn/continuityOut`。镜头连续覆盖全片，绝不能用旧的全局 `camera` 代替逐镜规划。单镜及历史审核记录可省略该数组。全局 `beats/dialogue` 为全片绝对时间，不在切镜处重新从零计时。
 - `ref_bindings` 的各项和顺序必须与准备结果的 `ref_slot_plan` 完全一致。Picture 只能引用本镜已批准的槽位；动作句使用本镜登记名，主体标签须与本镜身份定义一致。
 - Subject 按身份定义，Picture 按实际槽位编号。同一主体的多个参考状态引用同一个 Subject，逐张说明用途。每个身份或状态槽都要被对应主体引用。`retention_analysis` 覆盖已定义 Subject。独立 Picture 条目用于实际成立的帧或构图锚，关系词与其用途及保留范围一致。普通参考图的用途可以描述为变形状态，不能假定模型会在指定帧复现。
 - `media_refs` 中的 `video1`、`audio1` 分别在 `retention_analysis` 对应 `<Video 1>`、`<Audio 1>` 行，每行恰有一个符合该类型和 `instruction` 的官方关系词。无对应文件却引用标签，判不合格。

@@ -17,7 +17,7 @@ metadata:
 - 每个动作都应可在给定时长内完成；若同时存在表演、特效与运镜，确定主次和时序，减少互相竞争。
 - 把抽象情绪转换为可观察的**动作/眼神/空间/光影变化**；道具、法术和武器补足来源、方向、与周围物体的相互作用。
 - 固定外形、场景锚点和人物站位由已批准资产负责，不因为知识库里有类似范例就改动。风格遵循 production_profile；不默认为玄幻、3D 或电影写实。
-- 内置 `draftVideoPrompt` 使用 `cinematicPlan` 保存开场、运镜终点、镜尾可见对象和表演节拍，供独立审核与成片验收使用。H3 模型只接收最终 `prompt`，规划不得混进生成正文。英文结构、Picture/Subject/对白关系词由 `h3-prompt-writing` 与当前 workflow 决定。
+- 内置 `draftVideoPrompt` 使用 `cinematicPlan` 保存全片开场、最后镜尾、运镜终点与全片表演节拍；新多镜稿另外用可选 `cinematicPlan.shots` 逐镜记录时间、机位、动作及必要承接，单镜和历史记录可以省略。仍使用原来的全局 beats/dialogue 绝对时间轴，不增加 `shotMode`，供独立审核与成片验收使用。H3 模型只接收最终 `prompt`，规划不得混进生成正文。英文结构、Picture/Subject/对白关系词由 `h3-prompt-writing` 与当前 workflow 决定。
 
 ## 复杂机械镜头容量评估（导演决策）
 

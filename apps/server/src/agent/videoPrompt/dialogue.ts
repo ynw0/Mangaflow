@@ -46,7 +46,7 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
     const speaker = [...preceding.matchAll(/\((S[1-9]\d*(?:,\s*S[1-9]\d*)*)\)/g)].at(-1)?.[1];
     if (!speaker) findings.push(`${label}前须标明说话人 (S1) 或 (S1,S2)。`);
     // 只拦截明确缺少开口描述的独立句，保留自然语言里的动作和语气。
-    const bareSpeech = /(?:^|[.!?。！？]\s+|\n)\s*(?:\[Shot 1\]\s*)?(?:<Subject [1-9]\d*>\s*)+\(S[1-9]\d*(?:,\s*S[1-9]\d*)*\)\s*(?:(?:says?|asks?|replies|speaks?)\s*)?[:,]?\s*$/i;
+    const bareSpeech = /(?:^|[.!?。！？]\s+|\n)\s*(?:\[Shot \d+\]\s*)?(?:<Subject [1-9]\d*>\s*)+\(S[1-9]\d*(?:,\s*S[1-9]\d*)*\)\s*(?:(?:says?|asks?|replies|speaks?)\s*)?[:,]?\s*$/i;
     if (bareSpeech.test(preceding)) findings.push(`${label}须写明开口动作或语气。`);
 
     const line = plan.dialogue[index];

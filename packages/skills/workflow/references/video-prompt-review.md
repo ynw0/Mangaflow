@@ -11,7 +11,7 @@
 ## 格式检查真源
 - 使用 Ref2VA 时，对照 [ref-en.txt](../../h3-prompt-writing/references/ref-en.txt) 检查六段顺序、字段名、标签语义、关系词、时长记号、运镜与对白标记。
 - 纯文生视频或首尾帧模式，对照 [base-en.txt](../../h3-prompt-writing/references/base-en.txt)。
-- 不在本文件重复官方百科；格式与官方冲突时以官方为准，但正文语言与连续摄影约束按下方 Mangaflow 规则。
+- 不在本文件重复官方百科；格式与官方冲突时以官方为准，单镜/多镜结构按用户合同和实际工作流要求审核。
 
 ## 决策规则
 
@@ -20,12 +20,12 @@
 ### 语言与结构
 - 当前模式要求的各段标题与叙述均为英文；须另有非空 `prompt_zh` 简体中文对照。`<d>` 内对白/歌词与画面可见文字保留原文。语言标签须为 English 全称（Chinese 等），写成 zh/en/ja/ko/zh-CN 判不合格。
 - 对白必须保持剧情确定文本；不得改写或删减已确认台词。
-- `duration_seconds` 必须等于准备结果给定的时长。Ref2VA 用 `detailed_description`，纯文本和首尾帧用 `integrated_multimodal_description`。正文用一个 `[Shot 1]` 建立画风与机位，以自然语言描述镜内变化；对白的计划起止在 `cinematicPlan.dialogue` 逐句核对。
+- `duration_seconds` 必须等于准备结果给定的时长。Ref2VA 用 `detailed_description`，纯文本和首尾帧用 `integrated_multimodal_description`。正文从 `[Shot 1]` 开始；允许切镜时后续 `[Shot N] At MM:SS.mmm` 按时序展开；用户明确要求单镜时只用一个 `[Shot 1]`。对白计划在 `cinematicPlan.dialogue` 逐句核对。
 - `summary` 的任务类型按实际模式与 [video-director.md](video-director.md) 确定，Ref2VA 默认 `[reference generation]`。
 
-### 连续摄影与槽位
+### 镜头结构与槽位
 - 按实际引用方式核对素材。Subject 定义及 retention_analysis 属于 Ref2VA；首尾帧按 base-en.txt 检查帧对齐说明与镜尾锚点。
-- 一个 shot 只有一个连续摄影镜头。出现切镜、反打、蒙太奇、跨场景或时间跳跃，判不合格。
+- 按用户批准的镜头合同审核：明确单镜到底时，正文出现内部切镜、反打或蒙太奇才应退回；允许剪辑时，反打、跨场景、闪回、蒙太奇、时间跳跃均可，按 [Shot N] 和递增切点核对时长、场面与对白连续性，不因剪辑形式本身退回。
 - `ref_bindings` 的各项和顺序必须与准备结果的 `ref_slot_plan` 完全一致。Picture 只能引用本镜已批准的槽位；动作句使用本镜登记名，主体标签须与本镜身份定义一致。
 - Subject 按身份定义，Picture 按实际槽位编号。同一主体的多个参考状态引用同一个 Subject，逐张说明用途。每个身份或状态槽都要被对应主体引用。`retention_analysis` 覆盖已定义 Subject。独立 Picture 条目用于实际成立的帧或构图锚，关系词与其用途及保留范围一致。普通参考图的用途可以描述为变形状态，不能假定模型会在指定帧复现。
 - `media_refs` 中的 `video1`、`audio1` 分别在 `retention_analysis` 对应 `<Video 1>`、`<Audio 1>` 行，每行恰有一个符合该类型和 `instruction` 的官方关系词。无对应文件却引用标签，判不合格。
@@ -74,7 +74,7 @@
 - 按 [cinematicPromptCraft](../../cinematicPromptCraft/SKILL.md) 的创作自检检查主要叙事焦点、角色表演与视线目标、动作起止状态、摄影选择、特效因果及声画对应是否具体可观察。
 - 缺少必需的视觉信息（例如打斗无接触点、施法无来源/方向、人物反应无观察对象）或视觉设计与镜头目的冲突时，给出明确 findings 退回。
 - 固定镜头、少量表情和没有特效的镜头，只要能准确表达当前剧情，应当合格；**不因为镜头不运动、没有特效或词数短而扣分**。
-- 同一连续镜头内若同时要求不相容的运镜、全景与极特写动作、短时间堆叠多个高潮，或同一环境光源方向自相矛盾，判不合格。
+- 同一内部镜头若同时要求不相容的运镜、全景与极特写动作、短时间堆叠多个高潮，或镜头之间缺少必要的状态承接、光源方向自相矛盾，判不合格。
 - 审核不代写导演方案；将发现的问题定位到对应动作/时间段并提出修改目的，由原导演重写。身份锁、Picture、对白、格式等硬检查仍按原规则执行。
 
 ## 输出合同

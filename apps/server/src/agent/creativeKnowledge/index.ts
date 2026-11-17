@@ -67,7 +67,7 @@ export function listCreativeKnowledgeCategories() {
         caveat: "主画风与滤镜分层组合，提示词只是视觉建议，不等于真实 LUT 或后期滤镜执行。"},
       { id: "narrative", title: "叙事结构与剧情节拍模板", count: narrativeTemplates.length,
         tags: categoryTags(narrativeTemplates), groups: ["hook","establish","conflict","reveal","choice","payoff","aftermath"],
-        caveat: "scene 是跨多个镜头的剧情结构，不能塞进一个 H3 连续镜头；shot 才可作为单镜草案。"},
+        caveat: "scene 是多镜叙事模板，只有在用户允许切镜且时长足够时，才能编成一个 H3 视频片段；单镜合同需拆开或换模板。"},
       { id: "voices", title: "H3 同期角色声音提示词模板", count: voiceTemplates.length,
         tags: categoryTags(voiceTemplates), groups: voiceCategories,
         caveat: "H3 同期合成声音；有对白时默认约正常语速的1.3倍。口音和年龄感只是生成指导，不保证方言准确或声纹一致。"},
@@ -149,7 +149,7 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
     narrativeIssues.push(`「${narrative.title}」至少按${narrative.minSeconds}s规划；当前${options.durationSeconds}s无法容纳完整结构，应拆分镜头或改用单镜模板，不可删情节。`);
   }
   if (narrative?.scope === "scene" && video) {
-    narrativeIssues.push(`「${narrative.title}」是多镜场次结构，不得作为单个 H3 连续镜头直接执行。`);
+    narrativeIssues.push(`「${narrative.title}」属于多镜场次结构；使用前须确认片段允许切镜、时长足够且不丢剧情。`);
   }
   if (expression?.category === "extreme" && style?.group === "影视写实") {
     warnings.push("写实主画风与极夸张颜艺需收束到可见的眉眼嘴和身体反应，不应使脸型、骨骼或身份突变。");
@@ -191,6 +191,6 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
         meaning: meme.meaning, usage: meme.usage, avoid: meme.avoid,
       },
     ].filter(Boolean),
-    guidance: "先遵守剧本合同、已批准的主画风和参考图；用少量可观察的动作、表情和构图信息重写，不直接拼接模板全文。视频每次只有一个连续镜头，最终提示词按 H3 专用流程制作并审核。",
+    guidance: "先遵守剧本合同、已批准的主画风和参考图；用少量可观察的动作、表情和构图信息重写，不直接拼接模板全文。视频允许按照用户合同设计单镜或多镜剪辑，并按 H3 专用流程制作、审核。",
   };
 }

@@ -51,7 +51,7 @@ export type VideoPromptReview = z.infer<ReturnType<typeof createReviewSchema>>;
 export function getVideoPromptRequirements(shot: Prepared["shot"]) {
   return [
     ...getShotRequirements(shot),
-    { id: "framing", text: "镜头规划与正文中的构图、运镜终点和镜尾同框要求相容" },
+    { id: "framing", text: "镜头数量及切点符合用户合同；镜头规划、最后一镜构图和镜尾同框要求相容" },
     { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
     { id: "dialogueTiming", text: "逐句对照正文与对白计划，核对开口触发、先做动作、停顿、完整台词、听者闭口及 0.2 秒镜尾；无对白时说明依据" },
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
@@ -102,10 +102,34 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   const shotBody = timeline.replace(/<d>[\s\S]*?<\/d>|"[^"\n]*"/gi, match => match.replace(/[^\r\n]/g, " "));
   const shotMarkers = [...shotBody.matchAll(/\[Shot (\d+)\]/g)];
   const opening = shotMarkers[0];
-  if (shotMarkers.length !== 1 || opening?.[1] !== "1") {
-    findings.push("连续摄影镜头须用一个 [Shot 1]；镜内动作与对白用自然语言描述。");
-  } else if (/^\s*At\s+\d{2}:\d{2}/i.test(shotBody.slice(opening.index + opening[0].length))) {
-    findings.push("[Shot 1] 直接描述开场画面，近似镜内时点写在动作中。");
+  if (!opening || opening[1] !== "1") {
+    findings.push("detailed_description 应从 [Shot 1] 开始。");
+  } else {
+    // The official Ref2VA guide permits sequential [Shot N] cuts. Respect explicit single-take contracts.
+    let previousCut = 0;
+    for (const [index, marker] of shotMarkers.entries()) {
+      const number = Number(marker[1]);
+      if (number !== index + 1) {
+        findings.push("多个镜头应按 [Shot 1]、[Shot 2] 顺序连续编号，不跳号、不重复。");
+        break;
+      }
+      const following = shotBody.slice((marker.index ?? 0) + marker[0].length,
+        shotMarkers[index + 1]?.index);
+      if (index === 0) {
+        if (/^\s*At\s+\d{2}:\d{2}/i.test(following))
+          findings.push("[Shot 1] 应直接描述开场画面，不需要写切入时间。");
+      } else {
+        const time = /^\s*At\s+(\d{2}):(\d{2})\.(\d{3})(?:\b|,)/i.exec(following);
+        if (!time) { findings.push(`[Shot ${number}] 必须以 At MM:SS.mmm 标出切镜时点。`); continue; }
+        const at = Number(time[1]) * 60 + Number(time[2]) + Number(time[3]) / 1000;
+        if (at <= previousCut || at >= setup.duration)
+          findings.push(`[Shot ${number}] 的切镜时间必须递增且处于视频总时长内。`);
+        previousCut = at;
+      }
+    }
+    if (shotMarkers.length > 1 && /(?:单一连续镜头|全程不切镜|禁止切镜|one continuous shot|single continuous take|no cuts)/i.test(
+      [prepared.shot.story,...prepared.shot.mustHave,...prepared.shot.mustNotHave].join(" ")))
+      findings.push("用户明确要求单镜到底，但正文包含多个镜头；需保持一个 [Shot 1]。");
   }
   if (/<d>/.test(timeline.slice(0, opening?.index ?? timeline.length))) findings.push("对白须位于 [Shot 1] 正文中。");
   const tags = new Set([...prompt.matchAll(/<(?:Picture|Video|Audio) \d+>/g)].map(match => match[0]));
@@ -130,11 +154,11 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   if (/\[[^\[\]\n]*\p{Script=Han}[^\[\]\n]*\]/u.test(narration)) {
     findings.push("英文正文仍有未替换的模板占位词，请写入镜头中的真实对象或动作。");
   }
-  for (const match of narration.matchAll(/\b(?:no cuts|no subtitles|no dialogue|the camera cuts to|the shot cuts to)\b/gi)) {
+  for (const match of narration.matchAll(/\b(?:no subtitles|no dialogue)\b/gi)) {
     const line = narration.slice(0, match.index).split("\n").length;
     const correction = match[0].toLowerCase() === "no dialogue"
       ? "无台词镜头的概要写实际环境声，时间轴写明可见角色闭嘴。"
-      : "请用正向可见事实描述一个连续摄影镜头。";
+      : "请用具体可见、可验证的事实表达制作需求。";
     findings.push("英文正文第 " + line + " 行含“" + match[0] + "”。" + correction);
   }
   return findings;

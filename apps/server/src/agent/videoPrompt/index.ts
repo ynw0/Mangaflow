@@ -231,14 +231,14 @@ export function createVideoPromptTool(options: SubAgentModel & {
       for (let round = 0; round < 2; round++) {
         const draft = await specialist(draftSchema, draftSubmissionParameters, round ? "导演返修" : "导演写作", [
           '通过 submitResult 提交 status=ok 的完整规划和中英文正文。时间均为镜头内秒数；持续运镜时 stopSeconds=null，无定幅要求时 holdSeconds=0。缺关键输入或无法按时交付剧情时提交 {"status":"blocked","reason":"具体原因"}。',
-          "正文用一个 [Shot 1]。镜内先后关系用可见动作交代，必要时用近似时点。cinematicPlan.dialogue 按 <d> 出现顺序写 speakerIds、实际计划开口和结束秒数、句内停顿总秒数。只有动作必须先完成时才填 afterBeat，引用 beats 中独立列出的前置节拍，序号从 1 开始；走路等并行动作可以重叠。无对白填空数组。开口写明可见触发或语气，听者整句保持闭口，说完自然合唇。中文版同步。",
+          "根据用户合同决定镜头数量：明确要求单镜到底时只写 [Shot 1]；允许剪辑时可以 [Shot 2] At MM:SS.mmm、[Shot 3] At MM:SS.mmm 顺序切镜，包括反打、闪回与蒙太奇。切点递增，动作/声音/对白前后衔接，不能擅自增加删减剧情。cinematicPlan.dialogue 按 <d> 出现顺序写 speakerIds、实际计划开口和结束秒数、句内停顿总秒数。只有动作必须先完成时才填 afterBeat，引用 beats 中独立列出的前置节拍，序号从 1 开始；走路等并行动作可以重叠。无对白填空数组。开口写明可见触发或语气，听者整句保持闭口，说完自然合唇。中文版同步。",
           "无台词的镜头在英文概要写实际环境声，在时间轴写可见角色闭嘴。不要在概要或时间轴中用 no dialogue 概括静默。",
           "按 speechPolicy 为启用同期音轨的对白安排语速，在时长内完整说完原文。按 S1/S2 写各角色可辨且符合性格的稳定声线与本镜情绪。系统声、旁白、独白按 speechPolicy.voiceover 写入镜头正文，并应用 voiceCast 对应声源建议。批准的角色外形保持一致，写具体可辨的脸型、眉眼或轮廓特征。镜尾保留 0.2 秒，关键动作和台词提前完成，说完闭口后自然过渡。无真实音频文件不可虚构 <Audio N>。",
           `结构示例。调用参数取 submitResult 的对象，成片内容及正文格式以本次镜头为准：${JSON.stringify(directorSubmissionExample)}`,
           "先确定最终画框容纳哪些主体和身体部位，再反推开场机位与运动路径。前景道具与后景人物必须同框时，核对景别、遮挡和人物移动终点；不能一边继续逼近道具一边承诺人物头肩始终入画。规划与中英文正文必须一致。只在首次定义与必要承接处写稳定外观，避免逐段复写。",
           "规划不得新增用户未要求的人物、动作或剧情。没有人物的镜头用 performance 描述物件、环境的可见反馈，不为填字段添加表演者。",
           "先确定镜头要交付的叙事信息，再写可见起点、动作变化和末态。正文简洁清晰，稳定信息只写一次，后续只补变化。顶视可略向斜俯倾斜，保持俯视关系与空间方向。英文和中文保持同样的可见事实。",
-          "按已确认的剧情和素材取用匹配的拍法。creativeTemplates 是外层 Agent 按 ID 选中的创作参考，不是剧情合同；先处理 warnings，只抽取本镜所需的动作/表演/风格，多镜场次不得塞进单个 H3 连续镜头。模板含占位词、使用条件和验收点，满足条件后才写真实可观察的事件。返修以 findings 的要求编号、位置、问题依据和修改目标为边界；仅修改缺陷及必需的关联内容，保留正确的 Subject、参考绑定、对白和无关段落，中英文及 cinematicPlan 同步更新，仍返回完整合法正文。合理的创作选择不为迎合审核而重写。",
+          "按已确认的剧情和素材取用匹配的拍法。creativeTemplates 是外层 Agent 按 ID 选中的创作参考，不是剧情合同；先处理 warnings，只抽取本镜所需的动作/表演/风格，多镜段落在用户允许且总时长可执行时可写入同一视频提示词；明确单镜合同时不得擅自切镜。模板含占位词、使用条件和验收点，满足条件后才写真实可观察的事件。返修以 findings 的要求编号、位置、问题依据和修改目标为边界；仅修改缺陷及必需的关联内容，保留正确的 Subject、参考绑定、对白和无关段落，中英文及 cinematicPlan 同步更新，仍返回完整合法正文。合理的创作选择不为迎合审核而重写。",
           JSON.stringify({ ...taskInput, ...(round ? { previousDraft: lastDraft, findings } : { candidates }) }),
         ].join("\n"), [...directorRules, commonRules, formatRules]);
         if (draft.status === "blocked") {

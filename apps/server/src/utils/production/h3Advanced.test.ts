@@ -32,7 +32,7 @@ describe("H3 双采高级参数",()=>{
       expect(withExtra["21"]).toBeUndefined();
       const extra=Object.entries(withExtra).find(([,n])=>(n as any)?.inputs?.lora_name==="style.safetensors");
       expect(extra).toBeDefined();
-      expect((extra?.[1] as any).inputs.model).toEqual(["20",0]);
+      expect((extra?.[1] as any).inputs.model).toEqual((await read(names[0]!)).graph["21"].inputs.model);
       expect(withExtra["156"].inputs.model).toEqual([extra?.[0],0]);
       const named=(await prepareComfyWorkflow({directory:dir,mediaType:"video",request:{
         ...base,loraName:"speed_8step.safetensors"

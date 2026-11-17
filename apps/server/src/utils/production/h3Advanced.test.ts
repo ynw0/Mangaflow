@@ -49,6 +49,8 @@ describe("H3 双采高级参数",()=>{
   test("统一双采支持 H3 高级参数且不破坏共享 Sigma",async()=>{
     for(const name of names){
       const { graph,bindings }=await read(name);
+      // 工作流默认不带 LoRA；模拟用户在节点设置中明确选择后，再验证强度与链路。
+      graph["21"].inputs.lora_name="compatible-8step.safetensors";
       const before=structuredClone(graph);
       expect(h3AdvancedCapability(graph,bindings)).toMatchObject({loraStrength:1,sampler:"res_multistep",scheduler:"simple",videoShift:12,audioShift:3});
       expect(graph).toEqual(before);

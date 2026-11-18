@@ -180,16 +180,22 @@ jobs:
       - name: 编译 macOS 原生启动库
         if: runner.os == 'macOS'
         run: bun packages/startup/scripts/buildMac.ts
-      - name: 准备 NSIS
+      - name: 安装 NSIS 3.13
+        if: matrix.target == 'windowsX64'
+        id: setup-nsis
+        uses: nsis-dev/setup-nsis@99783963764acafc24a5e3335ddfce26d03c20a2 # v1, pinned
+        with:
+          version: '3.13'
+      - name: 验证 NSIS
         if: matrix.target == 'windowsX64'
         shell: pwsh
+        env:
+          NSIS_DIR: ${{ steps.setup-nsis.outputs.nsisdir }}
         run: |
-          $nsisPath = 'C:/Program Files (x86)/NSIS/makensis.exe'
-          if (!(Test-Path -LiteralPath $nsisPath)) {
-            choco install nsis --yes --no-progress
-            if ($LASTEXITCODE -ne 0) { throw 'NSIS 安装失败' }
-          }
+          $nsisPath = Join-Path $env:NSIS_DIR 'makensis.exe'
           if (!(Test-Path -LiteralPath $nsisPath)) { throw '找不到 makensis.exe' }
+          & $nsisPath -VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS 版本检测失败' }
           "NSIS_PATH=$nsisPath" >> $env:GITHUB_ENV
       - name: 构建 Windows 安装包及更新文件
         if: matrix.target == 'windowsX64'

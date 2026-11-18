@@ -153,35 +153,32 @@
         <el-switch v-model="generateAudio" :disabled="disabled" aria-label="生成音频" />
       </div>
       <div class="sectionLabel">成片质检</div>
-      <el-select v-model="qcMode" :append-to="settingsHost" :disabled="disabled" aria-label="质检配置模式">
-        <el-option value="inherit" label="继承系统设置" />
-        <el-option value="off" label="关闭自动质检" />
-        <el-option value="custom" label="自定义质检设置" />
-      </el-select>
-      <div v-if="qcMode === 'custom'" class="outputField">
+      <div class="sizeHint">{{ qcOverride?.mode ? '当前节点单独设置' : '当前继承系统设置' }}；关闭自动不影响手动质检。</div>
+      <div class="outputField">
         <div class="sectionLabel">质检范围</div>
-        <el-select :model-value="customQc.qcLevel ?? props.qcDefaults?.qcLevel" :append-to="settingsHost" @change="value => patchQc({qcLevel:value})">
-          <el-option value="video" label="仅画面" /><el-option value="videoAudio" label="画面 + 音轨" /><el-option value="none" label="关闭质检" />
+        <el-select :model-value="qcDisplay.level" :append-to="settingsHost" :disabled="disabled" aria-label="质检范围" @change="setQcLevel">
+          <el-option value="none" label="关闭质检" /><el-option value="video" label="仅画面" /><el-option value="videoAudio" label="画面与声音" />
         </el-select>
-        <div class="sectionLabel">触发方式</div>
-        <el-select :model-value="customQc.qcTrigger ?? props.qcDefaults?.qcTrigger" :append-to="settingsHost" @change="value => patchQc({qcTrigger:value})">
-          <el-option value="auto" label="生成后自动" /><el-option value="manual" label="手动质检" />
-        </el-select>
-        <div class="sizeHint" v-if="(customQc.qcLevel ?? props.qcDefaults?.qcLevel) === 'videoAudio' && (customQc.qcMethod ?? props.qcDefaults?.qcMethod) === 'agentFrames'">
-          主 Agent 仅抽帧时无法听辨音轨，声音验收会标为未验证；请选择支持音频输入的专用模型。
+        <div class="audioOption">
+          <span class="sectionLabel">生成后自动质检</span>
+          <el-switch :model-value="qcDisplay.automatic" :disabled="disabled || qcDisplay.level === 'none'" aria-label="生成后自动质检" @change="setQcAuto" />
+        </div>
+        <el-button v-if="qcOverride?.mode" text size="small" :disabled="disabled" @click="qcOverride = undefined">恢复继承系统设置</el-button>
+        <div class="sizeHint" v-if="qcDisplay.level === 'videoAudio' && (customQc.qcMethod ?? props.qcDefaults?.qcMethod) === 'agentFrames'">
+          主 Agent 仅抽帧不能听音轨；声音验收会标为未验证，需选择支持听音轨的模型。
         </div>
         <details class="outputField">
-          <summary>高级设置：质检方式与模型</summary>
+          <summary>高级设置：质检执行方式与模型</summary>
         <div class="sectionLabel">质检方式</div>
         <el-select :model-value="customQc.qcMethod ?? props.qcDefaults?.qcMethod" :append-to="settingsHost" @change="value => patchQc({qcMethod:value})">
           <el-option value="model" label="专用质检模型" /><el-option value="agentFrames" label="主 Agent 抽帧" /><el-option value="agentFramesAndModel" label="联合质检" />
         </el-select>
-        <template v-if="(customQc.qcMethod ?? props.qcDefaults?.qcMethod) !== 'agentFrames' && (customQc.qcLevel ?? props.qcDefaults?.qcLevel) !== 'none'">
+        <template v-if="(customQc.qcMethod ?? props.qcDefaults?.qcMethod) !== 'agentFrames' && qcDisplay.level !== 'none'">
           <div class="sectionLabel">画面质检模型</div>
           <el-select :model-value="customQc.videoQcModelId ?? props.qcDefaults?.videoQcModelId" filterable :append-to="settingsHost" @change="selectVideoQc">
             <el-option v-for="item in props.qcChoices?.filter(item => item.video)" :key="item.id" :value="item.id" :label="item.label" />
           </el-select>
-          <template v-if="(customQc.qcLevel ?? props.qcDefaults?.qcLevel) === 'videoAudio'">
+          <template v-if="qcDisplay.level === 'videoAudio'">
             <div class="sectionLabel">音轨质检模型</div>
             <el-select :model-value="customQc.audioQcModelId ?? props.qcDefaults?.audioQcModelId" filterable :append-to="settingsHost" @change="selectAudioQc">
               <el-option v-for="item in props.qcChoices?.filter(item => item.audio)" :key="item.id" :value="item.id" :label="item.label" />
@@ -225,14 +222,15 @@ import { ElButton, ElPopover, ElSelect, ElOption, ElSwitch, ElInputNumber, ElTag
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import type { H3Options, NodeMediaModel, NodeVideoRequest } from "@toonflow/nodes-scaffold/runtime";
 import { createH3PresetPlan, isAccelerationLora, type H3SamplingPreset } from "./h3SamplingPresets";
+import { getQcDisplayState, changeQcLevel, changeQcAuto, type QcScope } from "./qcQuickSettings";
 
 const props = defineProps<{ model?: NodeMediaModel; disabled?: boolean; ratios: string[]; lastSeed?: number; loraChoices?: string[]; checkpointChoices?: string[]; samplerChoices?: string[]; schedulerChoices?: string[]; advancedError?: string; loraLoading?: boolean; loraError?: string; qcChoices?: {id:string;label:string;video:boolean;audio:boolean}[]; qcDefaults?: {qcMethod:string;qcLevel:string;qcTrigger:string;videoQcModelId:string;audioQcModelId:string;gemmaQcHost:string}; qcError?: string; qcLoading?: boolean }>();
 const emit = defineEmits<{ refreshComfyChoices: []; refreshQcChoices: [] }>();
 type CustomQc = Extract<NonNullable<NodeVideoRequest["qcOverride"]>, {mode:"custom"}>;
 const qcOverride = defineModel<NodeVideoRequest["qcOverride"]>("qcOverride");
-const qcMode = computed({ get: () => qcOverride.value?.mode ?? "inherit", set: (mode: string) => {
-  qcOverride.value = mode === "off" ? {mode:"off"} : mode === "custom" ? {mode:"custom"} : undefined;
-} });
+const qcDisplay = computed(() => getQcDisplayState(qcOverride.value, props.qcDefaults));
+function setQcLevel(value: QcScope) { qcOverride.value = changeQcLevel(qcOverride.value, value); }
+function setQcAuto(value: boolean) { qcOverride.value = changeQcAuto(qcOverride.value, value); }
 const customQc = computed<CustomQc>(() => qcOverride.value?.mode === "custom" ? qcOverride.value : {mode:"custom"});
 function patchQc(patch: Partial<CustomQc>) { qcOverride.value = {...customQc.value,...patch,mode:"custom"}; }
 function selectVideoQc(id: string) { patchQc({videoQcModelId:id,...(id.startsWith("qc/gemma4:") ? {audioQcModelId:id} : {})}); }

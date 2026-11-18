@@ -20,6 +20,15 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     expect(text).toContain("用户明确要求单镜");
   });
 
+  test("目标模式不再受无条件阶段确认措辞阻塞", async () => {
+    const workflow = await skill("workflow/SKILL.md");
+    const canvas = await skill("canvas/references/videoProduction.md");
+    expect(workflow).not.toContain("并另行确认");
+    expect(workflow).toContain("按当前运行模式及已授权范围决定是否等待确认");
+    expect(canvas).not.toContain("确认后才推进的内容");
+    expect(canvas).toContain("满足当前模式的验收关卡后推进");
+  });
+
   test("画布指导的缺省比例与统一视频工作流的配置一致", async () => {
     const text = await skill("canvas/references/videoProduction.md");
     expect(text).toContain("默认 `16:9`");

@@ -230,7 +230,7 @@ type CustomQc = Extract<NonNullable<NodeVideoRequest["qcOverride"]>, {mode:"cust
 const qcOverride = defineModel<NodeVideoRequest["qcOverride"]>("qcOverride");
 const qcDisplay = computed(() => getQcDisplayState(qcOverride.value, props.qcDefaults));
 function setQcLevel(value: QcScope) { qcOverride.value = changeQcLevel(qcOverride.value, value); }
-function setQcAuto(value: boolean) { qcOverride.value = changeQcAuto(qcOverride.value, value); }
+function setQcAuto(value: string | number | boolean) { if (typeof value === "boolean") qcOverride.value = changeQcAuto(qcOverride.value, value); }
 const customQc = computed<CustomQc>(() => qcOverride.value?.mode === "custom" ? qcOverride.value : {mode:"custom"});
 function patchQc(patch: Partial<CustomQc>) { qcOverride.value = {...customQc.value,...patch,mode:"custom"}; }
 function selectVideoQc(id: string) { patchQc({videoQcModelId:id,...(id.startsWith("qc/gemma4:") ? {audioQcModelId:id} : {})}); }

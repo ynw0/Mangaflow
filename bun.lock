@@ -775,6 +775,8 @@
     },
   },
   "patchedDependencies": {
+    "@earendil-works/pi-agent-core@0.85.1": "patches/piAgentCompaction.patch",
+    "@earendil-works/pi-coding-agent@0.85.1": "patches/piCodingCompaction.patch",
     "@vue-flow/core@1.48.2": "patches/vueFlowCore.patch",
   },
   "packages": {

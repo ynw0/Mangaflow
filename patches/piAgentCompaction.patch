@@ -1,0 +1,21 @@
+diff --git a/dist/harness/compaction/compaction.js b/dist/harness/compaction/compaction.js
+--- a/dist/harness/compaction/compaction.js
++++ b/dist/harness/compaction/compaction.js
+@@ -377,7 +377,7 @@
+ /** Generate one summary through a caller-owned one-request boundary. */
+ export async function generateSummaryWithRequest(currentMessages, options, request, context) {
+     const { model, reserveTokens, customInstructions, previousSummary, thinkingLevel } = options;
+-    const maxTokens = Math.min(Math.floor(0.8 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
++    const maxTokens = model.maxTokens > 0 ? model.maxTokens : undefined;
+     let basePrompt = previousSummary ? UPDATE_SUMMARIZATION_PROMPT : SUMMARIZATION_PROMPT;
+     if (customInstructions) {
+         basePrompt = `${basePrompt}\n\nAdditional focus: ${customInstructions}`;
+@@ -531,7 +531,7 @@
+     return ok({ summary, tokensBefore, usage: summaryUsage, retainedTail, details });
+ }
+ async function generateTurnPrefixSummary(messages, model, reserveTokens, thinkingLevel, request, context) {
+-    const maxTokens = Math.min(Math.floor(0.5 * reserveTokens), model.maxTokens > 0 ? model.maxTokens : Number.POSITIVE_INFINITY);
++    const maxTokens = model.maxTokens > 0 ? model.maxTokens : undefined;
+     const llmMessages = convertToLlm(messages);
+     const conversationText = serializeConversation(llmMessages);
+     const promptText = `<conversation>\n${conversationText}\n</conversation>\n\n${TURN_PREFIX_SUMMARIZATION_PROMPT}`;

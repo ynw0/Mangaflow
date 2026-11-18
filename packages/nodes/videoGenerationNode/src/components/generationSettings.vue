@@ -132,10 +132,10 @@
           <div class="sectionLabel">实验性采样预设（不换主模型）</div>
           <el-button size="small" :disabled="disabled || !presetPlans.normal.ok" @click="applyPreset('normal')">普通高质量 25步（20+5，Agent 可自定义25～40步）</el-button>
           <el-button size="small" :disabled="disabled || !presetPlans.preview4.ok" @click="applyPreset('preview4')">极速试镜 4步（2+2，LightX2V Ref2VA）</el-button>
-          <el-button size="small" :disabled="disabled || !presetPlans.quick44.ok" @click="applyPreset('quick44')">快速 8步（4+4，加速 LoRA）</el-button>
-          <el-button size="small" :disabled="disabled || !presetPlans.quick62.ok" @click="applyPreset('quick62')">快速 8步（6+2，加速 LoRA）</el-button>
-          <el-button size="small" :disabled="disabled || !presetPlans.fused8.ok" @click="applyPreset('fused8')">已融合 Turbo 8步（4+4，仅关闭加速 LoRA）</el-button>
-          <div class="sizeHint">试镜4步：仅快速验证构图/动作方向，不能直接当正式成片；8步4+4：普通剧情均衡；8步6+2：运动结构优先实验；25～40步：关键镜头高质量、关闭加速 LoRA；融合Turbo：仅已融合主模型使用，不额外叠加加速 LoRA。4+4/6+2优劣须实测。</div>
+          <el-button size="small" :disabled="disabled || !presetPlans.balanced82.ok" @click="applyPreset('balanced82')">8+2（无加速）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.balanced84.ok" @click="applyPreset('balanced84')">8+4（无加速）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.quick62.ok" @click="applyPreset('quick62')">试镜 6+2（加速 LoRA）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.fused8.ok" @click="applyPreset('fused8')">试镜 6+2（融合 Turbo）</el-button>
           <div class="sizeHint">智能自动选档在 设置 → 插件 → 已安装 → 技能 → h3SamplingStrategy 中启停；关闭后不向 Agent 提供配套工具，仍可手动使用本预设。</div>
           <div class="sizeHint">{{ presetHint }}</div>
           <div v-if="presetAvailabilityHint" class="sizeHint">{{ presetAvailabilityHint }}</div>
@@ -338,13 +338,14 @@ const presetInput = computed(() => ({
 const presetPlans = computed(() => ({
   normal: createH3PresetPlan("normal", presetInput.value),
   preview4: createH3PresetPlan("preview4", presetInput.value),
-  quick44: createH3PresetPlan("quick44", presetInput.value),
+  balanced82: createH3PresetPlan("balanced82", presetInput.value),
+  balanced84: createH3PresetPlan("balanced84", presetInput.value),
   quick62: createH3PresetPlan("quick62", presetInput.value),
   fused8: createH3PresetPlan("fused8", presetInput.value),
 }));
 const presetAvailabilityHint = computed(() => {
   if (props.loraLoading || props.loraError || isTurboCheckpoint.value) return "";
-  const quick = presetPlans.value.quick44;
+  const quick = presetPlans.value.quick62;
   return quick.ok ? "" : quick.reason;
 });
 function applyPreset(preset: H3SamplingPreset) {

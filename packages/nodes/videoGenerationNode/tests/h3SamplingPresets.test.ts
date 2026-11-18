@@ -45,30 +45,30 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     expect(success("preview4",present).sampler).toBe("euler");
     expect(createH3PresetPlan("preview4",input({...present,eulerAvailable:false})).ok).toBe(false);
   });
-  test("快速8步同时支持4+4和6+2，不误选3step", () => {
-    const a=success("quick44"), b=success("quick62");
-    expect([a.firstPassSteps,a.secondPassSteps]).toEqual([4,4]);
+  test("无加速 8+4 与试镜 6+2", () => {
+    const a=success("balanced84"), b=success("quick62");
+    expect([a.firstPassSteps,a.secondPassSteps]).toEqual([8,4]);
     expect([b.firstPassSteps,b.secondPassSteps]).toEqual([6,2]);
-    expect(a.primaryLora).toBe("custom/pika-v2-turbo_8steps_hd.safetensors");
+    expect(b.primaryLora).toBe("custom/pika-v2-turbo_8steps_hd.safetensors");
     expect(b.extraLoras).toEqual([{name:"style/film.safetensors",strength:0.6}]);
   });
   test("旧项目普通主 LoRA 迁入附加槽，满3个则拒绝静默覆盖", () => {
     const patch={primaryLora:"legacy/old-style.safetensors",primaryStrength:0.5};
-    const ok=success("quick44",patch);
+    const ok=success("quick62",patch);
     expect(ok.extraLoras[0]).toEqual({name:"legacy/old-style.safetensors",strength:0.5});
-    const no=createH3PresetPlan("quick44",input({...patch,extraLoras:[
+    const no=createH3PresetPlan("quick62",input({...patch,extraLoras:[
       {name:"style/a.safetensors",strength:1},{name:"style/b.safetensors",strength:1},{name:"style/c.safetensors",strength:1}]}));
     expect(no.ok).toBe(false);
   });
   test("未安装、冲突步数或多版本未选择时不可误用", () => {
-    expect(createH3PresetPlan("quick44",input({installedLoras:["s/3step.safetensors"]})).ok).toBe(false);
-    expect(createH3PresetPlan("quick44",input({installedLoras:["s/8step-v1.safetensors","s/8step-v2.safetensors"]})).ok).toBe(false);
-    expect(success("quick44",{installedLoras:["s/8step-v1.safetensors","s/8step-v2.safetensors"],primaryLora:"s/8step-v2.safetensors"}).primaryLora).toBe("s/8step-v2.safetensors");
+    expect(createH3PresetPlan("quick62",input({installedLoras:["s/3step.safetensors"]})).ok).toBe(false);
+    expect(createH3PresetPlan("quick62",input({installedLoras:["s/8step-v1.safetensors","s/8step-v2.safetensors"]})).ok).toBe(false);
+    expect(success("quick62",{installedLoras:["s/8step-v1.safetensors","s/8step-v2.safetensors"],primaryLora:"s/8step-v2.safetensors"}).primaryLora).toBe("s/8step-v2.safetensors");
   });
   test("融合 Turbo 仅关闭加速 LoRA，保留普通 LoRA", () => {
     const result=success("fused8",{turboCheckpoint:true,extraLoras:[
       {name:"style/film.safetensors",strength:0.6},{name:"speed/8step.safetensors",strength:1}]});
-    expect([result.firstPassSteps,result.secondPassSteps,result.sampler,result.primaryLora]).toEqual([4,4,"euler",""]);
+    expect([result.firstPassSteps,result.secondPassSteps,result.sampler,result.primaryLora]).toEqual([6,2,"euler",""]);
     expect(result.extraLoras).toEqual([{name:"style/film.safetensors",strength:0.6}]);
     expect(createH3PresetPlan("fused8",input({turboCheckpoint:true,eulerAvailable:false})).ok).toBe(false);
     expect(createH3PresetPlan("normal",input({turboCheckpoint:true})).ok).toBe(false);
@@ -79,9 +79,9 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     expect(isAccelerationLora(custom,[custom.replaceAll("/", "\\")])).toBe(true);
     const patch={ installedLoras:[custom], manualAccelerationLoras:[custom], primaryLora:custom };
     const four=createH3PresetPlan("preview4",input(patch));
-    const eight=success("quick44",patch);
+    const eight=success("quick62",patch);
     expect(four.ok).toBe(false);
-    expect([eight.firstPassSteps,eight.secondPassSteps]).toEqual([4,4]);
+    expect([eight.firstPassSteps,eight.secondPassSteps]).toEqual([6,2]);
     expect(eight.primaryLora).toBe(custom);
     expect(eight.hint).toContain("专用节点或调度器");
   });
@@ -97,13 +97,13 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
   });
   test("没有手动标记的旧节点保持原有行为；已声明的3step不能用于8步", () => {
     const unknown="s/unmarked.safetensors";
-    expect(createH3PresetPlan("quick44",input({installedLoras:[unknown],primaryLora:unknown})).ok).toBe(false);
-    expect(createH3PresetPlan("quick44",input({
+    expect(createH3PresetPlan("quick62",input({installedLoras:[unknown],primaryLora:unknown})).ok).toBe(false);
+    expect(createH3PresetPlan("quick62",input({
       installedLoras:["s/3step.safetensors"],manualAccelerationLoras:["s/3step.safetensors"],primaryLora:"s/3step.safetensors"
     })).ok).toBe(false);
   });
   test("未知步数 Turbo 候选提示验证", () => {
-    const result=success("quick44",{installedLoras:["misc/AnyTurbo.safetensors"],primaryLora:"misc/AnyTurbo.safetensors"});
+    const result=success("quick62",{installedLoras:["misc/AnyTurbo.safetensors"],primaryLora:"misc/AnyTurbo.safetensors"});
     expect(result.hint).toContain("需要验证");
   });
 });

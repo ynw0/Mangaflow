@@ -2,7 +2,7 @@
 import { preferred4StepLora, normalizeH3LoraName as normalize, basenameH3Lora as basename,
   declaredAccelerationSteps, isAccelerationLora } from "@toonflow/nodes-scaffold/h3Sampling";
 export { preferred4StepLora, declaredAccelerationSteps, isAccelerationLora } from "@toonflow/nodes-scaffold/h3Sampling";
-export type H3SamplingPreset = "normal" | "preview4" | "quick44" | "quick62" | "fused8";
+export type H3SamplingPreset = "normal" | "preview4" | "balanced82" | "balanced84" | "quick62" | "fused8";
 export type ExtraLora = { name: string; strength: number };
 export type H3PresetInput = {
   installedLoras: readonly string[];
@@ -60,10 +60,14 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
   let firstPassSteps = 20, secondPassSteps = 5, sampler = "res_multistep";
   let hint = "已切换普通 25 步，仅关闭加速 LoRA，保留普通 LoRA。";
   if (preset === "fused8") {
-    firstPassSteps = 4;
-    secondPassSteps = 4;
+    firstPassSteps = 6;
+    secondPassSteps = 2;
     sampler = "euler";
     hint = "已切换融合 Turbo 8 步，仅关闭加速 LoRA，保留普通 LoRA。";
+  } else if (preset === "balanced82" || preset === "balanced84") {
+    firstPassSteps = 8;
+    secondPassSteps = preset === "balanced82" ? 2 : 4;
+    hint = "已切换无加速双采。";
   } else if (preset !== "normal") {
     const target: 4 | 8 = preset === "preview4" ? 4 : 8;
     const candidate = speedCandidate(input.installedLoras, input.primaryLora, target, manual);
@@ -83,8 +87,8 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
       if (!input.eulerAvailable) return { ok: false, reason: "LightX2V Ref2V Turbo 需要 Euler 采样器，请刷新 ComfyUI 选项。" };
       sampler = "euler";
     }
-    firstPassSteps = preset === "preview4" ? 2 : preset === "quick62" ? 6 : 4;
-    secondPassSteps = preset === "preview4" ? 2 : preset === "quick62" ? 2 : 4;
+    firstPassSteps = preset === "preview4" ? 2 : 6;
+    secondPassSteps = 2;
     hint = "已选择 " + firstPassSteps + "+" + secondPassSteps + "，关闭其它加速 LoRA，保留普通 LoRA。";
     if (declaredAccelerationSteps(candidate.name) === undefined) {
       hint += " 此 LoRA 未声明适用步数，可能需要专用节点或调度器；手动标记不代表兼容，需要验证。";

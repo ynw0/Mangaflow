@@ -46,7 +46,7 @@ export async function createAgentResources(cwd: string, tools: ToolDefinition[],
   const skills = loadAgentSkills(cwd);
   const samplingInstructions = skills.skills.some(skill => skill.name === "h3SamplingStrategy")
     && tools.some(tool => tool.name === "suggestH3Sampling")
-    ? "当自动/目标模式制作 H3 视频，且用户没有锁定采样时，先按需读取 h3SamplingStrategy Skill，调用 suggestH3Sampling；只有 node:setConfig 回写成功才视为选档完成。4步仅用于快速试镜，正式8步需有同主模型兼容证据，25～40步关闭加速 LoRA。若 Skill 关闭，全部智能选档行为禁用。"
+    ? "当自动/目标模式制作 H3 视频，且用户没有锁定采样时，先按需读取 h3SamplingStrategy Skill，调用 suggestH3Sampling；只有 node:setConfig 回写成功才视为选档完成。Turbo 仅用于试镜，低成本试错用 6+2；成品按质量要求选无加速 8+2、8+4 或 25～40 步。若 Skill 关闭，全部智能选档行为禁用。"
     : "";
   const sdkSkills = tools.some(tool => tool.name === "skillOperator")
     ? { ...skills, skills: skills.skills.map(skill => ({ ...skill, disableModelInvocation: true })) }

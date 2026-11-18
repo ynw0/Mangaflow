@@ -12,8 +12,9 @@ export type H3PresetInput = {
   primaryStrength: number;
   extraLoras: readonly ExtraLora[];
   maxExtraLoras: number;
-  turboCheckpoint: boolean;
-  eulerAvailable: boolean;
+  checkpointKind: "standard" | "fused" | "unknown";
+  samplerChoices: readonly string[];
+  schedulerChoices: readonly string[];
 };
 export type H3PresetPlan =
   | { ok: true; primaryLora: string; primaryStrength?: number; extraLoras: ExtraLora[];
@@ -44,13 +45,15 @@ function speedCandidate(installed: readonly string[], selected: string, steps: 4
   return { reason: "未在当前 ComfyUI 列表识别到兼容 " + steps + " 步的加速 LoRA；请检查模型文件并刷新列表。" };
 }
 export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInput): H3PresetPlan {
-  if (input.turboCheckpoint && preset !== "fused8") {
+  if (input.checkpointKind === "unknown") return { ok: false, reason: "请确认所选主模型的类型。" };
+  if (!input.schedulerChoices.includes("simple")) return { ok: false, reason: "当前工作流缺少 simple 调度器。" };
+  if (input.checkpointKind === "fused" && preset !== "fused8") {
     return { ok: false, reason: "当前为 Turbo 主模型；普通及 LoRA 加速档需要先选择普通 H3 主模型。" };
   }
-  if (!input.turboCheckpoint && preset === "fused8") {
+  if (input.checkpointKind !== "fused" && preset === "fused8") {
     return { ok: false, reason: "请先选择已经融合 Turbo 的 H3 主模型。" };
   }
-  if (preset === "fused8" && !input.eulerAvailable) {
+  if (preset === "fused8" && !input.samplerChoices.includes("euler")) {
     return { ok: false, reason: "未检测到 euler 采样器，请刷新 ComfyUI 采样器列表。" };
   }
   const manual = input.manualAccelerationLoras ?? [];
@@ -84,7 +87,7 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
     primaryStrength = 1;
     const lightxRef = basename(candidate.name).startsWith("minimax_h3_ref2v_turbo_");
     if (lightxRef) {
-      if (!input.eulerAvailable) return { ok: false, reason: "LightX2V Ref2V Turbo 需要 Euler 采样器，请刷新 ComfyUI 选项。" };
+      if (!input.samplerChoices.includes("euler")) return { ok: false, reason: "LightX2V Ref2V Turbo 需要 Euler 采样器，请刷新 ComfyUI 选项。" };
       sampler = "euler";
     }
     firstPassSteps = preset === "preview4" ? 2 : 6;
@@ -93,6 +96,10 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
     if (declaredAccelerationSteps(candidate.name) === undefined) {
       hint += " 此 LoRA 未声明适用步数，可能需要专用节点或调度器；手动标记不代表兼容，需要验证。";
     }
+  }
+  if (!input.samplerChoices.includes(sampler)) {
+    if (sampler === "res_multistep" && input.samplerChoices.includes("euler")) sampler = "euler";
+    else return { ok: false, reason: "工作流未提供此预设所需采样器。" };
   }
   return { ok: true, primaryLora, ...(primaryStrength === undefined ? {} : { primaryStrength }),
     extraLoras: ordinaryExtras, firstPassSteps, secondPassSteps, sampler, hint };

@@ -38,7 +38,7 @@ const fileRules: Record<string, Permission> = {
 const mediaRules: Record<string, Permission> = {
   generateImage: "mediaGeneration", generateVideo: "mediaGeneration", generateAudio: "mediaGeneration",
   qcVideo: "mediaGeneration", getVideoQcStatus: "workspaceRead", getVideoQcFrames: "workspaceRead",
-  submitVideoQc: "workspaceWrite", saveVideoQcRectificationPlan: "workspaceWrite",
+  archiveAcceptedVideo: "workspaceWrite", submitVideoQc: "workspaceWrite", saveVideoQcRectificationPlan: "workspaceWrite",
 };
 
 function hasPermission(permissions: PublicMcpPermissions, permission: Permission | undefined) {

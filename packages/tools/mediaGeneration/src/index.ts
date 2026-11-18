@@ -91,7 +91,19 @@ const plugin: ToolPlugin = {
         return { details: result, content: [{ type: "text", text: JSON.stringify(result) }] };
       },
     };
-    return [qcTool, qcStatusTool, framesTool, submitTool, planTool, ...(generationTools.length ? [listTool] : []), ...generationTools.map<ToolDefinition>(operation => ({
+    const archiveInput = z.strictObject({ path: z.string().min(1), target: z.string().min(1) });
+    const archiveTool: ToolDefinition = {
+      name: "archiveAcceptedVideo", label: "归档成片",
+      description: "将通过质检的视频和质检记录归档。传入工作区相对路径和目标文件名，目标目录须已存在。",
+      parameters: z.toJSONSchema(archiveInput),
+      async execute(_id, params, signal) {
+        signal?.throwIfAborted();
+        const { path, target } = archiveInput.parse(params);
+        const saved = await media.archiveAcceptedVideo(path, target);
+        return { content: [{ type: "text", text: saved }], details: { path: saved } };
+      },
+    };
+    return [archiveTool, qcTool, qcStatusTool, framesTool, submitTool, planTool, ...(generationTools.length ? [listTool] : []), ...generationTools.map<ToolDefinition>(operation => ({
       name: operation.name,
       label: operation.label,
       description: `${operation.description}providerId 和 modelId 必须来自 listMediaModels。引用素材的 path 及 outputDirectory 均为工作区相对路径；省略输出目录使用默认媒体目录。等待生成完成后返回已保存的文件路径，不返回 Base64。`,

@@ -1,3 +1,4 @@
+import { settingsRevision } from "@/lib/settingsRevision";
 import u from "@/utils";
 import { Router } from "express";
 import { redactSettings } from "@/lib/secrets";
@@ -10,5 +11,6 @@ export default router.get("/", (req, res) => {
   res.set("Cache-Control", "no-store");
   const settings = u.conf.get("settings", {});
   if (u.cleanNodeMenuSettings(settings)) u.conf.set("settings", settings);
+  res.set("x-settings-revision", settingsRevision(settings));
   res.json(success(redactSettings(settings)));
 });

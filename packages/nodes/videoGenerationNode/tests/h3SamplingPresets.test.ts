@@ -6,7 +6,7 @@ const input = (patch: Partial<H3PresetInput> = {}): H3PresetInput => ({
   primaryLora: "speed/H3_TaoMate_3step.safetensors",
   primaryStrength: 0.8,
   extraLoras: [{ name: "style/film.safetensors", strength: 0.6 }],
-  maxExtraLoras: 3, turboCheckpoint: false, eulerAvailable: true, ...patch,
+  maxExtraLoras: 3, checkpointKind: "standard", samplerChoices: ["euler","res_multistep"], schedulerChoices: ["simple"], ...patch,
 });
 const success = (preset: Parameters<typeof createH3PresetPlan>[0], patch: Partial<H3PresetInput> = {}) => {
   const result = createH3PresetPlan(preset, input(patch));
@@ -43,7 +43,7 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
   test("LightX2V 4步使用 Euler，缺少 Euler 时禁用预设", () => {
     const present={installedLoras:["minimax/"+preferred4StepLora,...input().installedLoras]};
     expect(success("preview4",present).sampler).toBe("euler");
-    expect(createH3PresetPlan("preview4",input({...present,eulerAvailable:false})).ok).toBe(false);
+    expect(createH3PresetPlan("preview4",input({...present,samplerChoices:[]})).ok).toBe(false);
   });
   test("无加速 8+4 与试镜 6+2", () => {
     const a=success("balanced84"), b=success("quick62");
@@ -66,12 +66,12 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     expect(success("quick62",{installedLoras:["s/8step-v1.safetensors","s/8step-v2.safetensors"],primaryLora:"s/8step-v2.safetensors"}).primaryLora).toBe("s/8step-v2.safetensors");
   });
   test("融合 Turbo 仅关闭加速 LoRA，保留普通 LoRA", () => {
-    const result=success("fused8",{turboCheckpoint:true,extraLoras:[
+    const result=success("fused8",{checkpointKind:"fused",extraLoras:[
       {name:"style/film.safetensors",strength:0.6},{name:"speed/8step.safetensors",strength:1}]});
     expect([result.firstPassSteps,result.secondPassSteps,result.sampler,result.primaryLora]).toEqual([6,2,"euler",""]);
     expect(result.extraLoras).toEqual([{name:"style/film.safetensors",strength:0.6}]);
-    expect(createH3PresetPlan("fused8",input({turboCheckpoint:true,eulerAvailable:false})).ok).toBe(false);
-    expect(createH3PresetPlan("normal",input({turboCheckpoint:true})).ok).toBe(false);
+    expect(createH3PresetPlan("fused8",input({checkpointKind:"fused",samplerChoices:[]})).ok).toBe(false);
+    expect(createH3PresetPlan("normal",input({checkpointKind:"fused"})).ok).toBe(false);
   });
   test("手动标记的 LoRA 即使无 turbo/step 命名，也能被快速档识别", () => {
     const custom="experimental/special-pdd.safetensors";
@@ -92,7 +92,7 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     const normal=success("normal",patch);
     expect(normal.primaryLora).toBe("");
     expect(normal.extraLoras).toEqual([{name:"style/film.safetensors",strength:0.6}]);
-    const fused=success("fused8",{...patch,turboCheckpoint:true});
+    const fused=success("fused8",{...patch,checkpointKind:"fused"});
     expect(fused.extraLoras).toEqual([{name:"style/film.safetensors",strength:0.6}]);
   });
   test("没有手动标记的旧节点保持原有行为；已声明的3step不能用于8步", () => {

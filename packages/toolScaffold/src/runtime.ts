@@ -285,6 +285,7 @@ export type VideoExecution = {
 
 export type VideoQcPolicyInfo = { qcMethod: "agentFrames" | "model" | "agentFramesAndModel"; qcLevel: "video" | "videoAudio" | "none"; qcTrigger?: "auto" | "manual"; videoQcModelId: string; audioQcModelId: string; gemmaQcHost: string; gemmaTargetId?: string; contractVersion: number };
 export type VideoQcReport = VideoQcState & {
+  sourceVideoPath?: string;
   qcPolicy?: VideoQcPolicyInfo;
   requestedQcPolicy?: VideoQcPolicyInfo;
   agentResult?: QcVideoResult;
@@ -303,6 +304,7 @@ export interface MediaContext {
   generateAudio(request: MediaGenerationRequest, signal?: AbortSignal): Promise<GeneratedMedia[]>;
   /** 按设置里的质检模型和档位验收一条工作区视频。 */
   qcVideo(request: QcVideoRequest, signal?: AbortSignal): Promise<VideoQcActionResult>;
+  archiveAcceptedVideo(path: string, target: string): Promise<string>;
   getVideoQcStatus(videoPath: string): Promise<VideoQcReport>;
   getAgentVideoQcEvidence(videoPath: string): Promise<{ evidence: AgentVideoQcEvidence; images: { data: string; mimeType: string }[] }>;
   submitAgentVideoQc(request: AgentVideoQcSubmission): Promise<VideoQcReport>;

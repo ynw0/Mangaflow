@@ -1,3 +1,4 @@
+import { settingsRevision } from "@/lib/settingsRevision";
 import u from "@/utils";
 import { Router } from "express";
 import { z } from "zod";
@@ -31,12 +32,19 @@ export default router.put("/", validateFields({ settings: z.record(z.string(), z
     return;
   }
   const previousSettings = u.conf.get("settings", {});
+  if (req.get("x-settings-revision") !== settingsRevision(previousSettings)) {
+    res.status(409).json(error("设置版本已变化，请刷新页面后重新应用修改"));
+    return;
+  }
   const previousMcp = previousSettings.mcp as { publicUrl?: string } | undefined;
   if (settings.mcp?.publicUrl !== previousMcp?.publicUrl) u.mcpTunnel.useManualPublicUrl();
   u.removeLegacySettings(settings);
   u.cleanNodeMenuSettings(settings);
-  const nextSettings = restoreSettingsSecrets(settings, previousSettings);
+  const nextSettings = restoreSettingsSecrets(settings, previousSettings) as Record<string, unknown>;
   u.conf.set("settings", nextSettings);
   const [models] = await Promise.all([u.ai.refreshProviderModels(previousSettings), u.mcpRuntime.reloadMcpRuntime()]);
+  // 返回本次响应所代表的快照，不能把并发写入的其他设置认作本页已读。
+  res.set("x-settings-revision", settingsRevision(models.customProviders
+    ? { ...nextSettings, customProviders: models.customProviders } : nextSettings));
   res.json(success({ ...models, nodeMenu: u.conf.get("settings.general.nodeMenu") ?? null }, "设置已保存"));
 });

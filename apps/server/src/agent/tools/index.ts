@@ -1,6 +1,6 @@
 import { t } from "@/lib/i18n";
 import { listMediaModels, generateMedia } from "@/utils/media/generation";
-import { checkRecordedVideo, getVideoQcStatus, getAgentVideoQcEvidence, submitAgentVideoQc, saveVideoQcRectificationPlan } from "@/utils/production/videoRecords";
+import { archiveAcceptedVideo, checkRecordedVideo, getVideoQcStatus, getAgentVideoQcEvidence, submitAgentVideoQc, saveVideoQcRectificationPlan } from "@/utils/production/videoRecords";
 import { createWorkspaceFfmpeg } from "@/utils/ffmpeg";
 import { createBrowserContext } from "@/utils/browser";
 import { importImage } from "@/utils/workspace/chatImages";
@@ -88,6 +88,7 @@ export function createAgentToolContext(cwd: string, config: Record<string, unkno
       generateVideo: (request, signal) => generateMedia(cwd, "video", request, signal),
       generateAudio: (request, signal) => generateMedia(cwd, "audio", request, signal),
       qcVideo: (request, signal) => checkRecordedVideo(cwd, request.videoPath, request.checklist, signal, request.qcOverride, request.qcModelCallAllowed),
+      archiveAcceptedVideo: (path, target) => archiveAcceptedVideo(cwd, path, target),
       getVideoQcStatus: videoPath => getVideoQcStatus(cwd, videoPath),
       getAgentVideoQcEvidence: videoPath => getAgentVideoQcEvidence(cwd, videoPath),
       submitAgentVideoQc: request => submitAgentVideoQc(cwd, request),

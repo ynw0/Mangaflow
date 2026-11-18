@@ -9,6 +9,7 @@ import "element-plus/es/components/message/style/css";
 
 export const settings = ref<Record<string, unknown>>({});
 // ACT: 页面在 loadSettings 完成后才挂载，加载标记仅保留在设置初始化与自动保存内部。
+let settingsRevision = "";
 let settingsReady = false;
 let saveQueue = Promise.resolve();
 let applyingSettings = false;
@@ -199,11 +200,12 @@ export function resolveThinkingLevelForModel(level: ThinkingLevelChoice, model?:
 
 export async function loadSettings() {
   if (settingsReady) return;
-  const { data } = await axios.get("/api/settings/get", { headers: { "Cache-Control": "no-cache", "x-toonflow-workspace": "1" } });
+  const { data, headers } = await axios.get("/api/settings/get", { headers: { "Cache-Control": "no-cache", "x-toonflow-workspace": "1" } });
   if (settingsReady) return;
   if (data.code !== 200 || !data.data || typeof data.data !== "object" || Array.isArray(data.data)) {
     throw new Error("读取设置失败");
   }
+  settingsRevision = String(headers["x-settings-revision"]);
   settings.value = data.data;
   // 等初始化引发的监听执行完，再允许自动保存。
   await nextTick();
@@ -216,8 +218,8 @@ export function saveSettings(update?: (current: Record<string, unknown>) => Reco
     const patch = update?.(settings.value);
     if (update && !patch) return false;
     const requestedNodeMenu = JSON.stringify(((patch?.general ?? settings.value.general) as { nodeMenu?: unknown } | undefined)?.nodeMenu);
-    const { data } = await axios.put<{ code: number; data: { customProviders?: CustomProvider[]; mediaProvider?: { id: string }; modelRefreshErrors?: string[]; nodeMenu?: StoredNodeMenuItem[] | null } | null }>(
-      "/api/settings/save", { settings: { ...settings.value, ...patch } }, { headers: { "x-toonflow-workspace": "1" } },
+    const { data, headers } = await axios.put<{ code: number; data: { customProviders?: CustomProvider[]; mediaProvider?: { id: string }; modelRefreshErrors?: string[]; nodeMenu?: StoredNodeMenuItem[] | null } | null }>(
+      "/api/settings/save", { settings: { ...settings.value, ...patch } }, { headers: { "x-settings-revision": settingsRevision, "x-toonflow-workspace": "1" } },
     ).catch(error => {
       if (axios.isAxiosError<{ message?: string }>(error) && error.response?.data?.message) {
         error.message = error.response.data.message;
@@ -225,6 +227,7 @@ export function saveSettings(update?: (current: Record<string, unknown>) => Reco
       throw error;
     });
     if (data.code !== 200) throw new Error("保存设置失败");
+    settingsRevision = String(headers["x-settings-revision"]);
     const providers = data.data?.customProviders;
     if ((patch && Object.hasOwn(patch, "customProviders")) || providers) invalidateNodeModels("language");
     if (patch || providers) {
@@ -259,5 +262,5 @@ export function saveSettings(update?: (current: Record<string, unknown>) => Reco
 
 watch(settings, () => {
   if (!settingsReady || applyingSettings) return;
-  void saveSettings().catch(() => { ElMessage.error("设置保存失败，请稍后重试"); });
+  void saveSettings().catch(cause => { ElMessage.error(cause instanceof Error ? cause.message : "设置保存失败"); });
 }, { deep: true, flush: "sync" });

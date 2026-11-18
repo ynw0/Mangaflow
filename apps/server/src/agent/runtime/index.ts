@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { createComfyDiagnosisTool } from "@/agent/tools/comfyDiagnosis";
 import { basename } from "node:path";
@@ -264,6 +265,8 @@ export async function run(
         });
       },
     }));
+    const toolInputs = new Map<string, unknown>();
+    const roundResults = new Set<string>();
     let goalDone = false;
     if (goal && !child) tools.push(createCompleteGoalTool(() => { goalDone = true; }));
     const canvasInstructions = canvasMediaRoutingInstructions(Boolean(canvas), directChatAllowed);
@@ -464,6 +467,14 @@ export async function run(
         }
       }
       if (event.type === "tool_execution_start" || event.type === "tool_execution_end") {
+        if (goal && !child) {
+          if (event.type === "tool_execution_start") toolInputs.set(event.toolCallId, event.args);
+          else {
+            if (!event.isError) roundResults.add(createHash("sha256").update(JSON.stringify([event.toolName,
+              toolInputs.get(event.toolCallId), getToolResultText(event.result.content)])).digest("hex"));
+            toolInputs.delete(event.toolCallId);
+          }
+        }
         const tool = { id: event.toolCallId, name: event.toolName };
         send({
           type: "tool",
@@ -537,12 +548,22 @@ export async function run(
       // ACT: 目标模式不设固定续跑轮次。每轮复用同一会话并正常压缩上下文；
       // 仅目标完成、用户主动停止、模型错误或上下文压缩错误时结束。
       if (goal && !child) {
+        let lastResults = new Set(roundResults);
+        let stalledRounds = 0;
         await continueGoalUntilFinished({
           isComplete: () => goalDone,
           isStopped: () => Boolean(signal?.aborted || modelError || compactionError),
           continueOnce: async () => {
             signal?.throwIfAborted();
+            roundResults.clear();
             await promptSession(goalContinuePrompt, false);
+            // 连续两轮只有汇报或相同工具结果时，交回控制，避免无限消耗。
+            const progressed = [...roundResults].some(result => !lastResults.has(result));
+            stalledRounds = progressed ? 0 : stalledRounds + 1;
+            lastResults = new Set(roundResults);
+            if (stalledRounds >= 2 && !goalDone && !signal?.aborted && !modelError && !compactionError) {
+              throw new Error("目标尚未完成：连续两轮没有新的成功工具结果，已停止自动续跑。");
+            }
           },
         });
       }

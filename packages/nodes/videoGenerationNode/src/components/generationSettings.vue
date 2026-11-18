@@ -67,6 +67,11 @@
             <el-option v-if="model.checkpoint.defaultName" :label="`默认 · ${model.checkpoint.defaultName.split(/[\\/]/).at(-1)}`" value="__workflow_checkpoint__" />
             <el-option v-for="name in checkpointOptions" :key="name" :value="name" :label="name" />
           </el-select>
+          <el-select v-if="model.h3Advanced" v-model="checkpointKind" :disabled="disabled || !selectedCheckpoint" aria-label="确认主模型类型">
+            <el-option label="主模型类型待确认" value="unknown" />
+            <el-option label="普通主模型" value="standard" />
+            <el-option label="已融合 Turbo 主模型" value="fused" />
+          </el-select>
         </template>
         <div class="sectionLabel">加速 LoRA（普通风格 LoRA 请放在附加列表）</div>
         <el-select v-model="selectedLora" :disabled="disabled" :append-to="settingsHost" filterable aria-label="选择 LoRA 或关闭">
@@ -250,6 +255,7 @@ const h3Options = defineModel<H3Options | undefined>("h3Options");
 const manualAccelerationLoras = defineModel<string[] | undefined>("manualAccelerationLoras");
 const addingAccelerationLora = ref(false);
 const manualAccelerationNotice = ref("");
+const checkpointKind = defineModel<"standard" | "fused" | "unknown">("checkpointKind", { required: true });
 const selectedCheckpoint = computed({
   get: () => checkpointName.value ?? (props.model?.checkpoint?.defaultName ? "__workflow_checkpoint__" : ""),
   set: (value: string) => { checkpointName.value = value === "__workflow_checkpoint__" || value === "" ? undefined : value; },
@@ -324,7 +330,6 @@ function moveExtra(index:number, direction:number) {
   if (other<0 || other>=items.length || !items[index] || !items[other]) return;
   [items[index],items[other]]=[items[other]!,items[index]!]; patchAdvanced("extraLoras",items);
 }
-const isTurboCheckpoint = computed(() => /turbo/i.test(normalized(checkpointName.value ?? props.model?.checkpoint?.defaultName ?? "").split("/").at(-1) ?? ""));
 const presetInput = computed(() => ({
   installedLoras: props.loraChoices ?? [],
   manualAccelerationLoras: manualAccelerationLoras.value ?? [],
@@ -332,8 +337,9 @@ const presetInput = computed(() => ({
   primaryStrength: h3Options.value?.loraStrength ?? props.model?.h3Advanced?.loraStrength ?? 1,
   extraLoras: extraLoras.value,
   maxExtraLoras: props.model?.h3Advanced?.maxExtraLoras ?? 3,
-  turboCheckpoint: isTurboCheckpoint.value,
-  eulerAvailable: props.samplerChoices?.includes("euler") ?? false,
+  checkpointKind: checkpointKind.value,
+  samplerChoices: props.samplerChoices ?? [],
+  schedulerChoices: props.schedulerChoices ?? [],
 }));
 const presetPlans = computed(() => ({
   normal: createH3PresetPlan("normal", presetInput.value),
@@ -344,7 +350,7 @@ const presetPlans = computed(() => ({
   fused8: createH3PresetPlan("fused8", presetInput.value),
 }));
 const presetAvailabilityHint = computed(() => {
-  if (props.loraLoading || props.loraError || isTurboCheckpoint.value) return "";
+  if (props.loraLoading || props.loraError || checkpointKind.value === "fused") return "";
   const quick = presetPlans.value.quick62;
   return quick.ok ? "" : quick.reason;
 });

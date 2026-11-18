@@ -11,7 +11,7 @@ metadata:
 
 ## 选择与执行
 
-从视频节点 node:getConfig 读取真实工作流、主模型、LoRA 和采样器。用户明确指定的参数优先。使用 suggestH3Sampling 按用途选择：
+从视频节点 node:getConfig 读取真实工作流、主模型、LoRA 和采样器。checkpointKind 使用节点返回的已确认类型，unknown 时先确认权重类型。用户明确指定的参数优先。使用 suggestH3Sampling 按用途选择：
 
 - 低成本试镜用 6+2。融合 Turbo 主模型不得叠加加速 LoRA。明确需要极速预览时可选已有的 2+2 试镜。
 - 一般成片用普通主模型、无加速 8+2；需要提高二采预算时用 8+4。

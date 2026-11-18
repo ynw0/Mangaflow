@@ -135,6 +135,7 @@
             :samplerChoices="samplerChoices"
             :schedulerChoices="schedulerChoices"
             :advancedError="advancedError"
+            v-model:checkpointKind="checkpointKind"
             v-model:checkpointName="data.checkpointName"
             v-model:ratio="data.ratio"
             v-model:mode="data.mode"
@@ -214,7 +215,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; manualAccelerationLoras?: string[]; checkpointName?: string; h3Options?: NodeVideoRequest["h3Options"]; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
+const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; manualAccelerationLoras?: string[]; checkpointEvidence?: { model: string; name: string; kind: "standard" | "fused" }; checkpointName?: string; h3Options?: NodeVideoRequest["h3Options"]; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -874,6 +875,19 @@ async function resizeVideo(event: Event) {
   updateNodeInternals();
 }
 
+// 确认绑定当前工作流与具体权重，切换后不得沿用另一模型的类型。
+const checkpointKind = computed<"standard" | "fused" | "unknown">({
+  get() {
+    const evidence = data.value.checkpointEvidence;
+    const name = data.value.checkpointName ?? selectedModel.value?.checkpoint?.defaultName;
+    return evidence && evidence.model === data.value.model && evidence.name === name ? evidence.kind : "unknown";
+  },
+  set(kind) {
+    const name = data.value.checkpointName ?? selectedModel.value?.checkpoint?.defaultName;
+    data.value.checkpointEvidence = name && kind !== "unknown" ? { model: data.value.model, name, kind } : undefined;
+  },
+});
+
 function getConfig() {
   return {
     config: {
@@ -887,6 +901,7 @@ function getConfig() {
       secondPassSteps: data.value.secondPassSteps,
       outputFirstPass: data.value.outputFirstPass,
       loraName: selectedModel.value?.lora ? (data.value.loraName ?? selectedModel.value.lora.defaultName) : undefined,
+      checkpointKind: checkpointKind.value,
       manualAccelerationLoras: selectedModel.value?.h3Advanced ? (data.value.manualAccelerationLoras ?? []) : undefined,
       checkpointName: selectedModel.value?.checkpoint ? (data.value.checkpointName ?? selectedModel.value.checkpoint.defaultName) : undefined,
       h3Options: selectedModel.value?.h3Advanced ? data.value.h3Options : undefined,

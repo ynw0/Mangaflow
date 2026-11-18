@@ -1,20 +1,21 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, readdir, realpath, stat, unlink, writeAtomic } from "@toonflow/file";
-import { dirname, join, relative } from "node:path";
+import { copyFile, constants, mkdir, readFile, readdir, realpath, stat, unlink, writeAtomic } from "@toonflow/file";
+import { extname, dirname, join, relative } from "node:path";
 import type { GeneratedMedia, MediaGenerationRequest, QcVideoResult, VideoExecution, VideoQcReport, VideoQcState } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
 import { assertQcCallAllowed, captureQcPolicy, productionForQc, type QcPolicySnapshot } from "@/utils/production/qcPolicy";
 import type { NodeQcOverride } from "@toonflow/tools-scaffold/runtime";
 import { prepareAgentVideoQc, runProductionQc } from "@/utils/production/qc";
 import { parseQcPayload, summarizeQc, validateRectificationCoverage } from "@/utils/production/qcResult";
-import { resolveWorkspacePath } from "@/utils/workspace/files";
+import { lockWorkspaceFiles, resolveWorkspacePath } from "@/utils/workspace/files";
 import { readQcRequirements } from "@/utils/production/qcRequirements";
 import type { AgentVideoQcSubmission, QcRequirement, VideoQcActionResult, VideoQcRectificationPlan } from "@toonflow/tools-scaffold/runtime";
 
-type VideoIdentity = Awaited<ReturnType<typeof videoIdentity>>;
+type VideoIdentity = { directory: string; videoPath: string; size: number; mtimeMs: number; recordPath: string };
 type VideoRecord = {
   workspaceDirectory?: string; // 新版记录持久化工作区，供服务重启后重新入队 QC
   videoPath: string;
+  sourceVideoPath?: string;
   size: number;
   mtimeMs: number;
   createdAt: string;
@@ -44,7 +45,12 @@ async function videoIdentity(cwd: string, path: string) {
   if (!info.isFile()) throw new Error("成片路径不是文件");
   const videoPath = relative(directory, target.path).replaceAll("\\", "/");
   const identity = process.platform === "win32" ? target.path.toLowerCase() : target.path;
-  const key = createHash("sha256").update(identity).digest("hex");
+  const records = join(dirname(conf.path), "videoRecords");
+  // 已有记录继续按原路径读取；新文件版本拥有独立记录，旧任务不能覆盖新版本。
+  const legacyKey = createHash("sha256").update(identity).digest("hex");
+  const legacy = { directory, videoPath, size: info.size, mtimeMs: info.mtimeMs, recordPath: join(records, legacyKey + ".json") };
+  if (await loadRecord(legacy)) return legacy;
+  const key = createHash("sha256").update(JSON.stringify([identity, info.size, info.mtimeMs, info.ctimeMs, info.ino])).digest("hex");
   return { directory, videoPath, size: info.size, mtimeMs: info.mtimeMs, recordPath: join(dirname(conf.path), "videoRecords", key + ".json") };
 }
 
@@ -65,6 +71,36 @@ function newRecord(video: VideoIdentity, qc: VideoQcState): VideoRecord {
 async function saveRecord(video: VideoIdentity, record: VideoRecord, exclusive = false) {
   await mkdir(dirname(video.recordPath), { recursive: true });
   await writeAtomic(video.recordPath, JSON.stringify(record), { mode: 0o600, exclusive });
+}
+
+// 独占归档已通过质检的视频，同时保存当时的生成参数和验收结论。
+export async function archiveAcceptedVideo(cwd: string, path: string, target: string) {
+  const directory = await realpath(cwd);
+  const source = await resolveWorkspacePath(directory, path);
+  const destination = await resolveWorkspacePath(directory, target);
+  if (extname(path).toLowerCase() !== extname(target).toLowerCase()) throw new Error("归档必须保留视频扩展名");
+  const release = lockWorkspaceFiles([source.path, destination.path]);
+  try {
+    const video = await videoIdentity(directory, path);
+    const record = await loadRecord(video);
+    if (record?.qc.status !== "completed" || record.qc.result.status !== "ok" || active.has(video.recordPath)) {
+      throw new Error("仅可归档已完成质检并通过的视频");
+    }
+    await copyFile(source.path, destination.path, constants.COPYFILE_EXCL);
+    try {
+      const archived = await videoIdentity(directory, target);
+      if (archived.size !== video.size || (await videoIdentity(directory, path)).recordPath !== video.recordPath) {
+        throw new Error("归档期间源文件发生变化");
+      }
+      await saveRecord(archived, { ...record, sourceVideoPath: record.sourceVideoPath ?? video.videoPath, videoPath: archived.videoPath, size: archived.size, mtimeMs: archived.mtimeMs }, true);
+      return archived.videoPath;
+    } catch (error) {
+      await unlink(destination.path);
+      throw error;
+    }
+  } finally {
+    release();
+  }
 }
 
 export async function recordVideoOutputs(directory: string, assets: GeneratedMedia[], request: MediaGenerationRequest, execution?: VideoExecution, snapshot?: QcPolicySnapshot) {
@@ -222,7 +258,7 @@ export async function getVideoQcStatus(directory: string, videoPath: string): Pr
     reviewId: generation.request.reviewId,
     duration: generation.request.duration, ratio: generation.request.ratio, execution: generation.execution,
   } : undefined;
-  const policyInfo = { qcPolicy: task?.policy ?? record?.qcPolicy, requestedQcPolicy: record?.requestedQcPolicy };
+  const policyInfo = { sourceVideoPath: record?.sourceVideoPath, qcPolicy: task?.policy ?? record?.qcPolicy, requestedQcPolicy: record?.requestedQcPolicy };
   if (task && !task.running) return { status: "queued", generation: parameters, ...policyInfo };
   if (!task && (state.status === "queued" || state.status === "running")) return { status: "interrupted", generation: parameters, ...policyInfo };
   const revision = state.status === "completed" ? qcRevision(video, state.result, record) : undefined;

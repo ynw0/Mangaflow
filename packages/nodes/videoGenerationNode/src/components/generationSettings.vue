@@ -48,8 +48,33 @@
           aria-label="放大倍率" />
         <div v-if="outputSize" class="sizeHint">成片 {{ outputSize.width }}×{{ outputSize.height }}</div>
       </div>
-      <div v-if="stepSpec" class="sizeHint" role="status">
-        当前采样：一采 {{ firstPassSteps ?? stepSpec.firstPassDefault }} 步 + 二采 {{ secondPassSteps ?? stepSpec.secondPassDefault }} 步；手动通过下方预设切换，Agent 运行时可按已授权目标自定义。
+      <div v-if="stepSpec" class="passSteps">
+        <div class="outputField">
+          <div class="sectionLabel">一采步数</div>
+          <el-input-number
+            v-model="firstPassSteps"
+            class="stepInput"
+            :disabled="disabled"
+            :min="stepSpec.firstPassMin"
+            :max="stepSpec.firstPassMax"
+            :step="1"
+            :precision="0"
+            controlsPosition="right"
+            aria-label="一采步数" />
+        </div>
+        <div class="outputField">
+          <div class="sectionLabel">二采步数</div>
+          <el-input-number
+            v-model="secondPassSteps"
+            class="stepInput"
+            :disabled="disabled"
+            :min="stepSpec.secondPassMin"
+            :max="stepSpec.secondPassMax"
+            :step="1"
+            :precision="0"
+            controlsPosition="right"
+            aria-label="二采步数" />
+        </div>
       </div>
       <div class="sectionLabel">通用比例</div>
       <div class="ratioOptions" role="group" aria-label="视频比例">

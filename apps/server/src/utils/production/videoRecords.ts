@@ -5,7 +5,7 @@ import type { GeneratedMedia, MediaGenerationRequest, QcVideoResult, VideoExecut
 import conf from "@/utils/conf";
 import { assertQcCallAllowed, captureQcPolicy, productionForQc, type QcPolicySnapshot } from "@/utils/production/qcPolicy";
 import type { NodeQcOverride } from "@toonflow/tools-scaffold/runtime";
-import { prepareAgentVideoQc, runProductionQc } from "@/utils/production/qc";
+import { releaseQcFrames, prepareAgentVideoQc, runProductionQc } from "@/utils/production/qc";
 import { parseQcPayload, summarizeQc, validateRectificationCoverage } from "@/utils/production/qcResult";
 import { lockWorkspaceFiles, resolveWorkspacePath } from "@/utils/workspace/files";
 import { readQcRequirements } from "@/utils/production/qcRequirements";
@@ -155,6 +155,8 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, policy:
     const history = saved.qc.status === "completed" ? [...(saved.qcHistory ?? []), { archivedAt: new Date().toISOString(), policy: saved.qcPolicy, attemptId: saved.qcAttemptId, result: saved.qc.result, checklist: saved.checklist, rawQc: saved.rawQc, rectificationPlan: saved.rectificationPlan }] : saved.qcHistory;
     const record = { ...saved, qcHistory: history, qcAttemptId: crypto.randomUUID(), agentResult: undefined, agentDeliveredRevision: undefined, rectificationPlan: undefined, checklist, rawQc, qcPolicy: policy };
     await saveRecord(video, { ...record, qc: { status: "running" } });
+    if (saved.qc.status === "awaitingAgent") await releaseQcFrames(video.directory, saved.qc.agent);
+    let captured: Awaited<ReturnType<typeof prepareAgentVideoQc>> | undefined;
     const task = active.get(video.recordPath);
     if (task) task.running = true;
     try {
@@ -162,7 +164,7 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, policy:
       const production = productionForQc(policy);
       const requirements = await readQcRequirements(video.directory, saved.generation?.request);
       record.requirements = requirements;
-      const captured = production.qcMethod !== "model" && production.qcLevel !== "none"
+      captured = production.qcMethod !== "model" && production.qcLevel !== "none"
         ? await prepareAgentVideoQc(video.directory, video.videoPath, requirements, production.qcLevel === "videoAudio",
           production.qcMethod === "agentFramesAndModel" && production.qcLevel === "videoAudio", signal) : undefined;
       if (captured && production.qcMethod === "agentFrames") {
@@ -200,6 +202,7 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, policy:
       await saveRecord(video, { ...record, qc: { status: "completed", result } });
       return result;
     } catch (error) {
+      if (captured) await releaseQcFrames(video.directory, captured.agent);
       const message = error instanceof Error ? error.message : "质检未完成";
       await saveRecord(video, { ...record, qc: signal?.aborted ? { status: "interrupted" } : { status: "failed", message } });
       throw error;
@@ -342,6 +345,7 @@ export async function submitAgentVideoQc(directory: string, input: AgentVideoQcS
         assessments: { agent: agentResult, model } } : { ...agentResult, assessments: { agent: agentResult } };
       await saveRecord(video, { ...record, qc: { status: "completed", result } });
     }
+    await releaseQcFrames(video.directory, pending.agent);
     return getVideoQcStatus(directory, input.videoPath);
   } finally { submissions.delete(video.recordPath); }
 }

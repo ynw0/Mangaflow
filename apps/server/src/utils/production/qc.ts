@@ -1,7 +1,7 @@
 // 成片视听质检：按 settings.production 的视频/音频质检模型调用（默认 qwen3.8-omni-flash），不经 sidecar。
 import { copyFile, mkdir, mkdtemp, readFile, rm, unlink, rmdir } from "@toonflow/file";
 import { tmpdir } from "node:os";
-import { extname, join } from "node:path";
+import { basename, extname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { getConfiguredModel, listAiModels } from "@/utils/ai";
 import type { FfmpegCommand } from "@toonflow/ffmpeg/types";
@@ -208,10 +208,46 @@ async function extractEvidence(absoluteVideo: string, workDir: string, detailed:
   return { frames, frameTimes, timelineCoverage, audioBase64: audioBytes ? audioBytes.toString("base64") : undefined, technical };
 }
 
+function evidenceFolder(revision: string) {
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(revision)) throw new Error("抽帧版本无效");
+  return `assets/qcEvidence/evidence${revision.replaceAll("-", "")}`;
+}
+
+// 只回收本次实际生成、内容仍一致的帧，目录中另存的文件由用户保留。
+export async function releaseQcFrames(directory: string, evidence: AgentVideoQcEvidence) {
+  try {
+    const folder = evidenceFolder(evidence.revision);
+    const target = await resolveWorkspacePath(directory, folder);
+    const release = lockWorkspaceFiles([target.path]);
+    try {
+      for (const [index, frame] of evidence.frames.entries()) {
+        if (frame.path !== `${folder}/frame${index}.jpg`) throw new Error("质检帧路径与版本不符");
+        try {
+          const file = await resolveWorkspacePath(directory, frame.path);
+          const bytes = await readFile(file.path);
+          if (createHash("sha256").update(bytes).digest("hex") === frame.digest) await unlink(file.path);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+      }
+      await rmdir(target.path);
+    } finally {
+      release();
+    }
+  } catch (error) {
+    // 清理失败要可追踪，已保存的验收结论仍然有效。
+    if (!["ENOENT", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code ?? "")) {
+      console.warn("清理质检抽帧失败", evidence.revision, error);
+    }
+  }
+}
+
 export async function prepareAgentVideoQc(directory: string, videoPath: string, requirements: QcRequirement[], audioExpected: boolean, includeAudio: boolean, signal?: AbortSignal) {
   const video = await resolveWorkspacePath(directory, videoPath);
   const output = await resolveWorkspacePath(directory, "assets/qcEvidence", true);
-  const release = lockWorkspaceFiles([output.path]);
+  const revision = crypto.randomUUID();
+  const relativeDirectory = evidenceFolder(revision);
+  const release = lockWorkspaceFiles([join(output.path, basename(relativeDirectory))]);
   let workDir: string | undefined;
   const written: string[] = [];
   let evidenceDirectory: string | undefined;
@@ -220,11 +256,10 @@ export async function prepareAgentVideoQc(directory: string, videoPath: string, 
     const localVideo = join(workDir, qcSourceName(video.path));
     await copyFile(video.path, localVideo);
     const raw = await extractEvidence(localVideo, workDir, true, signal, includeAudio);
-    const revision = crypto.randomUUID();
     await mkdir(output.path, { recursive: true });
-    const relativeDirectory = `assets/qcEvidence/evidence${revision.replaceAll("-", "")}`;
-    evidenceDirectory = (await resolveWorkspacePath(directory, relativeDirectory)).path;
-    await mkdir(evidenceDirectory);
+    const folder = (await resolveWorkspacePath(directory, relativeDirectory)).path;
+    await mkdir(folder);
+    evidenceDirectory = folder;
     const frames: AgentVideoQcEvidence["frames"] = [];
     for (const [index, frame] of raw.frames.entries()) {
       signal?.throwIfAborted();
@@ -242,7 +277,7 @@ export async function prepareAgentVideoQc(directory: string, videoPath: string, 
     throw error;
   } finally {
     release();
-    if (workDir) await rm(workDir, { recursive: true, force: true });
+    if (workDir) await rm(workDir, { recursive: true, force: true }).catch(error => console.warn("清理质检临时目录失败", workDir, error));
   }
 }
 
@@ -492,6 +527,6 @@ export async function runProductionQc(input: {
       merged: false,
     };
   } finally {
-    await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
+    await rm(workDir, { recursive: true, force: true }).catch(error => console.warn("清理质检临时目录失败", workDir, error));
   }
 }

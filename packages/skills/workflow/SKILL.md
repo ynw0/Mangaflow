@@ -35,7 +35,7 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 
 按当前创作目标，从 [创作知识库说明](references/creativeKnowledge.md) 精准检索，而不是每镜套用全库。统一入口仍为 `searchVideoPromptTemplates`：原 `listTags/search` 保留导演镜头模板；`listCreativeTags/searchCreative` 支持 `narrative` 剧情节拍、`memes` 热梗、`absurd` 喜剧、`expressions` 颜艺和 `styles` 画风/滤镜。每镜只选择与已批准剧情、人物和参考图相容的少量条目；导演阶段存在更精确的原有拍法模板时优先用它。已选条目可用 `checkCreativeSelection` 检查多镜场次是否在当前时长可执行、是否违背用户的单镜头合同，以及严肃剧情强加梗、写实人脸过度夸张和错误滤镜 ID。
 
-**工具联动：** Agent 先用 `searchVideoPromptTemplates` 取得匹配模板及其稳定 ID，需要其影响 H3 导演成稿时，将 ID 放到 `draftVideoPrompt.creativeSelection`。不要复制 1–10 条全文到提示词；无需模板就省略。`draftVideoPrompt` 参数使用原生 JSON 类型，`mustHave/mustNotHave/references` 必须是数组，`duration` 必须是数字。已有节点只传 `node`，不要与 `duration/ratio/modelId/sampling/seed` 同传；具体示例见 [创作知识库说明](references/creativeKnowledge.md)。
+**工具联动：** Agent 先用 `searchVideoPromptTemplates` 取得匹配模板及其稳定 ID，需要其影响 H3 导演成稿时，将 ID 放到 `draftVideoPrompt.creativeSelection`。不要复制 1–10 条全文到提示词；无需模板就省略。`draftVideoPrompt` 参数使用原生 JSON 类型，`mustHave/mustNotHave/references` 必须是数组，`duration` 必须是数字。工具返回 `draftId` 时，按 `nextAction` 调用 `resumeVideoPrompt` 继续原稿；字段错误只续审，内容退回按原合同定向返修。仅在用户要求从头重写时重新发起创作。已有节点只传 `node`，不要与 `duration/ratio/modelId/sampling/seed` 同传；具体示例见 [创作知识库说明](references/creativeKnowledge.md)。
 
 **叙事模板不等于可直接生成的 H3 提示词。** `scope:scene` 是多镜场次框架：允许剪辑且时长足够时，可以将其合理拆解成一个 H3 视频片段中的多个 `[Shot N]`，在 `cinematicPlan.shots` 中记录切点与动作；不得为了塞进短片而删减剧情或合并不可执行的动作。用户明确要求单镜时仍须遵守一个连续摄影镜头的合同。`scope:shot` 仅提供单个镜头的创作素材，不代替原有合同、独立审核与算力授权。表情模板只控制表演，画风由项目设定锁定；滤镜用于指导画面观感。热梗库保留截至 2026-11-11 的有来源传播记录（含“我超威”）；剧情有喜剧空间时适当借用热梗或抽象搞怪的表现方式。尊重已确认的剧情与基调，使用有授权的音轨和声线，正文只写当前镜头需要的内容。
 

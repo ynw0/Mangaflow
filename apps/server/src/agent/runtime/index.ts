@@ -23,7 +23,7 @@ import { resolveAgentProfile } from "@/agent/runtime/profiles";
 import { configureAgentRequests } from "@/agent/runtime/requests";
 import { getAgentImageReference, getOffloadedImageText, readAgentImage } from "@/agent/runtime/imageAttachments";
 import { createSubAgentTool } from "@/agent/tools/subAgent";
-import { createVideoPromptTool } from "@/agent/videoPrompt";
+import { createVideoPromptTools } from "@/agent/videoPrompt";
 import { createVideoTemplateSearchTool } from "@/agent/videoPrompt/templates";
 import { createH3SamplingStrategyTool } from "@/agent/tools/h3SamplingStrategy";
 import { loadAgentSkills } from "@/agent/skills";
@@ -235,8 +235,8 @@ export async function run(
     }
     const skillOperator = tools.find(tool => tool.name === "skillOperator");
     if (!child && skillOperator) {
-      if (tools.some(tool => tool.name === "draftVideoPrompt")) throw new Error("工具名称 draftVideoPrompt 已被内置视频提示词工具占用");
-      tools.push(createVideoPromptTool({
+      if (tools.some(tool => ["draftVideoPrompt", "resumeVideoPrompt"].includes(tool.name))) throw new Error("工具名称 draftVideoPrompt 已被内置视频提示词工具占用");
+      tools.push(...createVideoPromptTools({
         cwd, canvas, skillOperator, parentFile: file, send, modelRuntime: runtime, model: runtime.getModel(providerId, modelId),
         thinkingLevel: toSdkThinkingLevel(thinkingLevel),
         primaryModel: { providerId, modelId, thinkingLevel },

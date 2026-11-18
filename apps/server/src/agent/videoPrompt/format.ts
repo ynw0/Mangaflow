@@ -35,14 +35,18 @@ export function createReviewSchema(requirementIds: string[]) {
   ]);
 }
 
-export function createReviewSubmissionParameters(schema: ReturnType<typeof createReviewSchema>) {
+export function createReviewSubmission(schema: ReturnType<typeof createReviewSchema>) {
+  // 模型工具保留单一对象根；判决分支分别列出必填字段，退稿无需逐项填写通过证据。
   const [approved, rejected] = schema.options;
-  return z.toJSONSchema(z.strictObject({
-    status: z.enum(["ok", "rejected"]),
-    framingEvidence: approved.shape.framingEvidence.optional(),
-    coverage: approved.shape.coverage.optional(),
-    findings: z.array(rejected.shape.findings.element).max(maxReviewFindings),
-  }), submissionOptions);
+  const verdict = z.discriminatedUnion("status", [
+    approved.strict().extend({ findings: z.array(rejected.shape.findings.element).max(0) }),
+    rejected.strict(),
+  ]);
+  const envelope = z.strictObject({ result: verdict });
+  return {
+    parameters: z.toJSONSchema(envelope, submissionOptions),
+    schema: envelope.transform(({ result }) => schema.parse(result)),
+  };
 }
 
 export type VideoPromptReview = z.infer<ReturnType<typeof createReviewSchema>>;

@@ -39,24 +39,3 @@ export const directorSubmissionExample = {
   input: { shot: contract, format: "h3Text", workflow: { duration: 4, ratio: "16:9", references: [] } },
   submitResult: draft,
 };
-
-export const reviewSubmissionExample = {
-  input: {
-    reviewRequirements: [
-      { id: "story", text: contract.story },
-      { id: "framing", text: "固定机位下镜尾仍须双人同框" },
-      { id: "dialogueTiming", text: "放稳扳手后开口，给收句留余量" },
-    ],
-    draft,
-  },
-  submitResult: {
-    status: "ok",
-    framingEvidence: "固定中景持续到镜尾，两人未离开工作台两侧。",
-    coverage: [
-      { requirementId: "story", evidence: "Shot 1 中师傅低声说「等一下。」工友嘴唇闭合并等候。" },
-      { requirementId: "framing", evidence: "Shot 1 末句明确保持双人同框。" },
-      { requirementId: "dialogueTiming", evidence: "扳手放稳后 0.7 秒开口，1.7 秒前收句，工友在整句期间闭口。" },
-    ],
-    findings: [],
-  },
-};

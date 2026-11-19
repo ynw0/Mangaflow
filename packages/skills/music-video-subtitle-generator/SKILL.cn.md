@@ -125,7 +125,7 @@ trigger-words: [MV, music video, lyric typography, on-screen text, prompt audit,
 
 对于 Trap、Dark-pop、Cyber-grunge 等快节奏 MV，全片应在多个近景场景之间快速切换：
 
-- 场景气质保持统一，但每个镜头的空间必须明显不同（局部背景、隧道、墙面、灯带、反光地面）。
+- 场景气质与空间关系保持连续；只有已确认概念需要时才切换地点或背景。镜头变化也可以来自景别、视点、焦点、灯光、贴字或人物表演，不要为了每镜“不同”凭空创造新空间。
 - 场景切换必须由明确音乐冲击触发：bass hit、808 drop、snare、vocal 重音或文字砸屏。
 - 镜头切换是 trap beat 上的“视觉采样”：硬切、跳切、扫描 glitch 硬切、闪切、动作匹配切。
 

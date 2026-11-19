@@ -37,7 +37,7 @@ Per-shot section structure (one `##` heading per shot, in shot order). Every sec
    - `Pose + Expression` — concrete body posture, silhouette, key prop grip, eye-line, and any **actual** expression change; stable expressions may be marked held, and silence needs no invented gesture. For approved elastic beats, call out squash / stretch / anticipation / overshoot. This field anchors the visual beat, not an obligation to animate every face each second.
    - `Camera` — shot size, camera movement (push / pull / pan / tilt / handheld-shake / locked / orbit), Dutch angle note when applicable.
    - `Audio + Anchor` — audio cue (`♪ narration: ...` / `dialogue: ...` / `SFX: ...` / `silent`) and spatial anchor note (`door-frame: right third` / `Mia: center midground facing camera`).
-   - Performance notes (mirrors half-narrated): for narration seconds, mark `narrator-mouth-closed: true`; for on-screen dialogue, mark `mouth-open: speaker` and describe expression path / eye-line / body-action changes.
+   - Performance notes (mirrors half-narrated): for narration seconds, mark `narrator-mouth-closed: true`; for on-screen dialogue, mark `mouth-open: speaker` and record only actual expression, eye-line or body-action changes. When the actor stays still, preserve the held pose instead of inventing a reaction.
 8. **Layout rules** (apply per shot):
    - 3-second shot → 3 panels (1 per second).
    - 4-second shot → 4 panels.

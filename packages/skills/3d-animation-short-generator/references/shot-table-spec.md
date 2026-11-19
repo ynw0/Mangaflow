@@ -35,7 +35,7 @@ Column rules:
 Table-wide rules:
 
 - Each shot must naturally inherit the previous shot’s image state through the `Continuity Handoff` column and set up the next shot in the same column.
-- Each shot row must include per-second directives that cover the entire shot duration from first frame to last frame, including action, pose, expression, camera movement, spatial position, sound cue, and continuity handoff.
+- Each shot row must include per-second directives covering the entire shot from first to last frame, recording action/pose/expression, camera state, spatial position, sound cue, and continuity handoff. A held pose, fixed camera, or intentional silence counts as an explicit state; do not invent a new gesture or move each second.
 - Per-second directives must be specific enough to generate storyboard panels directly; avoid vague timing such as “continues moving” without body, camera, or prop detail.
 - Performance may use elastic stylized animation when the approved action and tone call for it; do not impose exaggerated squash-and-stretch, fast poses, or comic reactions on every shot. Quiet character moments, restrained faces, and held poses are valid if the story needs them.
 - Vary shot sizes when the story changes what the audience needs to see. Repeated framing is valid when it preserves a relationship or makes a later change readable; do not alternate close-up / extreme close-up mechanically.
@@ -58,7 +58,7 @@ Before moving to pencil storyboards, run a hard self-check on the approved shot 
 
 Six required checks:
 
-1. **Hook density**: every shot has a `Hook Type`; at least one of every three consecutive shots uses a `reveal`/`reversal`/`callback`; the opening shot and the closing shot each carry a strong hook (`visual-joke` / `reversal` / `reveal` / `suspense` / `tender`).
+1. **Hook function and distribution**: every shot retains a `Hook Type` recording its actual narrative purpose. Check that the opening engages, the sequence progresses, and the ending hands off meaningfully; `setup`, `tender`, `expression-beat`, or quiet continuity are valid where appropriate. Flag repeated empty hooks, but do not enforce a reveal/reversal quota or manufacture dramatic first/last shots.
 2. **Single-shot duration**: no shot exceeds 15 seconds. If a beat needs more, split it.
 3. **Character count per shot**: no shot contains more than three important characters (defined as characters with on-screen action or dialogue).
 4. **Spatial anchor inheritance**: for every interior scene with two or more shots, the `Fixed Landmarks` and `Lighting Baseline` of the next shot must either match the previous shot or include an explicit continuity note (e.g. `door-frame moves from right third to center as camera orbits left`).

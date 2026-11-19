@@ -122,7 +122,7 @@ Assign each reference image one narrow job:
 
 For Trap, Dark-pop, Cyber-grunge, and other fast-paced MVs, switch quickly among multiple close-up spaces:
 
-- Keep scene mood unified, but each shot’s space must differ clearly, such as local background, tunnel, wall, light strip, or reflective floor.
+- Preserve the music video's established geography and mood. Change location or background only when the approved concept calls for it; variety can also come from framing, focal distance, lighting, text movement or performance. Do not invent a new space for every cut.
 - Scene switches must be triggered by musical impacts: bass hit, 808 drop, snare, vocal accent, or typography smash.
 - Shot switches are “visual samples” on the trap beat: hard cuts, jump cuts, scan-glitch cuts, flash cuts, or action match cuts.
 

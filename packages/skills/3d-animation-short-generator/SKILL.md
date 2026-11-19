@@ -24,9 +24,9 @@ Unless the user explicitly requests another visual style, all character cards, s
 - Proportion language: friendly stylized proportions, often 2.5–3 head-tall for cute or childlike characters, with big heads, compact bodies, clear silhouettes, and high recognizability.
 - Hair / fur: combine strong sculpted clumps and clean block shapes with fine edge flyaway hairs or fuzzy rim details, so hair/fur feels designed but tactile under light.
 - Skin / material: warm subsurface scattering skin quality, soft translucent reddish light through ears, cheeks, nose, and fingertips; avoid hard plastic skin.
-- Acting style: exaggerated, lively Disney/Pixar-style character animation performance with squash and stretch, strong brows, eye corners, pupils, lips, and cheek shape changes.
-- Motion style: high-energy poses, clear line of action, forward lean, strong anticipation, fast but readable timing, elastic body mechanics, and vivid micro-expressions.
-- Emotional range: balance cuteness and explosive expressiveness; intense emotions may use dramatic facial deformation while preserving character appeal.
+- Acting style: readable Disney/Pixar-inspired character animation; use elastic squash-and-stretch and expressive facial changes when the scene and character warrant them. Restrained reactions and held poses remain valid within the same 3D style.
+- Motion style: preserve clear lines of action, readable timing and coherent body mechanics. Use forward lean, strong anticipation, fast poses or elastic motion for energetic moments, not as default movement for every character.
+- Emotional range: follow the character's circumstances and relationships; a warm or serious scene may stay quiet. For genuinely intense or comic moments, dramatic facial deformation is available while preserving character identity and appeal.
 
 Negative style constraints: no photorealistic live-action, no flat 2D anime, no plastic toy skin, no stiff mannequin posing, no realistic anatomical stiffness, no lifeless facial expressions.
 

@@ -50,4 +50,38 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     expect(text).toContain("默认 `16:9`");
     expect(text).not.toContain("视频使用支持的最短时长和对应最低分辨率，比例默认 `9:16`");
   });
+
+  test("全部内置 Skill 有效并区分创作自由与工程合同", async () => {
+    const names = [
+      "3d-animation-short-generator", "brand-promo-video-generator", "canvas",
+      "cinematicPromptCraft", "co-op-game-intro-generator", "dialoguePolish",
+      "h3-prompt-writing", "h3SamplingStrategy", "handdrawn-live-video-generator",
+      "minimalist-product-ad-generator", "music-video-subtitle-generator",
+      "paper-collage-explainer-generator", "papercraft-stop-motion-explainer",
+      "v118workflow", "workflow",
+    ];
+    const all = await Promise.all(names.map(async name => ({ name, content: await skill(`${name}/SKILL.md`) })));
+    for (const { name, content } of all) {
+      expect(content).toContain(`name: ${name}`);
+      expect(content.length).toBeGreaterThan(100);
+    }
+    const styleNames = names.filter(name => name.endsWith("-generator") || name.endsWith("-explainer"));
+    for (const name of styleNames) {
+      const chinese = await skill(`${name}/SKILL.cn.md`);
+      expect(chinese).toContain("name: " + name);
+      expect(chinese).toContain("## ");
+    }
+    const storyboard = await skill("workflow/references/story-planner.md");
+    const genre = await skill("workflow/references/genreCraft.md");
+    const animationTable = await skill("3d-animation-short-generator/references/shot-table-spec.md");
+    const oldImage = await skill("v118workflow/references/knowledge/imagePromptCraft.md");
+    const h3 = await skill("h3-prompt-writing/SKILL.md");
+    expect(storyboard).not.toContain("开场第一拍须有主体运动");
+    expect(genre).not.toContain("全剧有三次加重的失败");
+    expect(animationTable).not.toContain("Performance must be exaggerated and elastic");
+    expect(animationTable).toContain("exactly six columns");
+    expect(oldImage).not.toContain("(shotCraft.md#");
+    expect(h3).toContain("subject_definitions");
+    expect(h3).toContain("integrated_multimodal_description");
+  });
 });

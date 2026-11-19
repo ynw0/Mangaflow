@@ -13,17 +13,19 @@ metadata:
 
 **执行入口约束：** 用户提出“继续”“继续出图”“做角色/场景/道具参考图”“做视频”“连线”“生成分镜”时，以已打开的画布和现有节点为制作主场；主 Agent 必须先读取 [画布落点](references/canvas-use.md) 及 canvas 技能的节点操作说明，再选择真实节点执行，结果与提示词留在画布。生成能力应通过节点 `nodeTools` 使用；只有用户明确要求直接在聊天中生成才允许对话媒体工具。无画布权限就说明阻塞，不默认使用对话 `generateImage` / `generateVideo` 代替。此约束不要求纯文字问答触发画布，也不覆盖算力授权与分阶段确认。
 
+**从零重做**。清理旧成果与确定新稿输入分别处理。保留世界观、人物或创作目标时，只提取用户明确保留的事实。设定文档中混写的旧剧情、结局、台词和套路照样排除，除非用户明确保留那些内容。新稿使用独立编剧会话，只交接保留项、本次要求和本次选定的原文。确需用户定方向时询问题材、基调或保留范围，别用旧剧情变体替用户框定开场。详见 [episodeScript.md](references/episodeScript.md)。
+
 references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前画布的文本节点；审核通过后才生成。审核不通过时，只把 findings 退回原来的专职重写，总控不改 prompt、不改槽位。
 
-公共规则读 [common.md](references/common.md)。小说改编定调读 [adaptationStrategy.md](references/adaptationStrategy.md)（原则门，不抄外部死数字）。需要完整场次正文读 [episodeScript.md](references/episodeScript.md)。分场情绪与注意事项读 [directorPlan.md](references/directorPlan.md)。审核分流及原画通用审核顺序见 [prompt-review.md](references/prompt-review.md)。合同怎么落到画布读 [canvas-use.md](references/canvas-use.md)。每阶段按当前运行模式和已有授权推进。普通/半自动确认规则见 canvas-use「逐步确认关卡」。开始某一阶段前，只读该阶段的参考。跨 Skill 用 `skillOperator` 先 `list`，再以目标 `name`、实际 `scope` 和目标 Skill 内的 `path` 调用 `read`。例如读取 H3 全参考格式时，用 `name: "h3-prompt-writing"`、`path: "references/ref-en.txt"`。
+公共规则读 [common.md](references/common.md)。小说改编定调读 [adaptationStrategy.md](references/adaptationStrategy.md)（原则门，不抄外部死数字）。原创或重写剧情先按 [episodeScript.md](references/episodeScript.md) 写完整场戏并复核，再做分镜。分场情绪与注意事项读 [directorPlan.md](references/directorPlan.md)。审核分流及原画通用审核顺序见 [prompt-review.md](references/prompt-review.md)。合同怎么落到画布读 [canvas-use.md](references/canvas-use.md)。每阶段按当前运行模式和已有授权推进。普通/半自动确认规则见 canvas-use「逐步确认关卡」。开始某一阶段前，只读该阶段的参考。跨 Skill 用 `skillOperator` 先 `list`，再以目标 `name`、实际 `scope` 和目标 Skill 内的 `path` 调用 `read`。例如读取 H3 全参考格式时，用 `name: "h3-prompt-writing"`、`path: "references/ref-en.txt"`。
 
 MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画布读写继续使用。一个 H3 视频节点可以按已确认剧情合同包含一个连续摄影镜头，或多个以 `[Shot N]` 明确切点的内部镜头；反打、蒙太奇、闪回等剪辑手法在用户允许且时长可执行时可以使用。用户明确要求一镜到底时只允许 `[Shot 1]`，不能私自切镜、删减剧情。新多镜导演稿须在 `cinematicPlan.shots` 逐镜记录起止时间、机位与动作，并与正文切点对齐；单镜及历史审核记录可省略该数组，不另加 `shotMode`。
 
 | 阶段 | 先读 | 完成后 |
 | --- | --- | --- |
 | 文本改编 | [adaptationStrategy.md](references/adaptationStrategy.md)，题材对得上时再读 [genreCraft.md](references/genreCraft.md) | 剧本画布上的改编原则与取舍 |
-| 逐集剧本（可选） | [episodeScript.md](references/episodeScript.md) | 剧本画布上的场次正文；需完整对白时用 |
-| 剧本与镜头 | [story-planner.md](references/story-planner.md)，场次与钩子另见 [shortDramaCraft.md](references/shortDramaCraft.md) | 剧本画布上的集与镜头合同 |
+| 场次剧本 | [episodeScript.md](references/episodeScript.md) | 原创或重写剧情时先写完整场次。已有定稿且仅需分镜时直接使用定稿 |
+| 分镜 | [story-planner.md](references/story-planner.md) | 从通过场次复核的正文拆出本次范围的镜头合同 |
 | 资产规划 | [asset-planner.md](references/asset-planner.md) | 资产画布上的复用、新建与变体 |
 | 角色原画 | [character-art.md](references/character-art.md) 然后 [character-prompt-review.md](references/character-prompt-review.md) | 审核通过的设定图；面部特写加正侧背 |
 | 场景原画 | [scene-art.md](references/scene-art.md) 然后 [scene-prompt-review.md](references/scene-prompt-review.md) | 要换机位或反复出现时做四方向拼版；只做氛围或转场时做无人空镜 |

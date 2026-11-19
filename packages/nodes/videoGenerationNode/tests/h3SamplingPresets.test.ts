@@ -74,7 +74,7 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     expect(createH3PresetPlan("normal",input({checkpointKind:"fused"})).ok).toBe(false);
   });
   test("手动标记的 LoRA 即使无 turbo/step 命名，也能被快速档识别", () => {
-    const custom="experimental/special-pdd.safetensors";
+    const custom="experimental/custom-accelerator.safetensors";
     expect(isAccelerationLora(custom)).toBe(false);
     expect(isAccelerationLora(custom,[custom.replaceAll("/", "\\")])).toBe(true);
     const patch={ installedLoras:[custom], manualAccelerationLoras:[custom], primaryLora:custom };

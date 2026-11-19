@@ -35,7 +35,7 @@ const sampling = z.strictObject({
 
 const ratioSchema = z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"]);
 const shotFields = {
-  shotId: shortText,
+  shotId: shortText.describe("必填顶层字段，取已确认镜头合同的编号，例如 EP001-S11b；与 node.nodeId 不同"),
   story: description,
   purpose: shortText,
   style: description,
@@ -76,7 +76,7 @@ const videoPromptToolInput = z.strictObject({
   ...shotFields,
   creativeSelection: creativeSelection.optional(),
   node: z.strictObject({ canvasId: shortText, nodeId: shortText, write: z.boolean().optional() }).optional()
-    .describe("已有节点：传 canvasId/nodeId；先 getConfig → setConfig → getPromptContext"),
+    .describe("已有节点：canvasId 仅放在 node 对象中；顶层仍须传 shotId、合同与 references；先 getConfig → setConfig → getPromptContext"),
   modelId: shortText.optional().describe("仅新镜头可传；已有节点禁止传"),
   duration: z.number().int().positive().optional().describe("新镜头必填秒数；已有节点禁止传"),
   ratio: ratioSchema.optional().describe("新镜头必填画幅；已有节点禁止传"),

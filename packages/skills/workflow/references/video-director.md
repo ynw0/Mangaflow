@@ -8,7 +8,7 @@ shot prepare 完整结果：production_profile、镜头剧情/用途/时长/硬�
 
 ## draftVideoPrompt 工具参数
 
-视频提示词创建由 **`draftVideoPrompt`** 执行，`searchVideoPromptTemplates` 只负责检索。工具对外使用一个顶层 JSON 对象，禁止把 `mustHave`、`mustNotHave`、`references` 数组变成 JSON 字符串，`duration` 必须是数字。已有画布节点只传 `node` 及当前已确认的镜头合同/实际参考；先 `node:getConfig` → `node:setConfig` → `node:getPromptContext`，已有节点不传 `duration/ratio/modelId/sampling/seed/seedMode`。新镜头省略 `node`，必须提供 `duration` 和 `ratio`。已选创作模板通过 `creativeSelection` 中稳定的模板 ID 传入，不复制整套模版文字；独立审核与节点写回机制保持不变。
+视频提示词创建由 **`draftVideoPrompt`** 执行，`searchVideoPromptTemplates` 只负责检索。工具对外使用一个顶层 JSON 对象，禁止把 `mustHave`、`mustNotHave`、`references` 数组变成 JSON 字符串，`duration` 必须是数字。已有画布节点必填顶层 `shotId`、镜头合同和实际参考，`canvasId` 只填写在 `node.canvasId`；先 `node:getConfig` → `node:setConfig` → `node:getPromptContext`，已有节点不传 `duration/ratio/modelId/sampling/seed/seedMode`。新镜头省略 `node`，必须提供 `duration` 和 `ratio`。已选创作模板通过 `creativeSelection` 中稳定的模板 ID 传入，不复制整套模版文字；独立审核与节点写回机制保持不变。
 
 ### H3 同期角色声音规则
 

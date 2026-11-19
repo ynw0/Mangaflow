@@ -1,3 +1,4 @@
+import { waitForActiveGeneration } from "@/utils/production/generationJobs";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { createComfyDiagnosisTool } from "@/agent/tools/comfyDiagnosis";
@@ -266,6 +267,7 @@ export async function run(
       },
     }));
     const toolInputs = new Map<string, unknown>();
+    const pendingGenerations = new Set<string>();
     const roundResults = new Set<string>();
     let goalDone = false;
     if (goal && !child) tools.push(createCompleteGoalTool(() => { goalDone = true; }));
@@ -470,8 +472,18 @@ export async function run(
         if (goal && !child) {
           if (event.type === "tool_execution_start") toolInputs.set(event.toolCallId, event.args);
           else {
-            if (!event.isError) roundResults.add(createHash("sha256").update(JSON.stringify([event.toolName,
-              toolInputs.get(event.toolCallId), getToolResultText(event.result.content)])).digest("hex"));
+            if (!event.isError) {
+              const args = toolInputs.get(event.toolCallId) as { name?: string } | undefined;
+              const details = event.result.details;
+              if (event.toolName === "nodeTools" && args?.name === "node:getPersistentGenerationStatus"
+                && typeof details?.generationId === "string" && details.live === true) {
+                pendingGenerations.add(details.generationId);
+              }
+              // 进度工具中的时间戳与耗时不代表任务取得了进展。
+              const meaningful = JSON.stringify([event.toolName, args, details ?? getToolResultText(event.result.content)],
+                (key, value) => ["elapsedMs", "updatedAt", "timestamp", "totalTokens"].includes(key) ? undefined : value);
+              roundResults.add(createHash("sha256").update(meaningful).digest("hex"));
+            }
             toolInputs.delete(event.toolCallId);
           }
         }
@@ -555,13 +567,17 @@ export async function run(
           isStopped: () => Boolean(signal?.aborted || modelError || compactionError),
           continueOnce: async () => {
             signal?.throwIfAborted();
+            for (const generationId of pendingGenerations) {
+              if (await waitForActiveGeneration(cwd, generationId, signal)) stalledRounds = 0;
+            }
+            pendingGenerations.clear();
             roundResults.clear();
             await promptSession(goalContinuePrompt, false);
             // 连续两轮只有汇报或相同工具结果时，交回控制，避免无限消耗。
             const progressed = [...roundResults].some(result => !lastResults.has(result));
             stalledRounds = progressed ? 0 : stalledRounds + 1;
             lastResults = new Set(roundResults);
-            if (stalledRounds >= 2 && !goalDone && !signal?.aborted && !modelError && !compactionError) {
+            if (stalledRounds >= 2 && !pendingGenerations.size && !goalDone && !signal?.aborted && !modelError && !compactionError) {
               throw new Error("目标尚未完成：连续两轮没有新的成功工具结果，已停止自动续跑。");
             }
           },

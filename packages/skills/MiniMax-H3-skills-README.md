@@ -1,6 +1,6 @@
 # MiniMax H3 Skills
 
-This directory contains the skills bundled with [MiniMax H3](../README.md): **1 prompt writing skill** and **8 style-specific video generation skills**. Each skill lives in its own folder with an installable `SKILL.md` (plus a `SKILL.cn.md` Chinese version for the style skills) and any reference materials it needs.
+This directory contains the skills bundled with [MiniMax H3](../../README.md): **1 prompt writing skill** and **8 style-specific video generation skills**. Each skill lives in its own folder with an installable `SKILL.md` (plus a `SKILL.cn.md` Chinese version for the style skills) and any reference materials it needs.
 
 ## Status
 

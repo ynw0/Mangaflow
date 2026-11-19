@@ -16,9 +16,7 @@ export function captureQcPolicy(override?: NodeQcOverride, config = readProducti
     if (custom?.videoQcModelId && isGemmaQcId(videoQcModelId) && !custom.audioQcModelId) audioQcModelId = videoQcModelId;
     if (custom?.audioQcModelId && isGemmaQcId(audioQcModelId) && !custom.videoQcModelId) videoQcModelId = audioQcModelId;
     if ((isGemmaQcId(videoQcModelId) || isGemmaQcId(audioQcModelId)) && videoQcModelId !== audioQcModelId) {
-      // 旧全局设置曾允许音轨选 Gemma 并自动合并；仅对无覆盖的旧配置保留原行为。
-      if (custom) fail("画面和音轨采用 Gemma 时，请选择同一个实际模型文件。");
-      videoQcModelId = audioQcModelId = isGemmaQcId(videoQcModelId) ? videoQcModelId : audioQcModelId;
+      fail("画面和音轨采用 Gemma 时，请选择同一个实际模型文件。");
     }
   }
   return { qcMethod, qcLevel, qcTrigger, videoQcModelId, audioQcModelId, gemmaQcHost: config.gemmaQcHost, gemmaTargetId: gemmaTargetId(config), contractVersion: 4 };

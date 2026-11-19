@@ -142,6 +142,23 @@ export async function getStoredGenerationRequest(cwd: string, id: string): Promi
   if (job.request.providerId !== "comfyui") throw Object.assign(new Error("只有 ComfyUI 视频任务支持持久化恢复"), { status: 400 });
   return job.request;
 }
+// 目标续跑可等待当前进程实际执行中的原任务；停止对话仅停止等待。
+export async function waitForActiveGeneration(cwd: string, id: string, signal?: AbortSignal) {
+  const task = running.get(id);
+  if (!task || task.directory !== await realpath(cwd)) return false;
+  signal?.throwIfAborted();
+  const stopped = Promise.withResolvers<void>();
+  const abort = () => stopped.reject(signal?.reason);
+  signal?.addEventListener("abort", abort, { once: true });
+  try {
+    // 失败详情由下一轮读取原任务记录，等待本身不重新提交。
+    await Promise.race([task.promise.then(() => {}, () => {}), stopped.promise]);
+    return true;
+  } finally {
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
 export async function generationJobStatus(cwd: string, id: string) {
   const directory = await realpath(cwd);
   const job = await checkedJob(directory, id);

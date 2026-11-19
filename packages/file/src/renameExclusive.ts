@@ -5,7 +5,7 @@ import { getSystemErrorName } from "node:util";
 const syscallNumber = process.arch === "arm64" ? 276 : process.arch === "x64" ? 316 : undefined;
 if (syscallNumber === undefined) throw Object.assign(new Error(`不支持的移动端架构：${process.arch}`), { code: "ENOTSUP" });
 const errnoSymbol = process.platform === "android" ? "__errno" : "__errno_location";
-const library = dlopen("libc.so", {
+const library = dlopen(process.platform === "linux" && process.env.TOONFLOW_PLATFORM !== "ohos" ? "libc.so.6" : "libc.so", {
   [errnoSymbol]: { args: [], returns: "ptr" },
   syscall: { args: ["i64", "i64", "ptr", "i64", "ptr", "i64"], returns: FFIType.i64_fast },
 });

@@ -30,25 +30,6 @@ async function hashTree(directory: string) {
   return blocked ? null : hash.digest("hex");
 }
 
-function versionParts(version: string) {
-  if (!/^\d+(?:\.\d+)*$/.test(version)) return null;
-  return version.split(".").map(part => Number(part));
-}
-
-// 没有 .builtinHash 的旧内置无法区分「上次下发」和「用户改过」。源版本号更高时整目录替换；同版本内容不同仍只记待合并。
-function sourceVersionNewer(source: string, installed: string) {
-  const left = versionParts(source);
-  const right = versionParts(installed);
-  if (!left || !right) return false;
-  const length = Math.max(left.length, right.length);
-  for (let index = 0; index < length; index += 1) {
-    const sourcePart = left[index] ?? 0;
-    const installedPart = right[index] ?? 0;
-    if (sourcePart !== installedPart) return sourcePart > installedPart;
-  }
-  return false;
-}
-
 async function skillVersion(directory: string) {
   const text = await readFile(resolve(directory, "SKILL.md"), "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return "";
@@ -117,12 +98,6 @@ export default async function syncBuiltinSkills(targetDirectory: string, sourceD
       if (error.code === "ENOENT") return null;
       throw error;
     });
-    if (recorded === null && sourceVersionNewer(version, await skillVersion(target))) {
-      await replaceSkill(source, target);
-      await writeAtomic(hashPath, sourceHash);
-      await removeFile(pendingPath);
-      continue;
-    }
     const unchanged = recorded === null ? installedHash === sourceHash : installedHash === recorded.trim();
     if (unchanged && installedHash !== sourceHash) {
       await replaceSkill(source, target);
@@ -131,7 +106,7 @@ export default async function syncBuiltinSkills(targetDirectory: string, sourceD
       continue;
     }
     if (installedHash === sourceHash) {
-      await writeAtomic(hashPath, sourceHash);
+      if (recorded?.trim() !== sourceHash) await writeAtomic(hashPath, sourceHash);
       await removeFile(pendingPath);
       continue;
     }

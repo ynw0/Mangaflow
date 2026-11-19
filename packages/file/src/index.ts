@@ -19,6 +19,13 @@ function publishExclusive(source: string, target: string) {
   throw Object.assign(new Error("当前系统不能独占创建文件"), { code: "ENOTSUP" });
 }
 
+// 工作区文件和目录的同卷移动必须在系统调用内检查目标冲突。
+export const renameExclusive = (source: string, target: string) => withFileAccess([source, target], "write", () => {
+  if (process.platform === "darwin") return require("./renameExclusiveMac.ts").renameExclusive(source, target);
+  if (process.platform === "linux") return require("./renameExclusive.ts").renameExclusive(source, target);
+  return publishExclusive(source, target);
+});
+
 // 元数据查询不持有长期句柄；保留标准 API 的重载和错误语义。
 export const access = promises.access;
 export const stat = promises.stat;

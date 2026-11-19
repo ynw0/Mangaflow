@@ -6,7 +6,7 @@ import { addUsage, emptyUsage, type SubAgentModel } from "@/agent/runtime/subAge
 import type { AgentEvent } from "@/agent/runtime/types";
 import { prepareVideoPrompt, videoPromptParameters, videoPromptToolSchema } from "@/agent/videoPrompt/input";
 import { createReviewSchema, createReviewSubmission, draftSchema, draftSubmissionParameters, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
-import { directorSubmissionExample, videoPromptInputExample } from "@/agent/videoPrompt/examples";
+import { directorSubmissionExample, videoPromptNodeExample } from "@/agent/videoPrompt/examples";
 import { runStructuredSpecialist } from "@/agent/runtime/structuredSpecialist";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
@@ -16,7 +16,7 @@ import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
 import { resolveAgentProfile, type AgentModelSelection } from "@/agent/runtime/profiles";
 import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
 import { lockWorkspaceFiles } from "@/utils/workspace/files";
-import { pendingDraftPath, readPendingDraft, removePendingDraft, resumeParameters, savePendingDraft, type PendingDraft } from "./pendingDraft";
+import { pendingDraftPath, readPendingDraft, removePendingDraft, findPendingDrafts, resumeParameters, savePendingDraft, type PendingDraft } from "./pendingDraft";
 import { getVideoSpeechPolicy } from "@/agent/videoPrompt/dialogue";
 
 const directorReferences = {
@@ -74,21 +74,39 @@ export function createVideoPromptTools(options: SubAgentModel & {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
     description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。相同镜头合同和模板不变时优先复用已审稿，用户明确要求重写才传 regenerate=true；已返回 draftId 时调用 resumeVideoPrompt，不重发合同。",
-    promptSnippet: `制作 H3 视频提示词时调用 draftVideoPrompt。已有画布节点传 node 和镜头合同，新镜头必须传 duration 和 ratio。先 searchVideoPromptTemplates 检索所需模板，选中的 ID 通过 creativeSelection 传入，已确认的镜头基调填入 tone。新镜头参数结构示例，内容按实际镜头填写：${JSON.stringify(videoPromptInputExample)}`,
+    promptSnippet: `制作 H3 视频提示词时调用 draftVideoPrompt。已有画布节点传 node 和镜头合同，新镜头必须传 duration 和 ratio。先 searchVideoPromptTemplates 检索所需模板，选中的 ID 通过 creativeSelection 传入，已确认的镜头基调填入 tone。已有节点示例（取实际合同编号与参考）：${JSON.stringify(videoPromptNodeExample)}。canvasId 仅放 node 内。`,
     parameters: { type: "object", ...videoPromptToolSchema },
+    prepareArguments(raw) {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("draftVideoPrompt 需要单个镜头合同对象");
+      const args = raw as Record<string, unknown>;
+      const issues = [];
+      if (!args.shotId) issues.push("请从当前已确认的镜头合同填写顶层 shotId，勿用 nodeId 代替");
+      if ("canvasId" in args) issues.push("请移除顶层 canvasId，仅在 node.canvasId 中填写目标画布");
+      if (issues.length) throw new Error(issues.join("。") + "。已有待审稿可用 resumeVideoPrompt 按原 shotId 查询。");
+      return args;
+    },
     executionMode: "sequential",
     execute: (...args) => run(undefined, ...args),
   };
   const resume: ToolDefinition = {
     name: "resumeVideoPrompt", label: "继续视频提示词审核",
-    description: "按 draftId 继续原镜头。审核提交失败只重审原稿；内容退回则按原合同和整改意见定向返修。",
+    description: "按 draftId 继续原镜头。审核提交失败只重审原稿；内容退回则按原合同和整改意见定向返修。编号遗失时只传 shotId 查询本会话待审稿；用户明确放弃时可传 draftId 和 discard=true。",
     parameters: z.toJSONSchema(resumeParameters, { target: "draft-07" }),
     executionMode: "sequential",
     async execute(...args) {
-      const { draftId } = resumeParameters.parse(args[1]);
+      const query = resumeParameters.parse(args[1]);
+      if (!query.draftId) {
+        const drafts = await findPendingDrafts(cwd, parentFile, query.shotId!);
+        return { content: [{ type: "text", text: JSON.stringify({ drafts }) }], details: { drafts } };
+      }
+      const draftId = query.draftId;
       const path = pendingDraftPath(cwd, parentFile, draftId);
       const release = lockWorkspaceFiles([path]);
       try {
+        if (query.discard) {
+          await removePendingDraft(path);
+          return { content: [{ type: "text", text: "待审稿已丢弃" }], details: { draftId } };
+        }
         return await run({ draftId, saved: await readPendingDraft(path) }, ...args);
       } finally { release(); }
     },
@@ -143,15 +161,15 @@ export function createVideoPromptTools(options: SubAgentModel & {
     const commonRules = videoCommonRules(common);
     const reviewerFormat = guideRules(guide, prepared.format, true);
     const sampling = input.sampling && { outputFirstPass: input.sampling.outputFirstPass, loraName: input.sampling.loraName, checkpointName: input.sampling.checkpointName };
-    const cacheKey = createHash("sha256").update(JSON.stringify({
+    const draftKey = createHash("sha256").update(JSON.stringify({
       planVersion: 4,
       input: { ...input, regenerate: undefined, seed: undefined, seedMode: undefined,
         sampling: sampling && Object.values(sampling).some(value => value !== undefined) ? sampling : undefined,
         node: input.node ? { canvasId: input.node.canvasId, nodeId: input.node.nodeId } : undefined },
       snapshot: videoPromptReviewScope(prepared.snapshot), directorRules, guide, common, reviewRules, reviewRequirements, candidates, creativeContext, voiceContext,
-      models: [resolveAgentProfile("videoDirector", primaryModel), resolveAgentProfile("videoReviewer", primaryModel)],
     })).digest("hex");
-    if (resumed && (resumed.saved.cacheKey !== cacheKey || resumed.saved.revision !== prepared.revision)) {
+    const cacheKey = createHash("sha256").update(JSON.stringify([draftKey, resolveAgentProfile("videoDirector", primaryModel), resolveAgentProfile("videoReviewer", primaryModel)])).digest("hex");
+    if (resumed && (resumed.saved.draftKey !== draftKey || resumed.saved.revision !== prepared.revision)) {
       throw new Error("原节点、参考、工作流或审核配置已变化，请按当前合同重新制作");
     }
     const update = (stage: string) => {
@@ -277,7 +295,8 @@ export function createVideoPromptTools(options: SubAgentModel & {
         if (findings.length) continue;
       }
       // 审核前保存候选稿，只有通过审核才能签发 reviewId。
-      await savePendingDraft(pendingPath, { input, cacheKey, revision: prepared.revision, draft: lastDraft, findings: [] });
+      await savePendingDraft(pendingPath, { input, draftKey, revision: prepared.revision, draft: lastDraft, findings: [] });
+      onUpdate?.({ content: [{ type: "text", text: `待审稿已保存：${draftId}` }], details: { draftId, nextAction } });
       let review: VideoPromptReview;
       try {
         review = await specialist(reviewSubmission.schema, reviewSubmission.parameters, "独立提示词审核", [
@@ -301,7 +320,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
       attempts.push({ round: round + 1, stage: "review", findings, review });
       update(review.status === "ok" ? "独立审核通过，保存审核记录" : "独立审核退回，准备定向返修");
       if (review.status !== "ok") {
-        await savePendingDraft(pendingPath, { input, cacheKey, revision: prepared.revision, draft: lastDraft, findings });
+        await savePendingDraft(pendingPath, { input, draftKey, revision: prepared.revision, draft: lastDraft, findings });
         continue;
       }
 
@@ -323,7 +342,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
       return finish({ status: "ok", ...lastDraft, review, reviewId, generationRequest, ...write, reused: false });
     }
     if (!lastDraft) throw new Error("缺少导演稿");
-    await savePendingDraft(pendingPath, { input, cacheKey, revision: prepared.revision, draft: lastDraft, findings });
+    await savePendingDraft(pendingPath, { input, draftKey, revision: prepared.revision, draft: lastDraft, findings });
     return finish({ status: "rejected", findings, draftId, written: false, nextAction });
   }
   return [initial, resume];

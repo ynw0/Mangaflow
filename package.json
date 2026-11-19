@@ -38,7 +38,7 @@
     "publish:update": "bun run apps/updateServer/scripts/publish.ts",
     "start:server": "bun run --cwd apps/server start",
     "build:server": "bun apps/server/scripts/buildStandalone.ts",
-    "build": "bun run build:tools && bun run build:ext && bun run --filter '@toonflow/web' --filter '@toonflow/server' build",
+    "build": "bun run build:server",
     "build:nodes": "bun -e \"import { rmSync } from '@toonflow/file'; import { resolve } from 'node:path'; rmSync(resolve('build/nodes'), { recursive: true, force: true });\" && NODE_ENV=production bun run --sequential --filter './packages/nodes/*' build",
     "create:ext": "bun packages/extScaffold/create.ts",
     "build:ext": "bun -e \"import { rmSync } from '@toonflow/file'; import { resolve } from 'node:path'; rmSync(resolve('build/ext'), { recursive: true, force: true });\" && NODE_ENV=production bun run --sequential --filter './packages/ext/*' build",

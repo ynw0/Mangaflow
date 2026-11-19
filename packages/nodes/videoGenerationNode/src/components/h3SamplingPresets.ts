@@ -1,6 +1,6 @@
 /** H3 二采预设：底层识别与 Agent 共享；手动实验档可提示风险而 Agent 自动档必须验证。 */
 import { preferred4StepLora, normalizeH3LoraName as normalize, basenameH3Lora as basename,
-  declaredAccelerationSteps, isAccelerationLora } from "@toonflow/nodes-scaffold/h3Sampling";
+  declaredAccelerationSteps, isAccelerationLora, isSpecializedAccelerationLora } from "@toonflow/nodes-scaffold/h3Sampling";
 export { preferred4StepLora, declaredAccelerationSteps, isAccelerationLora } from "@toonflow/nodes-scaffold/h3Sampling";
 export type H3SamplingPreset = "normal" | "preview4" | "balanced82" | "balanced84" | "quick62" | "fused8";
 export type ExtraLora = { name: string; strength: number };
@@ -22,7 +22,7 @@ export type H3PresetPlan =
   | { ok: false; reason: string };
 
 function compatibleWith(name: string, steps: 4 | 8, manual: readonly string[]) {
-  if (!isAccelerationLora(name, manual)) return false;
+  if (isSpecializedAccelerationLora(name) || !isAccelerationLora(name, manual)) return false;
   const declared = declaredAccelerationSteps(name);
   return declared === undefined || (steps === 4 ? declared === 4 : declared === 8);
 }

@@ -106,8 +106,7 @@ export function isWorkflowEnabled(id: string) {
   return !readProduction().disabledWorkflowIds.includes(id);
 }
 
-export function readProduction(): ProductionConfig {
-  const raw = conf.get("settings.production", {});
+export function readProduction(raw: unknown = conf.get("settings.production", {})): ProductionConfig {
   const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
   if (source.qcMethod !== undefined && !["agentFrames", "model", "agentFramesAndModel"].includes(String(source.qcMethod))) {
     fail("成片质检方式无效，请在工作流设置中重新选择");

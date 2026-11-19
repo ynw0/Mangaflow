@@ -1,9 +1,11 @@
+import { captureQcPolicy } from "@/utils/production/qcPolicy";
+import { readProduction } from "@/utils/production/config";
 import { settingsRevision } from "@/lib/settingsRevision";
 import u from "@/utils";
 import { Router } from "express";
 import { z } from "zod";
 import { validateFields } from "@/lib/middleware";
-import { leakedSettingsFields, restoreSettingsSecrets } from "@/lib/secrets";
+import { leakedSettingsFields, redactSettings, restoreSettingsSecrets } from "@/lib/secrets";
 import { error, success } from "@/lib/responseFormat";
 import { maxSystemPromptLength } from "@/agent/runtime/prompt";
 import { agentProfilesSchema } from "@/agent/runtime/profiles";
@@ -36,6 +38,7 @@ export default router.put("/", validateFields({ settings: z.record(z.string(), z
     res.status(409).json(error("设置版本已变化，请刷新页面后重新应用修改"));
     return;
   }
+  if (settings.production) captureQcPolicy(undefined, readProduction(settings.production));
   const previousMcp = previousSettings.mcp as { publicUrl?: string } | undefined;
   if (settings.mcp?.publicUrl !== previousMcp?.publicUrl) u.mcpTunnel.useManualPublicUrl();
   u.removeLegacySettings(settings);
@@ -46,5 +49,5 @@ export default router.put("/", validateFields({ settings: z.record(z.string(), z
   // 返回本次响应所代表的快照，不能把并发写入的其他设置认作本页已读。
   res.set("x-settings-revision", settingsRevision(models.customProviders
     ? { ...nextSettings, customProviders: models.customProviders } : nextSettings));
-  res.json(success({ ...models, nodeMenu: u.conf.get("settings.general.nodeMenu") ?? null }, "设置已保存"));
+  res.json(success(redactSettings({ ...models, nodeMenu: u.conf.get("settings.general.nodeMenu") ?? null }), "设置已保存"));
 });

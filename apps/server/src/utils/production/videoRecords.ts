@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { copyFile, constants, mkdir, readFile, readdir, realpath, stat, unlink, writeAtomic } from "@toonflow/file";
+import { copyFile, constants, createReadStream, mkdir, readFile, readdir, realpath, stat, unlink, writeAtomic } from "@toonflow/file";
 import { extname, dirname, join, relative } from "node:path";
 import type { GeneratedMedia, MediaGenerationRequest, QcVideoResult, VideoExecution, VideoQcReport, VideoQcState } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
@@ -11,7 +11,7 @@ import { lockWorkspaceFiles, resolveWorkspacePath } from "@/utils/workspace/file
 import { readQcRequirements } from "@/utils/production/qcRequirements";
 import type { AgentVideoQcSubmission, QcRequirement, VideoQcActionResult, VideoQcRectificationPlan } from "@toonflow/tools-scaffold/runtime";
 
-type VideoIdentity = { directory: string; videoPath: string; size: number; mtimeMs: number; recordPath: string };
+type VideoIdentity = { digest: string; directory: string; videoPath: string; size: number; mtimeMs: number; recordPath: string };
 type VideoRecord = {
   workspaceDirectory?: string; // 新版记录持久化工作区，供服务重启后重新入队 QC
   videoPath: string;
@@ -38,6 +38,12 @@ const active = new Map<string, { checklist?: string; policy: QcPolicySnapshot; r
 const submissions = new Set<string>();
 let queue: Promise<unknown> = Promise.resolve();
 
+// 元数据只用于复用本进程算过的摘要，持久化的验收身份取决于路径和成片内容。
+const recentDigests = new Map<string, { stamp: string; digest: string }>();
+function fileStamp(info: Awaited<ReturnType<typeof stat>>) {
+  return JSON.stringify([String(info.dev), String(info.ino), String(info.size), String(info.mtimeMs), String(info.ctimeMs)]);
+}
+
 async function videoIdentity(cwd: string, path: string) {
   const directory = await realpath(cwd);
   const target = await resolveWorkspacePath(directory, path);
@@ -45,13 +51,33 @@ async function videoIdentity(cwd: string, path: string) {
   if (!info.isFile()) throw new Error("成片路径不是文件");
   const videoPath = relative(directory, target.path).replaceAll("\\", "/");
   const identity = process.platform === "win32" ? target.path.toLowerCase() : target.path;
-  const records = join(dirname(conf.path), "videoRecords");
-  // 已有记录继续按原路径读取；新文件版本拥有独立记录，旧任务不能覆盖新版本。
-  const legacyKey = createHash("sha256").update(identity).digest("hex");
-  const legacy = { directory, videoPath, size: info.size, mtimeMs: info.mtimeMs, recordPath: join(records, legacyKey + ".json") };
-  if (await loadRecord(legacy)) return legacy;
-  const key = createHash("sha256").update(JSON.stringify([identity, info.size, info.mtimeMs, info.ctimeMs, info.ino])).digest("hex");
-  return { directory, videoPath, size: info.size, mtimeMs: info.mtimeMs, recordPath: join(dirname(conf.path), "videoRecords", key + ".json") };
+  const stamp = fileStamp(info);
+  const cached = recentDigests.get(identity);
+  let digest = cached?.stamp === stamp ? cached.digest : undefined;
+  const computeIdentity = !digest;
+  if (!digest) {
+    const hash = createHash("sha256");
+    for await (const chunk of createReadStream(target.path)) hash.update(chunk);
+    if (fileStamp(await stat(target.path)) !== stamp) throw new Error("读取质检视频期间文件发生变化");
+    digest = hash.digest("hex");
+  }
+  const key = createHash("sha256").update(JSON.stringify([identity, digest])).digest("hex");
+  const video = { directory, videoPath, digest, size: info.size, mtimeMs: info.mtimeMs, recordPath: join(dirname(conf.path), "videoRecords", key + ".json") };
+  if (computeIdentity && !await loadRecord(video)) {
+    // 上一版的完整文件标识仍匹配时迁移记录。仅凭路径、大小和时间不能转移验收结论。
+    const priorKey = createHash("sha256").update(JSON.stringify([identity, info.size, info.mtimeMs, info.ctimeMs, info.ino])).digest("hex");
+    const previous = await loadRecord({ ...video, recordPath: join(dirname(video.recordPath), priorKey + ".json") });
+    if (previous && previous.size === video.size && previous.mtimeMs === video.mtimeMs) {
+      await saveRecord(video, previous, true).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "EEXIST") throw error;
+      });
+    }
+  }
+  if (computeIdentity) {
+    if (recentDigests.size >= 128) recentDigests.delete(recentDigests.keys().next().value!);
+    recentDigests.set(identity, { stamp, digest });
+  }
+  return video;
 }
 
 async function loadRecord(video: VideoIdentity) {
@@ -61,7 +87,7 @@ async function loadRecord(video: VideoIdentity) {
   });
   if (!text) return;
   const record = JSON.parse(text) as VideoRecord;
-  return record.size === video.size && record.mtimeMs === video.mtimeMs ? record : undefined;
+  return record;
 }
 
 function newRecord(video: VideoIdentity, qc: VideoQcState): VideoRecord {
@@ -89,7 +115,7 @@ export async function archiveAcceptedVideo(cwd: string, path: string, target: st
     await copyFile(source.path, destination.path, constants.COPYFILE_EXCL);
     try {
       const archived = await videoIdentity(directory, target);
-      if (archived.size !== video.size || (await videoIdentity(directory, path)).recordPath !== video.recordPath) {
+      if (archived.digest !== video.digest || (await videoIdentity(directory, path)).recordPath !== video.recordPath) {
         throw new Error("归档期间源文件发生变化");
       }
       await saveRecord(archived, { ...record, sourceVideoPath: record.sourceVideoPath ?? video.videoPath, videoPath: archived.videoPath, size: archived.size, mtimeMs: archived.mtimeMs }, true);
@@ -149,7 +175,7 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, policy:
   }
   const job = queue.then(async () => {
     const current = await videoIdentity(video.directory, video.videoPath);
-    if (current.size !== video.size || current.mtimeMs !== video.mtimeMs) throw new Error("成片在等待质检期间已变化");
+    if (current.recordPath !== video.recordPath) throw new Error("成片在等待质检期间已变化");
     const saved = await loadRecord(video) ?? newRecord(video, { status: "notRequested" });
     const rawQc: string[] = [];
     const history = saved.qc.status === "completed" ? [...(saved.qcHistory ?? []), { archivedAt: new Date().toISOString(), policy: saved.qcPolicy, attemptId: saved.qcAttemptId, result: saved.qc.result, checklist: saved.checklist, rawQc: saved.rawQc, rectificationPlan: saved.rectificationPlan }] : saved.qcHistory;
@@ -193,7 +219,7 @@ function scheduleQc(video: VideoIdentity, checklist: string | undefined, policy:
         return waiting;
       }
       const completed = await videoIdentity(video.directory, video.videoPath);
-      if (completed.size !== video.size || completed.mtimeMs !== video.mtimeMs) throw new Error("成片在质检期间已变化");
+      if (completed.recordPath !== video.recordPath) throw new Error("成片在质检期间已变化");
       if (captured) {
         const waiting = { status: "awaitingAgent" as const, agent: captured.agent, modelResult: result };
         await saveRecord(video, { ...record, qc: waiting });
@@ -229,12 +255,11 @@ export async function resumePendingAutomaticQc() {
       const saved = JSON.parse(await readFile(recordPath, "utf8")) as VideoRecord;
       if (!saved.workspaceDirectory || !["queued", "running"].includes(saved.qc.status)) continue;
       const video = await videoIdentity(saved.workspaceDirectory, saved.videoPath);
-      // 视频路径、修改时间、大小和记录哈希必须与原始记录一致。
-      if (video.recordPath !== recordPath || !(await loadRecord(video))) continue;
-      if (active.has(video.recordPath)) continue;
-      const policy = saved.qcPolicy ?? saved.requestedQcPolicy;
+      const current = await loadRecord(video);
+      if (!current || !["queued", "running"].includes(current.qc.status) || active.has(video.recordPath)) continue;
+      const policy = current.qcPolicy ?? current.requestedQcPolicy;
       if (policy?.contractVersion !== 4 || policy.qcTrigger !== "auto" || policy.qcLevel === "none") continue;
-      void scheduleQc(video, saved.checklist, policy).catch(error =>
+      void scheduleQc(video, current.checklist, policy).catch(error =>
         console.error("重启后自动质检失败", video.videoPath, error));
       scheduled++;
     } catch (error) {
@@ -245,7 +270,7 @@ export async function resumePendingAutomaticQc() {
 }
 
 function qcRevision(video: VideoIdentity, result: QcVideoResult, record?: VideoRecord) {
-  const identity: unknown[] = [video.size, video.mtimeMs, result.status, result.checks];
+  const identity: unknown[] = [record?.size ?? video.size, record?.mtimeMs ?? video.mtimeMs, result.status, result.checks];
   if (record?.qcPolicy?.contractVersion === 4) identity.push(record.qcPolicy, record.qcAttemptId);
   return createHash("sha256").update(JSON.stringify(identity)).digest("hex");
 }

@@ -1,5 +1,5 @@
 import { $ } from "bun";
-import { readdir, rm } from "@toonflow/file";
+import { readdir, rm, writeAtomic } from "@toonflow/file";
 import { resolve } from "node:path";
 
 const projectDir = resolve(import.meta.dirname, "../../..");
@@ -18,3 +18,6 @@ for (const group of ["nodes", "tools", "ext"]) {
 
 await $`${process.execPath} run build`.cwd(resolve(projectDir, "apps/web"));
 await $`${process.execPath} run build`.cwd(resolve(projectDir, "apps/server"));
+
+// 所有内置插件构建结束后发布同一构建编号。
+await writeAtomic(resolve(projectDir, "build/pluginRevision.txt"), crypto.randomUUID());

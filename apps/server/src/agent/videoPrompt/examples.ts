@@ -13,8 +13,8 @@ const contract = {
   mustNotHave: ["字幕"],
   intent: "dialogue" as const,
 };
-export const videoPromptInputExample = {
-  ...contract, duration: 4, ratio: "16:9", references: [],
+export const videoPromptNodeExample = {
+  ...contract, node: { canvasId: "EP001.json", nodeId: "实际节点ID", write: true }, references: [],
 } satisfies VideoPromptInput;
 
 const draft = {

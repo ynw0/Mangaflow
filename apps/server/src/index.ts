@@ -1,3 +1,4 @@
+import { readFile } from "@toonflow/file";
 import { resolve } from "node:path";
 import { createApp } from "./app";
 import config from "../../../electrobun.config";
@@ -14,6 +15,10 @@ const app = await createApp({
   appVersion: config.app.version,
   dataDirectory,
   toolsRoot: resolve(appDirectory, "build/tools"),
+  pluginRevision: await readFile(resolve(appDirectory, "build/pluginRevision.txt"), "utf8").catch((error: NodeJS.ErrnoException) => {
+    if (fromSource && error.code === "ENOENT") return undefined;
+    throw error;
+  }),
   nodesRoot: resolve(appDirectory, "build/nodes"),
   extRoot: resolve(appDirectory, "build/ext"),
   // ACT: 暂不安装内置团队，随团队打包一同恢复。

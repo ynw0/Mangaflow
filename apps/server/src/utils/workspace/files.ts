@@ -1,4 +1,4 @@
-import { constants, copyFile, cp, lstat, mkdir, rename, unlink, realpath, writeAtomic } from "@toonflow/file";
+import { constants, copyFile, cp, lstat, mkdir, rename, renameExclusive, realpath, writeAtomic } from "@toonflow/file";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { Request } from "express";
 import { resolveWorkspace } from "@/utils/workspace";
@@ -34,24 +34,12 @@ export async function copyWorkspaceFile(source: string, target: string) {
 }
 
 export async function renameWorkspaceFile(source: string, target: string) {
-  const info = await lstat(source);
   if (source === target || (process.platform === "win32" && source.toLowerCase() === target.toLowerCase())) {
     if (source !== target) await rename(source, target);
+    else await lstat(source);
     return;
   }
-  if (info.isDirectory()) {
-    const exists = await lstat(target).catch((err: NodeJS.ErrnoException) => { if (err.code === "ENOENT") return null; throw err; });
-    if (exists) throw Object.assign(new Error("已存在同名文件或目录"), { code: "EEXIST" });
-    await rename(source, target);
-    return;
-  }
-  await copyFile(source, target, constants.COPYFILE_EXCL);
-  // ACT: 目标完整写入后才移除源文件；移除失败只回滚本次目标。
-  try { await unlink(source); }
-  catch (err) {
-    await unlink(target).catch(error => console.warn(`重命名回滚失败：${target}`, error));
-    throw err;
-  }
+  await renameExclusive(source, target);
 }
 
 export function isWithin(root: string, path: string) {

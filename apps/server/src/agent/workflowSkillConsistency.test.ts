@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const skill = async (relative: string) => readFile(new URL("../../../../packages/skills/" + relative, import.meta.url), "utf8");
 
@@ -49,6 +51,66 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     const text = await skill("canvas/references/videoProduction.md");
     expect(text).toContain("默认 `16:9`");
     expect(text).not.toContain("视频使用支持的最短时长和对应最低分辨率，比例默认 `9:16`");
+  });
+
+  test("动画、漫剧和音乐的创作判断不再按反转与表演频率硬套，同时保留执行合同", async () => {
+    const cn = await skill("3d-animation-short-generator/SKILL.cn.md");
+    const en = await skill("3d-animation-short-generator/SKILL.md");
+    const table = await skill("3d-animation-short-generator/references/shot-table-spec.md");
+    const panels = await skill("3d-animation-short-generator/references/storyboard-guidelines.md");
+    const storyboard = await skill("workflow/references/story-planner.md");
+    const asset = await skill("workflow/references/asset-planner.md");
+    const music = await skill("music-video-subtitle-generator/SKILL.cn.md");
+    const hand = await skill("handdrawn-live-video-generator/SKILL.cn.md");
+    expect(cn).not.toContain("每连续 3 镜至少 1 镜");
+    expect(cn).not.toContain("表演必须夸张弹性");
+    expect(cn).toContain("六项必检");
+    expect(cn).toContain("每秒指令覆盖");
+    expect(cn).toContain("Hook 作用与分布");
+    expect(en).toContain("Global Visual Style Lock");
+    expect(table).not.toContain("at least one of every three consecutive shots");
+    expect(table).toContain("exactly six columns");
+    expect(table).toContain("Six required checks");
+    expect(table).toContain("no shot exceeds 15 seconds");
+    expect(table).toContain("no shot contains more than three important characters");
+    expect(panels).toContain("narrator-mouth-closed: true");
+    expect(storyboard).toContain("duration_hint_seconds");
+    expect(storyboard).toContain("continuity_out");
+    expect(storyboard).not.toContain("情绪爆点/爽点、结尾钩子或阶段结果");
+    expect(asset).toContain("asset_key");
+    expect(asset).toContain("reuse_existing");
+    expect(music).not.toContain("每个镜头的空间必须明显不同");
+    expect(hand).toContain("首段接触、持续变形、追逐与结尾空间级变化");
+  });
+
+  test("内置 Skill 文档内相对链接均存在，不依赖已删除的旧引用", async () => {
+    const root = fileURLToPath(new URL("../../../../packages/skills/", import.meta.url));
+    const directories = [root];
+    const docs: string[] = [];
+    while (directories.length > 0) {
+      const dir = directories.pop()!;
+      const items = await readdir(dir, { withFileTypes: true });
+      for (const item of items) {
+        const absolute = resolve(dir, item.name);
+        if (item.isDirectory()) directories.push(absolute);
+        else if (item.isFile() && item.name.endsWith(".md")) docs.push(absolute);
+      }
+    }
+    const failures: string[] = [];
+    for (const doc of docs) {
+      const content = await readFile(doc, "utf8");
+      for (const match of content.matchAll(/!?\[[^\]]+\]\(([^)]+)\)/g)) {
+        const link = match[1].trim().replace(/^<|>$/g, "").split("#")[0].split("?")[0];
+        if (!link || /^(?:[a-z]+:|\/\/|\/)/i.test(link) || /[{}]/.test(link)) continue;
+        const target = resolve(dirname(doc), decodeURIComponent(link));
+        if (!target.startsWith(root)) {
+          failures.push(`${doc}: reference outside bundled skills ${link}`);
+          continue;
+        }
+        try { await access(target); } catch { failures.push(`${doc}: missing ${link}`); }
+      }
+    }
+    expect(failures).toEqual([]);
   });
 
   test("全部内置 Skill 有效并区分创作自由与工程合同", async () => {

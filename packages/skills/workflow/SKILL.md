@@ -27,7 +27,7 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | --- | --- | --- |
 | 文本改编 | [adaptationStrategy.md](references/adaptationStrategy.md)，题材对得上时再读 [genreCraft.md](references/genreCraft.md) | 剧本画布上的改编原则与取舍 |
 | 场次剧本 | [episodeScript.md](references/episodeScript.md) | 原创或重写剧情时先写完整场次并复核剧情。已有定稿且仅需分镜时直接使用定稿 |
-| 对白精修（新写或大幅重写场戏） | 通过 `skillOperator` 按需查找并读取 `dialoguePolish/SKILL.md`，复用 `subAgent` 的 `role: "story"` | 独立提交局部对白建议，主编剧对比原稿、核对剧情与时长后采纳，锁定前完成；无实质问题则保留原稿 |
+| 对白精修（新写或大幅重写场戏） | 复用 `subAgent` 的 `role: "story"`，由子 Agent 按需读取 `dialoguePolish/SKILL.md`，主 Agent 不重复载入全文 | 独立提交局部对白建议，主编剧对比原稿、核对剧情与时长后采纳，锁定前完成；无实质问题则保留原稿 |
 | 分镜 | [story-planner.md](references/story-planner.md) | 从通过场次复核的正文拆出本次范围的镜头合同 |
 | 资产规划 | [asset-planner.md](references/asset-planner.md) | 资产画布上的复用、新建与变体 |
 | 角色原画 | [character-art.md](references/character-art.md) 然后 [character-prompt-review.md](references/character-prompt-review.md) | 审核通过的设定图；面部特写加正侧背 |

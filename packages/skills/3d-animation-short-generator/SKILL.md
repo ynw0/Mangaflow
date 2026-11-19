@@ -7,6 +7,10 @@ compatibility: Requires the MiniMax Hub agent (canvas workspace, choice cards, a
 
 # 3D Animation Short Generator
 
+## Performance and story specificity
+
+The six-column shot table, visual style lock, and approval gates are production contracts, not a formula for writing scenes. Let characters react according to what they know, their relationship, and the moment; a warm story need not make every character cute or every scene end with a moral. Example shots indicate how to record camera and timing, not dialogue or emotional beats to copy. If a held look or ordinary exchange serves the story better than an exaggerated reaction, preserve it.
+
 Use this Skill when the user wants a complete story-first animated short workflow, from one-line idea to final edited video. The workflow must place every major artifact on the canvas in production order and pause at creative gates with user choice cards before expensive or high-impact steps.
 
 Core rule: **story first, ask screen size and total duration with choice cards immediately after user intake, ordered canvas artifacts, every required confirmation via choice card, fixed order after character/scene cards: six-column standardized shot table with per-second directives + audio cues + spatial anchor chain → shot-table self-check gate → one single text storyboards document with one section per shot (multi-panel pencil image only when user explicitly opts into visualization mode; any shot flagged for heavy iteration is extracted to a standalone text storyboard node) → video-model choice card (H3 default, Seedance 2.0 fallback) + resolution choice card → single-shot clips rendered by the chosen video model → full-film assembly with BGM; final video must remove all storyboard artifacts**.

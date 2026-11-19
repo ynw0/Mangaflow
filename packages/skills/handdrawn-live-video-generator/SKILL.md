@@ -8,6 +8,10 @@ trigger-words: [手绘发光动画实拍融合, 15秒变形追逐视频提示词
 
 # Handdrawn Live-Action Fusion Video Generator
 
+## Natural visual storytelling
+
+The 15-second timeline, real-to-drawn contact, continuous single identity, and delayed camera pursuit are fixed format requirements. The objects, surprises, handheld corrections, and emotional tone should arise from the chosen everyday space instead of a repeated sequence of cute gestures or arbitrary escalating transformations. The camera can miss a beat or hold on an unexpected detail when that makes the encounter believable; preserve the required timing and motion continuity.
+
 Use this Skill when the user wants a **finished 15-second, 16:9 live-action-and-hand-drawn fusion video**. The output must preserve the structure: a flat hand-drawn luminous animation appears in a real space, clearly contacts live-action hands or objects in the first 0-3 seconds, continuously morphs as one single entity, escapes, and a handheld phone camera follows slightly late.
 
 This Skill **organizes the prompt in the user input language and recommends MiniMax H3 as the confirmed generation step**. Do not generate video until the user explicitly confirms H3 generation. Do not route to planner or executor for prompt-writing. The final prompt language must follow the dominant language of the user input: Chinese input produces Chinese, English input produces English, Japanese input produces Japanese; for mixed input, use the dominant language; when unclear, use the current conversation language. Only user-required proper nouns, model names, or literal parameters may remain unchanged.

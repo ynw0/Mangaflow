@@ -6,6 +6,10 @@ compatibility: Requires the MiniMax Hub agent (canvas workspace and MiniMax H3 g
 
 # Papercraft Stop-Motion Explainer
 
+## Explain the idea, not a checklist
+
+Keep source facts, approval gates, physical paper construction, and documented output structure. Storytelling examples and creative-direction lists are choices, not compulsory character quirks or a fixed "question → surprise → moral" script. Write narration in a human voice suited to the topic and audience; some ideas work better with one clear example and a quiet physical demonstration than with repeated cute reactions, slogans, or forced conflict. Preserve readability without mechanically adding movement to every beat.
+
 Create a complete papercraft stop-motion explainer package from a science, education, or knowledge topic. The output is a production-ready creative plan: style rules, character and set design, asset planning, prompts, storyboard structures, motion language, sound direction, negative prompts, and review criteria.
 
 Use this Skill when the user wants a tactile handmade explainer style: layered paper, cardboard cutouts, miniature diorama, stop-motion puppet movement, pop-up-book staging, paper props, and physical shadows. The default assumption is that the user wants a complete explainer video package. Prompts, storyboards, asset plans, and motion notes are reviewable production assets inside that complete process, not isolated deliverables unless the user says so.

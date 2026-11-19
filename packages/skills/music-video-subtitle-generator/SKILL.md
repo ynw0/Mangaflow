@@ -8,6 +8,10 @@ trigger-words: [MV, music video, lyric typography, on-screen text, prompt audit,
 
 # Music Aesthetics MV
 
+## Performance before preset
+
+Preserve the user's exact approved lyrics, music timing, copyright constraints, and reference identities. Style presets and typography beats are optional visual vocabulary, not a directive to make every line a dramatic close-up, synchronized head turn, flash, or generic emotional gesture. Let vocal phrasing, silence, relationships, and the actual image decide where movement belongs; a still shot and restrained expression can carry a powerful lyric without new story facts or extra slogans.
+
 ## Purpose
 
 Use this Skill when the user wants to create, revise, audit, or generate music-video prompts or emotional short-film prompts where music, lyrics, typography, references, rhythm, performance, and camera language must be designed together. The workflow adapts MV prompt rules into Hub execution: key creative decisions are confirmed, locked prompts are written to canvas text nodes, and media creation is delegated to Hub agents.

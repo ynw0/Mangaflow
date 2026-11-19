@@ -9,6 +9,10 @@ metadata:
 
 # Minimalist Product Ad Generator
 
+## Product-specific writing, not prestige-slogan templates
+
+Keep confirmed product facts, typography timing, user approvals, and visual anchors exact. "Apple-style" denotes restraint and legibility, not stock English copy such as "Beyond ordinary", "Reimagine everything", or "Designed for greatness". Base each claim and shot on an actual property, use, or customer situation; if the product needs no slogan, a truthful product name or quiet image can do the work. Do not force identical short sentence lengths, artificial excitement, or extra features to fill a beat.
+
 Use this Skill to guide non-professional users through a flow-style workflow that creates a minimalist product advertising video for e-commerce promotion and product launches. The target users are e-commerce sellers, small brand owners, indie creators, and individual sellers; the user should provide at least one product image or related asset.
 
 The core principle is: **confirm assets and brief first, build product facts and a product narrative spine, lock product visuals with independent anchor photos, control video with a precise beat storyboard, then finish the film with native audio or music-based editing.** This Skill no longer defaults to a 4-panel anchor sheet, because video models may reproduce the panel layout. By default, it uses three separate anchor photos plus one precise beat text storyboard as the video control system.

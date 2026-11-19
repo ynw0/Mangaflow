@@ -20,6 +20,10 @@ allowed-tools:
 
 # Brand Promo Video Generator
 
+## Human-facing creative expression
+
+Keep verifiable brand claims, asset sources, timing, and approval gates strict. Write copy and voiceover in the language and manner appropriate to the real brand and audience, not a reusable sequence of "revolutionary", "next-level", "premium" slogans. A concrete user benefit or recognizable situation is preferable to a generic superlative; do not invent testimonials, urgency, emotions, or product results to make a beat feel dramatic. Structure the production, not the customer's voice.
+
 Create a polished short promo video for a brand, product, website, app, shop, or personal project. Use this Skill when the user has a logo, product images, screenshots, a website link, or just a clear idea and wants the agent to turn those materials into a clean brand reel.
 
 This Hub adaptation replaces third-party Vibe Motion / Remotion implementation details with Hub-native orchestration: source research, asset verification, story planning, image/video generation, optional speech or music, and editing assembly. Do not initialize external projects or depend on npm validators during normal execution.

@@ -6,6 +6,10 @@ compatibility: Requires the MiniMax Hub agent (canvas workspace and MiniMax H3 g
 
 # Co-op Game Intro Generator
 
+## Creative expression within the menu framework
+
+The reference templates determine UI structure, user-selected style, identities, timing, and equipment events. They do not prescribe the players' personalities or the words they would say. Vary reactions according to the confirmed characters and the actual equipment event; do not automatically attach a shout, victory pose, exaggerated expression, or stock gamer catchphrase to every phase. Keep the fixed interface contract while allowing restrained, playful, or quiet character moments when they fit.
+
 Use this Skill when the user wants a co-op game intro video and wants to confirm the visual direction with one image before generating the final H3 video. The workflow collects style, player names, game title, and optional character refs, then creates a framework-preserving confirmation image before generating the H3 video.
 
 ## Required References

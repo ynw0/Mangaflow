@@ -9,6 +9,10 @@ exported-by: MiniMax-hub
 
 # Paper Collage Explainer Generator
 
+## Editorial voice and metaphor
+
+The paper material language, factual source, and production approvals remain fixed. Narration should sound like someone explaining this particular idea to this audience, not a repeated "first, second, finally" listicle. Select metaphors that clarify the meaning instead of turning every sentence into a decorative symbol, and allow a simple held collage or a pause when it communicates better than another object flying in. Do not fabricate facts or add explanatory slogans merely to fill a visual beat.
+
 Turn a short narration line, story topic, viewpoint sentence, or abstract idea into a cohesive editorial paper-collage animation sequence. The visual language is premium halftone paper collage: flat bold color fields, black-and-white photographic cut-outs, selective colored cardstock accents, warm cream keylines, soft paper shadows, tactile stop-motion assembly, and crisp collage sound effects.
 
 This Hub-adapted Skill uses Hub-native image, video, audio, and optional postprocess capabilities. It prioritizes style continuity, color harmony, controlled paper texture, stop-motion collage rhythm, and an audio policy that keeps tactile collage SFX by default while explicitly not adding BGM, voiceover, or subtitles unless the user requests them.

@@ -42,9 +42,12 @@
       </div>
     </template>
     <p v-if="question" class="questionText">{{ question }}</p>
-    <form-create v-if="formRules.length" v-model="formValues" v-model:api="formApi" :rule="formRules" :option="formOptions" />
-    <template v-else>
-      <el-radio-group v-if="options.length" v-model="selected" class="questionOptions" :disabled="submitting" :aria-label="question">
+    <el-button v-if="formRules.length" text :disabled="submitting" @click="customMode = !customMode">
+      {{ customMode ? "返回表单" : "自定义回答" }}
+    </el-button>
+    <form-create v-if="formRules.length" v-show="useForm" v-model="formValues" v-model:api="formApi" :rule="formRules" :option="formOptions" />
+    <template v-if="!useForm">
+      <el-radio-group v-if="!formRules.length && options.length" v-model="selected" class="questionOptions" :disabled="submitting" :aria-label="question">
         <el-radio v-for="option in options" :key="option" :value="option" border>{{ option }}</el-radio>
         <el-radio value="" border>自行填写</el-radio>
       </el-radio-group>
@@ -54,12 +57,12 @@
         :autosize="{ minRows: 2, maxRows: 6 }"
         :disabled="submitting"
         :maxlength="8000"
-        :placeholder="options.length ? '也可以直接回答或补充说明' : '输入你的回答'"
+        :placeholder="customMode ? '按自己的意思回答，可纠正问题中的假设' : options.length ? '也可以直接回答或补充说明' : '输入你的回答'"
         aria-label="回答问题" />
-      <el-text v-if="draftAnswer.length > 8000" type="danger">回答（含选项）不能超过 8000 字</el-text>
+      <el-text v-if="draftAnswer.length > 8000" type="danger">回答不能超过 8000 字</el-text>
     </template>
     <div class="questionActions">
-      <el-button type="primary" :loading="submitting" :disabled="(!toolSessionId && !directory) || (formRules.length ? !formApi : !draftAnswer || draftAnswer.length > 8000)" @click="submitAnswer(false)">
+      <el-button type="primary" :loading="submitting" :disabled="(!toolSessionId && !directory) || (useForm ? !formApi : !draftAnswer || draftAnswer.length > 8000)" @click="submitAnswer(false)">
         提交回答
       </el-button>
       <el-button :disabled="(!toolSessionId && !directory) || submitting" @click="submitAnswer(true)">跳过</el-button>
@@ -115,6 +118,7 @@ const props = defineProps<{ tool: ToolCall; directory?: string; toolSessionId?: 
 const title = computed(() => props.tool.question?.title || (typeof props.tool.args?.title === "string" ? props.tool.args.title.trim() : "") || "请确认");
 const selected = ref("");
 const text = ref("");
+const customMode = ref(false);
 const submitting = ref(false);
 const collapsed = ref(false);
 const submittedAnswer = ref("");
@@ -142,6 +146,7 @@ const formRules = computed<Rule[]>(() => (props.tool.question?.fields ?? []).map
     ...(["input", "textarea"].includes(field.type) ? { whitespace: true } : {}),
   }] : [],
 })));
+const useForm = computed(() => formRules.value.length > 0 && !customMode.value);
 const question = computed(() => props.tool.question?.question ?? (typeof props.tool.args?.question === "string" ? props.tool.args.question : ""));
 const options = computed(() => {
   const values = props.tool.question?.options ?? props.tool.args?.options;
@@ -164,9 +169,10 @@ watch(() => props.tool.question?.callId, () => {
   collapsed.value = false;
   selected.value = "";
   text.value = "";
+  customMode.value = false;
   formValues.value = {};
 });
-const draftAnswer = computed(() => [selected.value, text.value.trim()].filter(Boolean).join("\n"));
+const draftAnswer = computed(() => customMode.value ? text.value.trim() : [selected.value, text.value.trim()].filter(Boolean).join("\n"));
 const statusText = computed(() => {
   if (props.tool.status === "error") return "待重新生成";
   if (skipped.value) return "已跳过";
@@ -178,15 +184,16 @@ const statusText = computed(() => {
 async function submitAnswer(skip: boolean) {
   const callId = props.tool.question?.callId;
   const value = draftAnswer.value;
+  const submitForm = useForm.value;
   if (!waiting.value || submitting.value || (!props.toolSessionId && !props.directory) || !callId) return;
-  if (!skip && !formRules.value.length && (!value || value.length > 8000)) return;
+  if (!skip && !submitForm && (!value || value.length > 8000)) return;
   submitting.value = true;
   try {
-    if (!skip && formRules.value.length && !(await formApi.value?.validate().catch(() => false))) return;
+    if (!skip && submitForm && !(await formApi.value?.validate().catch(() => false))) return;
     const response = await axios.post(props.toolSessionId ? "/api/singleAgent/answer" : "/api/agent/answer", {
       ...(props.toolSessionId ? { sessionId: props.toolSessionId } : { directory: props.directory }),
       callId,
-      ...(skip ? { skipped: true } : formRules.value.length ? { values: formApi.value!.formData() } : { answer: value }),
+      ...(skip ? { skipped: true } : submitForm ? { values: formApi.value!.formData() } : { answer: value }),
     }, { headers: { "x-toonflow-workspace": "1" } });
     if (response.data.code !== 200) throw new Error(response.data.message || "提交回答失败");
     submittedAnswer.value = response.data.data.answer;

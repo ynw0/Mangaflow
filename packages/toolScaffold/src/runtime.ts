@@ -336,6 +336,7 @@ export interface QuestionRequest {
 export interface QuestionAnswer {
   answer: string;
   values?: Record<string, string | number | boolean | string[]>;
+  custom?: true;
   skipped?: boolean;
 }
 

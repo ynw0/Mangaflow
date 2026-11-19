@@ -54,8 +54,12 @@ export function answerQuestion(cwd: string, callId: string, response: { answer?:
     return result;
   }
   const fields = pending.request.fields;
+  if (response.answer !== undefined && response.values !== undefined) {
+    throw Object.assign(new Error("请选择一种回答方式"), { status: 400 });
+  }
   let result: QuestionAnswer;
-  if (fields?.length) {
+  // 用户可用自由文本回答整张表单，必填项只校验按表单提交的答复。
+  if (fields?.length && response.answer === undefined) {
     const shape = Object.fromEntries(fields.map(field => {
       let schema: z.ZodType = z.string().trim().max(8000);
       if (field.type === "inputNumber") schema = z.number();
@@ -78,7 +82,7 @@ export function answerQuestion(cwd: string, callId: string, response: { answer?:
   } else {
     const parsed = z.string().trim().min(1).max(8000).safeParse(response.answer);
     if (!parsed.success) throw Object.assign(new Error("请输入回答"), { status: 400 });
-    result = { answer: parsed.data };
+    result = fields?.length ? { answer: parsed.data, custom: true } : { answer: parsed.data };
   }
   pending.finish(result);
   return result;

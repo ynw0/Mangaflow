@@ -30,6 +30,8 @@ Read `references/ref-en.txt` for label rules, retention analysis, and complete e
 
 ## Output Rules
 
+Format labels, reference bindings and timestamps are hard syntax; the visual and spoken content inside them is not a stock template. Describe the actual character and scene rather than filling every time interval with a generic expression, dramatic camera move, or explanatory line. Keep approved dialogue verbatim, and use precise acting or sound cues only where the scene calls for them.
+
 - Write rewrite sections in English; preserve dialogue, lyrics, and visible scene text in their original language.
 - Describe each shot by composition, subjects, environment, actions, camera, sound, and the exact point where referenced content appears.
 - Avoid plot summaries, unresolved reference labels, and timing that does not match the requested duration.

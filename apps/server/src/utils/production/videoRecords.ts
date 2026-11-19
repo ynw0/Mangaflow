@@ -40,7 +40,7 @@ let queue: Promise<unknown> = Promise.resolve();
 
 // 元数据只用于复用本进程算过的摘要，持久化的验收身份取决于路径和成片内容。
 const recentDigests = new Map<string, { stamp: string; digest: string }>();
-function fileStamp(info: Awaited<ReturnType<typeof stat>>) {
+function fileStamp(info: NonNullable<Awaited<ReturnType<typeof stat>>>) {
   return JSON.stringify([String(info.dev), String(info.ino), String(info.size), String(info.mtimeMs), String(info.ctimeMs)]);
 }
 

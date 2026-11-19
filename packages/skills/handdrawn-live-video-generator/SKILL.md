@@ -46,7 +46,7 @@ Choose new values for all of these:
 5. 与真实手或实物的接触方式；
 6. 在空间中的追逐路线；
 7. 拍摄者反应；
-8. 最后的空间级变形与可爱笑点。
+8. 最后的空间级变形；情境确有自然的可爱笑点时再保留。
 
 Good example directions include: 雨天厨房水槽、旧阳台晾衣角、清晨玄关、小书店走廊、火车窗边小桌、浴室镜柜、手作桌、温室通道、自助洗衣店长椅、旧餐桌. Use only one or adjacent connected areas.
 
@@ -82,7 +82,7 @@ Do not add titles, auxiliary headings such as 舞台设置 or 色味, or explana
 - The first 0-3 seconds must make real/hand-drawn fusion obvious through contact.
 - The camera must not neatly center the animation. It should lag behind, pan/tilt/advance after the entity already leaves the frame edge.
 - The entity should remain traceable: each new form preserves a line, tail, color smear, body curve, or motif from the previous form.
-- Use soft, emotional, comic, cute beats: tiny stumbles, shy gestures, a dot falling behind, a petal sticking to lens, a star dropping into a palm, confetti sneeze, one small creature lagging behind.
+- Treat tiny stumbles, shy gestures, and other soft comic beats as optional examples. Choose only actions justified by the current space and character; a quiet reaction is valid without an extra gag.
 - Avoid any horror-coded anatomy or threatening motion.
 - The final prompt must not randomly mix in vocabulary, transition sentences, or writing systems from outside the user input language; when the user input language is Japanese, natural Japanese is allowed.
 

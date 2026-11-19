@@ -15,18 +15,19 @@ metadata:
 
 **返修与重做**。以用户指定的当前稿为底稿。改一句对白、一个动作或一处设定，在当前会话读受影响的片段和前后文，原位修改。改人物动机、关键选择或结局，仍在当前会话工作，读完整的相关场戏，并检查直接依赖这次改动的后续情节。用户指定恢复某版时才以该版为来源。
 
-只有用户明确要求排除旧剧情重新创作，或用户纠正后同一项已作废内容又被写回来时，才启用独立编剧会话。交接本轮要求、明确保留的事实和选定原文；局部返修还要带上待改的当前稿片段。从混写剧情和设定的文档中只提取保留项。清理旧成果的范围另行确定。确需确认方向时，询问题材、基调或保留范围，避免把已作废的开场列进选项。
+只有用户明确要求排除旧剧情重新创作，或用户纠正后同一项已作废内容又被写回来时，才启用从零起稿的独立编剧会话；新写场戏定稿前按需委派专业对白精修属于局部改稿，不属于重新起稿。交接本轮要求、明确保留的事实和选定原文；局部返修还要带上待改的当前稿片段。从混写剧情和设定的文档中只提取保留项。清理旧成果的范围另行确定。确需确认方向时，询问题材、基调或保留范围，避免把已作废的开场列进选项。
 
 references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前画布的文本节点；审核通过后才生成。审核不通过时，只把 findings 退回原来的专职重写，总控不改 prompt、不改槽位。
 
-公共规则读 [common.md](references/common.md)。小说改编定调读 [adaptationStrategy.md](references/adaptationStrategy.md)（原则门，不抄外部死数字）。原创或重写剧情先按 [episodeScript.md](references/episodeScript.md) 写完整场戏并复核，再做分镜。分场情绪与注意事项读 [directorPlan.md](references/directorPlan.md)。审核分流及原画通用审核顺序见 [prompt-review.md](references/prompt-review.md)。合同怎么落到画布读 [canvas-use.md](references/canvas-use.md)。每阶段按当前运行模式和已有授权推进。普通/半自动确认规则见 canvas-use「逐步确认关卡」。开始某一阶段前，只读该阶段的参考。跨 Skill 用 `skillOperator` 先 `list`，再以目标 `name`、实际 `scope` 和目标 Skill 内的 `path` 调用 `read`。例如读取 H3 全参考格式时，用 `name: "h3-prompt-writing"`、`path: "references/ref-en.txt"`。
+公共规则读 [common.md](references/common.md)。小说改编定调读 [adaptationStrategy.md](references/adaptationStrategy.md)（原则门，不抄外部死数字）。原创或重写剧情先按 [episodeScript.md](references/episodeScript.md) 写完整场戏、复核剧情，按需精修对白并核对前后差异，再做分镜。分场情绪与注意事项读 [directorPlan.md](references/directorPlan.md)。审核分流及原画通用审核顺序见 [prompt-review.md](references/prompt-review.md)。合同怎么落到画布读 [canvas-use.md](references/canvas-use.md)。每阶段按当前运行模式和已有授权推进。普通/半自动确认规则见 canvas-use「逐步确认关卡」。开始某一阶段前，只读该阶段的参考。跨 Skill 用 `skillOperator` 先 `list`，再以目标 `name`、实际 `scope` 和目标 Skill 内的 `path` 调用 `read`。例如读取 H3 全参考格式时，用 `name: "h3-prompt-writing"`、`path: "references/ref-en.txt"`。
 
 MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画布读写继续使用。一个 H3 视频节点可以按已确认剧情合同包含一个连续摄影镜头，或多个以 `[Shot N]` 明确切点的内部镜头；反打、蒙太奇、闪回等剪辑手法在用户允许且时长可执行时可以使用。用户明确要求一镜到底时只允许 `[Shot 1]`，不能私自切镜、删减剧情。新多镜导演稿须在 `cinematicPlan.shots` 逐镜记录起止时间、机位与动作，并与正文切点对齐；单镜及历史审核记录可省略该数组，不另加 `shotMode`。
 
 | 阶段 | 先读 | 完成后 |
 | --- | --- | --- |
 | 文本改编 | [adaptationStrategy.md](references/adaptationStrategy.md)，题材对得上时再读 [genreCraft.md](references/genreCraft.md) | 剧本画布上的改编原则与取舍 |
-| 场次剧本 | [episodeScript.md](references/episodeScript.md) | 原创或重写剧情时先写完整场次。已有定稿且仅需分镜时直接使用定稿 |
+| 场次剧本 | [episodeScript.md](references/episodeScript.md) | 原创或重写剧情时先写完整场次并复核剧情。已有定稿且仅需分镜时直接使用定稿 |
+| 对白精修（新写或大幅重写场戏） | 通过 `skillOperator` 按需查找并读取 `dialoguePolish/SKILL.md`，复用 `subAgent` 的 `role: "story"` | 独立提交局部对白建议，主编剧对比原稿、核对剧情与时长后采纳，锁定前完成；无实质问题则保留原稿 |
 | 分镜 | [story-planner.md](references/story-planner.md) | 从通过场次复核的正文拆出本次范围的镜头合同 |
 | 资产规划 | [asset-planner.md](references/asset-planner.md) | 资产画布上的复用、新建与变体 |
 | 角色原画 | [character-art.md](references/character-art.md) 然后 [character-prompt-review.md](references/character-prompt-review.md) | 审核通过的设定图；面部特写加正侧背 |

@@ -275,7 +275,7 @@ Table rules:
 - Copy splitting may only be described in plain language as first half / second half. Do not write arrows, slashes, plus signs, or separators, because the model may render them as in-frame copy.
 - Text color must use the specific product color name and must be split by style: in white-tech style write “first half black or dark gray, second half the specific product color”; only in dark rim-light style may the first half be white. For example, in white-tech style with purple as the main color, write “first half black or dark gray, second half purple.” Do not write “product color + black or white.”
 - If typography is error-prone, reduce text beats first: for a 10-second film, usually use only one mid-film copy moment and one final copy moment, with all other beats marked as no text. Do not put text in every shot.
-- The final beat must be a stable single full-frame product closing + full single-line copy. Never end on four panels, split screens, storyboard boards, anchor-sheet layout, product windows, or framed grids. Text still belongs in the vertically centered composition zone, left-aligned or right-aligned as part of the frame, not in a lower subtitle position. Add a logo only when the user provides one.
+- The final beat must be a stable single full-frame product closing; add a complete single-line copy only when approved in the creative brief. Never end on four panels, split screens, storyboard boards, anchor-sheet layout, product windows, or framed grids. Text still belongs in the vertically centered composition zone, left-aligned or right-aligned as part of the frame, not in a lower subtitle position. Add a logo only when the user provides one.
 
 Rhythm intent vocabulary: setup, establish, prepare, impact, brake, settle.
 
@@ -312,10 +312,10 @@ The video prompt must include:
 
 - The three independent anchor photos and the role of each photo.
 - The full precise beat storyboard table; read every beat and rewrite every beat into the video prompt. Do not summarize only early beats or omit later typography, variants, or closing requirements.
-- The exact copy lines. The video prompt must spell out every in-frame copy line verbatim, its time window, first-half / second-half entry timing, colors, and single-line behavior. Do not rely on the storyboard table alone, and do not summarize this as “text beat sync” or “leave space for copy.”
+- If any copy is planned, preserve each approved line verbatim with its timing, color, and single-line behavior; describe first-half/second-half animation only for two-part copy. A product-only ending has no invented copy. Do not rely on the storyboard table alone, and do not summarize this as “text beat sync” or “leave space for copy.”
 - Prompt completeness check: if the final video-generation prompt does not literally contain every intended English copy line, the task is not ready to dispatch. Rewrite the prompt before video generation.
 - Single-line typography hard constraint: at any moment, only one single-line English copy line may appear in the frame; forbid two rows, two-line titles, title + subtitle pairs, or multiple text blocks at the same time. If typography is error-prone, reduce copy frequency instead of putting text in every shot.
-- Two-part text motion rules: the first half and second half must continue or replace within the same line, never split into upper and lower rows; motion must be visible, with the first half fading in or sliding in subtly first, then the second half fading in or sliding in subtly later, while the first half shifts gently within the same line. Do not make the typography completely static.
+- For approved two-part copy, keep both parts on one line with sequential motion and clear contrast; for one-piece product names or factual labels, a single subtle entrance and stable hold is acceptable. Never invent another text segment to satisfy an animation template.
 - Shot continuity hard constraints.
 - MiniMax-H3 native audio setting and music prompt; native audio is on by default unless the user explicitly asks for silence or another model.
 - Do not pass the original product image.

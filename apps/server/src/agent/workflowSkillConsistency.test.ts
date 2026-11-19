@@ -30,6 +30,21 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     expect(canvas).toContain("满足当前模式的验收关卡后推进");
   });
 
+  test("对白精修复用编剧子 Agent，位于剧本复核和分镜之间", async () => {
+    const workflow = await skill("workflow/SKILL.md");
+    const episode = await skill("workflow/references/episodeScript.md");
+    const dialogue = await skill("dialoguePolish/SKILL.md");
+    expect(dialogue).toContain("name: dialoguePolish");
+    expect(dialogue).toContain("正反例");
+    expect(dialogue).toContain("保留原稿");
+    expect(workflow).toContain("dialoguePolish/SKILL.md");
+    expect(workflow.indexOf("| 对白精修")).toBeGreaterThan(workflow.indexOf("| 场次剧本"));
+    expect(workflow.indexOf("| 分镜")).toBeGreaterThan(workflow.indexOf("| 对白精修"));
+    expect(episode).toContain('tasks[].role: "story"');
+    expect(episode).toContain("不增加独立审核 Agent");
+    expect(episode).toContain("已有定稿仅需拆镜时不启动该步骤");
+  });
+
   test("画布指导的缺省比例与统一视频工作流的配置一致", async () => {
     const text = await skill("canvas/references/videoProduction.md");
     expect(text).toContain("默认 `16:9`");

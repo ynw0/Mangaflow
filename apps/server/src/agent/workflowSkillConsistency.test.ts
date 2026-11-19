@@ -37,7 +37,7 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     const episode = await skill("workflow/references/episodeScript.md");
     const dialogue = await skill("dialoguePolish/SKILL.md");
     expect(dialogue).toContain("name: dialoguePolish");
-    expect(dialogue).toContain("正反例");
+    expect(dialogue).toContain("对照示例");
     expect(dialogue).toContain("保留原稿");
     expect(workflow).toContain("dialoguePolish/SKILL.md");
     expect(workflow.indexOf("| 对白精修")).toBeGreaterThan(workflow.indexOf("| 场次剧本"));

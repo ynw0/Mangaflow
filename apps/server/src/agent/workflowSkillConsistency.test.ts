@@ -146,4 +146,21 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     expect(h3).toContain("subject_definitions");
     expect(h3).toContain("integrated_multimodal_description");
   });
+
+  test("广告文案和手绘示例不会强制空洞口号，原有媒体功能仍保留", async () => {
+    const en = await skill("minimalist-product-ad-generator/SKILL.md");
+    const cn = await skill("minimalist-product-ad-generator/SKILL.cn.md");
+    const handEn = await skill("handdrawn-live-video-generator/SKILL.md");
+    const handCn = await skill("handdrawn-live-video-generator/SKILL.cn.md");
+    expect(en).toContain("three independent anchor photos");
+    expect(en).toContain("single-line typography");
+    expect(en).toContain("stable single full-frame product closing");
+    expect(en).not.toContain("full-frame product closing + full single-line copy");
+    expect(cn).toContain("只有真正分为两段的文案");
+    expect(cn).toContain("没有文案时不虚构补写");
+    expect(handEn).toContain("情境确有自然的可爱笑点时再保留");
+    expect(handCn).toContain("只有情境适合时才安排自然笑点");
+    expect(handEn).toContain("0-3 秒必须出现");
+    expect(handCn).toContain("13-15 秒仍需要");
+  });
 });

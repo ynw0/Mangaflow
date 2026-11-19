@@ -65,9 +65,9 @@ Start gate is mandatory. If the user has already uploaded product material, only
 
 2. **In-frame copy must appear as integrated video motion, not a subtitle fallback**
    - Text in the copy anchor photo is only a reference for font, position, single-line layout, and two-part color treatment. It does not mean the whole video can use only that one copy line.
-   - The precise beat storyboard may define multiple short English copy lines across shots. Each line must be 3-5 English words, single-line, readable, and follow the two-part color rule: in white-tech style the first half uses black or dark gray, in dark rim-light style the first half may use white, and the second half always uses the specific product color. Do not use isolated 1-2 word feature labels.
+   - The precise beat storyboard may define multiple short English copy lines across shots. For agent-written promotional copy, prefer a legible 3-5-word single line when it fits, but accept a shorter approved product name or precise factual label. Follow the two-part color rule only when the copy genuinely has two distinct segments: in white-tech style the first half uses black or dark gray, in dark rim-light style the first half may use white, and the second half always uses the specific product color. Avoid isolated generic 1-2-word claims; a real product name or meaningful short label is valid.
    - Video generation must include the storyboard copy inside the frame.
-   - The copy does not need to appear in every shot. If the video model tends to make typography mistakes, reduce copy frequency proactively. For a 10-second film, usually keep only one mid-film copy moment plus one final copy moment; do not put text in every shot. The final shot must include one stable single-line copy.
+   - The copy does not need to appear in every shot. If the video model tends to make typography mistakes, reduce copy frequency proactively. For a 10-second film, usually keep only one mid-film copy moment plus one final copy moment; do not put text in every shot. The final shot must show a stable full-frame product hero; include a single-line copy only if agreed in the creative brief, otherwise preserve a clean product-only ending.
    - By default, ask the video model to generate in-frame typography and its timing directly. Do not silently degrade text into post-production subtitles or reserve empty space for later overlay. Use post-production fallback only when the user explicitly asks for it or when integrated video typography fails and the user accepts a fallback.
 
 3. **Product body color is a hard fidelity constraint**
@@ -89,7 +89,7 @@ Start gate is mandatory. If the user has already uploaded product material, only
 
 - In-frame advertising copy must be English.
 - If the user provides Chinese copy, translate it into concise English or ask for approval of the English version.
-- Visible in-frame copy must be 3-5 English words, preferably no more than 32 English characters including spaces. Do not write isolated 1-2 word feature labels.
+- For newly written copy, 3-5 English words and approximately 32 characters is a readability guideline, not a compulsory word-count formula. Keep approved brand names, factual labels, and user-supplied copy intact when they fit legibly; do not invent filler words.
 - Copy should feel like an Apple product film: sensory, benefit-led, material-led, or a light value proposition; avoid promotional slogans and ecommerce feature-tag wording.
 - Font reference: SF Pro Display / SF Pro Text. Prefer `SF Pro Display Semibold` in prompts.
 - Use no more than two text colors in a shot.
@@ -379,7 +379,7 @@ Delivery includes:
 ## Failure Handling
 
 - Product image too weak: stop, give reshoot guidance, and wait for a better image.
-- Copy too long: compress to 3-5 English words and ask for approval.
+- Copy too long or unreadable: propose the shortest truthful, legible alternative without altering approved claims; ask for approval if the wording changes.
 - Text anchor is wrong: regenerate the text anchor before video generation.
 - Anchor sheet fails product fidelity: regenerate with stronger product-preservation instructions.
 - Storyboard is templated: return to the precise beat table and rewrite based on product form and narrative spine.

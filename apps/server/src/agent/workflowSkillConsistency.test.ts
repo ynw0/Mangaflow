@@ -24,7 +24,8 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     const workflow = await skill("workflow/SKILL.md");
     const canvas = await skill("canvas/references/videoProduction.md");
     expect(workflow).not.toContain("并另行确认");
-    expect(workflow).toContain("按当前运行模式及已授权范围决定是否等待确认");
+    expect(workflow).toContain("每阶段按当前运行模式和已有授权推进");
+    expect(workflow).toContain("目标模式可继续已授权的目标");
     expect(canvas).not.toContain("确认后才推进的内容");
     expect(canvas).toContain("满足当前模式的验收关卡后推进");
   });

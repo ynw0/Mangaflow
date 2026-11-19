@@ -135,7 +135,7 @@ The production brief must include:
 - Target duration.
 - Selected Apple-style template.
 - Single-variant / multi-variant strategy.
-- In-frame copy mode: user-provided copy, or agent-generated Apple-style English copy.
+- In-frame copy mode: user-provided copy, agent-generated Apple-style English copy, or user-approved product-only presentation.
 
 Multi-variant product rules:
 
@@ -206,12 +206,12 @@ Output one short “motion language” statement, for example:
 
 ## STEP 5: Generate or Confirm Apple-style English Copy
 
-Before generating the text anchor and storyboard, obtain a final English copy line for the frame.
+Before the final-composition anchor and storyboard, agree on the in-frame copy plan: an approved English line when text is needed, or product-only presentation when the user explicitly prefers no copy.
 
 Rules:
 
 1. Analyze product category, usage feeling, and narrative spine.
-2. Generate 2-3 Apple-style English options, each 3-5 words.
+2. When the user wants in-frame text, offer 2-3 concise and truthful English options; do not pad or truncate copy to a fixed word count. When the approved brief is product-only, do not force an advertising line.
 3. Do not use fixed templates or fixed slogans; infer new copy for every product.
 4. Avoid promotional language.
 5. If the user already has copy, prioritize it. Chinese copy must be localized into concise English.
@@ -237,10 +237,10 @@ Multi-variant handling:
 
 Final copy anchor typography rules:
 
-- Must include the Step 5 confirmed copy; do not use placeholder copy.
+- Include the Step 5 confirmed copy only when the approved brief uses on-frame text; otherwise use the product-only final composition without placeholder words.
 - Text must stay on one line.
 - Font: SF Pro Display Semibold.
-- Text color must be split explicitly into two parts: the first half of the copy uses black or white, and the second half uses the specific product main color. If the main color is purple, write “first half black / white, second half purple.” Do not write only “product color + black or white.”
+- When the approved copy has two parts, specify each part's color: the first uses black or white, and the second uses the specific product main color. If the main color is purple, write “first half black / white, second half purple.” Do not write only “product color + black or white.”
 - Photo 3 may contain only this format-reference copy line and no other text; however, later video copy is controlled by the precise beat storyboard and may include multiple short English copy lines.
 
 Show the three independent anchor photos and ask the user to approve, edit, or regenerate a specific photo before proceeding to the precise beat storyboard.
@@ -363,7 +363,7 @@ Pre-delivery verification:
 - Video aspect ratio, duration, and language match the brief.
 - Product appearance, main variant, and variant timing match the anchor sheet and storyboard.
 - Copy is readable, single-line, not crowded, and contains no extra arrows or symbols; no two text rows, upper/lower line splits, title + subtitle pairs, or multiple text blocks appear at the same time.
-- The final frame has a stable product + copy closing.
+- The final frame has a stable full-frame product closing, with copy only when approved.
 - Music is not too loud and not too low.
 - Output is on canvas, and multi-asset outputs are grouped.
 
@@ -383,7 +383,7 @@ Delivery includes:
 - Text anchor is wrong: regenerate the text anchor before video generation.
 - Anchor sheet fails product fidelity: regenerate with stronger product-preservation instructions.
 - Storyboard is templated: return to the precise beat table and rewrite based on product form and narrative spine.
-- Copy does not appear in video: rerun the video prompt, explicitly requiring copy in at least the middle and final beats.
+- Required approved copy does not appear in video: correct the text-bearing beats; do not add words to a product-only brief.
 - Video typography deforms: regenerate the text anchor or degrade the text shot to subtle anchor-based motion.
 - Aspect ratio is wrong: immediately rerun with the user-selected ratio.
 - Music quality is poor: retry with `music-2.6`, do not force duration, and cut the best segment from the longer track.

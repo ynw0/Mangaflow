@@ -103,7 +103,7 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
         const link = match[1].trim().replace(/^<|>$/g, "").split("#")[0].split("?")[0];
         if (!link || /^(?:[a-z]+:|\/\/|\/)/i.test(link) || /[{}]/.test(link)) continue;
         const target = resolve(dirname(doc), decodeURIComponent(link));
-        if (!target.startsWith(root)) {
+        if (!target.startsWith(resolve(root, "..", ".."))) {
           failures.push(`${doc}: reference outside bundled skills ${link}`);
           continue;
         }
@@ -153,7 +153,7 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     const handEn = await skill("handdrawn-live-video-generator/SKILL.md");
     const handCn = await skill("handdrawn-live-video-generator/SKILL.cn.md");
     expect(en).toContain("three independent anchor photos");
-    expect(en).toContain("single-line typography");
+    expect(en).toContain("Single-line typography hard constraint");
     expect(en).toContain("stable single full-frame product closing");
     expect(en).not.toContain("full-frame product closing + full single-line copy");
     expect(cn).toContain("只有真正分为两段的文案");

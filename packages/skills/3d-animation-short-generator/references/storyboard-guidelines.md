@@ -34,7 +34,7 @@ Per-shot section structure (one `##` heading per shot, in shot order). Every sec
 6. **Double-binding** — `[char:角色名-01] [char:角色名-02] ... [scene:场景名] [hook: visual-joke]` — exact character card names, scene card name, hook type. These are storyboard-only reference markers; the video model strips them at render time.
 7. **Per-panel four-quadrant content** (one block per panel, in time order; this is the Pixar per-second directive, kept verbatim from the table row):
    - `Timecode` — e.g. `0–1s`.
-   - `Pose + Expression` — concrete body posture, silhouette, key prop grip, eye-line, facial expression path; for elastic beats, explicitly call out squash / stretch / anticipation / overshoot. This is the largest section per panel and is what the video model reads as the visual beat.
+   - `Pose + Expression` — concrete body posture, silhouette, key prop grip, eye-line, and any **actual** expression change; stable expressions may be marked held, and silence needs no invented gesture. For approved elastic beats, call out squash / stretch / anticipation / overshoot. This field anchors the visual beat, not an obligation to animate every face each second.
    - `Camera` — shot size, camera movement (push / pull / pan / tilt / handheld-shake / locked / orbit), Dutch angle note when applicable.
    - `Audio + Anchor` — audio cue (`♪ narration: ...` / `dialogue: ...` / `SFX: ...` / `silent`) and spatial anchor note (`door-frame: right third` / `Mia: center midground facing camera`).
    - Performance notes (mirrors half-narrated): for narration seconds, mark `narrator-mouth-closed: true`; for on-screen dialogue, mark `mouth-open: speaker` and describe expression path / eye-line / body-action changes.

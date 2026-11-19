@@ -19,7 +19,7 @@ Column rules:
   - `Exited Character Status` — for any character who was in the previous shot but is not in this shot, state their off-screen position and reason (e.g. `Mia — exited frame-left, last seen holding apple basket at door-frame`).
   - `Lighting Baseline` — inherited key/fill/rim direction from the scene card, plus any per-shot modifier (e.g. `key: warm overhead, fill: cool bounce right, modifier: window-backlit silhouette`).
   - Plus identity bindings: exact approved character card names and exact approved scene card name.
-- **Hook Type**: one short label from a controlled vocabulary, e.g. `visual-joke`, `reversal`, `suspense`, `tender`, `chase`, `reveal`, `callback`, `expression-beat`. Used for the per-episode hook distribution self-check.
+- **Hook Type**: one short label from a controlled vocabulary to describe the shot's existing function, not to invent a new stunt or reversal, e.g. `visual-joke`, `reversal`, `suspense`, `tender`, `chase`, `reveal`, `callback`, `expression-beat`. Used for the per-episode hook distribution self-check.
 - **Shot Description**: shot size, camera movement, Dutch-angle design, performance style, SFX, negative prompt, **video-model generation notes** (the model chosen in Step 7 — H3 or Seedance 2.0 — receives slightly different prompt shapes; for H3 emphasize packaging keywords and text/UI/motion-graphics clarity, for Seedance 2.0 emphasize cinematic camera and elastic performance), and a required `Per-Second Directives` subsection. The subsection must break the shot into second-by-second instructions such as `0–1s`, `1–2s`, `2–3s`; for sub-second critical beats, use `2.0–2.5s` style markers. Each per-second directive MUST cover all five required elements:
   1. Action / pose / expression (squash-and-stretch, anticipation, overshoot, follow-through where applicable)
   2. Camera movement (push / pull / pan / tilt / handheld-shake / locked / orbit)
@@ -37,9 +37,9 @@ Table-wide rules:
 - Each shot must naturally inherit the previous shot’s image state through the `Continuity Handoff` column and set up the next shot in the same column.
 - Each shot row must include per-second directives that cover the entire shot duration from first frame to last frame, including action, pose, expression, camera movement, spatial position, sound cue, and continuity handoff.
 - Per-second directives must be specific enough to generate storyboard panels directly; avoid vague timing such as “continues moving” without body, camera, or prop detail.
-- Performance must be exaggerated and elastic, matching Disney-style squash-and-stretch, anticipation, overshoot, follow-through, overlap, arcs, fast pose changes, and clear comedic silhouettes.
-- Shot sizes must alternate close-up / extreme close-up with other necessary framing; avoid repetitive framing.
-- Dutch-angle tilted compositions must be designed into chase, imbalance, surprise, or slapstick beats.
+- Performance may use elastic stylized animation when the approved action and tone call for it; do not impose exaggerated squash-and-stretch, fast poses, or comic reactions on every shot. Quiet character moments, restrained faces, and held poses are valid if the story needs them.
+- Vary shot sizes when the story changes what the audience needs to see. Repeated framing is valid when it preserves a relationship or makes a later change readable; do not alternate close-up / extreme close-up mechanically.
+- Dutch-angle tilted compositions are an option for chase, imbalance, surprise, or slapstick beats when they genuinely clarify the scene, not a compulsory effect.
 - Dialogue language only if explicitly requested by the user; otherwise use minimal non-language-specific reactions or mark dialogue as optional / pending confirmation.
 - For shots containing narration or dialogue, every second where the character is speaking must record whether the mouth is open or closed; the default is closed for off-screen narrator, open for on-screen dialogue.
 - A character who left the frame must still be tracked in `Exited Character Status` for at least one shot, then dropped after they are explicitly off-stage for two consecutive shots.

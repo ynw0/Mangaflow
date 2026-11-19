@@ -62,7 +62,41 @@ draftVideoPrompt({
 })
 ```
 
-上例为**新镜头、无参考的字段示意**，实际必须按 ComfyUI 工作流能力与已连接参考填入对应 `references`；不能用示例假定 Ref2VA 允许无图。对于**已有视频生成节点**，不要传 `duration`、`ratio`、`modelId`、`sampling` 或种子参数；先通过 `node:getConfig` → `node:setConfig` → `node:getPromptContext` 核对，然后将 `node:{canvasId,nodeId,write:true}` 和当前节点实际引用的素材传给 `draftVideoPrompt`。新镜头才必须传数字 `duration` 和字符串 `ratio`。
+上例演示新镜头参数。参考素材按实际工作流和槽位填写，新镜头的 `duration` 和 `ratio` 为必填项。
+
+已有视频生成节点时，先用 `node:getConfig` 核对配置，有需调整的参数才用 `node:setConfig`，然后读取 `node:getPromptContext`。顶层仍填写原合同的 `shotId`、剧情和实际参考。画布和节点 ID 放在 `node` 对象内，个别生成参数从节点读取。下面的值仅用于演示结构，调用时用已确认的镜头合同和实际素材替换。
+
+```json
+{
+  "shotId": "EP001-S11b",
+  "story": "陆明确认屏幕上的警报后抬头。",
+  "purpose": "交代陆明发现异常",
+  "style": "写实工业科幻",
+  "continuityIn": "陆明坐在工作台前",
+  "continuityOut": "陆明抬头看向门口",
+  "mustHave": ["陆明停手后抬头"],
+  "mustNotHave": [],
+  "intent": "reveal",
+  "references": [
+    {
+      "path": "素材/陆明.png",
+      "kind": "image",
+      "purpose": "角色身份参考",
+      "description": "陆明的脸部与服装参考"
+    }
+  ],
+  "node": {
+    "canvasId": "EP001.json",
+    "nodeId": "实际视频节点ID",
+    "write": true
+  }
+}
+```
+
+- 已有节点时省略顶层 `canvasId`、`modelId`、`duration`、`ratio`、`sampling`、`seed` 和 `seedMode`。
+- 首次 `draftVideoPrompt` 调用未通过入参校验时，按报错修正当前调用。缺 `shotId` 时补原合同编号，多传顶层 `canvasId` 时移除它并保留 `node.canvasId`。此阶段没有该次调用生成的待审稿。
+- 返回 `reviewFailed` 且包含 `draftId` 时，按 `nextAction` 调用 `resumeVideoPrompt` 重审原稿。返回 `rejected` 且包含 `draftId` 时，按 `nextAction` 使用原合同和整改意见定向返修。中断后遗失编号，可在原会话用 `resumeVideoPrompt({shotId})` 查询，同一镜头有多份稿时选对应的 `draftId`。用户明确要求从头重写时，才用 `regenerate: true` 发起重新创作。
+- 外部 MCP 调用 `videoPrompt`。将上述合同放进 `args.input`，并在 `args.action` 传 `prepare`。随后用返回的 `preparationId` 和当前导演稿执行 `inspect`，以审核结果和同一份稿执行 `submit`。审核结构、写回与交接见[视频审核规则](video-prompt-review.md#提交与交接)。
 
 **宿主兼容要求**：`mustHave`、`mustNotHave`、`references` 必须是 JSON 数组，`templateTags`、`sampling`、`creativeSelection` 为 JSON 对象，`duration` 为数字；不得发送成 `"[]"`、`"{}"` 或 `"10"`。工具现在对外暴露单一对象 Schema，分支互斥由服务器在解析时验证。参数校验失败属于工具调用失败，**不意味着视频已生成，也不应自动重试消耗算力**。
 

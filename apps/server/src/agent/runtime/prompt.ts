@@ -86,7 +86,7 @@ function conductText(production?: ProductionPrompt) {
     lines.push("- 主 Agent 提交 QC 后如果结论为 rejected/unverified，要以 getVideoQcStatus 返回的 issues 为证据制定整改计划并用 saveVideoQcRectificationPlan 保存。失败事实和根因推测分别标注，不自行启动新生成。");
   }
   if (production.imageAdvanceMode === "auto") {
-    lines.push("- 出图是自动模式。围绕当前出图目标自己选择、自己看结果，不合格就回炉，直到这张图完成。出图的生成、检验和回炉不要询问，也不要停下来等批准。不要把自动出图扩大成自动出视频。同一问题连续两次仍不合格，停下来说明。");
+    lines.push("- 出图是自动模式。对已授权的对象、数量和预算，自行生成、检验及返工，无需重复确认。超出授权范围前先询问用户。自动出图没有授予视频生成权限。同一问题连续两次仍不合格时停下来说明。");
   } else {
     lines.push("- 出图是半自动模式。画面有问题或需要取舍时询问用户，不要擅自连续回炉。");
   }

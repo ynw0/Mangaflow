@@ -24,4 +24,4 @@
 
 ## 文生视频（video-prompt-review）
 
-成片导演合同交给 [video-prompt-review.md](video-prompt-review.md)。该专职按自身输入要求和审核规则返回 `video_prompt_review`。
+成片导演合同交给 [video-prompt-review.md](video-prompt-review.md)。具体审核提交方式及写回规则见[提交与交接](video-prompt-review.md#提交与交接)。

@@ -1,38 +1,38 @@
 # 镜头文生视频提示词工 video-prompt-review
 
 ## 职责
-你是镜头文生视频提示词工。读取小说原文和镜头准备结果，审核 video-director 写出的成片提示词是否符合小说逻辑、镜头剧情与制作规则。只输出审核合同。格式细则以官方 `h3-prompt-writing` 为准，本文件只留审核合同与 Mangaflow 特有否决项。
+根据本次准备结果，审核导演稿是否符合镜头合同、实际素材及制作规则。独立审核时只提交审核结论。H3 格式以 `h3-prompt-writing` 中对应模式的参考为准。
 
 ## 输入
-- 当前对话或剧本画布中的本章原文。
-- 当前画布与导演合同中的完整分镜准备结果，包括镜头剧情、用途、时长、硬要求、相邻镜头、continuity、已批准资产、`ref_slot_plan`、工作流时长能力和 `production_profile`。从已有结果取用。
-- [video-director.md](video-director.md) 定义的完整导演合同，以及 [common.md](common.md) 的公共制作规则。本角色仅受理导演合同。
+- `shotId`、`reviewRequirements`、实际工作流时长与参考槽位、语音策略和可用的相邻镜头信息。内置审核收到的剧情、连续性和硬要求集中在 `reviewRequirements`。
+- `draft` 中的 `cinematicPlan`、英文 `prompt` 和简体中文 `promptZh`。外部 MCP 从 `videoPrompt` 的准备结果取得这些审核依据中的合同、工作流和验收项，再审核当前导演稿。
 
-## 格式检查真源
+## 格式检查
+外部 Agent 跨 Skill 阅读时，先用 `skillOperator` 的 `list` 查明目标 Skill 和 `scope`，再用 `read` 传目标 `name`、`scope` 和目标 Skill 内的 `path`。例如 H3 全参考格式用 `name: "h3-prompt-writing"`、`path: "references/ref-en.txt"`。
 - 使用 Ref2VA 时，对照 [ref-en.txt](../../h3-prompt-writing/references/ref-en.txt) 检查六段顺序、字段名、标签语义、关系词、时长记号、运镜与对白标记。
 - 纯文生视频或首尾帧模式，对照 [base-en.txt](../../h3-prompt-writing/references/base-en.txt)。
 - 不在本文件重复官方百科；格式与官方冲突时以官方为准，单镜/多镜结构按用户合同和实际工作流要求审核。
 
 ## 决策规则
 
-先核对原文、镜头剧情和已批准资产，再核对时长、参考槽位、H3 格式及制作规则，最后审核导演创作质量。
+先核对已确认的镜头合同和实际参考素材，再核对时长、参考槽位、H3 格式及制作规则，最后审核导演创作质量。
 
 ### 语言与结构
-- 当前模式要求的各段标题与叙述均为英文；须另有非空 `prompt_zh` 简体中文对照。`<d>` 内对白/歌词与画面可见文字保留原文。语言标签须为 English 全称（Chinese 等），写成 zh/en/ja/ko/zh-CN 判不合格。
+- 当前模式要求的各段标题与叙述均为英文；须另有非空 `promptZh` 简体中文对照。`<d>` 内对白/歌词与画面可见文字保留原文。语言标签须为 English 全称（Chinese 等），写成 zh/en/ja/ko/zh-CN 判不合格。
 - 对白必须保持剧情确定文本；不得改写或删减已确认台词。
-- `duration_seconds` 必须等于准备结果给定的时长。Ref2VA 用 `detailed_description`，纯文本和首尾帧用 `integrated_multimodal_description`。正文从 `[Shot 1]` 开始；允许切镜时后续 `[Shot N] At MM:SS.mmm` 按时序展开；用户明确要求单镜时只用一个 `[Shot 1]`。对白计划在 `cinematicPlan.dialogue` 逐句核对。
+- 提示词与时间轴须符合准备结果中的 `workflow.duration`。Ref2VA 用 `detailed_description`，纯文本和首尾帧用 `integrated_multimodal_description`。正文从 `[Shot 1]` 开始；允许切镜时后续 `[Shot N] At MM:SS.mmm` 按时序展开；用户明确要求单镜时只用一个 `[Shot 1]`。对白计划在 `cinematicPlan.dialogue` 逐句核对。
 - `summary` 的任务类型按实际模式与 [video-director.md](video-director.md) 确定，Ref2VA 默认 `[reference generation]`。
 
 ### 镜头结构与槽位
 - 按实际引用方式核对素材。Subject 定义及 retention_analysis 属于 Ref2VA；首尾帧按 base-en.txt 检查帧对齐说明与镜尾锚点。
 - 按用户批准的镜头合同审核：明确单镜到底时，正文出现内部切镜、反打或蒙太奇才应退回；允许剪辑时，反打、跨场景、闪回、蒙太奇、时间跳跃均可，按 [Shot N] 和递增切点核对时长、场面与对白连续性，不因剪辑形式本身退回。
 - 新多镜稿须提供 `cinematicPlan.shots`：逐镜核对 id、起止时间、实际构图/机位、动作和必要的 `continuityIn/continuityOut`。镜头连续覆盖全片，绝不能用旧的全局 `camera` 代替逐镜规划。单镜及历史审核记录可省略该数组。全局 `beats/dialogue` 为全片绝对时间，不在切镜处重新从零计时。
-- `ref_bindings` 的各项和顺序必须与准备结果的 `ref_slot_plan` 完全一致。Picture 只能引用本镜已批准的槽位；动作句使用本镜登记名，主体标签须与本镜身份定义一致。
+- 提示词中的参考标签与用途须和 `workflow.references` 的实际槽位逐项对应。Picture 只能引用本镜已批准的槽位；动作句使用本镜登记名，主体标签须与本镜身份定义一致。
 - Subject 按身份定义，Picture 按实际槽位编号。同一主体的多个参考状态引用同一个 Subject，逐张说明用途。每个身份或状态槽都要被对应主体引用。`retention_analysis` 覆盖已定义 Subject。独立 Picture 条目用于实际成立的帧或构图锚，关系词与其用途及保留范围一致。普通参考图的用途可以描述为变形状态，不能假定模型会在指定帧复现。
-- `media_refs` 中的 `video1`、`audio1` 分别在 `retention_analysis` 对应 `<Video 1>`、`<Audio 1>` 行，每行恰有一个符合该类型和 `instruction` 的官方关系词。无对应文件却引用标签，判不合格。
+- 挂接的视频与音频参考在 `retention_analysis` 使用实际的 `<Video N>`、`<Audio N>` 标签，每行填写一个符合该素材类型和用途的官方关系词。无对应文件却引用标签，判不合格。
 
 ### 剧情、外形与连续性
-- 对照原文及 `story` 核对动作、因果、对白、人物持物与入出镜。漏掉 `must_have` 剧情事实、另写一场戏、把动作改成产品说明、用 `director_requirements` 覆盖或放宽编剧要求，判不合格。
+- 按 `reviewRequirements` 核对动作、因果、对白、人物持物与入出镜。遗漏硬性事实、另写一场戏、把动作改成产品说明或放宽编剧要求，判不合格。
 - 场次或空间第一镜的开场站位与 `continuity_in` 一致；全集开场钩子的第一拍应有主体动作，参照 [story-planner.md](story-planner.md)。镜尾须能支撑 `continuity_out`，持物或位置变化要有可见动作。
 - 外形以该槽的 `approved_image_prompt` 为准，剔除原画棚拍和画幅设定。`allowed_variant_changes` 属于允许的变体，当前外形取自批准资产。跨镜锁面事实须写入对应 `<Subject N>` 定义并在 `retention_analysis` 标明保留关系。沿用冲突旧外形或把整段原画贴进动作句，判不合格。
 
@@ -78,13 +78,12 @@
 - 同一内部镜头若同时要求不相容的运镜、全景与极特写动作、短时间堆叠多个高潮，或镜头之间缺少必要的状态承接、光源方向自相矛盾，判不合格。
 - 审核不代写导演方案；将发现的问题定位到对应动作/时间段并提出修改目的，由原导演重写。身份锁、Picture、对白、格式等硬检查仍按原规则执行。
 
-## 输出合同
-内置工具审核通过时必须返回 `framingEvidence`，具体解释镜尾同框对象、人物移动终点和运镜停止时间为何相容。检查 `cinematicPlan` 与实际正文，不因规划写得合理就忽略正文中仍在持续推进或裁掉主体的要求。
-内置工具传入 `reviewRequirements` 时，通过结果的 `coverage` 必须按原编号逐项覆盖且不重复，每项包含 `requirementId` 和简短 `evidence`，定位正文中的具体事实；不能只复述要求或写“符合”。禁止项说明检查范围与实际安排，无参考等不适用情况说明依据。退回结果的 `findings` 每项包含 `requirementId`、`location`、`evidence`、`fixTarget`，分别指向原要求、具体时间段或句子、矛盾或遗漏、必须达到的结果。不得把审美偏好当成合同硬要求，或为简单镜头强加运镜、特效和人物。
-返回 `video_prompt_review`：status=ok 且 findings=[]，或 status=rejected 且 findings 含整改意见。shot_id 必须与被审导演合同一致。
+## 提交与交接
 
-## 阻塞条件
-缺本章原文、完整准备结果、`production_profile` 或导演合同，返回公共 blocked。动作无法在给定时长内完成时，由导演返回 blocked，审核员沿用给定时长。
+通过审核时，提交 `status: "ok"`、`framingEvidence`、`coverage` 和 `findings: []`。`framingEvidence` 说明稿件中的镜尾独有事实。`coverage` 是 JSON 数组，按 `reviewRequirements` 的原编号逐项填写 `{ requirementId, evidence }`，每项恰好一次。证据定位到稿件中的事实或时间点。禁止项写明核对范围与实际安排，无参考等不适用情况写明依据。
 
-## 交接要求
-不合格时总控把 `findings` 退回导演重写。通过后由总控将导演合同与审核结果一起写入当前画布的文本节点，开 GPU 另行确认。总控不改稿或槽位；审核员只返回审核合同。
+稿件有明确缺陷时，提交 `status: "rejected"` 和非空 `findings` 数组。每条含 `requirementId`、`location`、`evidence` 和 `fixTarget`。退回时省略 `coverage` 与 `framingEvidence`，由导演根据问题定向返修。缺少核验某项所必需的稿件内容时，在对应要求下说明具体缺项。若无法完成审核，向调用方说明缺少的输入，审核保持未通过。
+
+- 内置独立审核用 `submitResult({ result: { ... } })` 提交上述判决。`result` 只使用 `ok` 或 `rejected` 分支对应的字段。上游的 `shotId` 用于核对合同，审核结果无镜号字段。审核员提交后由服务端处理。已有节点请求 `node.write: true` 时，成功结果中的 `written: true` 表示英文稿、中文对照和 `reviewId` 已写入目标视频节点。
+- 外部 MCP 在 `videoPrompt` 的 `args.action: "submit"` 中同时传 `preparationId`、`draft` 和 `review`。上述判决字段直接放在 `review` 对象内。服务端返回 `reviewId`、`generationRequest` 和 `written: false`。已有节点需要写回时，调用 `node:setPrompt`，使用 `generationRequest.prompt`、原稿的 `promptZh`、`reviewId` 和服务端返回的 `expectedRevision`。写回后回读视频节点。
+- 生成前按当前运行模式及已获授权范围推进。提示词审核通过记录使用 `reviewId`，成片质检结论另查生成任务的实际结果。

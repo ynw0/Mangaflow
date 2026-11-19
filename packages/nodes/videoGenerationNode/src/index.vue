@@ -940,12 +940,12 @@ function getPromptContext() {
   }
   const config = getConfig().config;
   const { images, videos, audios, firstFrame, lastFrame } = input;
-  // 版本覆盖实际请求、种子模式和已有对照，写回时在节点内同步比较。
-  const { qcOverride: _qcOverride, ...reviewInput } = input;
-  const revision = JSON.stringify([reviewInput, config, data.value.promptZh]);
+  // 仅比较会影响原稿、参考和声音的字段。采样调整允许与提示词审核并行。
+  const revision = JSON.stringify([selectedModel.value?.promptFormat, input.prompt, data.value.promptZh,
+    input.duration, input.ratio, input.mode, input.generateAudio, images, videos, audios, firstFrame, lastFrame]);
   // 随机种子留到实际生成时取值，固定上次随机必须交付具体值供审核绑定。
   const seed = config.supportsSeed && config.seedMode !== "random" ? resolveSeed() : undefined;
-  return { config, images, videos, audios, firstFrame, lastFrame, revision, request: { ...input, seed } };
+  return { config, images, videos, audios, firstFrame, lastFrame, revision, promptZh: data.value.promptZh, request: { ...input, seed } };
 }
 
 nodeTools.register({

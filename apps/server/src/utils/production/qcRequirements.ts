@@ -28,7 +28,7 @@ export async function readQcRequirements(directory: string, request?: MediaGener
   const review = await readApprovedVideoReview(request.reviewId);
   const root = await realpath(directory);
   if (request.providerId !== "comfyui" || review.snapshot.directory !== (process.platform === "win32" ? root.toLowerCase() : root)
-    || review.snapshot.modelId !== request.modelId || review.snapshot.prompt !== request.prompt) {
+    || review.snapshot.prompt !== request.prompt) {
     throw new Error("成片生成记录与审核合同不一致，无法进行剧情验收");
   }
   const shot = shotSchema.parse(review.audit.shot);

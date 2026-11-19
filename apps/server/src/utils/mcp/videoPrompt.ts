@@ -69,7 +69,9 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
       if (!isDeepStrictEqual(saved.approved.draft, input.draft) || !isDeepStrictEqual(saved.approved.review, review)) {
         throw Object.assign(new Error("该准备记录已批准另一份稿件，请重新 prepare"), { status: 409 });
       }
-      return { ...saved.approved.result, reviewer };
+      const reviewId = saved.approved.result.reviewId;
+      const generationRequest = videoGenerationSchema.parse({ ...current.generationRequest, prompt: input.draft.prompt, reviewId });
+      return { ...saved.approved.result, reviewer, generationRequest, expectedRevision: current.revision };
     }
     const generationRequest = videoGenerationSchema.parse({ ...current.generationRequest, prompt: input.draft.prompt });
     const reviewId = await saveVideoReview({ ...current.snapshot, prompt: input.draft.prompt }, {

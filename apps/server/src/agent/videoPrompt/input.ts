@@ -46,7 +46,8 @@ const shotFields = {
   intent: z.enum(["dialogue", "action", "effects", "mechanical", "reveal", "environment"]),
   tone: z.enum(creativeTones).optional().describe("镜头合同中已确认的基调，用于核对所选创作模板"),
   adjacentShots: z.string().trim().max(6000).optional(),
-  regenerate: z.boolean().optional().describe("明确要求重新创作时传 true；省略则相同已审镜头直接复用审核结果"),
+  regenerate: z.boolean().optional().describe("明确要求重新创作时传 true"),
+  reReview: z.boolean().optional().describe("用户明确要求用当前审核员复审已通过的现稿时传 true，与 regenerate 互斥"),
   templateTags: templateTagSchema.optional(),
   templateConditions: templateConditions.pick({ subjectCount: true, anchors: true }).optional(),
   references: z.array(reference).max(24).describe("按实际槽位顺序传 JSON 对象数组，不是字符串"),
@@ -90,6 +91,7 @@ export const videoPromptToolSchema = z.toJSONSchema(videoPromptToolInput, { io: 
 export const videoPromptParameters = videoPromptToolInput.superRefine((input, ctx) => {
   const issue = (path: string, message: string) =>
     ctx.addIssue({ code: "custom", path: [path], message });
+  if (input.regenerate && input.reReview) issue("reReview", "复审现稿与从头重写只能选择一种");
   if (input.node) {
     for (const name of ["modelId", "duration", "ratio", "sampling", "seed", "seedMode"] as const) {
       if (input[name] !== undefined) issue(name, "已有节点不允许重复传生成参数，请先在画布节点 setConfig 后读取 getPromptContext");
@@ -120,6 +122,7 @@ const nodeContext = z.object({
     supportsSeed: z.boolean().optional(),
   }),
   revision: z.string(),
+  promptZh: z.string().optional(),
   request: videoGenerationSchema.extend({ prompt: z.string() }),
   images: z.array(material).optional(),
   videos: z.array(material).optional(),
@@ -132,7 +135,7 @@ export type VideoPromptInput = z.infer<typeof videoPromptParameters>;
 export type VideoPromptFormat = "h3Ref2va" | "h3Frames" | "h3Text";
 
 export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, canvas?: CanvasContext, signal?: AbortSignal) {
-  const { node, modelId, duration, ratio, references, sampling: requestedSampling, seed, seedMode, templateTags, templateConditions, creativeSelection: selectedCreative, regenerate: _regenerate, ...shot } = input;
+  const { node, modelId, duration, ratio, references, sampling: requestedSampling, seed, seedMode, templateTags, templateConditions, creativeSelection: selectedCreative, regenerate: _regenerate, reReview: _reReview, ...shot } = input;
   const production = readProduction();
   if (node && !canvas) throw new Error("请先打开目标视频节点所在的画布");
   const current = node && canvas ? nodeContext.parse(await canvas.call({
@@ -229,7 +232,9 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   const snapshot = await captureVideoReview(cwd, effective, signal);
   const numbered = (items: typeof approved, name: string) => items.map((item, index) => ({ ...item, label: `<${name} ${index + 1}>` }));
   return {
-    shot, format, revision: current?.revision, templateTags, templateConditions, creativeContext, voiceContext, audioEnabled, generationRequest, snapshot,
+    shot, format, revision: current?.revision,
+    nodeDraft: current && { reviewId: current.request.reviewId, prompt: current.request.prompt, promptZh: current.promptZh },
+    templateTags, templateConditions, creativeContext, voiceContext, audioEnabled, generationRequest, snapshot,
     setup: {
       modelId: workflow.id, duration: seconds, ratio: aspect, mode: current?.config.mode ?? format,
       host: production.videoHost, config: current?.config, usage: workflow.bindings.usage,

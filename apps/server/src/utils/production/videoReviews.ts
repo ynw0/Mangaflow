@@ -5,6 +5,7 @@ import conf from "@/utils/conf";
 import { fail } from "@/utils/production/config";
 import type { PreparedComfyWorkflow } from "@/utils/production/run";
 import { draftCinematicPlanSchema } from "@/utils/production/videoPlan";
+import { videoAudioInputs } from "@/utils/production/h3Workflow";
 import type { WorkflowBindings } from "@/utils/production/bindings";
 
 type ReviewFile = { source: string; path: string; size: number; digest: string };
@@ -25,32 +26,24 @@ function serialize(value: unknown) {
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
 }
 
-const runtimeInputs = new Set(["seed", "first_pass_steps", "second_pass_steps", "megapixels", "upscale"]);
-
+// 审核绑定提示词表达的事实，以及影响这些事实的输入。采样与部署由生成入口校验。
 export function videoPromptReviewScope(snapshot: VideoReviewSnapshot) {
   const { bindings, workflow } = JSON.parse(snapshot.workflow) as {
     bindings: WorkflowBindings;
-    workflow: Record<string, { class_type?: string; inputs?: Record<string, unknown> }>;
+    workflow: Record<string, unknown>;
   };
-  // 只归一化已绑定的运行值；节点、连线和绑定本身仍参与比较。
-  for (const { kind, source, target } of bindings.bindings) {
-    if (kind !== "value" || !runtimeInputs.has(source)) continue;
-    const [id, section, field, extra] = target.split(".");
-    const inputs = workflow[id!]?.inputs;
-    if (!inputs || section !== "inputs" || !field || extra !== undefined) continue;
-    if (typeof inputs[field] === "number" || (source === "seed" && inputs[field] === "randomSeed")) inputs[field] = "runtimeValue";
+  const { duration, aspect_ratio } = snapshot.parameters;
+  const aspect = aspect_ratio ?? [snapshot.parameters["params.width"], snapshot.parameters["params.height"]];
+  const slots = new Map<string, (typeof snapshot.references)[number] & { kind?: string }>();
+  for (const item of snapshot.references) {
+    const kind = bindings.bindings.find(binding => binding.source === item.source && binding.kind !== "value")?.kind;
+    const reference = { ...item, kind };
+    slots.set(serialize(reference), reference);
   }
-  for (const node of Object.values(workflow)) {
-    if (node?.class_type !== "ModelAttentionBackend" || !node.inputs) continue;
-    if (node.inputs.attention === "pytorch attention" || node.inputs.attention === "comfy kitchen attention") {
-      node.inputs.attention = "runtimeValue";
-    }
-  }
+  const references = [...slots.values()].sort((left, right) => left.source.localeCompare(right.source));
   return {
-    ...snapshot,
-    seedMode: undefined,
-    parameters: Object.fromEntries(Object.entries(snapshot.parameters).filter(([key]) => !runtimeInputs.has(key))),
-    workflow: serialize({ bindings, workflow }),
+    directory: snapshot.directory, prompt: snapshot.prompt, format: bindings.promptFormat,
+    duration, aspect, audio: videoAudioInputs(workflow).length > 0, references,
   };
 }
 
@@ -93,6 +86,7 @@ export async function captureVideoReview(directory: string, prepared: PreparedCo
   }
   const parameters = Object.fromEntries(prepared.inputs.filter(input => input.kind === "value" && input.source !== "prompt" && input.source !== "image_prompt")
     .map(input => [input.source, input.value]));
+  parameters.duration ??= prepared.context.duration;
   const checkpoint = prepared.context.checkpoint_name;
   if (checkpoint && checkpoint !== prepared.entry.checkpoint?.defaultName) parameters.checkpoint_name = checkpoint;
   if (prepared.context.h3_options !== undefined) parameters.h3_options = prepared.context.h3_options;
@@ -109,29 +103,18 @@ export async function captureVideoReview(directory: string, prepared: PreparedCo
   };
 }
 
-export function requireSameVideoReview(approved: VideoReviewSnapshot, current: VideoReviewSnapshot) {
+export function videoReviewChanges(approved: VideoReviewSnapshot, current: VideoReviewSnapshot) {
   const before = videoPromptReviewScope(approved);
   const after = videoPromptReviewScope(current);
-  const changed: string[] = [];
-  for (const [key, label] of [["directory", "工作区"], ["modelId", "工作流"], ["host", "GPU 主机"],
-    ["prompt", "英文提示词"]] as const) {
-    if (approved[key] !== current[key]) changed.push(label);
-  }
-  const parameterNames: Record<string, string> = {
-    duration: "时长", aspect_ratio: "画幅", checkpoint_name: "视频模型权重",
-  };
-  for (const key of new Set([...Object.keys(before.parameters), ...Object.keys(after.parameters)])) {
-    if (serialize(before.parameters[key]) !== serialize(after.parameters[key])) changed.push(parameterNames[key] ?? key);
-  }
-  if (serialize(approved.references) !== serialize(current.references)) {
-    const sources = new Set([...approved.references, ...current.references].map(item => item.source));
-    for (const source of sources) {
-      const before = approved.references.find(item => item.source === source);
-      const after = current.references.find(item => item.source === source);
-      if (serialize(before) !== serialize(after)) changed.push(`参考素材 ${source} 的顺序、路径或文件内容`);
-    }
-  }
-  if (!changed.length && before.workflow !== after.workflow) changed.push("工作流内容或绑定配置");
+  return ([
+    ["directory", "工作区"], ["prompt", "英文提示词"], ["format", "提示词格式"],
+    ["duration", "时长"], ["aspect", "画幅"], ["audio", "音轨"],
+    ["references", "参考槽位、顺序或文件内容"],
+  ] as const).filter(([key]) => serialize(before[key]) !== serialize(after[key])).map(([, label]) => label);
+}
+
+export function requireSameVideoReview(approved: VideoReviewSnapshot, current: VideoReviewSnapshot) {
+  const changed = videoReviewChanges(approved, current);
   if (changed.length) fail(`审核已过期：${changed.join("、")}已变化，请按变化重新审核`, 409);
 }
 
@@ -140,22 +123,29 @@ function cachePath(key: string) {
   return join(dirname(conf.path), "videoReviews", "cache", key + ".json");
 }
 
-/** 相同镜头合同与已验素材只复用已获服务端审核许可的结果。 */
-export async function findReusableVideoReview(key: string, snapshot: VideoReviewSnapshot) {
+/** 先查节点已经采用的审核号，再查同合同的缓存。两者共用实际提示词边界。 */
+export async function findReusableVideoReview(key: string, snapshot: VideoReviewSnapshot,
+  existing: { reviewId?: string; prompt: string; promptZh?: string } | undefined, shot: unknown) {
   const text = await readFile(cachePath(key), "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return undefined;
     throw error;
   });
-  if (!text) return;
-  const { reviewId } = JSON.parse(text) as { reviewId?: string };
-  if (!reviewId) fail("视频提示词缓存缺少审核编号", 409);
-  const record = await readApprovedVideoReview(reviewId);
-  requireSameVideoReview(record.snapshot, { ...snapshot, prompt: record.snapshot.prompt });
-  const promptZh = record.audit.promptZh;
-  if (!record.snapshot.prompt || typeof promptZh !== "string" || !promptZh.trim()) {
-    fail("已存审核记录缺少完整中英文提示词", 409);
+  const cachedId = text ? (JSON.parse(text) as { reviewId: string }).reviewId : undefined;
+  for (const reviewId of new Set([existing?.reviewId, cachedId])) {
+    if (!reviewId) continue;
+    const record = await readApprovedVideoReview(reviewId).catch((error: { status?: number }) => {
+      if (error.status === 409) return undefined;
+      throw error;
+    });
+    if (!record || serialize(record.audit.shot) !== serialize(shot)) continue;
+    const prompt = record.snapshot.prompt;
+    const promptZh = record.audit.promptZh;
+    if (!prompt || typeof promptZh !== "string" || !promptZh.trim()) continue;
+    if (existing?.reviewId === reviewId && (existing.prompt !== prompt || (existing.promptZh !== undefined && existing.promptZh !== promptZh))) continue;
+    if (videoReviewChanges(record.snapshot, { ...snapshot, prompt }).length) continue;
+    const cinematicPlan = draftCinematicPlanSchema.safeParse(record.audit.cinematicPlan);
+    if (cinematicPlan.success) return { reviewId, prompt, promptZh, cinematicPlan: cinematicPlan.data, review: record.audit.review };
   }
-  return { reviewId, prompt: record.snapshot.prompt, promptZh, cinematicPlan: draftCinematicPlanSchema.parse(record.audit.cinematicPlan), review: record.audit.review };
 }
 
 function reviewPath(reviewId: string) {
@@ -194,6 +184,9 @@ export async function readApprovedVideoReview(reviewId: string) {
   });
   const record = JSON.parse(text) as { status: string; snapshot: VideoReviewSnapshot; audit: Record<string, unknown> };
   if (record.status !== "approved" || !record.snapshot) fail("服务端审核记录未通过，请重新审核", 409);
+  // 早期首尾帧工作流没有时长绑定。既有审核以记录中已审的生成时长补全。
+  const request = record.audit.request as { duration?: number } | undefined;
+  record.snapshot.parameters.duration ??= request?.duration;
   return record;
 }
 

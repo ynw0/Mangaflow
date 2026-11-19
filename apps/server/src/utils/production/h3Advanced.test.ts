@@ -127,7 +127,7 @@ describe("H3 双采高级参数",()=>{
     expect(h3AdvancedCapability(graph,bindings)).toBeUndefined();
     expect(()=>applyH3Options(graph,bindings,{sampler:"euler"})).toThrow("不支持");
   });
-  test("真实 prepare：旧请求无新增节点；关闭主 LoRA 并附加时仍接到原模型；审核包含改图",async()=>{
+  test("关闭主 LoRA 并附加时仍接到原模型，采样调整沿用提示词审核",async()=>{
     const dir=await realpath(await mkdtemp(join(tmpdir(),"manga-h3-advanced-")));
     try {
       await writeFile(join(dir,"ref.png"),new Uint8Array([137,80,78,71,13,10,26,10]));
@@ -150,8 +150,7 @@ describe("H3 双采高级参数",()=>{
       expect(output["113"].inputs.sigmas).toEqual(["117",1]);
       const a=videoPromptReviewScope(await captureVideoReview(dir,old));
       const b=videoPromptReviewScope(await captureVideoReview(dir,advanced));
-      expect(a.workflow).not.toBe(b.workflow);
-      expect(b.parameters.h3_options).toMatchObject({audioShift:3});
+      expect(a).toEqual(b);
     }finally{await rm(dir,{recursive:true,force:true});}
   });
 });

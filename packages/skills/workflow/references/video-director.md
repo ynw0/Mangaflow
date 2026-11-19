@@ -177,6 +177,6 @@ N/A
 
 内置导演经 `submitResult` 提交 `{ status: "ok", cinematicPlan, prompt, promptZh }`。规划先确定镜尾构图和同框对象，再写机位、停止运动的时间和表演节拍。中英文稿与规划应一致。核心输入缺失、槽位冲突或剧情无法在给定时长内完成时，提交 `{ status: "blocked", reason: "具体缺项或冲突" }`，保留原素材和剧情要求。
 
-- 内置 `draftVideoPrompt` 完成预检与独立审核。已有节点请求写回且返回 `written: true` 时，正文和 `reviewId` 已在目标视频节点。需要查看全文时回读节点。获得 `reviewId` 但尚未写回时，返回 `generationRequest`、`promptZh` 和 `cinematicPlan`。有 `writeError` 时处理实际的写回障碍，确认节点状态后再推进。预检或审核退回按工具返回的 `nextAction` 处理。
+- 内置 `draftVideoPrompt` 完成预检与独立审核。提示词合同一致时，调整权重、LoRA、采样、种子或 GPU 主机可沿用已有审核号。已有节点请求写回且返回 `written: true` 时，正文和 `reviewId` 已在目标视频节点。需要查看全文时回读节点。获得 `reviewId` 但尚未写回时，返回 `generationRequest`、`promptZh` 和 `cinematicPlan`。有 `writeError` 时处理实际的写回障碍，确认节点状态后再推进。预检或审核退回按工具返回的 `nextAction` 处理。
 - 外部 MCP 将同样字段组成 `draft`，随 `preparationId` 送 `videoPrompt` 的 `inspect`。预检通过后按[审核提交与交接](video-prompt-review.md#提交与交接)办理。
 - 生成与成片质检按当前运行模式及已授权范围执行。质检的状态和档位从真实任务与设置读取，详见 [common.md](common.md)。

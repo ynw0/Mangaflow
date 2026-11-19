@@ -64,9 +64,12 @@ export function answerQuestion(cwd: string, callId: string, response: { answer?:
       let schema: z.ZodType = z.string().trim().max(8000);
       if (field.type === "inputNumber") schema = z.number();
       else if (field.type === "switch") schema = z.boolean();
-      else if (["radio", "select"].includes(field.type)) schema = z.enum(field.options!);
-      else if (field.type === "checkbox") schema = z.array(z.enum(field.options!)).max(field.options!.length)
-        .refine(value => new Set(value).size === value.length, "选项不能重复");
+      // 选择题允许在预设选项之外填写一条自定义文本；多选可同时包含预设选项。
+      else if (["radio", "select"].includes(field.type)) schema = z.string().trim().max(8000);
+      else if (field.type === "checkbox") schema = z.array(z.string().trim().min(1).max(8000))
+        .max(field.options!.length + 1)
+        .refine(value => new Set(value).size === value.length, "选项不能重复")
+        .refine(value => value.filter(item => !field.options!.includes(item)).length <= 1, "每道多选题最多填写一条自定义回答");
       if (field.required) schema = schema.refine(value => value !== "" && (!Array.isArray(value) || value.length > 0), `${field.title}不能为空`);
       else schema = z.preprocess(value => value === "" || value === null ? undefined : value, schema.optional());
       return [field.field, schema];

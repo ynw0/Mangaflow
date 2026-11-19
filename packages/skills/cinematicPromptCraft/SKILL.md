@@ -2,7 +2,7 @@
 name: cinematicPromptCraft
 description: 在漫剧或短剧的视频导演阶段，依据剧情意图选择构图、人物表演、动作调度、视觉特效、场景光影、镜头运动和声音方案，形成可执行的单镜或多镜视频片段视觉设计。用于 video-director 写 H3 视频提示词之前的导演构思；不代替 h3-prompt-writing，也不改剧情、参考槽位、身份锁或审核合同。
 metadata:
-  version: "1.5.1"
+  version: "1.5.2"
   displayName: 影视导演创作知识库
   author: Manga
 ---
@@ -10,7 +10,7 @@ metadata:
 # 影视导演创作知识库
 
 ## 职责与边界
-本技能是**创作知识**而不是新的提示词格式、模型接口或新的 Agent。输入来自当前镜头的 story / purpose / must_have / continuity、production_profile、approved_assets、ref_slot_plan、镜头时长和工作流能力。剧情、对白、参考图、服装、道具结构与用户指定视觉风格优先于本库范例；素材不足时按现有 blocked 机制处理。
+本技能是**创作知识**而不是新的提示词格式、模型接口或新的 Agent。示例镜头、情绪动作对照和拍法标签都是供选择的材料，不能自动当作当前人物的真实反应。先由已确认的剧情和表演决定需要表现什么，再用技术细节保证可执行；不强制“惊讶就瞪眼、冲突就拍桌、震撼就推镜”。输入来自当前镜头的 story / purpose / must_have / continuity、production_profile、approved_assets、ref_slot_plan、镜头时长和工作流能力。剧情、对白、参考图、服装、道具结构与用户指定视觉风格优先于本库范例；素材不足时按现有 blocked 机制处理。
 
 - 先判定这条镜头**要让观众看见什么变化**，再挑选一种主要视觉表达；不要随机拼贴摄影术语。
 - 每个镜头优先确定：叙事焦点、可见主体、起点状态、连续动作、结果状态、机位/运动、光源、声音。主运动原则上只有一种，固定机位也是有效选择。

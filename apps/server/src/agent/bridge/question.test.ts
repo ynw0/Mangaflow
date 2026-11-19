@@ -22,7 +22,7 @@ describe("askUser 每道选择题的自定义回答", () => {
     });
     try {
       const sent = q.submit({ opening: "先展示主角真实的工作困境" });
-      expect(sent.values).toEqual({ opening: "先展示主角真实的工作困境" });
+      expect(sent?.values).toEqual({ opening: "先展示主角真实的工作困境" });
       expect((await q.pending).answer).toContain("先展示主角真实的工作困境");
     } finally { q.dispose(); }
   });
@@ -34,7 +34,7 @@ describe("askUser 每道选择题的自定义回答", () => {
     });
     try {
       const sent = q.submit({ keep: ["世界观", "角色的关键利益冲突"] });
-      expect(sent.values).toEqual({ keep: ["世界观", "角色的关键利益冲突"] });
+      expect(sent?.values).toEqual({ keep: ["世界观", "角色的关键利益冲突"] });
       expect((await q.pending).answer).toContain("世界观、角色的关键利益冲突");
     } finally { q.dispose(); }
   });
@@ -50,7 +50,7 @@ describe("askUser 每道选择题的自定义回答", () => {
     });
     try {
       const sent = q.submit({ theme: "工业科幻", style: "现实主义工业风格", focus: ["角色", "技术与制度之间的冲突"] });
-      expect(sent.values).toEqual({
+      expect(sent?.values).toEqual({
         theme: "工业科幻", style: "现实主义工业风格", focus: ["角色", "技术与制度之间的冲突"],
       });
       expect((await q.pending).answer).toContain("技术与制度之间的冲突");

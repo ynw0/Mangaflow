@@ -44,7 +44,7 @@ The start gate must confirm all of the following in one pass:
    - White-tech / dark rim light / brand color field / light lifestyle scene.
 
 6. **In-frame copy**
-   - User-provided copy, or agent-generated Apple-style English copy.
+   - User-provided copy, agent-generated Apple-style English copy, or user-approved product-only presentation.
 
 7. **Video model strategy**
    - Default model is MiniMax-H3, because it often produces cleaner Apple-like product close-ups, negative space, and premium product-film camera language.
@@ -64,9 +64,9 @@ Start gate is mandatory. If the user has already uploaded product material, only
    - The precise beat storyboard determines the actual shot order, action, and text behavior. Do not use anchor photos as direct shot replacements.
 
 2. **In-frame copy must appear as integrated video motion, not a subtitle fallback**
-   - Text in the copy anchor photo is only a reference for font, position, single-line layout, and two-part color treatment. It does not mean the whole video can use only that one copy line.
+   - When copy is approved, typography in the final-composition anchor is a reference for font, placement, and single-line layout; when product-only, leave that anchor free of fabricated text.
    - The precise beat storyboard may define multiple short English copy lines across shots. For agent-written promotional copy, prefer a legible 3-5-word single line when it fits, but accept a shorter approved product name or precise factual label. Follow the two-part color rule only when the copy genuinely has two distinct segments: in white-tech style the first half uses black or dark gray, in dark rim-light style the first half may use white, and the second half always uses the specific product color. Avoid isolated generic 1-2-word claims; a real product name or meaningful short label is valid.
-   - Video generation must include the storyboard copy inside the frame.
+   - When storyboard copy is approved, video generation must include exactly that text inside the frame; a product-only brief does not require copy.
    - The copy does not need to appear in every shot. If the video model tends to make typography mistakes, reduce copy frequency proactively. For a 10-second film, usually keep only one mid-film copy moment plus one final copy moment; do not put text in every shot. The final shot must show a stable full-frame product hero; include a single-line copy only if agreed in the creative brief, otherwise preserve a clean product-only ending.
    - By default, ask the video model to generate in-frame typography and its timing directly. Do not silently degrade text into post-production subtitles or reserve empty space for later overlay. Use post-production fallback only when the user explicitly asks for it or when integrated video typography fails and the user accepts a fallback.
 
@@ -216,7 +216,7 @@ Rules:
 4. Avoid promotional language.
 5. If the user already has copy, prioritize it. Chinese copy must be localized into concise English.
 
-After the user confirms the copy, proceed to anchor generation. If the user says “you decide,” choose the recommended copy and continue.
+After the user confirms the text plan (approved copy or an explicit product-only choice), proceed to anchor generation. If the user says “you decide,” select a truthful recommended text plan and continue.
 
 ## STEP 6: Generate Three Independent Product Anchor Photos
 
@@ -226,7 +226,7 @@ Anchor photo roles:
 
 - Photo 1: Hero / striking main-view anchor, locking the most attractive product view, silhouette, and opening visual direction. Avoid ugly extreme material close-ups as the opening reference.
 - Photo 2: Material / functional detail anchor, locking surface material, grain, reflection, tactile quality, and the most important visible mechanism or structure. If the product needs opening, docking, folding, clasping, button, port, lid, screen, or touch cues, merge those cues into this photo.
-- Photo 3: Final copy anchor, locking final product composition, font feeling, text position, single-line layout, and two-part color treatment. The copy is a format reference and does not limit the later video to only this one line.
+- Photo 3: Final composition anchor, locking product placement and negative space; when text is approved, also lock font, text position, single-line layout, and any applicable two-part color treatment.
 
 Multi-variant handling:
 
@@ -273,7 +273,7 @@ Table rules:
 - Keep one main action per beat; secondary layers appear with slight delay.
 - Clearly define when the main variant appears alone, when supporting variants enter, and when the full set closes.
 - Copy splitting may only be described in plain language as first half / second half. Do not write arrows, slashes, plus signs, or separators, because the model may render them as in-frame copy.
-- Text color must use the specific product color name and must be split by style: in white-tech style write “first half black or dark gray, second half the specific product color”; only in dark rim-light style may the first half be white. For example, in white-tech style with purple as the main color, write “first half black or dark gray, second half purple.” Do not write “product color + black or white.”
+- For approved two-part copy, text color must use the specific product color name and must be split by style: in white-tech style write “first half black or dark gray, second half the specific product color”; only in dark rim-light style may the first half be white. For example, in white-tech style with purple as the main color, write “first half black or dark gray, second half purple.” Do not write “product color + black or white.”
 - If typography is error-prone, reduce text beats first: for a 10-second film, usually use only one mid-film copy moment and one final copy moment, with all other beats marked as no text. Do not put text in every shot.
 - The final beat must be a stable single full-frame product closing; add a complete single-line copy only when approved in the creative brief. Never end on four panels, split screens, storyboard boards, anchor-sheet layout, product windows, or framed grids. Text still belongs in the vertically centered composition zone, left-aligned or right-aligned as part of the frame, not in a lower subtitle position. Add a logo only when the user provides one.
 

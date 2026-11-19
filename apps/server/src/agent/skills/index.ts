@@ -4,23 +4,24 @@ import { basename, dirname, join, relative, sep } from "node:path";
 import { loadSkills, parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import type { SkillContext, SkillLocation, SkillScope } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
-import { directory, isEnabled } from "@/utils/skills/files";
+import { builtinDirectory, globalSkills, isEnabled, locate as locateGlobalSkill, requireCustomName } from "@/utils/skills/files";
 import { isWithin, lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 
 export function loadAgentSkills(cwd: string, scope?: SkillScope) {
   if (scope !== undefined && scope !== "workspace" && scope !== "global") throw new Error("技能范围无效");
-  const result = loadSkills({
+  const workspaceDirectory = join(cwd, "skill");
+  const shared = globalSkills();
+  const reserved = new Set(shared.filter(skill => skill.builtin).map(skill => skill.name.toLowerCase()));
+  const workspace = loadSkills({
     cwd,
     agentDir: join(cwd, ".agent"),
     includeDefaults: false,
-    // 同名技能由工作区优先，列表与运行时共用 SDK 的扫描规则。
-    skillPaths: [
-      ...(scope !== "global" ? [join(cwd, "skill")] : []),
-      ...(scope !== "workspace" ? [join(dirname(conf.path), "skills")] : []),
-    ].filter(existsSync),
+    skillPaths: scope !== "global" && existsSync(workspaceDirectory) ? [workspaceDirectory] : [],
   });
-  result.skills = result.skills.filter(skill => !isWithin(directory(), skill.filePath) || isEnabled(skill.name));
-  return result;
+  const project = workspace.skills.filter(skill => !reserved.has(skill.name.toLowerCase()));
+  const projectNames = new Set(project.map(skill => skill.name));
+  const global = scope === "workspace" ? [] : shared.filter(skill => !projectNames.has(skill.name) && isEnabled(skill.name));
+  return { skills: [...project, ...global], diagnostics: workspace.diagnostics };
 }
 
 export function createSkillContext(cwd: string): SkillContext {
@@ -31,6 +32,12 @@ export function createSkillContext(cwd: string): SkillContext {
     const skill = loadAgentSkills(cwd, scope).skills.find(skill => skill.name === request.name);
     if (!skill && !create) throw new Error(t`技能不存在：${request.name}`);
     if (!skill && (request.name.length > 64 || !/^[a-z][a-zA-Z0-9]*$/.test(request.name))) throw new Error("新技能名称必须为不超过 64 字符的小驼峰");
+    const bundled = builtinDirectory();
+    if (skill && bundled && isWithin(bundled, skill.filePath)) {
+      const { target, isMain } = await locateGlobalSkill(request.name, request.path);
+      const path = relative(skill.baseDir, target).split(sep).join("/");
+      return { name: request.name, scope: "global" as const, path, target, manifest: isMain };
+    }
     const targetScope = scope ?? skillScope(skill!.filePath);
     const root = await realpath(targetScope === "workspace" ? cwd : dirname(conf.path));
     const { path: scopeDirectory } = await resolveWorkspacePath(root, targetScope === "workspace" ? "skill" : "skills", true);
@@ -46,6 +53,7 @@ export function createSkillContext(cwd: string): SkillContext {
 
   async function write(request: SkillLocation & { content: string }, create: boolean, signal?: AbortSignal) {
     signal?.throwIfAborted();
+    requireCustomName(request.name);
     const { target, manifest, ...document } = await locate(request, create);
     if (manifest) {
       const { frontmatter } = parseFrontmatter(request.content);

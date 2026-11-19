@@ -14,6 +14,7 @@ export default router.put("/", validateFields({
 }), async (req, res) => {
   if (!u.workspace.isLocalWorkspaceRequest(req)) return res.status(403).json(error("请在桌面端或服务器本机编辑技能", null, 403));
   const { name, path, content } = req.body as { name: string; path?: string; content: string };
+  u.skillFile.requireCustomName(name);
   if (Buffer.byteLength(content, "utf8") > u.skillFile.maxBytes) return res.status(413).json(error("技能文件不能超过 20 MB", null, 413));
   if (content.includes("\u0000")) return res.status(400).json(error("内容不能包含空字符", null, 400));
   // ACT: 锁住技能根目录以覆盖扫描与替换，避免同进程安装/文件操作交错；高并发时再细化锁范围。

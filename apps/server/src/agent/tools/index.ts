@@ -1,3 +1,4 @@
+import { builtinDirectory } from "@/utils/skills/files";
 import { t } from "@/lib/i18n";
 import { listMediaModels, generateMedia } from "@/utils/media/generation";
 import { archiveAcceptedVideo, checkRecordedVideo, getVideoQcStatus, getAgentVideoQcEvidence, submitAgentVideoQc, saveVideoQcRectificationPlan } from "@/utils/production/videoRecords";
@@ -26,7 +27,12 @@ export function createAgentToolContext(cwd: string, config: Record<string, unkno
   const resolvePath = async (path: string, readOnly = false, action: BoundaryAction = "read") => {
     requireWorkspace();
     const absolute = resolve(cwd, path);
-    const root = readOnly && isWithin(skillsDirectory, absolute) ? skillsDirectory : cwd;
+    const builtin = builtinDirectory();
+    if (builtin && isWithin(builtin, absolute) && action !== "read") {
+      throw new Error("内置技能随应用更新，不能通过文件工具修改");
+    }
+    const skillRoot = [builtin, skillsDirectory].find(path => path && isWithin(path, absolute));
+    const root = readOnly && skillRoot ? skillRoot : cwd;
     try {
       return (await resolveWorkspacePath(root, relative(root, absolute), true)).path;
     } catch (error) {

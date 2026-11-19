@@ -1,11 +1,11 @@
 <template>
-  <el-dialog v-model="visible" :title="`编辑技能 · ${skill.displayName}`" width="min(1080px, calc(100vw - 32px))" alignCenter appendToBody :beforeClose="close" @closed="emit('closed')">
+  <el-dialog v-model="visible" :title="`${skill.builtin ? '查看技能' : '编辑技能'} · ${skill.displayName}`" width="min(1080px, calc(100vw - 32px))" alignCenter appendToBody :beforeClose="close" @closed="emit('closed')">
     <div class="skillEditor" :aria-busy="filesLoading || fileLoading">
       <el-alert v-if="filesError" :title="filesError" type="error" :closable="false" showIcon />
       <template v-else>
         <div class="fileTree">
           <el-button
-            v-if="isDirectorySkill"
+            v-if="isDirectorySkill && !skill.builtin"
             class="newFileButton"
             size="small"
             :icon="IconFilePlus"
@@ -24,7 +24,7 @@
             defaultExpandAll
             highlightCurrent
             :currentNodeKey="selectedPath"
-            :draggable="isDirectorySkill"
+            :draggable="isDirectorySkill && !skill.builtin"
             :allowDrag="allowDrag"
             :allowDrop="allowDrop"
             @nodeClick="handleNodeClick"
@@ -50,6 +50,7 @@
               :rows="20"
               resize="none"
               :disabled="fileLoading || saving"
+              :readonly="skill.builtin"
               :aria-label="`${selectedPath} 源码`"
               :spellcheck="false" />
           </template>
@@ -58,7 +59,7 @@
     </div>
     <template #footer>
       <el-button :disabled="saving || moving || confirming" @click="close()">关闭</el-button>
-      <el-button type="primary" :loading="saving" :disabled="fileLoading || !!fileError || draft === original || confirming" @click="save">保存</el-button>
+      <el-button v-if="!skill.builtin" type="primary" :loading="saving" :disabled="fileLoading || !!fileError || draft === original || confirming" @click="save">保存</el-button>
     </template>
   </el-dialog>
 </template>

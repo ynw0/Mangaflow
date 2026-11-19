@@ -8,7 +8,6 @@ import { errorFromCause } from "@/lib/responseFormat";
 import desktopRequest from "@/lib/desktop";
 import { getRuntimePlatform } from "@/lib/platform";
 import initializePlugins from "@/utils/plugins/initialize";
-import syncBuiltinSkills from "@/utils/skills/builtin";
 import { languageRequest, resolveRequestLocale, runWithLocale, setLocaleFallback, translateError, translateMessage } from "@/lib/i18n";
 import { detectLocale, normalizeLocale } from "@toonflow/i18n";
 import { isPublicRequest, requireAccessToken } from "@/lib/accessToken";
@@ -57,12 +56,9 @@ export async function createApp({
       if (error.code !== "EEXIST") throw error;
     });
   }
-  // 技能首次安装后，未改动的内置副本随模板覆盖；改过的留下待合并标记。
-  if (dataDirectory && skillsRoot) {
-    const skillsDirectory = resolve(dataDirectory, "skills");
-    await initializePlugins(skillsDirectory, skillsRoot);
-    await syncBuiltinSkills(skillsDirectory, skillsRoot);
-  }
+  // 内置技能直接读发布包，自定义技能仍从数据目录加载。
+  const { configureBundledDirectory } = await import("@/utils/skills/files");
+  await configureBundledDirectory(skillsRoot);
   if (dataDirectory && agentsRoot) await initializePlugins(resolve(dataDirectory, "agents"), agentsRoot);
   const app = express();
   app.locals.appVersion = appVersion;

@@ -9,7 +9,7 @@ import conf from "@/utils/conf";
 import { parseTool, toolsDirectory } from "@/utils/plugins/tools";
 import { extDirectory, parseExt } from "@/utils/plugins/ext";
 import { addMediaProvider } from "@/utils/media/provider";
-import { isSafeSegment } from "@/utils/skills/files";
+import { isSafeSegment, requireCustomName } from "@/utils/skills/files";
 import { isWithin, lockWorkspaceFiles, writeWorkspaceFile } from "@/utils/workspace/files";
 
 const maxBytes = 20 * 1024 * 1024;
@@ -362,6 +362,7 @@ export async function installSkill(fileName: string, bytes: Uint8Array, force = 
   // ACT: 兼容本地创建的小驼峰名称与既有短横线名称，不修改包内标识。
   if (typeof name !== "string" || name.length > 64 || !/^[a-z0-9][a-zA-Z0-9]*(?:-[a-zA-Z0-9]+)*$/.test(name)) invalid("技能 name 必须为不超过 64 字符的小驼峰或短横线名称");
   skillPath(name);
+  requireCustomName(name);
   if (typeof description !== "string" || !description.trim() || description.length > 1024) invalid("技能 description 必须为 1 至 1024 字符");
   const root = dirname(conf.path);
   const directory = join(root, "skills");

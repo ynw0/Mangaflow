@@ -1,6 +1,5 @@
-import { loadSkillsFromDir, parseFrontmatter } from "@earendil-works/pi-coding-agent";
+import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { readFile } from "@toonflow/file";
-import { dirname, resolve } from "node:path";
 import { Router } from "express";
 import { success } from "@/lib/responseFormat";
 import u from "@/utils";
@@ -8,7 +7,7 @@ import u from "@/utils";
 const router = Router();
 
 export default router.get("/", async (_req, res) => {
-  const { skills } = loadSkillsFromDir({ dir: resolve(dirname(u.conf.path), "skills"), source: "user" });
+  const skills = u.skillFile.globalSkills();
   const items = await Promise.all(skills.map(async (skill) => {
     const { frontmatter } = parseFrontmatter(await readFile(skill.filePath, "utf8"));
     const metadata = frontmatter.metadata && typeof frontmatter.metadata === "object" && !Array.isArray(frontmatter.metadata)
@@ -26,10 +25,7 @@ export default router.get("/", async (_req, res) => {
       author: typeof metadata.author === "string" ? metadata.author : "",
       github,
       enabled: u.skillFile.isEnabled(skill.name),
-      updateAvailable: (await readFile(resolve(dirname(skill.filePath), ".builtinPending"), "utf8").catch((error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return "";
-        throw error;
-      })).trim(),
+      builtin: skill.builtin,
     };
   }));
   res.json(success(items.sort((left, right) => left.name.localeCompare(right.name))));

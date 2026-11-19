@@ -79,7 +79,7 @@
             <el-tag :type="pluginTypes[plugin.type].tagType" size="small">{{ pluginTypes[plugin.type].label }}</el-tag>
           </div>
           <p v-if="plugin.description" class="pluginDescription">{{ plugin.description }}</p>
-          <el-text v-if="plugin.updateAvailable" type="warning" size="small">本地已修改，内置 {{ plugin.updateAvailable }} 未覆盖，请打开编辑器对照合并</el-text>
+          <el-text v-if="plugin.builtin" type="info" size="small">随应用更新</el-text>
           <el-text v-if="plugin.loadError" type="danger" size="small">{{ plugin.loadError }}</el-text>
           <div v-if="plugin.author || plugin.version" class="pluginMeta">
             <span v-if="plugin.author" class="pluginAuthor">{{ plugin.author }}</span>
@@ -158,7 +158,7 @@
                 </el-button>
               </el-badge>
               <el-popconfirm
-                v-if="(plugin.author !== 'Toonflow' && plugin.author !== 'MangaFlow') || plugin.type === 'skill' || plugin.type === 'agent' || plugin.type === 'ext'"
+                v-if="!plugin.builtin && ((plugin.author !== 'Toonflow' && plugin.author !== 'MangaFlow') || plugin.type === 'skill' || plugin.type === 'agent' || plugin.type === 'ext')"
                 :title="`确定卸载“${plugin.displayName}”${plugin.type === 'skill' ? '及其附属文件' : ''}吗？`"
                 width="280"
                 confirmButtonText="卸载"

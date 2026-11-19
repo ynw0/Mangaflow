@@ -1,8 +1,7 @@
-import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 import { Router } from "express";
 import { zip } from "fflate";
 import { lstat, readFile, readdir, realpath } from "@toonflow/file";
-import { basename, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import u from "@/utils";
 import { validateFields } from "@/lib/middleware";
@@ -26,8 +25,9 @@ export default router.get("/", validateFields({
     return res.set("Cache-Control", "no-store").attachment(`${name}.agent.zip`).send(Buffer.from(bytes));
   }
   const root = await realpath(dirname(u.conf.path));
-  const directory = resolve(root, type === "ext" ? "ext" : `${type}s`);
-  if (!(await lstat(directory)).isDirectory() || !u.workspaceFile.isWithin(root, await realpath(directory))) {
+  const skill = type === "skill" ? await u.skillFile.resolveSkill(name) : undefined;
+  const directory = skill?.root ?? resolve(root, type === "ext" ? "ext" : `${type}s`);
+  if (!skill && (!(await lstat(directory)).isDirectory() || !u.workspaceFile.isWithin(root, await realpath(directory)))) {
     return res.status(400).json(error("插件目录无效", null, 400));
   }
   let totalBytes = 0;
@@ -49,7 +49,6 @@ export default router.get("/", validateFields({
     return res.set("Cache-Control", "no-store").attachment(fileName).send(bytes);
   }
 
-  const skill = loadSkillsFromDir({ dir: directory, source: "user" }).skills.find(item => item.name === name);
   if (!skill) return res.status(404).json(error("技能不存在", null, 404));
   const files: Record<string, Uint8Array> = Object.create(null);
   let entries = 0;
@@ -64,13 +63,13 @@ export default router.get("/", validateFields({
     }
   }
 
-  if (basename(skill.filePath) === "SKILL.md" && dirname(skill.baseDir) === directory) {
+  if (skill.isDirectorySkill) {
     if (!(await lstat(skill.baseDir)).isDirectory() || !u.workspaceFile.isWithin(directory, await realpath(skill.baseDir))) {
       return res.status(400).json(error("技能目录无效", null, 400));
     }
     await collectFiles(skill.baseDir, name);
   } else {
-    files[`${name}/SKILL.md`] = await readFileBytes(skill.filePath);
+    files[`${name}/SKILL.md`] = await readFileBytes(skill.mainTarget);
   }
   const bytes = await new Promise<Uint8Array>((resolve, reject) => {
     zip(files, { level: 1 }, (err, data) => err ? reject(err) : resolve(data));

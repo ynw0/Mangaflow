@@ -1,4 +1,3 @@
-import { loadSkillsFromDir } from "@earendil-works/pi-coding-agent";
 import type { McpOptions } from "@toonflow/mcp";
 import { readFile } from "@toonflow/file";
 import { file } from "@toonflow/file/bun";
@@ -10,7 +9,7 @@ export const skillResources: NonNullable<McpOptions["resources"]> = {
   async list(signal) {
     const { permissions } = getMcpToolPolicy();
     if (permissions && !permissions.workspaceRead) return [];
-    const { skills } = loadSkillsFromDir({ dir: skillFile.directory(), source: "user" });
+    const skills = skillFile.globalSkills();
     const resources = [];
     for (const skill of skills) {
       signal.throwIfAborted();

@@ -296,7 +296,8 @@ export function createVideoPromptTools(options: SubAgentModel & {
         const draft = await specialist(draftSchema, draftSubmissionParameters, repair ? "导演返修" : "导演写作", [
           "按已加载的 H3 与导演 Skill 写完整 cinematicPlan、英文正文和简体中文对照，通过 submitResult 提交 status=ok；无关键输入或合同不可执行则提交 blocked 与具体原因。时间均为整段视频内秒数。",
           "遵守合同选择 [Shot N]：明确一镜到底仅 [Shot 1]；允许剪辑则切点递增、多镜须逐镜填写 cinematicPlan.shots；不添加 shotMode。单一动作/状态变化可只用一个 beats，单镜 shots 可省略；复杂机械、先做后说、精确对白与切镜须充分规划，不能省略必要事件。",
-          "按 speechPolicy 和 voiceCast 安排声源、语速、完整对白与末尾至少 0.2 秒收束；人物、参考与原台词须保持合同一致。无对白使用 dialogue: []，描述实际环境声音；无文件不可虚构参考槽位。",
+          "按 speechPolicy 和 voiceCast 写声源、语速和收束。锁定台词按合同原样带入，包括定稿的标点；参考音频的转写规则用于尚无定稿的内容。无对白使用 dialogue: []，写实际环境声。",
+          "让观众从这镜的声画跟上关键事件。用通顺的句子交代谁做了什么、作用在什么对象上、随后发生什么。只有已确认的术语和标签可直接沿用。技术字段留在计划里。",
           "按机位写镜尾实际拍到的内容，画外承接状态保持不变。合同明确要求同框而当前构图无法做到时，说明冲突并回分镜。稳定事实只定义一次。创作模板仅是可选参考；返修只针对 findings 修改，并同步完整规划与中英文正文。",
           ...(repair ? [] : [`英文正文格式（只列本镜段首，按当前合同写内容）：\n${getPromptOutline(prepared.format, duration)}`]),
           // 自动命中只给适用条件，由导演对照当前合同选用；动作范例留在主动检索入口。

@@ -61,7 +61,7 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
     { id: "dialogueTiming", text: "逐句核对说话人、原话及起声和收句。对照剧本核对停顿、先后关系及抢话；定稿要求不重叠或关键台词会被盖住时，退回不符的交叠。画面口型与实际发声对齐，镜尾留 0.2 秒；无对白时说明依据" },
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
     { id: "bilingualConsistency", text: "中英文的主体、动作、时序、对白和镜尾事实一致" },
-    { id: "creativeIntent", text: `叙事目的：${shot.purpose}；视觉风格：${shot.style}` },
+    { id: "creativeIntent", text: `叙事目的：${shot.purpose}。视觉风格：${shot.style}。按播放顺序核对观众能否从正文声画获得本镜要交代的信息。用明确的人物、动作、声音和对象指认依据；后续才揭晓的事实按定稿保留。` },
     ...(shot.voiceCast?.length ? [{ id: "voiceCast", text: `声音身份与说话人逐项匹配：${shot.voiceCast.map(role =>
       `${role.characterName}(${role.speakerId})${role.sourceId ? `（声源模板 ${role.sourceId}）` : ""}`).join("、")}。对照剧本核对谁在何处发声、谁听得见。声源模板与发声事实冲突时定位到本轮配置，保留原台词、情绪和已确认语速。` }] : []),
   ];
@@ -70,9 +70,15 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
 /** Interpret existing story/mustHave/mustNotHave; do not add a second shot-mode field.
  * Negated mentions (e.g. “不要求单镜头”) are not an instruction to prohibit cuts.
  */
-export function requiresContinuousTake(shot: { story: string; mustHave: string[]; mustNotHave: string[] }): boolean {
-  if (shot.mustNotHave.some(item => /(?:切镜|镜头切换|切换机位|camera cuts|all cuts|every cut)/i.test(item))) return true;
-  const requirement = [shot.story, ...shot.mustHave].join("；");
+export function requiresContinuousTake(shot: { story: string; mustHave: string[]; mustNotHave: string[]; lockedDialogue?: string[] }): boolean {
+  const cuts = /^(?:(?:禁止|不得|不要|不许|不允许|无|避免|no)\s*)?(?:(?:任何|所有|全部|全程|any|all|every)\s*)?(?:切镜|镜头切换|切换机位|(?:camera\s+)?cuts?)\s*[。.!！]?$/i;
+  if (shot.mustNotHave.some(item => cuts.test(item.trim()))) return true;
+  // 作品中的原台词只是剧情内容，已批准的摄影约束仍从合同读取。
+  let story = shot.story;
+  for (const line of shot.lockedDialogue ?? []) {
+    if (line) story = story.replaceAll(line, " ");
+  }
+  const requirement = [story, ...shot.mustHave].join("；");
   const single = /单一连续镜头|一个连续镜头|单镜头|单一镜头|一镜到底|全程不切镜|禁止切镜|不允许切镜|不得切镜|不许切镜|不切镜|one continuous shot|single continuous take|single shot|one shot|no cuts/gi;
   for (const match of requirement.matchAll(single)) {
     const before = requirement.slice(Math.max(0, (match.index ?? 0) - 22), match.index);

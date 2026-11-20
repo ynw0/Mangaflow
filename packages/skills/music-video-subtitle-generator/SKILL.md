@@ -36,7 +36,7 @@ Do not use it for ordinary subtitle burn-in, generic video editing, non-music pr
 5. On-screen text is a designed visual layer, not ordinary subtitles, unless the user explicitly requests subtitles.
 6. If the user uploads a real song or beat, it is the master music bed unless they request replacement.
 7. **Natural multi-shot stitching for >15s videos**: when duration exceeds the model single-generation limit, use “multi-shot storyboard breakdown + tail/head frame continuation + beat hard cuts + global master-audio alignment”. Every segment must preserve the same groove, tempo feel, aspect ratio, character logic, visual preset, lighting language, and typography motion rules.
-8. If the user wants a finished music-aesthetic MV without lyrics, generate and lock original lyrics first. The final MV must reference character, typography packaging, and scene cards together. The typography packaging card controls only text packaging style, font texture, graphic design, layout ratio, and motion language.
+8. Use the selected audio and the user's text brief to decide whether lyrics appear. Cut instrumental music as supplied. Use character, scene and typography cards when their content belongs in the shot.
 
 ## STEP 1: Pre-flight lock
 
@@ -79,16 +79,16 @@ If uploaded or specified music is longer than the confirmed duration, lock a seg
 
 If music is shorter than the target duration, use the full audio unless the user explicitly asks to stretch or extend it.
 
-### 1.3.0 Lyrics lock and lyrics-first fallback
+### 1.3.0 Lyrics Source and Lock
 
 Before final video prompts or generation, determine lyric ownership:
 
 1. If the user provides lyrics, those are locked lyrics. Do not generate, add, rewrite, expand, translate, paraphrase, or replace them unless explicitly requested.
-2. If the user wants a finished music-aesthetic MV without lyrics, generate short original lyrics matching the music style, vocal mode, duration, emotion, and visual preset, then lock them.
+2. For instrumental or lyric-free work, omit sung lines, lip sync and lyric typography. For an existing song, use confirmed lyrics and flag unclear words. Write and lock original lyrics when the user commissions them.
 3. Locked lyrics are the only source text for rap/singing performance and visible typography.
 4. Split locked lyrics into each shot’s `Rap line:`, `Vocal line:`, `Soft vocal line:`, or `Spoken line:`.
-5. Every `Typography:` field must come from the same locked lyrics. During vocal performance, visible text must word-for-word match the performed phrase.
-6. In the final typography MV, the performer must rap or sing the locked lyrics with visible lip shapes, jaw motion, breath, facial accents, nods, and hand accents following phrasing and rhythm.
+5. Lyric typography matches the performed phrase word for word. Use approved text for titles or other graphics.
+6. Align lip movements to the locked words when the storyboard calls for on-screen singing. Follow the actual performance for breathing and gestures.
 
 ### 1.3.1 Default multi-shot stitching for >15s videos
 
@@ -175,7 +175,7 @@ For >15s stitching, enforce five continuity locks:
 
 **Vocal & Lip Continuity**: Cut points must land on lyric pauses, breaths, snare, or drop. Do not hard cut inside an active vowel or lyric unless the next shot is an extreme close-up with continuous mouth shape.
 
-**Rhythm & Beat Matching**: Cut points must hit the 1/4 or 1/8 beat grid. Use speed ramping to align head nods, hand gestures, and blinks to beats.
+**Rhythm & Beat Matching**: Choose cuts around actual phrasing, performance and visual changes. Use beat accents where they serve the edit and preserve natural blinks, breaths and uninterrupted vocals.
 
 **Aesthetic & Color Grading**: Every cross-shot generation carries the same aesthetic header prompt: grain level, LUT direction, and light direction. Final assembly uses unified 35mm film grain and LUT to hide batch color differences.
 

@@ -52,11 +52,7 @@ Good example directions include: 雨天厨房水槽、旧阳台晾衣角、清�
 
 ## Step 3: Required output format
 
-The final prompt must begin with a sentence pattern matching the dominant language of the user input. For Chinese input, use this pattern:
-
-`15秒，16:9横版视频。将实拍的〇〇与手绘发光动画融合的影像。`
-
-Replace “〇〇” with the newly invented live-action space or everyday scene. For non-Chinese input, use an equivalent opening in the same language and include duration, 16:9 landscape format, live-action space, and hand-drawn glowing animation fusion.
+Open naturally in the user's language. State the duration, 16:9 format and actual live-action setting, then describe how the drawn character enters that setting. Carry forward locations and contact objects the user has already chosen.
 
 Do not add titles, auxiliary headings such as 舞台设置 or 色味, or explanatory notes. Keep this paragraph order:
 

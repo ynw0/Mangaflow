@@ -233,7 +233,7 @@ See the base guide for camera vocabulary, group speech, voice-over, dialogue acr
 
 ### 5.3 Using Reference Labels in Shots
 
-At the first clear appearance of an important `<Subject N>`, describe its referenced characteristics, position in the frame, and current action within what is actually visible in the shot. Continue using the same label in later shots without redefining what the label represents.
+Use the established subject labels or names in the timeline. Describe each subject's visible position and action, and mention an appearance detail when it changes, identifies a cropped subject, or affects the action. Keep the identity definition in its own section.
 
 Use natural phrasing for concrete frame anchors:
 

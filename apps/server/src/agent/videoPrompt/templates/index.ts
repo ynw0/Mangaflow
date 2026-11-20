@@ -58,6 +58,7 @@ const searchFields = {
   medium: z.enum(["image", "video"]).describe("checkCreativeSelection 可选：制作媒介"),
   tone: z.enum(creativeTones).describe("checkCreativeSelection 可选：镜头基调"),
   durationSeconds: z.number().positive().max(300).describe("checkCreativeSelection 可选：镜头时长（秒）"),
+  singleShot: z.boolean().describe("checkCreativeSelection 可选：已确认全程连续拍摄时填 true"),
 };
 
 const searchParameters = z.discriminatedUnion("action", [
@@ -76,6 +77,7 @@ const searchParameters = z.discriminatedUnion("action", [
     medium: searchFields.medium.default("video"),
     tone: searchFields.tone.default("neutral"),
     durationSeconds: searchFields.durationSeconds.optional(),
+    singleShot: searchFields.singleShot.optional(),
   }),
   z.strictObject({
     action: z.literal("search"),
@@ -107,13 +109,13 @@ export const videoTemplateSearch = {
       case "searchCreative":
         return {
           matches: searchCreativeKnowledge({ library: input.library, query: input.query, tags: input.creativeTags, limit: input.limit }),
-          notice: "热梗日期为 2026 年观察到的传播时间。叙事条目要与当前场戏的事件相符，多镜条目按分镜切点使用。表情的动作示例须符合角色和基调，夸张或机械化表演适合剧本已经安排的风格。画风及滤镜只描述画面观感。选用后检查组合冲突。",
+          notice: "剧情、热梗和搞怪条目用于构思，片中事件和原话从定稿取。按角色看见、听见什么选择表演。画风和滤镜只描述观感，保留剧情用来辨认人物和线索的画面特征。模板标题、示范台词和资料术语留在检索结果中。",
         };
       case "checkCreativeSelection":
         return checkCreativeSelection(input);
       case "search":
         return { templates: findVideoPromptTemplates(input.tags, input.conditions, input.limit),
-          guidance: "先用 useWhen 对照本镜已有的人物关系、空间和动作。条件成立时才参考 fragment 的拍法；verify 只用于已采用的拍法。没有合适条目就沿原分镜拍。" };
+          guidance: "先用 useWhen 核对本镜的人物关系、空间和动作。适用时从 fragment 取解决拍摄问题的一项做法，再用本镜实际人物、物件和动作写正文。verify 只用于已采用的拍法。已有拍法足够清楚时直接沿用。" };
     }
   },
 };

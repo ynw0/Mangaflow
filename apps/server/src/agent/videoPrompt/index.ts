@@ -225,7 +225,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
     const taskInput = { shot: directorShot, format: prepared.format, workflow: { modelId, duration, ratio, mode, references },
       speechPolicy: getVideoSpeechPolicy(prepared.audioEnabled),
       ...(voiceCast.roles.length ? { voiceCast } : {}),
-      ...(creativeContext?.selected.length ? { creativeTemplates: { selected: creativeContext.selected, warnings: creativeContext.warnings } } : {}) };
+      ...(creativeContext && (creativeContext.selected.length || creativeContext.warnings.length) ? { creativeTemplates: creativeContext } : {}) };
     const specialistModels = new Map<string, SubAgentModel>();
     async function specialist<T>(schema: z.ZodType<T>, parameters: ToolDefinition["parameters"], name: string, task: string, rules: string[]) {
       signal?.throwIfAborted();
@@ -288,10 +288,11 @@ export function createVideoPromptTools(options: SubAgentModel & {
           "依据实际镜头合同、已加载的导演规则与 H3 模式写稿，调用 submitResult 提交完整结果。时间使用整段视频内的秒数。",
           ...(repair ? ["针对 findings 修订，保留原稿中仍然有效的内容，并使英文正文、中文对照和导演计划一致。"] : []),
           ...(repair ? [] : [`英文正文段名：\n${getPromptOutline(prepared.format)}`]),
-          // 拍法候选随已指定的标签传入，只提供判断是否适用的信息。
+          // 拍法候选只在首稿提供，导演先判断条件，再用实际分镜撰写正文。
           JSON.stringify({ ...taskInput,
             ...(repair ? { previousDraft: lastDraft, findings } : {}),
-            ...(!repair && candidates.length ? { candidates: candidates.map(({ title, useWhen, matches }) => ({ title, useWhen, matches })) } : {}),
+            ...(!repair && candidates.length ? { candidates: candidates.map(({ title, useWhen, fragment, avoid, verify }) =>
+              ({ title, useWhen, fragment, avoid, verify })) } : {}),
           }),
         ].join("\n"), [...directorRules, commonRules ?? ""]);
         if (draft.status === "blocked") {

@@ -150,16 +150,20 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
     narrativeIssues.push(`「${narrative.title}」至少按${narrative.minSeconds}s规划；当前${options.durationSeconds}s无法容纳完整结构，应拆分镜头或改用单镜模板，不可删情节。`);
   }
   if (narrative?.scope === "scene" && video) {
-    narrativeIssues.push(`「${narrative.title}」属于多镜场次结构；使用前须确认片段允许切镜、时长足够且不丢剧情。`);
+    const reason = options.singleShot
+      ? "当前合同要求连续单镜，请从本镜选择中移除这条模板，沿用定稿的事件"
+      : "使用前须确认片段允许切镜、时长足够且不丢剧情";
+    narrativeIssues.push(`「${narrative.title}」属于多镜场次结构。${reason}。`);
   }
-  if (expression?.category === "extreme" && style?.group === "影视写实") {
-    warnings.push("写实主画风与极夸张颜艺需收束到可见的眉眼嘴和身体反应，不应使脸型、骨骼或身份突变。");
+  if (expression && (expression.category === "extreme" || expression.category === "abstract") && style?.group === "影视写实") {
+    warnings.push("写实画风选了夸张或抽象颜艺。按人物此刻真正能看见、听见的变化取自然反应，停格、跳变或机械动作须以定稿为准。");
   }
   if (options.tone === "serious" && (absurd || meme)) {
     warnings.push("用户要求严肃基调，却选择了热梗/搞怪模板；除非当前镜头明确需要喜剧，否则不要注入。");
   }
   if (filter && !style) warnings.push("只选择滤镜而无项目已批准主画风；保留项目原画风，不从滤镜推断新人物造型。");
   if (meme) warnings.push("热梗仅作文化参考：保留来源/日期，避免原录音、未授权IP形象和对真实人物的攻击。");
+  if (forDraft && (absurd || meme)) warnings.push("热梗和搞怪示例留在构思阶段。视频稿的笑点、事件和对白从已确认的分镜取。");
 
   const visualSummary = (item: (typeof visualStyles)[number] | undefined) => item && {
     slot: item.category, id: item.id, title: item.title,
@@ -169,34 +173,33 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
     status: errors.length ? "invalid" : warnings.length ? "review" : "ok",
     errors, warnings,
     selected: [
-      // 成片已有分镜合同，只传叙事目的和喜剧手法，具体示范留在构思阶段。
+      // 成片已有分镜合同，只传叙事目的和验收问题，具体示范留在构思阶段。
       narrative && {
-        slot: "narrative", id: narrative.id, scope: narrative.scope, purpose: narrative.purpose,
+        slot: "narrative", id: narrative.id, scope: narrative.scope, purpose: narrative.purpose, verify: narrative.verify,
         ...(!forDraft ? {
           title: narrative.title, setup: narrative.setup, escalation: narrative.escalation,
-          visibleResult: narrative.visibleResult, shotGuidance: narrative.shotGuidance, verify: narrative.verify, avoid: narrative.avoid,
+          visibleResult: narrative.visibleResult, shotGuidance: narrative.shotGuidance, avoid: narrative.avoid,
         } : {}),
       },
       expression && {
-        slot: "expression", id: expression.id, title: expression.title,
-        face: expression.face, intensity: expression.intensity, avoid: expression.avoid,
-        ...(video ? { continuity: expression.continuity }
+        slot: "expression", id: expression.id,
+        face: expression.face, avoid: expression.avoid,
+        ...(!forDraft ? { title: expression.title, intensity: expression.intensity } : {}),
+        ...(video ? { videoBeat: expression.videoBeat, continuity: expression.continuity }
           : { imagePrompt: expression.imagePrompt }),
       },
       visualSummary(style),
       visualSummary(filter),
-      absurd && {
-        slot: "absurd", id: absurd.id, jokeMechanism: absurd.jokeMechanism,
-        ...(!forDraft ? { title: absurd.title, avoid: absurd.avoid,
-          ...(video ? { videoBeat: absurd.videoBeat, camera: absurd.camera, continuity: absurd.continuity }
-            : { imagePrompt: absurd.imagePrompt }),
-        } : {}),
+      !forDraft && absurd && {
+        slot: "absurd", id: absurd.id, jokeMechanism: absurd.jokeMechanism, title: absurd.title, avoid: absurd.avoid,
+        ...(video ? { videoBeat: absurd.videoBeat, camera: absurd.camera, continuity: absurd.continuity }
+          : { imagePrompt: absurd.imagePrompt }),
       },
       meme && (forDraft ? undefined : {
         slot: "meme", id: meme.id, title: meme.phrase, sourceUrl: meme.sourceUrl, observedAt: meme.observedAt,
         meaning: meme.meaning, usage: meme.usage, avoid: meme.avoid,
       }),
     ].filter(Boolean),
-    guidance: "叙事条目用来组织剧本已有的事件。表情和声音从人物此刻听见什么、对谁说话来选，表情范例里的几个动作可按需取舍。画风和滤镜只处理画面。喜剧条目须有本场已经成立的笑点，沿用已确认的原话和人物关系。按已批准的主画风、参考图及单镜或剪辑合同制作。",
+    guidance: "先看观众已经知道什么、这镜要让他们看懂什么。取用的条目只服务于分镜里已有的事。表演跟着人物实际看见、听见的内容和双方关系走。模板标题、范例和资料术语留在库里，正文用明确的人物、具体动作和寻常词语。切点、对白、画风和素材均以当前定稿为准。",
   };
 }

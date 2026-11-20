@@ -61,7 +61,7 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
     { id: "dialogueTiming", text: "逐句核对说话人、原话及起声和收句。按剧本核对停顿、先后关系、抢话与中断，关键信息应当听清。实际发声与画面口型相符，镜尾按定稿安排。无对白时说明依据" },
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
     { id: "bilingualConsistency", text: "中英文的主体、动作、时序、对白和镜尾事实一致" },
-    { id: "creativeIntent", text: `叙事目的：${shot.purpose}。视觉风格：${shot.style}。按播放顺序核对观众能否从正文声画获得本镜要交代的信息。用明确的人物、动作、声音和对象指认依据；后续才揭晓的事实按定稿保留。` },
+    { id: "creativeIntent", text: `叙事目的：${shot.purpose}。视觉风格：${shot.style}。按播放顺序核对观众何时看懂本镜应交代的信息，以及后续才揭晓的内容是否留在正确时机。指出对应的声画和触发人物反应的事。检查正文有无照抄模板动作、无来由的表情，或现场可用普通词说清却自造缩写和术语的地方。` },
     ...(shot.voiceCast?.length ? [{ id: "voiceCast", text: `声音身份与说话人逐项匹配：${shot.voiceCast.map(role =>
       `${role.characterName}(${role.speakerId})${role.sourceId ? `（声源模板 ${role.sourceId}）` : ""}`).join("、")}。对照剧本核对谁在何处发声、谁听得见。声源模板与发声事实冲突时定位到本轮配置，保留原台词、情绪和已确认语速。` }] : []),
   ];

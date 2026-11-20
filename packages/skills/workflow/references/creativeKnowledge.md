@@ -96,7 +96,7 @@ draftVideoPrompt({
 
 - 已有节点时省略顶层 `canvasId`、`modelId`、`duration`、`ratio`、`sampling`、`seed` 和 `seedMode`。
 - 首次 `draftVideoPrompt` 调用未通过入参校验时，按报错修正当前调用。缺 `shotId` 时补原合同编号，多传顶层 `canvasId` 时移除它并保留 `node.canvasId`。此阶段没有该次调用生成的待审稿。
-- 返回 `reviewFailed` 且包含 `draftId` 时，按 `nextAction` 调用 `resumeVideoPrompt` 重审原稿。返回 `rejected` 且包含 `draftId` 时，按 `nextAction` 使用原合同和整改意见定向返修。中断后遗失编号，可在原会话用 `resumeVideoPrompt({shotId})` 查询，同一镜头有多份稿时选对应的 `draftId`。用户明确要求从头重写时，才用 `regenerate: true` 发起重新创作。
+- 返回 `reviewFailed` 且包含 `draftId` 时，按 `nextAction` 调用 `resumeVideoPrompt` 重审原稿。返回 `rejected` 且包含 `draftId` 时，按 `nextAction` 使用原合同和整改意见定向返修。中断后遗失编号，可在原会话用 `resumeVideoPrompt({shotId})` 查询，同一镜头有多份稿时选对应的 `draftId`。用户要求修改本镜的提示词、拍法或表演时，传 `regenerate: true`，按当前合同写新稿。仅修改生成参数时复用已审稿。
 - 外部 MCP 调用 `videoPrompt`。将上述合同放进 `args.input`，并在 `args.action` 传 `prepare`。随后用返回的 `preparationId` 和当前导演稿执行 `inspect`，以审核结果和同一份稿执行 `submit`。审核结构、写回与交接见[视频审核规则](video-prompt-review.md#提交与交接)。
 
 **宿主兼容要求**：`mustHave`、`mustNotHave`、`references` 必须是 JSON 数组，`templateTags`、`sampling`、`creativeSelection` 为 JSON 对象，`duration` 为数字；不得发送成 `"[]"`、`"{}"` 或 `"10"`。工具现在对外暴露单一对象 Schema，分支互斥由服务器在解析时验证。参数校验失败属于工具调用失败，**不意味着视频已生成，也不应自动重试消耗算力**。

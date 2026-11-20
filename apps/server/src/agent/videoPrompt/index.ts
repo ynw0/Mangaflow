@@ -69,7 +69,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
   const initial: ToolDefinition = {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。相同镜头合同和模板不变时优先复用已审稿，用户明确要求重写才传 regenerate=true；明确要求复审已通过的原稿时传 reReview=true。已返回 draftId 时调用 resumeVideoPrompt，不重发合同。",
+    description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。按同一合同继续生成时复用已审稿。用户要求修改目标镜头的提示词、拍法或表演时传 regenerate=true；只复审原稿时传 reReview=true。已返回 draftId 时调用 resumeVideoPrompt，不重发合同。",
     promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。shotId 用实际分镜编号，放在顶层。已有节点把当前 canvasId 和 nodeId 放进 node，从镜头合同填写本镜原话和实际参考。新镜头直接传 duration 和 ratio。需要拍法参考时选用 creativeSelection。",
     parameters: { type: "object", ...videoPromptToolSchema },
     prepareArguments(raw) {
@@ -111,8 +111,8 @@ export function createVideoPromptTools(options: SubAgentModel & {
   };
   function requestAdjacentShots(shotId: string, findings: string[]) {
     const details = { status: "blocked", shotId, findings, written: false,
-      reason: "请回读已确认的相邻分镜，补齐 adjacentShots 后重新提交镜头合同",
-      nextAction: { tool: initial.name, when: "已补齐相邻镜号、原句或触发动作后，使用完整的新合同" } };
+      reason: "请回读已确认的分镜，补齐本镜所回应的原话或事件后重新提交镜头合同",
+      nextAction: { tool: initial.name, when: "已在 adjacentShots 补齐相关场次或镜号、原句或触发动作后，使用完整的新合同" } };
     return { details, content: [{ type: "text" as const, text: JSON.stringify(details) }] };
   }
   async function run(resumed: { draftId: string; saved: PendingDraft } | undefined,
@@ -135,6 +135,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
     const modelCalls: { name: string; elapsedMs: number; status: string; providerId?: string; modelId?: string; thinkingLevel?: SubAgentModel["thinkingLevel"]; rulesChars: number; taskChars: number; usage: ReturnType<typeof emptyUsage> }[] = [];
     const skills: { name: string; scope: string; path: string; version?: string }[] = [];
     const attempts: { round: number; stage: "director" | "preflight" | "review"; findings: string[]; review?: VideoPromptReview }[] = [];
+    let preflightWarnings: string[] = [];
     const reviewRequirements = getVideoPromptRequirements(prepared.shot);
     const reviewSchema = createReviewSchema(reviewRequirements.map(item => item.id));
     const reviewSubmission = createReviewSubmission(reviewSchema);
@@ -175,8 +176,9 @@ export function createVideoPromptTools(options: SubAgentModel & {
       onUpdate?.({ content: [{ type: "text", text }], details: { stage, elapsedMs, usage, modelCalls } });
     };
     const finish = (result: Record<string, unknown>) => {
+      const advisory = preflightWarnings.length ? { warnings: preflightWarnings } : {};
       const details = { ...result, reviewer: result.reviewId ? reviewerSource : undefined, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, creativeSelection: creativeContext, attempts,
-        modelCalls, elapsedMs: Math.round(performance.now() - startedAt) };
+        ...advisory, modelCalls, elapsedMs: Math.round(performance.now() - startedAt) };
       // 节点已写回时，主 Agent 只接收审核状态与定位信息，完整稿仍保存在节点和工具详情中。
       const visible = result.status === "ok" && result.written && input.node
         ? { status: result.status, shotId: input.shotId, reviewId: result.reviewId, reviewer: reviewerSource, written: true,
@@ -187,7 +189,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
         : result.status === "ok" && result.generationRequest
           ? { status: result.status, shotId: input.shotId, reviewId: result.reviewId, generationRequest: result.generationRequest, promptZh: result.promptZh, cinematicPlan: result.cinematicPlan, written: result.written, writeError: result.writeError, totalTokens: usage.totalTokens }
           : { ...result, shotId: input.shotId, totalTokens: usage.totalTokens };
-      return { details, content: [{ type: "text" as const, text: JSON.stringify(visible) }], usage };
+      return { details, content: [{ type: "text" as const, text: JSON.stringify({ ...visible, ...advisory }) }], usage };
     };
     async function writePrompt(draft: { prompt: string; promptZh: string }, reviewId: string) {
       let written = false;
@@ -210,11 +212,13 @@ export function createVideoPromptTools(options: SubAgentModel & {
     let lastDraft: { prompt: string; promptZh: string; cinematicPlan: DraftCinematicPlan } | undefined = resumed?.saved.draft;
     if (!resumed && !input.regenerate) {
       const existing = await findReusableVideoReview(draftKey, prepared.snapshot, prepared.nodeDraft, prepared.shot);
+      const preflight = existing && inspectDraft(existing, prepared);
       if (input.reReview) {
-        if (!existing) throw new Error("当前合同没有可复审的已通过稿");
-        if (inspectDraft(existing, prepared).length) throw new Error("现稿未通过当前预检，请先按实际问题修订");
+        if (!existing || !preflight) throw new Error("当前合同没有可复审的已通过稿");
+        if (preflight.findings.length) throw new Error("现稿未通过当前预检，请先按实际问题修订");
         lastDraft = { prompt: existing.prompt, promptZh: existing.promptZh, cinematicPlan: existing.cinematicPlan };
-      } else if (existing && !inspectDraft(existing, prepared).length) {
+      } else if (existing && preflight && !preflight.findings.length) {
+        preflightWarnings = preflight.warnings;
         const review = reviewSchema.parse(existing.review);
         if (review.status !== "ok") throw new Error("已存提示词缺少通过的逐项审核证据，请重新审核");
         const refreshed = await prepareVideoPrompt(cwd, input, canvas, signal);
@@ -272,10 +276,16 @@ export function createVideoPromptTools(options: SubAgentModel & {
     }
     let directorRules: string[] | undefined;
     let commonRules: string | undefined;
-    let findings: string[] = resumed?.saved.findings.length ? resumed.saved.findings : lastDraft ? inspectDraft(lastDraft, prepared) : [];
+    const currentPreflight = lastDraft && inspectDraft(lastDraft, prepared);
+    preflightWarnings = currentPreflight?.warnings ?? [];
+    // 续审重跑程序预检，只沿用之前按合同编号记录的内容审核意见。
+    const previousReviewFindings = resumed?.saved.findings.filter(finding =>
+      reviewRequirements.some(({ id }) => finding.startsWith(`[${id}] `))) ?? [];
+    let findings = [...(currentPreflight?.findings ?? []), ...previousReviewFindings];
+    const maxRounds = resumed && findings.length ? 1 : 2;
     const nextAction = { tool: resume.name, args: { draftId } };
     // 只自动修一次程序预检。内容退回时保留稿件，按已知问题续审。
-    for (let round = 0; round < (resumed?.saved.findings.length ? 1 : 2); round++) {
+    for (let round = 0; round < maxRounds; round++) {
       if (!lastDraft || findings.length) {
         const repair = Boolean(lastDraft);
         if (!directorRules) {
@@ -300,7 +310,9 @@ export function createVideoPromptTools(options: SubAgentModel & {
         }
         attempts.push({ round: round + 1, stage: "director", findings: [] });
         lastDraft = { prompt: draft.prompt, promptZh: draft.promptZh, cinematicPlan: draft.cinematicPlan };
-        findings = inspectDraft(lastDraft, prepared);
+        const preflight = inspectDraft(lastDraft, prepared);
+        findings = preflight.findings;
+        preflightWarnings = preflight.warnings;
         attempts.push({ round: round + 1, stage: "preflight", findings });
         update(findings.length ? "程序预检未通过，准备定向返修" : "程序预检通过");
         if (findings.length) continue;

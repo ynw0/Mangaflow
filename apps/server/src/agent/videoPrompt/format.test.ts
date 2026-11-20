@@ -32,7 +32,7 @@ const make = (
 }, {
   format: "h3Ref2va", setup: { duration: 15, references: [] },
   shot: { story, mustHave: extra.mustHave ?? [], mustNotHave: extra.mustNotHave ?? [] },
-} as unknown as Parameters<typeof inspectDraft>[1]);
+} as unknown as Parameters<typeof inspectDraft>[1]).findings;
 
 describe("Ref2VA 按合同使用单镜或多镜", () => {
   test("不引入 shotMode，历史 cinematicPlan 可继续使用且允许可选 shots", () => {

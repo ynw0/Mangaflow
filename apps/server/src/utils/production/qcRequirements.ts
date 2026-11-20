@@ -8,6 +8,7 @@ import { readDialogueBlocks } from "@/agent/videoPrompt/dialogue";
 const shotSchema = z.object({
   story: z.string().trim().min(1), mustHave: z.array(z.string().trim().min(1)), mustNotHave: z.array(z.string().trim().min(1)),
   continuityIn: z.string(), continuityOut: z.string(),
+  lockedDialogue: z.array(z.string()).optional(),
 });
 
 // 提示词审核与成片质检共用合同编号，保持要求原文和来源一致。
@@ -33,27 +34,22 @@ export async function readQcRequirements(directory: string, request?: MediaGener
   }
   const shot = shotSchema.parse(review.audit.shot);
   const plan = review.audit.cinematicPlan === undefined ? undefined : cinematicPlanSchema.parse(review.audit.cinematicPlan);
-  // 台词原文从已审提示词读取，与计划按 <d> 顺序对应。
+  // 台词从已锁定合同取得，早期审核记录以当时审核的对白为准。计划秒数仅供定位。
   const dialoguePlan = plan?.dialogue;
-  const dialogueBlocks = dialoguePlan ? readDialogueBlocks(review.snapshot.prompt) : [];
-  if (dialoguePlan && dialoguePlan.length !== dialogueBlocks.length) {
-    throw new Error("已审对白计划与正文段数不一致，无法核对成片台词");
+  const lines = shot.lockedDialogue ?? (dialoguePlan ? readDialogueBlocks(review.snapshot.prompt).map(block => block[1]!) : []);
+  if (dialoguePlan && dialoguePlan.length !== lines.length) {
+    throw new Error("已审对白计划与台词段数不一致，无法核对成片");
   }
-  const dialogue = dialoguePlan?.map((line, index): QcRequirement => ({
-    id: `dialogue.${index}`,
-    source: `cinematicPlan.dialogue[${index}]`,
-    domain: "audio",
-    text: `${line.speakerIds.join("、")}，计划 ${line.startSeconds}–${line.endSeconds} 秒，原台词：${dialogueBlocks[index]![1]}。在原音轨核对实际起声、说话人和台词是否完整，特别核对镜尾是否截掉末字。`,
-  })) ?? [];
-  // 直接保留已审合同的原文与来源，不让 QC 模型自行删减或改写验收范围。
-  return [
-    ...getShotRequirements(shot),
-    ...(plan ? [
-      { id: "cameraPlan", source: "cinematicPlan.camera", text: `运镜：${plan.camera.movement}；${plan.camera.stopSeconds === null ? "持续运动至镜尾" : `${plan.camera.stopSeconds} 秒后停止运镜`}。` },
-      { id: "endingComposition", source: "cinematicPlan.ending.composition", text: `镜尾构图：${plan.ending.composition}；保持 ${plan.ending.holdSeconds} 秒。` },
-      ...plan.ending.visible.map((text, index) => ({ id: `endingVisible.${index}`, source: `cinematicPlan.ending.visible[${index}]`, text: `镜尾必须留在画内：${text}` })),
-      ...plan.beats.map((beat, index) => ({ id: `performance.${index}`, source: `cinematicPlan.beats[${index}]`, text: `${beat.startSeconds}–${beat.endSeconds} 秒：${beat.action}；表演：${beat.performance}` })),
-    ] : []),
-    ...dialogue,
-  ];
+  const dialogue = lines.map((text, index): QcRequirement => {
+    const timing = dialoguePlan?.[index];
+    const cue = timing ? `说话人 ${timing.speakerIds.join("、")}，可在 ${timing.startSeconds}–${timing.endSeconds} 秒附近查找。` : "";
+    return {
+      id: `dialogue.${index}`,
+      source: shot.lockedDialogue ? `lockedDialogue[${index}]` : `prompt.dialogue[${index}]`,
+      domain: "audio",
+      text: `核对说话人、原话及其完整性。原台词：${text}。${cue}`,
+    };
+  });
+  // 用户确认的表演、运镜和镜尾约束已在镜头合同中，导演计划不再额外生成验收项。
+  return [...getShotRequirements(shot), ...dialogue];
 }

@@ -100,7 +100,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   const findings: string[] = inspectVideoPlan(draft.cinematicPlan, setup.duration);
   if (headings.length !== expected.length || headings.some((heading, index) => heading[1] !== expected[index])) {
     findings.push(`按实际模式完整输出这些字段：${expected.join("、")}。`);
-    return findings;
+    return { findings, warnings: [] };
   }
   const prefix = prompt.slice(0, headings[0]!.index).trim();
   // 官方 Ref2VA 允许 [keyframe completion] 和首帧/关键帧关系。
@@ -199,7 +199,8 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     if (subjects.some(id => !retention.includes(`<Subject ${id}>`))) findings.push("retention_analysis 必须覆盖每个已定义 Subject。");
   }
   if ((prompt.match(/<\/?d\b[^>]*>/gi)?.length ?? 0) !== (timeline.match(/<\/?d\b[^>]*>/gi)?.length ?? 0)) findings.push("对白只能出现在镜头时间轴中。");
-  findings.push(...inspectDialogue(timeline, setup.duration, draft.cinematicPlan, prepared.shot.lockedDialogue, prepared.audioEnabled, prepared.shot.voiceCast));
+  const dialogue = inspectDialogue(timeline, setup.duration, draft.cinematicPlan, prepared.shot.lockedDialogue, prepared.audioEnabled, prepared.shot.voiceCast);
+  findings.push(...dialogue.findings);
   if (!/\p{Script=Han}/u.test(promptZh)) findings.push("提供与英文事实一致的简体中文对照。");
   // 跳过对白和引号原文，保留正文行号供导演定向返修。
   const narration = prompt.replace(/<d>[\s\S]*?<\/d>|"[^"\n]*"/gi, match => match.replace(/[^\r\n]/g, " "));
@@ -213,5 +214,5 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
       : "请用具体可见、可验证的事实表达制作需求。";
     findings.push("英文正文第 " + line + " 行含“" + match[0] + "”。" + correction);
   }
-  return findings;
+  return { findings, warnings: dialogue.warnings };
 }

@@ -49,7 +49,7 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
       voiceCast: prepared.voiceContext.roles.length ? prepared.voiceContext : undefined,
       speechPolicy: getVideoSpeechPolicy(prepared.audioEnabled),
       expectedRevision: prepared.revision, reviewRequirements: getVideoPromptRequirements(prepared.shot),
-      nextAction: "按已确认的分镜决定单镜或多镜，依实际 H3 模式写中英文稿。在 cinematicPlan.dialogue 逐句安排原台词。调用 inspect 预检，再逐项审核并 submit。" };
+      nextAction: "按已确认的分镜决定单镜或多镜，依实际 H3 模式写中英文稿。在 cinematicPlan.dialogue 逐句安排原台词。调用 inspect 预检，再逐项审核并 submit。warnings 供成片听验，findings 才是退稿项。" };
   }
   const path = join(root, `${input.preparationId}.json`);
   const release = lockWorkspaceFiles([path]);
@@ -60,21 +60,21 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
     const current = await prepareVideoPrompt(directory, saved.input, canvas, signal);
     requireSameVideoReview(saved.prepared.snapshot, current.snapshot);
     if (saved.prepared.revision !== current.revision) throw Object.assign(new Error("节点已变化，请重新 prepare"), { status: 409 });
-    const findings = inspectDraft(input.draft, current);
-    if (input.action === "inspect") return { status: findings.length ? "rejected" : "ok", findings };
-    if (findings.length) return { status: "rejected", findings };
+    const { findings, warnings } = inspectDraft(input.draft, current);
+    if (input.action === "inspect") return { status: findings.length ? "rejected" : "ok", findings, warnings };
+    if (findings.length) return { status: "rejected", findings, warnings };
     const review = createReviewSchema(getVideoPromptRequirements(current.shot).map(item => item.id)).parse(input.review);
     if (review.status === "rejected" && review.needsAdjacentShots) {
-      return { status: "blocked", findings: review.findings, nextAction: "回读相邻分镜，补齐 input.adjacentShots 后重新 prepare，再按新 preparationId 审核提交。" };
+      return { status: "blocked", findings: review.findings, warnings, nextAction: "回读关联场次或镜头，补齐本镜所回应的原话或事件到 input.adjacentShots，重新 prepare 后提交审核。" };
     }
-    if (review.status !== "ok") return { status: "rejected", findings: review.findings };
+    if (review.status !== "ok") return { status: "rejected", findings: review.findings, warnings };
     if (saved.approved) {
       if (!isDeepStrictEqual(saved.approved.draft, input.draft) || !isDeepStrictEqual(saved.approved.review, review)) {
         throw Object.assign(new Error("该准备记录已批准另一份稿件，请重新 prepare"), { status: 409 });
       }
       const reviewId = saved.approved.result.reviewId;
       const generationRequest = videoGenerationSchema.parse({ ...current.generationRequest, prompt: input.draft.prompt, reviewId });
-      return { ...saved.approved.result, reviewer, generationRequest, expectedRevision: current.revision };
+      return { ...saved.approved.result, reviewer, generationRequest, expectedRevision: current.revision, warnings };
     }
     const generationRequest = videoGenerationSchema.parse({ ...current.generationRequest, prompt: input.draft.prompt });
     const reviewId = await saveVideoReview({ ...current.snapshot, prompt: input.draft.prompt }, {
@@ -82,7 +82,7 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
       request: generationRequest, review, reviewer, preparationId: input.preparationId,
     });
     const result = { status: "ok", reviewId, reviewer, generationRequest: { ...generationRequest, reviewId },
-      node: saved.input.node, expectedRevision: current.revision, written: false };
+      node: saved.input.node, expectedRevision: current.revision, written: false, warnings };
     saved.approved = { draft: input.draft, review, result };
     await writeAtomic(path, JSON.stringify(saved), { mode: 0o600 });
     return result;

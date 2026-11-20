@@ -16,7 +16,7 @@ export function getVideoSpeechPolicy(audioEnabled: boolean) {
       identity: "旁白和内心独白在说话人编号后标明画外发声，纯文本和首尾帧按指南使用 phrase。台词外写实际声源与 (Sx)，<d> 内只放语言标签与原台词。独立系统声和旁白按本视频首次发声顺序编号；内心独白与同一角色的画内对白共用声线及编号。",
       timing: "每段画外发声纳入 cinematicPlan.dialogue。按剧本标明谁听得见；观众旁白不驱动画中人物反应。对应人物入画且未开口时，交代口型保持静止，其他人继续剧本中的行为。提示音写作音效，实际参考音频才使用 <Audio N>。",
     },
-    note: "启用同期音轨的对白采用清晰、自然偏快的口语；剧情明确要求时按表演放慢。按 <d> 的顺序在 cinematicPlan.dialogue 安排开口、收句、停顿及必须先完成的动作，镜尾保留 0.2 秒。对刚好够用的句子，优先提前开口或减少顺序动作，给实际起声偏移留余量。语速与时间提示只指导生成，未绑定真实音频时不虚构音频标签。",
+    note: "启用同期音轨时按剧本和已确认的语速说原话。按 <d> 的顺序记录实际需要的开口、收句、停顿和前置动作，镜尾保留 0.2 秒。字数估时用于提示风险，实际起声和收句以成片为准。未绑定真实音频时不虚构音频标签。",
   };
 }
 
@@ -27,6 +27,7 @@ export function readDialogueBlocks(timeline: string) {
 export function inspectDialogue(timeline: string, duration: number, plan: DraftCinematicPlan, lockedDialogue?: readonly string[], audioEnabled?: boolean,
   voiceCast?: readonly { speakerId: string; sourceId?: string }[]) {
   const findings: string[] = [];
+  const warnings: string[] = [];
   const allBlocks = readDialogueBlocks(timeline);
   if (audioEnabled === false && (allBlocks.length || plan.dialogue.length)) {
     findings.push("同期音轨已关闭，稿件却安排了发声。请核对音轨与制作合同；已批准的台词须保留。");
@@ -101,8 +102,8 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
       + (text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length ?? 0) / 3;
     const windowSeconds = line.endSeconds - line.startSeconds;
     if (windowSeconds > 0 && speechSeconds + line.pauseSeconds > windowSeconds + timeTolerance) {
-      findings.push(`${label}的窗口为 ${line.startSeconds}–${line.endSeconds} 秒（${windowSeconds.toFixed(2)} 秒），口播约 ${speechSeconds.toFixed(2)} 秒，另有计划停顿 ${line.pauseSeconds} 秒。请重排动作和开口时间，或调整镜头时长，保留原台词。`);
+      warnings.push(`${label}留了 ${windowSeconds.toFixed(2)} 秒，按字数粗估需 ${(speechSeconds + line.pauseSeconds).toFixed(2)} 秒（含停顿）。成片时听验是否完整说完。`);
     }
   }
-  return findings;
+  return { findings, warnings };
 }

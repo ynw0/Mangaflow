@@ -87,20 +87,20 @@ Start gate is mandatory. If the user has already uploaded product material, only
 
 ## Typography Rules
 
+A product-only brief skips typography throughout production. Keep each approved line intact unless it has two distinct parts.
+
 - In-frame advertising copy must be English.
 - If the user provides Chinese copy, translate it into concise English or ask for approval of the English version.
 - For newly written copy, 3-5 English words and approximately 32 characters is a readability guideline, not a compulsory word-count formula. Keep approved brand names, factual labels, and user-supplied copy intact when they fit legibly; do not invent filler words.
 - Copy should feel like an Apple product film: sensory, benefit-led, material-led, or a light value proposition; avoid promotional slogans and ecommerce feature-tag wording.
 - Font reference: SF Pro Display / SF Pro Text. Prefer `SF Pro Display Semibold` in prompts.
 - Use no more than two text colors in a shot.
-- In white-tech style, the first half of the text must use black or dark gray; white text is forbidden on white backgrounds. In dark rim-light style, the first half may use white. The second half always uses the specific product color.
+- For two-part copy, set the first part in black or dark gray in white-tech style; white is an option in dark rim-light style. Use the specific product color for the second part.
 - Text must stay on one line. Do not wrap, stack, or split into multiple lines.
 - At any moment, only one single-line English copy line may appear in the frame. Do not show two rows of text, two-line titles, title + subtitle pairs, or multiple text blocks at the same time. Two-part typography must continue or replace within the same line, never split into upper and lower rows.
 - Do not place text in a lower subtitle position. Prefer the vertically centered visual zone, left-aligned or right-aligned as part of the composition. Text should be slightly larger and feel like a product-film visual element, not an explanatory subtitle.
 - Approved mid-film pattern: clean negative space, product motion or product close-up leads the frame, the frame stays uncrowded, and only one single-line English copy appears. Text may sit near the product edge, product surface, or close-up highlight area so it feels integrated into the product image rather than floating like a subtitle. Do not damage negative space or add a second text block just to add copy.
-- Default two-part text motion must remain visible: the first half fades in or slides in subtly first, then the second half fades in or slides in subtly later. When the second half appears, the first half shifts gently within the same line to make room.
-- The shift should be subtle, around 10-15px or 8-12% of text width. Motion should be smooth and restrained; avoid bouncy, neon, or flashy UI effects.
-- Do not make typography completely static just to avoid two-row text. The correct solution is same-line two-part entrance, subtle shift, fade-in, or gentle slide-in; the wrong solution is upper/lower line splitting, two-line titles, or removing text motion.
+- A single name or phrase enters once and holds. When a line has two parts, bring them in successively on the same line. The first can shift slightly (about 10–15 px or 8–12% of its width) to make room.
 
 ## STEP 1: Asset Check and Product Fact Summary
 
@@ -154,7 +154,7 @@ If the user has not selected a direction, offer 2-3 concise directions, recommen
 Recommended spines:
 
 1. **Product Launch** (default recommendation)
-   - Negative-space opening → main variant establishes hero view → material / structure detail → natural product action → variants or color relation → full-copy closing.
+   - Negative-space opening → main variant establishes hero view → material / structure detail → natural product action → variants or color relation → final product hold.
    - Good for earbuds, watches, digital accessories, small appliances, fragrance devices, etc.
 
 2. **Feature Touch**
@@ -162,7 +162,7 @@ Recommended spines:
    - Good for products with clear opening, rotation, magnetic snap, light change, screen, folding, mist, or similar actions.
 
 3. **Color Family**
-   - Main variant appears alone → supporting variants slide in lightly → color order forms → material and structure stay unified → full set closes → copy lands.
+   - Main variant appears alone → supporting variants slide in lightly → color order forms → material and structure stay unified → the full set holds in the closing frame.
    - Good for multi-color, multi-variant, or multi-model products.
 
 Output one sentence describing the selected narrative spine, for example:
@@ -272,8 +272,7 @@ Table rules:
 - Use seconds as time ranges; do not require frame numbers.
 - Keep one main action per beat; secondary layers appear with slight delay.
 - Clearly define when the main variant appears alone, when supporting variants enter, and when the full set closes.
-- Copy splitting may only be described in plain language as first half / second half. Do not write arrows, slashes, plus signs, or separators, because the model may render them as in-frame copy.
-- For approved two-part copy, text color must use the specific product color name and must be split by style: in white-tech style write “first half black or dark gray, second half the specific product color”; only in dark rim-light style may the first half be white. For example, in white-tech style with purple as the main color, write “first half black or dark gray, second half purple.” Do not write “product color + black or white.”
+- On beats without copy, mark the copy column “no copy” and leave its color and effect blank. On text-bearing beats, record the approved words and their entrance. For two-part lines, name the colors and describe the sequence in plain language so separators do not appear on screen.
 - If typography is error-prone, reduce text beats first: for a 10-second film, usually use only one mid-film copy moment and one final copy moment, with all other beats marked as no text. Do not put text in every shot.
 - The final beat must be a stable single full-frame product closing; add a complete single-line copy only when approved in the creative brief. Never end on four panels, split screens, storyboard boards, anchor-sheet layout, product windows, or framed grids. Text still belongs in the vertically centered composition zone, left-aligned or right-aligned as part of the frame, not in a lower subtitle position. Add a logo only when the user provides one.
 
@@ -281,15 +280,11 @@ Rhythm intent vocabulary: setup, establish, prepare, impact, brake, settle.
 
 ### Principles
 
-1. Keep core text on a single line.
-2. At any moment, only one single-line English copy line may appear; forbid two text rows, upper/lower line splits, title + subtitle pairs, or multiple text blocks at the same time.
-3. Use exactly two text colors: black or white + confirmed specific product color.
-4. The text must appear inside the video; do not rely only on post-production fallback.
-5. Shot continuity = element continuity + motion continuity + form continuity.
-6. Smoothness = easing + no awkward timing + seamless entrances and exits.
-7. Total pacing follows the user-selected duration.
-8. Text motion must be visible: the first half fades in or slides in subtly first, then the second half fades in or slides in subtly later. When the second half appears, the first half shifts subtly within the same line to make room. Do not make the text completely static, and do not split it into upper and lower rows.
-9. If the style is confirmed, the table must strictly follow that style.
+1. When the brief includes copy, place each approved line inside the video on its assigned beat. Follow the typography rules above for color, placement, and motion.
+2. Connect adjacent shots through the elements in frame, their form, and their movement.
+3. Ease entrances and exits so the motion reads smoothly.
+4. Time the beats to the selected duration.
+5. Follow the confirmed visual style.
 
 After the user confirms the storyboard table, proceed to video generation.
 

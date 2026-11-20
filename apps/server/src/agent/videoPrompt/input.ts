@@ -37,7 +37,7 @@ const ratioSchema = z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "
 const shotFields = {
   shotId: shortText.describe("必填顶层字段，取已确认镜头合同的编号，例如 EP001-S11b；与 node.nodeId 不同"),
   story: description,
-  lockedDialogue: z.array(description).max(64).optional().describe("从回读的最新定稿按起声顺序抄录本镜原话，含同期旁白。用户本轮否定的台词须先在剧本修订并确认。无台词传 []，不抄邻镜对白或标签"),
+  lockedDialogue: z.array(description).max(64).optional().describe("从最新确认的正式剧本取本镜原话，含实际播出的旁白和独白，按起声顺序填写。与旧分镜或旧视频稿不一致时先对齐上游。无台词传 []"),
   purpose: shortText,
   style: description,
   continuityIn: z.string().trim().max(3000).describe("本镜开始时从上镜承接的状态，可包含画外人物或物件"),
@@ -55,12 +55,12 @@ const shotFields = {
   voiceCast: z.array(z.strictObject({
     speakerId: z.string().regex(/^S[1-9]\d*$/).describe("当前 H3 镜头说话人编号 S1、S2..."),
     characterName: shortText,
-    voiceIdentity: z.string().trim().min(1).max(800).optional().describe("已批准的音色、音区、共鸣或咬字特点。固定声线跨镜沿用；原话、单位、句长和接话顺序按定稿"),
+    voiceIdentity: z.string().trim().min(1).max(800).optional().describe("填已确认且跨镜稳定的音色、音区、共鸣或发音特点。本镜停顿、重音和情绪按场戏另写，原话、数字和单位照录"),
     sourceId: shortText.optional().describe("画内对白用 vs01，仅观众听到的旁白用 vs02，内心独白用 vs03。现场说话人暂在构图外或交替入画时，可省略此项，逐句写实际声源与听觉范围"),
     timbreId: shortText.optional(), ageId: shortText.optional(), personalityId: shortText.optional(),
     foreignAccentId: shortText.optional(), dialectId: shortText.optional(), emotionId: shortText.optional(),
     deliveryId: shortText.optional(), paceId: shortText.optional(),
-    speedMultiplier: z.number().min(0.7).max(1.8).optional().describe("覆盖默认1.3；与paceId二选一"),
+    speedMultiplier: z.number().min(0.7).max(1.8).optional().describe("有已确认的角色或本镜语速要求时才覆盖默认 1.3 倍，与 paceId 二选一"),
   })).max(8).optional().describe("H3 视频同期配音：每个说话人独立指定声音模板 ID；有对白默认约1.3倍"),
 };
 const creativeSelection = z.strictObject({

@@ -18,7 +18,7 @@
 1. 按 [画布操作](canvasOperations.md) 回读输入和当前进度，定位尚需编写或修改的指定集。
 2. 每次聚焦一集，提取其来源、戏剧功能、场景核心、删减决定及结束点；终集按已确认结局收束，不硬造下一集钩子。
 3. 衔接上一集的时间、地点、角色关系、外观和关键道具状态；不把所有已完成剧本重新生成。
-4. 初稿与返修共用现行编剧的[场次展开](../../workflow/references/shortDramaCraft.md#正剧场次怎么展开)与[对白写法](../../workflow/references/shortDramaCraft.md#对白与人设)。通过 skillOperator 读取时选 workflow 及其实际 scope，path 填 references/shortDramaCraft.md。组织具体场景，让动作、对白和场景变化推动剧情；心理描写转成可表现的行为或必要 OS/VO。
+4. 初稿与返修共用现行编剧的[场次展开](../../workflow/references/shortDramaCraft.md#正剧场次怎么展开)与[对白写法](../../workflow/references/shortDramaCraft.md#对白与人设)。通过 skillOperator 读取时选 workflow 及其实际 scope，path 填 references/shortDramaCraft.md。让动作、对白和场景变化推动剧情，按 [场次写法](../../workflow/references/shortDramaCraft.md#场次) 标明发声来源。
 5. 写明场号、地点、时间/内外景、本场人物、动作与表情、台词、必要声音和转场。
 6. 按配置估算时长；约 150 字/分钟仅用作对白参考，动作和停顿另行计入，不能把字数换算当实测。
 7. 检查本集新信息、冲突变化及结尾期待；镜头技术设计留给后续导演与分镜阶段。
@@ -46,7 +46,7 @@
 人物：本场实际出场人物
 △具体环境、动作、表情及必要道具
 人物名：台词
-OS/VO：必要的内心独白或画外音
+需要时标明声源及谁能听见，另标实际播出的旁白和内心独白
 转场与下一场；本集结束点
 ```
 

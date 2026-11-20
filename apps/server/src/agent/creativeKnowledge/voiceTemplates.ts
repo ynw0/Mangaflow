@@ -49,7 +49,7 @@ const rows: Record<VoiceCategory, VoiceRow[]> = {
   ],
   emotion: [
     ["ve01", "克制愤怒", "低音量，关键词重读，尾音收紧", "restrained anger, controlled volume and clipped emphatic endings", "愤怒,克制,冲突"],
-    ["ve02", "突然震惊", "停顿后急促吐出关键句", "brief stunned pause, then an urgent clearly spoken phrase", "震惊,惊讶,反应"],
+    ["ve02", "突然震惊", "意外改变当下口气，反应跟着所见所闻发生", "surprise breaks through in the voice as the character registers what just happened", "震惊,惊讶,反应"],
     ["ve03", "狂喜兴奋", "音调上扬，节奏明快", "delighted excitement, brighter pitch and lively rhythm", "兴奋,狂喜,快乐"],
     ["ve04", "悲伤强忍", "声音发紧、偶有短暂停顿", "suppressed sadness, gently constricted tone and short pauses", "悲伤,隐忍,告别"],
     ["ve05", "焦虑慌张", "急促短呼吸，不吞字", "anxious urgency with short breaths and intelligible words", "焦虑,慌张,危险"],
@@ -61,10 +61,10 @@ const rows: Record<VoiceCategory, VoiceRow[]> = {
     ["ve11", "得意自满", "语气微扬、带笑", "self-satisfied delivery with a subtle smile and buoyant endings", "得意,炫耀,喜剧"],
     ["ve12", "平静释然", "呼气后轻柔收尾", "relieved calm with a gentle exhale and softer phrase ending", "释然,平静,温暖"],
     ["ve13", "礼貌施压", "表面礼貌，提出要求时短促重读", "outwardly courteous delivery with compact stress on the demand", "礼貌,施压,谈判"],
-    ["ve14", "犹豫后确定", "开口前留一次短促吸气，随后清晰说完", "one short preparatory inhale before a hesitant opening that settles into clear speech", "迟疑,犹豫,吸气"],
+    ["ve14", "犹豫后确定", "犹豫的位置跟着人物正在斟酌的意思，作出决定后语气转稳", "hesitation where the character is weighing their words, with a steadier tone as their decision becomes clear", "迟疑,犹豫,拿定主意"],
   ],
   personality: [
-    ["vp01", "理性工程师", "逻辑清晰、解释精准、重读术语", "precise analytical delivery, concise and slightly emphasizing technical terms", "工程师,技术,理性"],
+    ["vp01", "理性工程师", "解释时语气稳，重音落在对方此刻需要听清的信息上", "level, precise delivery with emphasis on what the listener needs to understand in this exchange", "工程师,技术,理性"],
     ["vp02", "狡黠商人", "含笑试探，转折处突然加重", "wily, teasing delivery with playful pauses and sudden emphasis", "商人,狡黠,反派"],
     ["vp03", "沉稳领导", "停顿从容，少用强重音", "composed authoritative delivery with confident measured pauses", "领导,权威,沉稳"],
     ["vp04", "直爽青年", "声线明朗，语气坦率，重音随谈话变化", "bright youthful tone with candid delivery and stress that follows the conversation", "青年,直爽,朋友"],
@@ -133,12 +133,12 @@ const rows: Record<VoiceCategory, VoiceRow[]> = {
   ],
   // 声源层描述声音来自哪里、谁听得见，音色与语速仍由角色选配。
   source: [
-    ["vs01", "画内对白", "声音来自可见说话人，听者保持闭口", "speech comes from the visible speaker with their mouth moving in sync", "声源,画内对白,口型"],
+    ["vs01", "画内对白", "声音来自可见说话人，口型与自己的台词同步", "speech comes from the visible speaker with their mouth moving in sync", "声源,画内对白,口型"],
     ["vs02", "剧情旁白", "旁白面向观众，画中角色不会对旁白作出反应", "an unseen narrator addresses only the audience over the scene", "声源,旁白,画外音,叙事"],
     ["vs03", "角色内心独白", "沿用角色声线和编号，画中人物闭嘴，其他角色听不到", "the character's own voice presents unspoken thoughts, audible only to the audience", "声源,内心独白,心理活动,画外音"],
     ["vs04", "冷漠机械系统", "无实体的网文系统播报，默认只有宿主听见，可配中性合成音", "a disembodied system announces the status to the host alone with precise, emotionally neutral delivery", "声源,系统,网文系统,系统声音,机械系统,画外音"],
     ["vs05", "甜美女声系统", "无实体的网文系统，只有宿主听见，适合明快提示和奖励播报", "a disembodied female system voice addresses the host alone, lightly lifting the final phrase of the announcement", "声源,系统,网文系统,系统声音,甜美,萌妹,画外音"],
-    ["vs06", "AI 管家系统", "无实体智能助理，只有指定宿主听见，适合汇报结果或请求确认", "an unseen artificial intelligence assistant addresses its designated host with poised, precise wording", "声源,系统,网文系统,系统声音,AI管家,画外音"],
+    ["vs06", "AI 管家系统", "无实体智能助理，只有指定宿主听见，发音清楚、语调从容", "an unseen artificial intelligence assistant addresses its designated host in a composed, clearly articulated voice", "声源,系统,网文系统,系统声音,AI管家,画外音"],
     ["vs07", "搞怪系统", "无实体的搞怪网文系统，只有宿主听见，重音落在吐槽点", "a disembodied system teases its host alone, placing one crisp accent on the punch line", "声源,系统,网文系统,系统声音,搞怪,吐槽,画外音"],
     ["vs08", "神秘传音", "无实体的定向传音，只让剧本指定的人听见", "a disembodied mystical voice reaches only its intended listener", "声源,神秘传音,心灵传音,画外音"],
     ["vs09", "电子广播", "声音来自场景内的扩音设备，场景内可听见的人能作出反应", "an unseen announcer is heard through the scene's loudspeakers by the people within earshot", "声源,广播,电子广播,画外音"],

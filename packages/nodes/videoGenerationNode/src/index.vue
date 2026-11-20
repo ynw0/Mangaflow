@@ -1119,7 +1119,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setPrompt",
-  description: "修改此节点的视频提示词，支持 {{ref 1}} 等参考标记。prompt 是送去生成并在主编辑区显示的英文；promptZh 是只读的简体中文对照，不进入生成。成片提示词两者都要传。H3 的 reviewId 使用 draftVideoPrompt 返回的服务端编号；编号随实际请求由服务端校验。只修改提示词，不启动生成",
+  description: "写入视频模型实际收到的 prompt。按所选工作流的语言、格式和参考编号填写。使用 H3 时，正文段落按对应模式写英文，按定稿保留对白、歌词和画面文字的原文。promptZh 用于审阅简体中文对照，模型只接收 prompt。H3 的 reviewId 取自已通过的提示词审核，服务端按实际请求校验。本工具只写入提示词。",
   parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional(), reviewId: z.string().uuid().optional(), expectedRevision: z.string().optional() }),
   execute({ prompt: value, promptZh, reviewId, expectedRevision }) {
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");

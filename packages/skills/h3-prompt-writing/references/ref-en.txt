@@ -154,7 +154,7 @@ The target video is an edited version of <Video 1>.
 
 ## 4. `retention_analysis`
 
-This section describes how each piece of referenced content is preserved, transferred, copied, or referenced in the target video. Use one line for each reference label and preserve the meaning established in `subject_definitions`.
+This section records how each piece of referenced content is preserved, transferred, copied, or referenced in the target video. Use one line per reference and name the aspects that matter to that relationship. The full appearance stays in `subject_definitions`.
 
 ### 4.1 Visible Content
 

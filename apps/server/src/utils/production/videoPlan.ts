@@ -31,8 +31,17 @@ export const cinematicShotSchema = z.strictObject({
 export const cinematicPlanSchema = z.object({
   openingFrame: text,
   camera: z.object({ movement: text, stopSeconds: z.number().finite().nonnegative().nullable() }),
-  ending: z.object({ composition: text, visible: z.array(text).min(1).max(8).describe("当前镜尾构图实际拍到的内容，包括空场；仅在画外延续的状态留在 continuityOut"), holdSeconds: z.number().finite().nonnegative() }),
-  beats: z.array(z.object({ startSeconds: z.number().finite().nonnegative(), endSeconds: z.number().finite().positive(), action: text, performance: text })).min(1).max(8),
+  ending: z.object({
+    composition: text,
+    visible: z.array(text).min(1).max(8).describe("记录影响剧情和下镜承接、且镜尾实际拍到的主体或状态。空场记录实际可见的场地。画外状态沿用 continuityOut"),
+    holdSeconds: z.number().finite().nonnegative().describe("镜尾所需构图已经成立后应保留的秒数。机位可先停，让人物继续完成镜尾动作"),
+  }),
+  beats: z.array(z.object({
+    startSeconds: z.number().finite().nonnegative(),
+    endSeconds: z.number().finite().positive(),
+    action: text,
+    performance: text.optional().describe("记录本段确有必要交代的语气、反应或表演安排。沿用原动作或普通接话时可省略"),
+  })).min(1).max(8),
   // 历史审核记录保留当时的规划；新稿通过下方的必填规则。
   dialogue: z.array(dialogueLineSchema).max(maxVideoDialogueLines).describe("按英文正文 <d> 出现顺序逐句填写；无对白填空数组").optional(),
   shots: z.array(cinematicShotSchema).min(1).max(20).optional()

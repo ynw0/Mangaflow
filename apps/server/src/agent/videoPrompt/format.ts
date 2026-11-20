@@ -16,7 +16,8 @@ export const draftSchema = z.discriminatedUnion("status", [
 ]);
 const submissionOptions = { io: "input", target: "draft-07" } as const;
 export const draftSubmissionParameters = z.toJSONSchema(z.strictObject({
-  status: z.enum(["ok", "blocked"]), ...z.object(draftFields).partial().shape, reason: blockedReason.optional(),
+  status: z.enum(["ok", "blocked"]), ...z.object(draftFields).partial().shape,
+  reason: blockedReason.optional().describe("仅在 status 为 blocked 时填写具体缺项或冲突"),
 }), submissionOptions);
 
 const maxReviewFindings = 12;

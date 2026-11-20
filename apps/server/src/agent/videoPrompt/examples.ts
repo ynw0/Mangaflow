@@ -5,6 +5,7 @@ import type { draftSchema } from "./format";
 const contract = {
   shotId: "example01",
   story: "车间里，师傅低声说「等一下。」工友闭嘴等候。",
+  lockedDialogue: ["等一下。"],
   purpose: "交代工友停下等候",
   style: "写实车间，固定中景双人镜头",
   continuityIn: "",

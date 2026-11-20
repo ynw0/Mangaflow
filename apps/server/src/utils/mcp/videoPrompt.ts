@@ -64,6 +64,9 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
     if (input.action === "inspect") return { status: findings.length ? "rejected" : "ok", findings };
     if (findings.length) return { status: "rejected", findings };
     const review = createReviewSchema(getVideoPromptRequirements(current.shot).map(item => item.id)).parse(input.review);
+    if (review.status === "rejected" && review.needsAdjacentShots) {
+      return { status: "blocked", findings: review.findings, nextAction: "回读相邻分镜，补齐 input.adjacentShots 后重新 prepare，再按新 preparationId 审核提交。" };
+    }
     if (review.status !== "ok") return { status: "rejected", findings: review.findings };
     if (saved.approved) {
       if (!isDeepStrictEqual(saved.approved.draft, input.draft) || !isDeepStrictEqual(saved.approved.review, review)) {

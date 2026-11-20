@@ -37,6 +37,7 @@ const ratioSchema = z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "
 const shotFields = {
   shotId: shortText.describe("必填顶层字段，取已确认镜头合同的编号，例如 EP001-S11b；与 node.nodeId 不同"),
   story: description,
+  lockedDialogue: z.array(description).max(64).optional().describe("本镜有定稿台词时必填，从确认的剧本按发声顺序逐句抄录本镜全部原话，含同期旁白；明确无台词传 []，不含邻镜对白或说话人标签"),
   purpose: shortText,
   style: description,
   continuityIn: z.string().trim().max(3000),
@@ -87,8 +88,9 @@ const videoPromptToolInput = z.strictObject({
 }).describe("单一类型化对象：必填镜头合同。已有视频节点只传 node，不传模型、时长、画幅、采样或种子；新镜头不传 node，必须传 duration 与 ratio。mustHave/mustNotHave/references 是 JSON 数组，不是字符串。");
 
 // JSON Schema 用于宿主工具调用（无顶层 anyOf/oneOf）；业务分支在 Zod 运行时进行严格校验。
-export const videoPromptToolSchema = z.toJSONSchema(videoPromptToolInput, { io: "input", target: "draft-07" });
-export const videoPromptParameters = videoPromptToolInput.superRefine((input, ctx) => {
+const newShotInput = videoPromptToolInput.required({ lockedDialogue: true });
+export const videoPromptToolSchema = z.toJSONSchema(newShotInput, { io: "input", target: "draft-07" });
+function validateShotInput(input: z.infer<typeof videoPromptToolInput>, ctx: z.RefinementCtx) {
   const issue = (path: string, message: string) =>
     ctx.addIssue({ code: "custom", path: [path], message });
   if (input.regenerate && input.reReview) issue("reReview", "复审现稿与从头重写只能选择一种");
@@ -105,7 +107,10 @@ export const videoPromptParameters = videoPromptToolInput.superRefine((input, ct
       issue("seed", "随机种子模式不能传 seed；需要固定种子时设置 seedMode=fixed");
     }
   }
-});
+}
+export const videoPromptParameters = newShotInput.superRefine(validateShotInput);
+// 已保存的待审稿可能早于锁词字段，回读时保留原合同。
+export const savedVideoPromptParameters = videoPromptToolInput.superRefine(validateShotInput);
 
 const nodeContext = z.object({
   config: z.object({
@@ -131,7 +136,7 @@ const nodeContext = z.object({
   lastFrame: material.optional(),
 });
 
-export type VideoPromptInput = z.infer<typeof videoPromptParameters>;
+export type VideoPromptInput = z.infer<typeof savedVideoPromptParameters>;
 export type VideoPromptFormat = "h3Ref2va" | "h3Frames" | "h3Text";
 
 export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, canvas?: CanvasContext, signal?: AbortSignal) {
@@ -187,6 +192,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   if (voiceContext.status === "invalid") throw new Error(`角色声音模板配置冲突：${voiceContext.errors.join("；")}`);
   const audioEnabled = model.audio === "optional" && current?.request.generateAudio !== false;
   if (voiceContext.roles.length && !audioEnabled) throw new Error("角色声音模板需要开启支持同期音轨的 H3 工作流");
+  if (shot.lockedDialogue?.length && !audioEnabled) throw new Error("本镜有锁定的同期台词，请确认音轨设置或调整制作合同后重新提交，保留原话");
   const approved = await Promise.all(references.map(async item => {
     signal?.throwIfAborted();
     const target = await resolveWorkspacePath(cwd, item.path);

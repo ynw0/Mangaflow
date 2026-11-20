@@ -28,7 +28,7 @@ export function createReviewSchema(requirementIds: string[]) {
     .refine(items => new Set(items.map(item => item.requirementId)).size === requirementIds.length, "审核证据须逐项覆盖且不得重复");
   return z.discriminatedUnion("status", [
     z.object({ status: z.literal("ok"), framingEvidence: z.string().trim().min(1).max(1500), coverage, findings: z.tuple([]) }),
-    z.object({ status: z.literal("rejected"), findings: z.array(z.object({
+    z.object({ status: z.literal("rejected"), needsAdjacentShots: z.literal(true).optional(), findings: z.array(z.object({
       requirementId, location: z.string().trim().min(1).max(300), evidence,
       fixTarget: z.string().trim().min(1).max(500),
     })).min(1).max(maxReviewFindings) }),
@@ -191,7 +191,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     if (subjects.some(id => !retention.includes(`<Subject ${id}>`))) findings.push("retention_analysis 必须覆盖每个已定义 Subject。");
   }
   if ((prompt.match(/<\/?d\b[^>]*>/gi)?.length ?? 0) !== (timeline.match(/<\/?d\b[^>]*>/gi)?.length ?? 0)) findings.push("对白只能出现在镜头时间轴中。");
-  findings.push(...inspectDialogue(timeline, setup.duration, draft.cinematicPlan));
+  findings.push(...inspectDialogue(timeline, setup.duration, draft.cinematicPlan, prepared.shot.lockedDialogue, prepared.audioEnabled));
   if (!/\p{Script=Han}/u.test(promptZh)) findings.push("提供与英文事实一致的简体中文对照。");
   // 跳过对白和引号原文，保留正文行号供导演定向返修。
   const narration = prompt.replace(/<d>[\s\S]*?<\/d>|"[^"\n]*"/gi, match => match.replace(/[^\r\n]/g, " "));

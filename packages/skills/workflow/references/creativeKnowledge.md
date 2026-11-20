@@ -51,7 +51,7 @@ searchVideoPromptTemplates({action:"searchCreative",library:"styles",query:"电�
 
 // 合同与素材输入来自当前已确认的分镜和画布；以下为字段形态示意
 draftVideoPrompt({
-  shotId:"S01", story:"已确认的镜头动作", purpose:"本镜要交付的信息",
+  shotId:"S01", story:"已确认的镜头动作", lockedDialogue:[], purpose:"本镜要交付的信息",
   style:"已批准视觉风格", continuityIn:"从上一镜承接的状态",
   continuityOut:"本镜结束的状态",
   mustHave:["必须出现的第一个事实"], mustNotHave:[],
@@ -70,6 +70,7 @@ draftVideoPrompt({
 {
   "shotId": "EP001-S11b",
   "story": "陆明确认屏幕上的警报后抬头。",
+  "lockedDialogue": [],
   "purpose": "交代陆明发现异常",
   "style": "写实工业科幻",
   "continuityIn": "陆明坐在工作台前",

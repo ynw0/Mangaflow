@@ -84,6 +84,8 @@
 
 稿件有明确缺陷时，提交 `status: "rejected"` 和非空 `findings` 数组。每条含 `requirementId`、`location`、`evidence` 和 `fixTarget`。退回时省略 `coverage` 与 `framingEvidence`，由导演根据问题定向返修。缺少核验某项所必需的稿件内容时，在对应要求下说明具体缺项。若无法完成审核，向调用方说明缺少的输入，审核保持未通过。
 
+只有核验跨镜承接所需的相邻分镜证据缺失或不完整时，在退回结果中另填 `needsAdjacentShots: true`，并在整改意见中指出需回读哪一处。调用方补齐合同后重新派发。原合同证据齐全、仅稿件写错时，沿原稿定向返修。
+
 - 内置独立审核用 `submitResult({ result: { ... } })` 提交上述判决。`result` 只使用 `ok` 或 `rejected` 分支对应的字段。上游的 `shotId` 用于核对合同，审核结果无镜号字段。审核员提交后由服务端处理。已有节点请求 `node.write: true` 时，成功结果中的 `written: true` 表示英文稿、中文对照和 `reviewId` 已写入目标视频节点。
 - 外部 MCP 在 `videoPrompt` 的 `args.action: "submit"` 中同时传 `preparationId`、`draft` 和 `review`。上述判决字段直接放在 `review` 对象内。服务端返回 `reviewId`、`generationRequest` 和 `written: false`。已有节点需要写回时，调用 `node:setPrompt`，使用 `generationRequest.prompt`、原稿的 `promptZh`、`reviewId` 和服务端返回的 `expectedRevision`。写回后回读视频节点。
 - 生成前按当前运行模式及已获授权范围推进。提示词审核通过记录使用 `reviewId`，成片质检结论另查生成任务的实际结果。

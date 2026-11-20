@@ -104,10 +104,18 @@ export function createVideoPromptTools(options: SubAgentModel & {
           await removePendingDraft(path);
           return { content: [{ type: "text", text: "待审稿已丢弃" }], details: { draftId } };
         }
-        return await run({ draftId, saved: await readPendingDraft(path) }, ...args);
+        const saved = await readPendingDraft(path);
+        if (saved.needsAdjacentShots) return requestAdjacentShots(saved.input.shotId, saved.findings);
+        return await run({ draftId, saved }, ...args);
       } finally { release(); }
     },
   };
+  function requestAdjacentShots(shotId: string, findings: string[]) {
+    const details = { status: "blocked", shotId, findings, written: false,
+      reason: "请回读已确认的相邻分镜，补齐 adjacentShots 后重新提交镜头合同",
+      nextAction: { tool: initial.name, when: "已补齐相邻镜号、原句或触发动作后，使用完整的新合同" } };
+    return { details, content: [{ type: "text" as const, text: JSON.stringify(details) }] };
+  }
   async function run(resumed: { draftId: string; saved: PendingDraft } | undefined,
     ...[_id, params, signal, onUpdate, ctx]: Parameters<ToolDefinition["execute"]>) {
     const startedAt = performance.now();
@@ -320,6 +328,11 @@ export function createVideoPromptTools(options: SubAgentModel & {
       findings = review.status === "ok" ? [] : review.findings.map(item =>
         `[${item.requirementId}] ${item.location}：${item.evidence}；修改目标：${item.fixTarget}`);
       attempts.push({ round: round + 1, stage: "review", findings, review });
+      // 补证据会改变镜头合同，旧输入不能再用于定向返修。
+      if (review.status === "rejected" && review.needsAdjacentShots) {
+        await savePendingDraft(pendingPath, { input, draftKey, revision: prepared.revision, draft: lastDraft, findings, needsAdjacentShots: true });
+        return finish(requestAdjacentShots(input.shotId, findings).details);
+      }
       update(review.status === "ok" ? "独立审核通过，保存审核记录" : "独立审核退回，保留原稿和整改意见");
       if (review.status !== "ok") break;
 

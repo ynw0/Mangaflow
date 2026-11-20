@@ -4,6 +4,7 @@ import { videoPromptParameters, videoPromptToolSchema } from "./input";
 const base = {
   shotId: "S01",
   story: "主角在车间用仪器检查旧车的机械接点。",
+  lockedDialogue: [],
   purpose: "确认机械零件的启动状态",
   style: "电影级写实，车间维修顶灯",
   continuityIn: "人物站在旧车左前侧",

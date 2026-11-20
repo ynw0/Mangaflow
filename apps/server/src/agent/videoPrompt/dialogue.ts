@@ -23,9 +23,16 @@ export function readDialogueBlocks(timeline: string) {
   return [...timeline.matchAll(/<d>((?:(?!<\/?d>)[\s\S])*?)<\/d>/g)];
 }
 
-export function inspectDialogue(timeline: string, duration: number, plan: DraftCinematicPlan) {
+export function inspectDialogue(timeline: string, duration: number, plan: DraftCinematicPlan, lockedDialogue?: readonly string[], audioEnabled?: boolean) {
   const findings: string[] = [];
   const allBlocks = readDialogueBlocks(timeline);
+  if (audioEnabled === false && (allBlocks.length || plan.dialogue.length)) {
+    findings.push("同期音轨已关闭，稿件却安排了发声。请核对音轨与制作合同；已批准的台词须保留。");
+  }
+  // 只按本镜锁定原话逐句核对，邻镜引用与画面文字不参与。
+  if (lockedDialogue && lockedDialogue.length !== allBlocks.length) {
+    findings.push(`本镜锁定了 ${lockedDialogue.length} 句台词，正文有 ${allBlocks.length} 句，请按原顺序保留全部原话。`);
+  }
   if (allBlocks.length !== (timeline.match(/<d>/g)?.length ?? 0) || allBlocks.length !== (timeline.match(/<\/d>/g)?.length ?? 0)
     || (timeline.match(/<\/?d\b[^>]*>/gi)?.length ?? 0) !== allBlocks.length * 2) {
     findings.push("对白 <d> 标签须成对闭合且不能嵌套。");
@@ -42,6 +49,9 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
       findings.push(`${label}须使用语言全称与非空原文。`);
     }
     const preceding = timeline.slice(previousBlockEnd, block.index);
+    if (lockedDialogue?.[index] !== undefined && language?.[2] !== lockedDialogue[index]) {
+      findings.push(`${label}与锁定原话不一致，应为「${lockedDialogue[index]}」。`);
+    }
     previousBlockEnd = block.index + block[0].length;
     const speaker = [...preceding.matchAll(/\((S[1-9]\d*(?:,\s*S[1-9]\d*)*)\)/g)].at(-1)?.[1];
     if (!speaker) findings.push(`${label}前须标明说话人 (S1) 或 (S1,S2)。`);

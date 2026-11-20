@@ -4,14 +4,15 @@ import { mkdir, readFile, readdir, unlink, writeAtomic } from "@toonflow/file";
 import { z } from "zod";
 import conf from "@/utils/conf";
 import { draftCinematicPlanSchema } from "@/utils/production/videoPlan";
-import { videoPromptParameters } from "./input";
+import { savedVideoPromptParameters } from "./input";
 
 export const resumeParameters = z.strictObject({ draftId: z.uuid().optional(), shotId: z.string().trim().min(1).max(500).optional(), discard: z.boolean().optional() })
   .refine(value => Boolean(value.draftId) !== Boolean(value.shotId) && (!value.discard || !!value.draftId), "查询传 shotId；续审或丢弃传 draftId");
 const pendingSchema = z.object({
-  input: videoPromptParameters, draftKey: z.string().optional(), revision: z.string().optional(),
+  input: savedVideoPromptParameters, draftKey: z.string().optional(), revision: z.string().optional(),
   draft: z.object({ prompt: z.string(), promptZh: z.string(), cinematicPlan: draftCinematicPlanSchema }),
   findings: z.array(z.string()),
+  needsAdjacentShots: z.literal(true).optional(),
 });
 export type PendingDraft = z.infer<typeof pendingSchema>;
 

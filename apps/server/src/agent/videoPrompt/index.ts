@@ -31,12 +31,6 @@ const skillList = z.object({ skills: z.array(z.object({
 const skillDocument = z.object({ content: z.string().min(1) });
 const reviewerSource = "independentModel";
 
-function guideRules(text: string, format: "h3Ref2va" | "h3Frames" | "h3Text") {
-  // 只省略官方指南尾部的完整示例；格式、关系词和时间标记规则仍取自原文。
-  const exampleHeading = format === "h3Ref2va" ? "\n## 7. Complete Example" : "\n## 5. Cases";
-  return text.split(exampleHeading)[0]!;
-}
-
 function videoCommonRules(text: string) {
   // 模式、语言和参考绑定由导演规则负责，公共文件只供成片正面写法。
   let include = false;
@@ -149,7 +143,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
         read("h3-prompt-writing", prepared.format === "h3Ref2va" ? "references/ref-en.txt" : "references/base-en.txt"),
         ...Array.from(paths, path => read("cinematicPromptCraft", `references/${path}`)),
       ]);
-      return [director, ...craft, guideRules(guide, prepared.format)];
+      return [director, ...craft, guide];
     }
     const { node, references: selectedReferences, creativeSelection, templateTags, templateConditions } = input;
     const draftKey = createHash("sha256").update(JSON.stringify({
@@ -293,7 +287,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
         const draft = await specialist(draftSchema, draftSubmissionParameters, repair ? "导演返修" : "导演写作", [
           "依据实际镜头合同、已加载的导演规则与 H3 模式写稿，调用 submitResult 提交完整结果。时间使用整段视频内的秒数。",
           ...(repair ? ["针对 findings 修订，保留原稿中仍然有效的内容，并使英文正文、中文对照和导演计划一致。"] : []),
-          ...(repair ? [] : [`英文正文格式（只列本镜段首，按当前合同写内容）：\n${getPromptOutline(prepared.format, duration)}`]),
+          ...(repair ? [] : [`英文正文段名：\n${getPromptOutline(prepared.format)}`]),
           // 拍法候选随已指定的标签传入，只提供判断是否适用的信息。
           JSON.stringify({ ...taskInput,
             ...(repair ? { previousDraft: lastDraft, findings } : {}),

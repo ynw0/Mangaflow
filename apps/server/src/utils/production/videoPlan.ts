@@ -6,7 +6,7 @@ const dialogueLineSchema = z.strictObject({
     .refine(ids => new Set(ids).size === ids.length, "同一句对白的说话人编号不得重复")
     .describe("与正文当前 <d> 前的说话人编号顺序一致；齐声共用一条记录"),
   startSeconds: z.number().finite().nonnegative().describe("这句实际计划开口的镜内秒数"),
-  endSeconds: z.number().finite().positive().describe("这句必须完整说完的镜内秒数"),
+  endSeconds: z.number().finite().positive().describe("本段发声计划收句或按剧本被打断的片段内秒数"),
   pauseSeconds: z.number().finite().nonnegative().describe("计划留给句内停顿的总秒数；无需停顿填 0"),
   afterBeat: z.number().int().positive().optional()
     .describe("只有动作必须完成后才能开口时填写对应 beats 的序号，从 1 开始"),

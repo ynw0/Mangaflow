@@ -58,7 +58,7 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
     ...getShotRequirements(shot),
     { id: "framing", text: "镜头数量及切点符合用户合同；cinematicPlan.shots（如有）与 [Shot N] 的时间和顺序一致，镜尾构图与同框要求相容" },
     { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
-    { id: "dialogueTiming", text: "逐句核对说话人、原话及起声和收句。对照剧本核对停顿、先后关系及抢话；定稿要求不重叠或关键台词会被盖住时，退回不符的交叠。画面口型与实际发声对齐，镜尾留 0.2 秒；无对白时说明依据" },
+    { id: "dialogueTiming", text: "逐句核对说话人、原话及起声和收句。按剧本核对停顿、先后关系、抢话与中断，关键信息应当听清。实际发声与画面口型相符，镜尾按定稿安排。无对白时说明依据" },
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
     { id: "bilingualConsistency", text: "中英文的主体、动作、时序、对白和镜尾事实一致" },
     { id: "creativeIntent", text: `叙事目的：${shot.purpose}。视觉风格：${shot.style}。按播放顺序核对观众能否从正文声画获得本镜要交代的信息。用明确的人物、动作、声音和对象指认依据；后续才揭晓的事实按定稿保留。` },
@@ -92,11 +92,9 @@ const refSections = ["subject_definitions", "summary", "retention_analysis", "de
 const baseSections = ["integrated_multimodal_description", "overall_soundscape", "non_diegetic_music"];
 
 // 首稿只展示本模式的段首，字段顺序与下方预检共用。
-export function getPromptOutline(format: Prepared["format"], duration: number) {
+export function getPromptOutline(format: Prepared["format"]) {
   const sections = format === "h3Ref2va" ? refSections : baseSections;
-  const headings = sections.map(section => section + ":").join("\n");
-  if (format !== "h3Frames") return headings;
-  return `Picture 1 (from Shot 1) aligns with the 0.00-second mark; Picture 2 (from Shot 1) aligns with the ${duration.toFixed(2)}-second mark.\n${headings}`;
+  return sections.map(section => section + ":").join("\n");
 }
 
 export function inspectDraft(draft: { prompt: string; promptZh: string; cinematicPlan: DraftCinematicPlan }, prepared: Prepared) {
@@ -119,13 +117,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   )) {
     findings.push("普通 Ref2VA 图片可按官方规范用 keyframe completion 描述帧关系，但不保证第一帧/末帧与参考图逐像素一致。删除硬匹配承诺；如需专用帧输入，请切换实际绑定首尾帧的工作流。");
   }
-  if (format === "h3Frames") {
-    const duration = setup.duration.toFixed(2);
-    if (prefix.split("\n").length !== 1 || !/Picture 1 \(from Shot 1\).*0\.00-second mark/.test(prefix)
-      || !prefix.includes("Picture 2 (from Shot 1)") || !prefix.includes(`${duration}-second mark`)) {
-      findings.push("首行须按 H3 FL2VA 说明对齐首帧、尾帧和实际时长；首尾帧均来自 Shot 1。");
-    }
-  } else if (prefix) findings.push("正文须直接从本模式的第一个字段开始。");
+  if (format !== "h3Frames" && prefix) findings.push("正文须直接从本模式的第一个字段开始。");
   for (const [index, heading] of headings.entries()) {
     const body = prompt.slice(heading.index + heading[0].length, headings[index + 1]?.index).trim();
     if (!body) findings.push(`字段 ${heading[1]} 缺少内容。`);
@@ -136,8 +128,18 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   const shotBody = timeline.replace(/<d>[\s\S]*?<\/d>|"[^"\n]*"/gi, match => match.replace(/[^\r\n]/g, " "));
   const shotMarkers = [...shotBody.matchAll(/\[Shot (\d+)\]/g)];
   const opening = shotMarkers[0];
+  if (format === "h3Frames") {
+    const duration = setup.duration.toFixed(2);
+    const first = /Picture 1 \(from Shot 1\)[^;\r\n]*?\b0\.00-second mark/.exec(prefix);
+    const last = /Picture 2 \(from Shot ([1-9]\d*)\)[^;\r\n]*?\b(\d+\.\d{2})-second mark/.exec(prefix);
+    // 尾帧对齐实际剪辑的末镜，单镜时才和首帧同属 Shot 1。
+    const lastShot = shotMarkers.at(-1)?.[1];
+    if (/[\r\n]/.test(prefix) || !first || !last || first.index >= last.index || last[1] !== lastShot || last[2] !== duration) {
+      findings.push(`首行按 H3 FL2VA 将 Picture 1 对齐开场 0.00 秒，将 Picture 2 对齐正文最后一镜和总时长 ${duration} 秒。`);
+    }
+  }
   if (!opening || opening[1] !== "1") {
-    findings.push("detailed_description 应从 [Shot 1] 开始。");
+    findings.push(`${start[1]} 的第一个镜头标记须为 [Shot 1]。`);
   } else {
     // The official Ref2VA guide permits sequential [Shot N] cuts. Respect explicit single-take contracts.
     let previousCut = 0;

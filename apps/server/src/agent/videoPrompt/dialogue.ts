@@ -14,9 +14,9 @@ export function getVideoSpeechPolicy(audioEnabled: boolean) {
     voiceover: {
       phrase: voiceoverPhrase,
       identity: "旁白和内心独白在说话人编号后标明画外发声，纯文本和首尾帧按指南使用 phrase。现场人物在构图外开口时，写实际方向和听者，沿用其角色身份与编号。台词外写实际声源与 (Sx)，<d> 内只放语言标签与原台词。内心独白与同一角色的现场对白共用声线及编号。",
-      timing: "每段画外发声纳入 cinematicPlan.dialogue。现场对白可以被同场人物听见，听觉范围按剧本写。只给观众听的旁白与独白不改变画中人的反应。角色的口型按实际发声和可见范围写。提示音写作音效，实际参考音频才使用 <Audio N>。",
+      timing: "由模型生成的画外发声纳入 cinematicPlan.dialogue。现场对白可以被同场人物听见，听觉范围按剧本写。只给观众听的旁白与独白不改变画中人的反应。角色的口型按实际发声和可见范围写。提示音写作音效，实际参考音频才使用 <Audio N>。",
     },
-    note: "启用同期音轨时按剧本和已确认的语速说原话。按起声顺序记录开口、收句、停顿和前置动作，镜尾保留 0.2 秒。定稿明确安排抢话时，每人保留自己的 <d> 和原话，关键内容仍需听清。字数估时提示风险，实际发声以成片为准。实际参考音频才使用音频标签。",
+    note: "按剧本和已确认的语速说原话，记录开口、收句、停顿和前置动作。endingReserveSeconds 是交代镜尾时的余量参考，具体留多久按原场戏。抢话时保留各自的 <d> 和原话，关键内容仍需听清。字数估时提示风险，实际发声以成片为准。实际参考音频才使用音频标签。",
   };
 }
 
@@ -92,8 +92,8 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
     previousSpeechStart = line.startSeconds;
     previousSpeechEnd = Math.max(previousSpeechEnd, line.endSeconds);
     if (line.endSeconds <= line.startSeconds) findings.push(`${label}结束时间须晚于开口时间。`);
-    if (line.endSeconds > duration - endingReserveSeconds + timeTolerance) {
-      findings.push(`${label}在 ${line.endSeconds} 秒才结束，须在 ${(duration - endingReserveSeconds).toFixed(2)} 秒前说完，给镜尾留 ${endingReserveSeconds} 秒。`);
+    if (line.endSeconds > duration + timeTolerance) {
+      findings.push(`${label}的计划发声在 ${line.endSeconds} 秒结束，超出片段时长 ${duration} 秒。请按定稿调整镜内安排并保留原话。`);
     }
     if (line.afterBeat !== undefined) {
       const beat = plan.beats[line.afterBeat - 1];

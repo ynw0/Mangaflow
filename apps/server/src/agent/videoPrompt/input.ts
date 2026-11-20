@@ -37,7 +37,7 @@ const ratioSchema = z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "
 const shotFields = {
   shotId: shortText.describe("必填顶层字段，取已确认镜头合同的编号，例如 EP001-S11b；与 node.nodeId 不同"),
   story: description,
-  lockedDialogue: z.array(description).max(64).optional().describe("从最新确认的正式剧本取本镜原话，含实际播出的旁白和独白，按起声顺序填写。与旧分镜或旧视频稿不一致时先对齐上游。无台词传 []"),
+  lockedDialogue: z.array(description).max(64).optional().describe("从最新确认的正式剧本取本镜需要模型发声的原话，含旁白和独白，按起声顺序填写。直接复用的录音按素材用途记录。与旧分镜不一致时先对齐上游。无须生成台词时传 []"),
   purpose: shortText,
   style: description,
   continuityIn: z.string().trim().max(3000).describe("本镜开始时从上镜承接的状态，可包含画外人物或物件"),

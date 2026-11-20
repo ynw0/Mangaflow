@@ -26,14 +26,14 @@ Use `integrated_multimodal_description`, `overall_soundscape`, and `non_diegetic
 
 Ref2VA rewrites use `subject_definitions`, `summary`, `retention_analysis`, `detailed_description`, `overall_soundscape`, and `non_diegetic_music` in that order. Reference labels stay consistent across all sections.
 
-Read `references/ref-en.txt` for label rules, retention analysis, and complete examples.
+Read `references/ref-en.txt` for reference labels, retention analysis, and timeline rules.
 
 ## Output Rules
 
-Format labels, reference bindings and timestamps are hard syntax; the visual and spoken content inside them is not a stock template. Describe the actual character and scene rather than filling every time interval with a generic expression, dramatic camera move, or explanatory line. Keep approved dialogue verbatim, and use precise acting or sound cues only where the scene calls for them.
+Use the format labels, reference bindings, and timestamps for the selected mode. Describe the actual characters and scene. Keep approved dialogue verbatim. Add acting and sound cues when they help the audience follow what happens.
 
 - Write rewrite sections in English; preserve dialogue, lyrics, and visible scene text in their original language.
-- Describe each shot by composition, subjects, environment, actions, camera, sound, and the exact point where referenced content appears.
+- Give each shot the context and changes needed to understand its part of the scene. Describe continuing conditions once.
 - Avoid plot summaries, unresolved reference labels, and timing that does not match the requested duration.
 ## Tips for Better Results
 - Always match the total duration of the description to the requested video length (4–15 seconds).

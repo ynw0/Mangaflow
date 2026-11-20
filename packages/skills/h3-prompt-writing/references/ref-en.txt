@@ -4,7 +4,7 @@ This guide explains how rewrite outputs are organized and written in full-refere
 
 Write all six rewrite sections in English. Preserve the original language only for dialogue and lyrics inside `<d>` and for text visibly present in the scene.
 
-**Description detail:** Make `detailed_description` as detailed and explicit as possible. For each shot, clearly establish the current composition, subject appearance and position, environment and lighting, actions and state changes, camera movement, current sound, and the points where referenced content actually appears or takes effect. Avoid reducing the description to a plot summary or a list of reference relationships.
+**Description detail:** In `detailed_description`, describe what the audience can see and hear in playback order. Give the space, actions, dialogue, and cause and effect enough detail to be understood. State stable visual and sound conditions once and describe later changes where they occur.
 
 > The basic formats for shots, camera movement, speakers, dialogue, and ordinary sound are shared with the Video Prompt Writing Guide (T2VA / I2VA / FL2VA / L2VA). This guide focuses on the reference labels, analysis sections, and format differences specific to full-reference mode.
 
@@ -218,28 +218,18 @@ The basic format follows the Video Prompt Writing Guide (T2VA / I2VA / FL2VA / L
 - `[Shot 1]` marks the opening shot and has no timestamp. Later shots use `[Shot N] At MM:SS.mmm, ...` to mark cut times.
 - Write camera movement as natural English within the current shot, including movement type, amplitude, and speed when they need to be expressed.
 - Give vocal sources stable `(S1)`, `(S2)`, and subsequent IDs. Write dialogue and lyrics as `<d>[Language] ...</d>`.
-- Use `<scenetrans>`, `<cutoff>`, and the corresponding continuity descriptions for dialogue crossing a cut, speech truncated by the video ending, and continuous audio across shots.
+- Keep each approved line intact in one `<d>` block at speech onset. Mark sound that carries across a cut with `<scenetrans>` outside the dialogue text. Use `<cutoff>` outside the text only when the script calls for the final line to be interrupted.
 
-For complete rules and examples covering camera vocabulary, group speech, voice-over, dialogue across cuts, and visible text, see the Video Prompt Writing Guide (T2VA / I2VA / FL2VA / L2VA).
+See the base guide for camera vocabulary, group speech, voice-over, dialogue across cuts, and visible text.
 
 ### 5.2 Full-Reference Mode Differences
 
 | Dimension | T2VA | Full-reference mode |
 | --- | --- | --- |
 | Main field | `integrated_multimodal_description` | `detailed_description` |
-| Style opening | Written after `[Shot 1]` | Established in one or two English sentences before `[Shot 1]` |
+| Style opening | Written at the opening of `[Shot 1]` | Global style and lighting may be established before `[Shot 1]` or at its opening |
 | Reference information | Does not use full-reference labels | Inserts `<Subject N>`, `<Picture N>`, `<Video N>`, and `<Audio N>` at their first appearance and where their roles apply |
 | Audio relationships | Describes the target video's own sound | Cites `<Audio N>` in the corresponding shot or audio phase and states whether the signal is copied or referenced |
-
-Opening example:
-
-```text
-The target video is in a cinematic, literary music-video style with soft lighting and a slightly desaturated color palette.
-[Shot 1] The scene opens in a crowded urban street...
-[Shot 2] At 00:09.000, the shot cuts to an extreme close-up...
-```
-
-In MangaFlow, write enough for the action, dialogue and sound to be understood in playback order. Match the detail to what changes on screen or in the audio. Keep the full dialogue timeline and the information needed to understand it.
 
 ### 5.3 Using Reference Labels in Shots
 
@@ -257,21 +247,11 @@ When editing or continuing an original video, cite `<Video N>` naturally where i
 
 ### 5.4 Speakers, Audio Sources, and Dialogue
 
-The basic speaker-ID and `<d>` formats follow T2VA. When a referenced subject physically speaks, retain both the visual reference label and the speaker ID:
+The speaker-ID and `<d>` formats follow the base guide. When a referenced subject speaks, use `<Subject N> (Sx)`. If the same subject speaks outside the frame, keep both identifiers and describe where the voice comes from and who hears it. For a voice without a defined subject, identify the source and use its stable `(Sx)`.
 
-```text
-<Subject 2> (S1) turns toward the woman and says, <d>[English] Last summer, I went to my grandfather's house. He talked about you.</d>
-```
+For a cue in directly reused music or a complete soundtrack, identify the actual `<Audio N>` and where the cue falls in that audio. In MangaFlow, `<d>` marks a line or lyric the target video must perform. A cue in existing audio needs neither an added speaker nor a new `<d>` block.
 
-`<Subject N>` identifies the referenced subject, while `(Sx)` identifies the actual speaker. When the subject speaks, write `<Subject N> (Sx)`. If the same subject speaks off-screen, keep the same form and mark it as `off-screen`. When the speaker does not correspond to a defined subject, use a stable voice description followed by `(Sx)`.
-
-When verbal content is only a cue within a directly reused BGM or complete soundtrack, and no person, character, narrator, or other independent vocal source physically produces it, use `<Audio N>` as the audible source and do not invent an additional `(Sx)`. If a concrete person, character, narrator, or other independent vocal source produces the voice, assign and reuse `(Sx)` for that source:
-
-```text
-When <Audio 1> reaches the phrase <d>[English] I'm lonely lonely lonely lonely lonely I'm lonely</d>, <Subject 1> performs the corresponding hand gesture without becoming a separate speaker source.
-```
-
-Use the original language and words for dialogue, narration or lyrics taken from reference audio or requested for reperformance. If an approved transcript exists, copy its wording and punctuation inside `<d>`. When transcribing audio without an approved transcript, use readable punctuation and mark unintelligible spans with `[unclear]`.
+Preserve the language, wording, and punctuation of the approved lines to be performed, including lines the user asks to reperform from reference audio. If the words to reperform are unclear, resolve the transcript before locking the line.
 
 When only timbre, rhythm, emotion, or delivery is referenced, do not carry the original dialogue from the reference audio into the target video.
 
@@ -281,17 +261,9 @@ Assign `(Sx)` once according to the order of actual vocal events in the target v
 
 The definitions of these two sound categories follow the Video Prompt Writing Guide (T2VA / I2VA / FL2VA / L2VA).
 
-`overall_soundscape` summarizes ambience and physical sounds across the full video. Dialogue, singing, and sound events synchronized to a particular shot remain in `detailed_description`:
+`overall_soundscape` describes the continuing ambience. Use `N/A` when there is none. Dialogue, singing, and sound events synchronized to a specific moment remain in `detailed_description`.
 
-```text
-overall_soundscape: Quiet indoor room tone and a low ventilation hum continue throughout the video.
-```
-
-`non_diegetic_music` describes background music that the characters cannot hear and that is audible only to the audience. When music is present, state its instrumentation, tempo, and dynamic development:
-
-```text
-non_diegetic_music: A restrained solo-piano score at a slow tempo, with sustained low cello underneath and no swell.
-```
+`non_diegetic_music` describes any score that only the audience hears. Give the relevant instrumentation, pace, and changes in level. Use `N/A` when there is no score.
 
 When reference audio is used, state its copy or reference relationship only in the section that matches the audible layer: ambience and sound effects belong in `overall_soundscape`, while audience-only score belongs in `non_diegetic_music`. If the same audio provides both kinds of content, describe the corresponding relationship in each section:
 
@@ -301,41 +273,3 @@ non_diegetic_music: <Audio 2> is directly reused as the complete audience-only s
 ```
 
 Write complete dialogue and lyrics only inside `<d>` in `detailed_description`; do not repeat them in these two sections.
-
-## 7. Complete Example
-
-<details>
-<summary>Show the complete example</summary>
-
-```text
-subject_definitions:
-<Subject 1> is the coffee-shop environment in <Picture 1>, featuring an exposed brick wall, an orange tufted sofa with patterned pillows, a neon sign, and a wooden coffee table.
-<Subject 2> is the fluffy white Samoyed in <Picture 2>, <Picture 3>, and <Picture 4>, with thick white fur, pointed ears, a dark nose, and a curved tail.
-<Subject 3> is the young blonde woman in <Video 1>, with long blonde hair and a light-pink button-down shirt with rolled-up sleeves.
-<Subject 4> is the young man in <Video 2>, with short wavy brown hair and a dark-grey hoodie with drawstrings.
-<Audio 1> is the voice-timbre reference for <Subject 3> (S1), containing a spoken English vocal layer.
-
-summary:
-[reference generation + audio reference] The target video shows <Subject 3> eating a cookie in <Subject 1>. <Subject 4> enters with <Subject 2>, which lunges toward the cookie. The three-shot exchange uses <Audio 1> as the voice-timbre reference for <Subject 3> and ends with a canned audience laugh.
-
-retention_analysis:
-<Subject 1> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - the exposed brick wall, orange tufted sofa, patterned pillows, neon sign, and wooden coffee table are retained.
-<Subject 2> (appears in [Shot 1], [Shot 2]): fully_preserved - the Samoyed's thick white fur, pointed ears, dark nose, and curved tail are retained.
-<Subject 3> (appears in [Shot 1], [Shot 2], [Shot 3]): fully_preserved - the blonde woman's identity, long hair, and light-pink shirt are retained.
-<Subject 4> (appears in [Shot 1], [Shot 2]): fully_preserved - the young man's short wavy brown hair and dark-grey hoodie are retained.
-<Audio 1>: reference - its vocal timbre guides the dialogue delivery of <Subject 3> without copying the original signal.
-
-detailed_description:
-The target video uses a realistic multi-camera sitcom style with warm indoor lighting.
-[Shot 1] A medium shot establishes <Subject 1>, the coffee shop with its exposed brick wall, orange tufted sofa, patterned pillows, neon sign, and wooden coffee table. <Subject 3> (S1), the young woman with long blonde hair and a light-pink button-down shirt with rolled-up sleeves, sits on the sofa holding a chocolate-chip cookie. From the left, <Subject 4>, the young man with short wavy brown hair and a dark-grey hoodie with drawstrings, enters holding the leash of <Subject 2>, the thick-furred white Samoyed with pointed ears, a dark nose, and a curved tail. The dog lunges toward the cookie and pulls the leash taut. <Subject 3> (S1) jerks her hand back and, using the clear youthful voice timbre referenced from <Audio 1>, exclaims with light annoyance, <d>[English] Hey! Watch your dog!</d> She closes her lips and guards the cookie while <Subject 4> pulls the dog back.
-[Shot 2] At 00:03.000, the shot cuts to a close-up of <Subject 4> (S2), the young man in the dark-grey hoodie from Shot 1, sitting beside <Subject 3> on the sofa and holding <Subject 2> securely in his arms. <Subject 4> (S2) says in a casual young male voice with a playful tone and an easy conversational pace, <d>[English] He just likes cookies more than me.</d> He closes his mouth into an apologetic smile and strokes the dog's thick white fur.
-[Shot 3] At 00:05.000, the shot cuts to a close-up of <Subject 3> (S1), the blonde woman in the light-pink shirt from Shot 1. Her annoyance softens as she looks toward the Samoyed. <Subject 3> (S1) replies in the same clear youthful voice referenced from <Audio 1> with an amused cadence, <d>[English] Well, he has good taste at least.</d> She smiles and raises the cookie in a small toast-like gesture. A classic canned audience laugh begins immediately after the line and continues through the final frame.
-
-overall_soundscape:
-Soft indoor coffee-shop room tone continues throughout the scene.
-
-non_diegetic_music:
-N/A
-```
-
-</details>

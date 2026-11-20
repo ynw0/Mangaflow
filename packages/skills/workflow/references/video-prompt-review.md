@@ -20,6 +20,7 @@
 ### 语言与结构
 - 当前模式要求的各段标题与叙述均为英文；须另有非空 `promptZh` 简体中文对照。`<d>` 内对白/歌词与画面可见文字保留原文。语言标签须为 English 全称（Chinese 等），写成 zh/en/ja/ko/zh-CN 判不合格。
 - 对白必须保持剧情确定文本；不得改写或删减已确认台词。
+- 连读英文提示词和中文对照。拼写、错别字、病句、用词或生硬译法影响理解时，指出原句和受影响的动作、声源或时序。定稿台词疑似有误时，由编剧核对原稿；审核按确认后的原话验收。
 - 提示词与时间轴须符合准备结果中的 `workflow.duration`。Ref2VA 用 `detailed_description`，纯文本和首尾帧用 `integrated_multimodal_description`。正文从 `[Shot 1]` 开始；允许切镜时后续 `[Shot N] At MM:SS.mmm` 按时序展开；用户明确要求单镜时只用一个 `[Shot 1]`。对白计划在 `cinematicPlan.dialogue` 逐句核对。
 - `summary` 的任务类型按实际模式与 [video-director.md](video-director.md) 确定，Ref2VA 默认 `[reference generation]`。
 

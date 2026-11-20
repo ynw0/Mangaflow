@@ -107,7 +107,7 @@ export const videoTemplateSearch = {
       case "searchCreative":
         return {
           matches: searchCreativeKnowledge({ library: input.library, query: input.query, tags: input.creativeTags, limit: input.limit }),
-          notice: "热梗日期是2026传播记录而非首发或实时榜单。叙事场次模板不可直接塞进单个连续镜头；表情、画风、滤镜是提示词材料，不等于完成节点后期。选用后请检查组合冲突。",
+          notice: "热梗日期为 2026 年观察到的传播时间。叙事条目要与当前场戏的事件相符，多镜条目按分镜切点使用。表情的动作示例须符合角色和基调，夸张或机械化表演适合剧本已经安排的风格。画风及滤镜只描述画面观感。选用后检查组合冲突。",
         };
       case "checkCreativeSelection":
         return checkCreativeSelection(input);

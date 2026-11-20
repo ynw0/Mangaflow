@@ -131,7 +131,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
       for (const item of group) {
         expect(item.face.length).toBeGreaterThan(6);
         expect(item.gesture.length).toBeGreaterThanOrEqual(5);
-        expect(item.videoBeat.includes("→")).toBe(true);
+        expect(item.videoBeat.trim().length).toBeGreaterThan(12);
         expect(item.imagePrompt).toContain("保持原角色");
         expect(item.continuity).toContain("身份");
       }
@@ -147,7 +147,8 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     expect(visualStyles.filter(item => item.category === "filter")).toHaveLength(16);
     for (const item of visualStyles) {
       expect(item.imagePrompt.length).toBeGreaterThan(30);
-      expect(item.videoPrompt).toContain("连续镜头");
+      expect(item.videoPrompt).toContain(item.palette);
+      expect(item.videoPrompt).not.toContain("不切镜头");
       expect(item.avoid.length).toBeGreaterThan(15);
     }
     expect(searchCreativeKnowledge({library:"styles",query:"电影级写实",tags:[],limit:2})[0]?.title).toBe("电影级写实");

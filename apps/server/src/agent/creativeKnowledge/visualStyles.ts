@@ -29,14 +29,14 @@ const rows: VisualRow[] = [
   ],
   [
     "s02",
-    "纪实手持",
+    "现场纪实",
     "style",
     "影视写实",
-    "观察式构图、适量自然摇晃、真实现场微瑕",
+    "现场记录质感，保留自然光照和材质的细微变化",
     "现有环境灯为主",
     "中性自然色",
     "可见真实空气与质地",
-    "纪录片,写实,生活"
+    "纪录片,写实,生活,纪实手持"
   ],
   [
     "s03",
@@ -550,7 +550,7 @@ export const visualStyles: VisualStyleTemplate[] = rows.map(([id, title, categor
   id, title, category, group,
   tags: [...tags.split(","), category === "style" ? "画风" : "滤镜", group],
   imagePrompt: `视觉${category === "style" ? "画风" : "滤镜"}「${title}」：${look}；光线：${lighting}；色彩：${palette}；材质/纹理：${texture}。主体身份、场景物理关系及既有参考保持一致。`,
-  videoPrompt: `整个连续镜头采用「${title}」的稳定视觉表现：${look}；${lighting}；${palette}；${texture}。不切镜头，不在镜中突然变换渲染风格或光源方向。`,
+  videoPrompt: `视觉参考为「${title}」。${look}。光线参考${lighting}，色彩参考${palette}，纹理参考${texture}。延续已确认的画风和场景光源关系。`,
   palette, lighting, texture,
   avoid: category === "filter"
     ? "这是提示词级的画面观感建议，不是已执行的 LUT、滤镜处理或后期节点；禁止改变主体身份、肤色逻辑及物理结构，不无端添加光源或天气。"

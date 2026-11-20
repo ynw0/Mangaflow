@@ -175,8 +175,8 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
       },
       expression && {
         slot: "expression", id: expression.id, title: expression.title,
-        face: expression.face, gesture: expression.gesture, avoid: expression.avoid,
-        ...(video ? { videoBeat: expression.videoBeat, camera: expression.camera, continuity: expression.continuity }
+        face: expression.face, intensity: expression.intensity, avoid: expression.avoid,
+        ...(video ? { continuity: expression.continuity }
           : { imagePrompt: expression.imagePrompt }),
       },
       visualSummary(style),

@@ -55,8 +55,8 @@ const shotFields = {
   voiceCast: z.array(z.strictObject({
     speakerId: z.string().regex(/^S[1-9]\d*$/).describe("当前 H3 镜头说话人编号 S1、S2..."),
     characterName: shortText,
-    voiceIdentity: z.string().trim().min(1).max(800).optional().describe("已批准的稳定声线描述，跨镜不变"),
-    sourceId: shortText.optional().describe("按实际发声选择：画内对白 vs01，仅观众听到的旁白 vs02，角色内心独白 vs03。其他来源查询 voices。同一角色在片段内切换发声方式时，省略 sourceId，并在正文逐段标明声源"),
+    voiceIdentity: z.string().trim().min(1).max(800).optional().describe("已批准的音色、音区、共鸣或咬字特点。固定声线跨镜沿用；原话、单位、句长和接话顺序按定稿"),
+    sourceId: shortText.optional().describe("画内对白用 vs01，仅观众听到的旁白用 vs02，内心独白用 vs03。现场说话人暂在构图外或交替入画时，可省略此项，逐句写实际声源与听觉范围"),
     timbreId: shortText.optional(), ageId: shortText.optional(), personalityId: shortText.optional(),
     foreignAccentId: shortText.optional(), dialectId: shortText.optional(), emotionId: shortText.optional(),
     deliveryId: shortText.optional(), paceId: shortText.optional(),

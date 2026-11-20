@@ -51,7 +51,7 @@ function videoCommonRules(text: string) {
   // 从已有公共 Skill 读取成片相关章节，不维护第二套可能过期的规范。
   const headings = new Set(["事实与边界", "成片正面改写（通用）", "原画 / 成片提示词语言", "跨镜连续性（原则）"]);
   let include = false;
-  return text.split("\n").filter(line => {
+  return text.split(/\r?\n/).filter(line => {
     const heading = /^#{2,3} (.+)$/.exec(line);
     if (heading) include = headings.has(heading[1]!);
     return include;

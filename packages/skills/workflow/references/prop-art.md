@@ -12,12 +12,12 @@ production_profile、资产规划、asset_key、variant_key、canonical_descript
   - 接近方形 → `product_square` 1024×1024
   - 宽明显大于高 → `product_wide` 1344×768
 - 方图留白会诱发出多余物体或拼版。只有物体本身是宽构图才用 `product_wide`。禁止把成片 16:9 写进 layout_lock 或 review_checklist。
-- 固定轮廓、比例、材质、颜色、纹理、接口及操作部件。默认单件 3/4 产品视角、完整可见、简洁背景、无人无手；多件组成一套的资产必须同框、连接关系完整。
+- 固定轮廓、比例、材质、颜色、纹理、接口及操作部件。新建基准产品图默认用单件 3/4 产品视角，主体完整、背景简洁、无人无手。变体视角按它要展示的结构以及实际底图决定。多件组成一套的资产必须同框、连接关系完整。
 - **尺度可核对**：在 prompt 与 `geometry_lock` 写明手持级 / 桌面级 / 家具级（或等价可拍表述），避免手持物被画成家具尺寸。白底、无人、无手规则不变。
 - canonical **只锁身份/结构**。`allowed_changes` 列出的可变状态不准画进本张 canonical。活动部件只按规划已定义能力变化，不改变连接关系和主体结构。
 - 遵守当前 production_profile.visual_style 与统一材质、光照、渲染语言。已确定属性不能改；尚待设计细节可提出一致方案并等待原画审批。
-- 变体以 approved_master 锁定身份，只允许 allowed_variant_changes。冲突不能通过弱化锁定来处理。
-- prompt 按 `_common.txt` 视觉化清单写正面画面：主体与组件、产品姿态、构图、镜头感、棚光、材质纹理。身份锁与结构锁必须写进 prompt 正文。默认 3/4 产品静帧、简洁背景；风格词拆成光质、色温和表面质感，不复读形容词。
+- 变体以 approved_master 锁定身份，只允许 allowed_variant_changes。选已核验且接近本步起始状态的底图，按 [图像编辑规则](common.md#图像编辑与变体)写改动及本视角可见的保留项。冲突不能通过弱化锁定来处理。
+- 新建原画按 [common.md](common.md#正面提示词视觉化)交代主体与组件、姿态、构图、光线和材质。编辑原画开头先写改动，随后说明本视角的身份和结构锁。将风格落实到光质、色温和表面质感。
 - `prompt` 正文用英文叙述可拍摄事实；另填 `prompt_zh` 简体中文对照给人审阅（不进模型）。不要在 `prompt` 末尾自写 `Visual Style:` 或 `Still:` 行；sidecar 入库时追加这两行英文页脚。
 - Qwen 和带负面节点的其他 Comfy 原画工作流：禁忌进 `negative_constraints`（英文，进模型负面节点），写成不想要的画面事实（物体、形态或状态本身）。正面 `prompt` 禁止「不是/禁止/no/not/without」；否定写法会把禁忌概念送进正面 CLIP。Flux.3 Klein 工作流按 `common.md`「Flux.3 Klein 出图」：`negative_constraints` 返回 []，禁忌改写成正面可见事实。
 - 写法克制、正负面分流见 `common.md`「写法克制」「原画正负面与多格」。

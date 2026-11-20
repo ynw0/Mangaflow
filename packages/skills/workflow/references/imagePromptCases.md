@@ -20,16 +20,19 @@ tags: character; t2i; turn-around; consistency
 
 ## I02｜旧车基准：有真实重量的材质
 tags: prop; vehicle; t2i; 3/4-view; physical-scale
-示范正面画面句（英文）：A single full-size, older compact coupe in a clean three-quarter front studio view, all four wheels attached to the axles and visibly supporting the car. Slightly uneven dark metallic paint with localized wear around the wheel arches, realistic tire sidewalls, transparent windshield with faint interior shapes, flush panel gaps, accurately scaled door handles and rearview mirrors. A ground plane catches soft tire contact shadows, with one broad softbox reflected across the hood. Entire vehicle in frame.
+示范正面画面句（英文）：A full-size older compact coupe rests on a studio floor, seen from the front and one side. The visible tires meet the floor at their contact patches, with soft shadows beneath them. The dark metallic paint is worn around the wheel arches, and a broad studio light reflects across the hood. The whole car fits in the frame.
 质检：同一车身与车轮数量、驾驶室比例、车轮接地、金属而非塑料玩具质感。已批准车图不得换车型/颜色；负面禁忌交给工作流的 negative_constraints。
 
 ## I03｜机械机翼母版：静态结构清晰
 tags: prop; mechanical; t2i; identity-lock; geometry
-示范正面画面句（英文）：A single full-size road vehicle with two compact hinged wing modules integrated symmetrically along the upper sides of its body. A readable three-quarter front view shows each wing root connected to a recessed mechanical mount, folded wing panels resting within matching body channels, visible seams and fasteners. Metallic industrial surfaces carry consistent fine machining marks. Neutral studio backdrop, soft side lighting, four grounded road wheels, entire vehicle in frame.
-质检：左右各一套、翼根来源明确、铰链和收纳位置可追踪；此案例不是用户“银隼01”的已批准外形，不能拿来替换其设定。
+示范正面画面句（英文）：Viewed from directly above, the cab is at the top of the frame and the cargo deck extends below it. Two identical folded modules sit to either side of the deck centerline at the same distance behind the cab. Each module rests in its own recessed mount, with the hinge visible where it meets the deck.
+质检：确认该视角能看见两套组件的安装点、对称关系和收纳位置。车轮与侧面标识由能看清它们的视角核对。
 
-## I04｜编辑任务：只改已授权状态
-tags: prop; edit; qwen-image; preserve-identity
-前提：已经有一张清晰的批准道路模式车辆图，用户/合同只要求展开现有机翼，不改其余外形。若有第二张机翼末态参考图，角色分配必须与工作流 image-reference 规则相符。
-示范编辑指令（英文）：Using the supplied road-mode vehicle image as the exact base, unfold the two existing wing modules from their original recessed body mounts into the approved extended position. Keep the same vehicle identity, wheel count and location, body panel shapes, windshield, color, ground plane, camera angle, lighting direction and background. Change only the wing-panel articulation and the exposed wing-root joints; preserve the rest of the image at input fidelity.
-质检：仅机翼差异、车身保持、照明一致、结构数量一致。不同输入数量的 image 标签写法以本轮模型官方和 MangaFlow 当前 workflow 为准。
+## I04｜编辑任务：移动底图中已有的部件
+tags: prop; edit; preserve-identity
+
+底图已核验为垂直顶视。两块抽拉板水平收在台面下，台面的左右边缘均可辨认。本步只拉出两块板。
+
+示范编辑指令（英文）。Pull the two existing boards straight out from beneath the tabletop, one through each side. Both exposed portions should be the same width, with the boards staying flat. Keep the overhead view, the table position, and the wood grain from the base image.
+
+验收时先确认仍是垂直顶视，再看两块板是否分别从左右伸出、露出宽度是否相同。该角度看不见的桌腿细节由其他视角验收。多张输入时，按实际槽位给各图分配用途。

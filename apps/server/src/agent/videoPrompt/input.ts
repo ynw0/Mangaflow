@@ -45,7 +45,7 @@ const shotFields = {
   mustNotHave: requirements.describe("禁止出现的事实，逐条填写字符串数组；无内容传 []"),
   intent: z.enum(["dialogue", "action", "effects", "mechanical", "reveal", "environment"]),
   tone: z.enum(creativeTones).optional().describe("镜头合同中已确认的基调，用于核对所选创作模板"),
-  adjacentShots: z.string().trim().max(6000).optional(),
+  adjacentShots: z.string().trim().max(6000).optional().describe("跨镜接话或行动依赖前镜时，摘录已确认相邻镜号、说话人和原句或触发动作，供导演和审核核对；独立镜头可省略"),
   regenerate: z.boolean().optional().describe("明确要求重新创作时传 true"),
   reReview: z.boolean().optional().describe("用户明确要求用当前审核员复审已通过的现稿时传 true，与 regenerate 互斥"),
   templateTags: templateTagSchema.optional(),

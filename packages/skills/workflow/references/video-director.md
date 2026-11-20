@@ -10,6 +10,8 @@
 
 视频提示词创建由 **`draftVideoPrompt`** 执行，`searchVideoPromptTemplates` 只负责检索。工具对外使用一个顶层 JSON 对象，禁止把 `mustHave`、`mustNotHave`、`references` 数组变成 JSON 字符串，`duration` 必须是数字。已有画布节点必填顶层 `shotId`、镜头合同和实际参考，`canvasId` 只填写在 `node.canvasId`；先 `node:getConfig` 核对配置，有变化时用 `node:setConfig` 更新，再读取 `node:getPromptContext`，已有节点不传 `duration/ratio/modelId/sampling/seed/seedMode`。新镜头省略 `node`，必须提供 `duration` 和 `ratio`。已选创作模板通过 `creativeSelection` 中稳定的模板 ID 传入，按[调用示例](creativeKnowledge.md#与-draftvideoprompt-的直接衔接)填写已有节点或新镜头所需的字段。
 
+本镜开口是在回答上一镜，或本镜的决定由前镜的消息、动作触发时，派发前回读已确认的相邻分镜，把相关镜号、说话人及原句或触发动作填入 `adjacentShots`。导演用它确定谁在回应什么，本镜从回应处开拍。独立成意的镜头可省略该字段。
+
 ### H3 同期角色声音规则
 
 视频与对白继续由 H3 同一次生成。有对白且启用同期音轨时，默认采用约正常交谈速度 1.3 倍的自然偏快口语。吐字清晰、发音连贯、停顿紧凑，保留语气起伏和情绪表达。镜头明确需要慢声、迟疑、拖腔或庄重缓述时相应放慢。`voiceCast` 以 `(S1)`、`(S2)` 区分说话人，为每人选择符合性格且听得出区别的音区、共鸣、咬字或收句特征，固定声线跨镜保持。保留原台词，音频引用须来自真实素材；静默镜头省略语速指令。详见 [声音模板规则](creativeKnowledge.md#h3-同期角色声音提示词模板)。

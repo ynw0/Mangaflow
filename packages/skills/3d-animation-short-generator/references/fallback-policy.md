@@ -2,23 +2,9 @@
 
 ### Failure fallback per video model
 
-H3 fallback ladder when a clip fails or drifts:
+Compare the failed clip with the approved shot and the references actually bound to the job. Locate the missing or incorrect action, line, or spatial relationship. If the wording caused the failure, revise that part using the relevant anchor and its actual change. If the required state is missing from the reference, repair the reference before trying again. If the shot needs more time, return to the shot table and review the timing and continuity together.
 
-1. First retry: regenerate the same clip with the H3 prompt prefix strengthened by quoting the exact `Reference Anchors` block from the table.
-2. Second retry: shorten the shot to ≤6s and split the dropped seconds into a new adjacent row in Step 5; re-run Step 5.5 self-check, then re-render.
-3. Third retry: switch the failing shot to Seedance 2.0 (this is exactly why the mixed mode exists — performance fallback is one click, not a re-architecture).
-4. After three failed attempts on the same shot: pause and ask the user with a choice card:
-   - Switch just this shot to Seedance 2.0.
-   - Loosen the request (drop a prop, simplify the action, reduce the hook).
-   - Skip the shot and add a `placeholder: missing clip` note for downstream review.
-   - Manually supply a reference video to bind instead of generating.
-
-Seedance 2.0 fallback ladder (used when the user has explicitly chosen Seedance as the global model, or after H3 already failed three times):
-
-1. First retry: regenerate with a strengthened prompt that quotes the `Reference Anchors` block.
-2. Second retry: drop reference images and use text-only generation.
-3. Third retry: shorten the shot to ≤6s and split the dropped seconds into a new row.
-4. After three failed attempts: ask the user — switch to H3 for this shot, loosen the request, skip the shot, or supply a reference video.
+Preserve approved dialogue, props, story facts and continuity. Follow the project’s approval and compute rules for changes to the shot, reference type, or model.
 
 ### After all clips are rendered
 
@@ -31,7 +17,7 @@ Place the rendered clips on canvas in shot order, group them as `<title> shot cl
 - Strengthen storyboard cleanup
 - Fix spatial anchor drift across clips
 
-If a rendered clip drifts from the approved `Reference Anchors` (e.g. door-frame lands on the wrong side, character exits from the wrong edge, lighting flipped), re-render with a strengthened prompt that quotes the exact `Reference Anchors` block from the table. If the drift persists, switch that one shot to the other video model in the mixed-mode path; do not silently mix corrected and uncorrected clips into assembly.
+If a clip drifts, record the failed anchor and compare it with the actual frame. Re-render the affected clip within the approved scope and check it before assembly.
 
 ## Storyboard Visualization Fallback
 

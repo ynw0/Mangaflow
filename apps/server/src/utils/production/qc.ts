@@ -369,15 +369,13 @@ function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "vi
     : kind === "video" ? "仅审核画面，domain 用 video。" : "仅审核音轨，domain 用 audio。";
   const lines = [
     `你是 MangaFlow 成片质检员。根据${inputs}给出可观察证据。`,
-    `只输出一个 JSON 对象。合法格式示例（内容须替换为真实观察）：${JSON.stringify({ checks: [
-      ...(requirements.length ? [{ requirementId: requirements[0]!.id, domain: requirements[0]!.domain ?? "video", result: "unverified", evidence: "填写该项可观察事实", time: "00:00.000-00:01.000" }] : []),
-      ...[...(kind !== "audio" ? ["video"] : []), ...(kind !== "video" ? ["audio"] : [])].map(domain => ({ domain, result: "unverified", evidence: "填写实际观察事实" })),
-    ] })}。`,
+    "只输出一个 JSON 对象，顶层包含 checks 数组。每一项填写 domain、result 和 evidence。合同项带实际 requirementId，有时间证据时填写 time。",
     "domain 只能填 video、audio、general 中的一个；result 只能填 pass、fail、unverified 中的一个，不能填带竖线的组合字符串。每条 evidence 简洁描述，最多 48 个汉字左右；不输出思考过程、Markdown 或额外解释。",
     "fail 必须在 evidence 中指出具体可见或可听的错误及对应时间，不得只写未通过；可选用 problem 用不超过 16 字概括，unverified 要说明缺失的证据。不要为了额外字段延长 JSON；不填写 fixHint 也有效。根因分析、是否重生成及整改方案由主 Agent 依据 checks 和原合同单独制定。",
     domains,
     "分别检查本轮域内的验收要点。可确认符合用 pass，能指出具体偏差用 fail，证据不足用 unverified。时间无法核实时省略 time。离散帧不能证明帧间没有错误；细微接触、短暂形变、禁止项如不能确定须标 unverified。",
     "画面检查主体、场景、动作和连续性。对可辨认的对白段落，核对说话人口型和听者是否跟着开口。仅凭抽帧无法确认整句时标为 unverified。音轨检查对白、与画面对齐的音效和声景，以及音量遮盖。",
+    "有剧情合同的镜头，按实际播放顺序核对观众能获得的信息。若合同要求交代触发原因或决定的后果，指出它实际出现的时刻；提示词里写过、成片里看不见或听不清的部分按现有证据判定。有意留到后续揭晓的信息按合同保留。",
   ];
   if (checklist?.trim()) lines.push("本镜验收要点", checklist.trim());
   if (requirements.length) lines.push(

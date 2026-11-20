@@ -3,6 +3,7 @@ import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
 
 export const endingReserveSeconds = 0.2;
 const timeTolerance = 1e-6;
+const voiceoverPhrase = "says in an off-screen voiceover";
 
 export function getVideoSpeechPolicy(audioEnabled: boolean) {
   return {
@@ -11,9 +12,9 @@ export function getVideoSpeechPolicy(audioEnabled: boolean) {
     defaultSpeechCue: defaultH3SpeechCue,
     endingReserveSeconds,
     voiceover: {
-      phrase: "says in an off-screen voiceover",
-      identity: "画外音使用 phrase，台词外写稳定声源与 (Sx)，<d> 内只放语言标签与原台词。独立系统声和旁白按本视频首次发声顺序编号；无对应画面主体时使用声源描述。内心独白沿用角色声线及编号；同一角色画内开口时仍用该编号。",
-      timing: "每段画外音都纳入 cinematicPlan.dialogue，在 </d> 后立即说明对应画中人物闭嘴；没有可见发声者时说明画中听者闭嘴（无人入画则交代声源在画外）。按剧本写谁听得见，观众旁白不驱动画中角色反应。提示音写作音效，只有实际参考音频使用 <Audio N>。",
+      phrase: voiceoverPhrase,
+      identity: "旁白和内心独白在说话人编号后标明画外发声，纯文本和首尾帧按指南使用 phrase。台词外写实际声源与 (Sx)，<d> 内只放语言标签与原台词。独立系统声和旁白按本视频首次发声顺序编号；内心独白与同一角色的画内对白共用声线及编号。",
+      timing: "每段画外发声纳入 cinematicPlan.dialogue。按剧本标明谁听得见；观众旁白不驱动画中人物反应。对应人物入画且未开口时，交代口型保持静止，其他人继续剧本中的行为。提示音写作音效，实际参考音频才使用 <Audio N>。",
     },
     note: "启用同期音轨的对白采用清晰、自然偏快的口语；剧情明确要求时按表演放慢。按 <d> 的顺序在 cinematicPlan.dialogue 安排开口、收句、停顿及必须先完成的动作，镜尾保留 0.2 秒。对刚好够用的句子，优先提前开口或减少顺序动作，给实际起声偏移留余量。语速与时间提示只指导生成，未绑定真实音频时不虚构音频标签。",
   };
@@ -23,7 +24,8 @@ export function readDialogueBlocks(timeline: string) {
   return [...timeline.matchAll(/<d>((?:(?!<\/?d>)[\s\S])*?)<\/d>/g)];
 }
 
-export function inspectDialogue(timeline: string, duration: number, plan: DraftCinematicPlan, lockedDialogue?: readonly string[], audioEnabled?: boolean) {
+export function inspectDialogue(timeline: string, duration: number, plan: DraftCinematicPlan, lockedDialogue?: readonly string[], audioEnabled?: boolean,
+  voiceCast?: readonly { speakerId: string; sourceId?: string }[]) {
   const findings: string[] = [];
   const allBlocks = readDialogueBlocks(timeline);
   if (audioEnabled === false && (allBlocks.length || plan.dialogue.length)) {
@@ -42,6 +44,7 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
   }
   let previousBlockEnd = 0;
   let previousSpeechEnd = 0;
+  const sources = new Map(voiceCast?.map(({ speakerId, sourceId }) => [speakerId, sourceId]));
   for (const [index, block] of allBlocks.entries()) {
     const label = `第 ${index + 1} 句对白`;
     const language = /^\s*\[([A-Za-z][A-Za-z -]*)\]\s*([\s\S]*?)\s*$/.exec(block[1]!);
@@ -53,16 +56,31 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
       findings.push(`${label}与锁定原话不一致，应为「${lockedDialogue[index]}」。`);
     }
     previousBlockEnd = block.index + block[0].length;
-    const speaker = [...preceding.matchAll(/\((S[1-9]\d*(?:,\s*S[1-9]\d*)*)\)/g)].at(-1)?.[1];
-    if (!speaker) findings.push(`${label}前须标明说话人 (S1) 或 (S1,S2)。`);
-    // 只拦截明确缺少开口描述的独立句，保留自然语言里的动作和语气。
-    const bareSpeech = /(?:^|[.!?。！？]\s+|\n)\s*(?:\[Shot \d+\]\s*)?(?:<Subject [1-9]\d*>\s*)+\(S[1-9]\d*(?:,\s*S[1-9]\d*)*\)\s*(?:(?:says?|asks?|replies|speaks?)\s*)?[:,]?\s*$/i;
-    if (bareSpeech.test(preceding)) findings.push(`${label}须写明开口动作或语气。`);
+    const speakerMatch = [...preceding.matchAll(/\((S[1-9]\d*(?:,\s*S[1-9]\d*)*)\)/g)].at(-1);
+    const speakerIds = speakerMatch?.[1]?.replace(/\s+/g, "").split(",") ?? [];
+    if (!speakerMatch) {
+      findings.push(`${label}前须标明说话人 (S1) 或 (S1,S2)。`);
+    } else {
+      // 只核对明确选定的画内对白、旁白和内心独白，其余声源按剧本审核。
+      const delivery = preceding.slice(speakerMatch.index + speakerMatch[0].length).toLowerCase();
+      const voiceover = /\bvoice[- ]?over\b/.test(delivery)
+        || /^\s*\(off[- ]screen\)/.test(delivery)
+        || /\b(?:speaks?|says?|asks?|replies|calls?|narrates?)\s+(?:from\s+)?off[- ]screen\b/.test(delivery);
+      for (const speakerId of speakerIds) {
+        const sourceId = sources.get(speakerId);
+        if (sourceId === "vs01" && voiceover) {
+          findings.push(`${label}的 ${speakerId} 选了画内对白，正文却标成画外音。请按剧本核对声源和配置。`);
+        }
+        if ((sourceId === "vs02" || sourceId === "vs03") && !voiceover) {
+          findings.push(`${label}的 ${speakerId} 选了旁白或内心独白，正文须按画外音格式标明声源。若剧本要求画内开口，先修正声源配置。`);
+        }
+      }
+    }
 
     const line = plan.dialogue[index];
     if (!line) continue;
-    if (speaker && speaker.replace(/\s+/g, "") !== line.speakerIds.join(",")) {
-      findings.push(`${label}正文说话人为 (${speaker})，规划为 (${line.speakerIds.join(",")})，请核对角色。`);
+    if (speakerIds.length && speakerIds.join(",") !== line.speakerIds.join(",")) {
+      findings.push(`${label}正文说话人为 (${speakerIds.join(",")})，规划为 (${line.speakerIds.join(",")})，请核对角色。`);
     }
     if (line.startSeconds < previousSpeechEnd - timeTolerance) findings.push(`${label}在 ${line.startSeconds} 秒开口，与前句重叠；齐声请写成同一个 <d>。`);
     previousSpeechEnd = Math.max(previousSpeechEnd, line.endSeconds);

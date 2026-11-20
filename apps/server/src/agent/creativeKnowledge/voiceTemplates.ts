@@ -56,7 +56,7 @@ const rows: Record<VoiceCategory, VoiceRow[]> = {
     ["ve06", "冷漠疏离", "语调收敛、句尾干脆", "cool detachment with restrained pitch changes", "冷漠,理性,高冷"],
     ["ve07", "冷笑威胁", "含笑轻讽、重读关键词", "low dry sarcasm with a faint smile and pointed stress", "嘲讽,冷笑,反派"],
     ["ve08", "温柔安慰", "温和、平缓、亲切起伏", "gentle reassuring tone with warm pitch movement", "温柔,安慰,亲情"],
-    ["ve09", "坚定决绝", "字头扎实、短句有力", "resolute conviction, firm consonants and decisive phrasing", "坚定,决绝,热血"],
+    ["ve09", "坚定决绝", "咬字扎实，重音落在决定上", "firm articulation with stress on the words expressing the decision", "坚定,决绝,热血"],
     ["ve10", "惊恐低语", "压低音量、气息紧绷", "frightened hushed delivery with tense audible breaths", "惊恐,低语,悬疑"],
     ["ve11", "得意自满", "语气微扬、带笑", "self-satisfied delivery with a subtle smile and buoyant endings", "得意,炫耀,喜剧"],
     ["ve12", "平静释然", "呼气后轻柔收尾", "relieved calm with a gentle exhale and softer phrase ending", "释然,平静,温暖"],
@@ -67,14 +67,14 @@ const rows: Record<VoiceCategory, VoiceRow[]> = {
     ["vp01", "理性工程师", "逻辑清晰、解释精准、重读术语", "precise analytical delivery, concise and slightly emphasizing technical terms", "工程师,技术,理性"],
     ["vp02", "狡黠商人", "含笑试探，转折处突然加重", "wily, teasing delivery with playful pauses and sudden emphasis", "商人,狡黠,反派"],
     ["vp03", "沉稳领导", "停顿从容，少用强重音", "composed authoritative delivery with confident measured pauses", "领导,权威,沉稳"],
-    ["vp04", "直爽青年", "短句直接、开朗坦率", "forthright youthful delivery with candid direct phrases", "青年,直爽,朋友"],
+    ["vp04", "直爽青年", "声线明朗，语气坦率，重音随谈话变化", "bright youthful tone with candid delivery and stress that follows the conversation", "青年,直爽,朋友"],
     ["vp05", "毒舌吐槽", "冷静表面下重读讽刺词", "deadpan witty delivery with precisely placed sarcastic stress", "毒舌,吐槽,搞笑"],
     ["vp06", "胆小谨慎", "轻声试探，句首略犹豫", "cautious, tentative openings with soft checking intonation", "胆小,谨慎,焦虑"],
     ["vp07", "热血冲动", "情绪饱满、开口迅速", "impulsive energetic delivery with rapid engagement", "热血,冲动,主角"],
     ["vp08", "慈祥长者", "温柔耐心，句尾下落舒缓", "kind elder-like delivery with patient warm cadence", "慈祥,长者,亲情"],
     ["vp09", "审慎质问者", "问句紧凑，关键信息略重读，句尾有分寸地下落", "compact questioning with precise stress on key details and a measured downward release", "质问,审慎,冷静"],
     ["vp10", "热心邻居", "音量亲近，语调随回应自然扬落，紧凑接话", "friendly close-range voice with responsive rises and falls and quick turn-taking", "亲切,街坊,自然"],
-    ["vp11", "朴实务实", "句子短实，咬字松弛，谈到具体物件时重读", "plainspoken delivery with relaxed diction and stress on concrete details", "务实,朴实,短句"],
+    ["vp11", "朴实务实", "咬字松弛，重音落在眼下要谈的事上", "relaxed articulation with stress on what matters in the exchange", "务实,朴实,口语"],
   ],
   pace: [
     ["vr01", "默认自然偏快", "比普通对话略快，换气自然", defaultH3SpeechCue, "默认,1.3倍,自然", 1.3],
@@ -124,7 +124,7 @@ const rows: Record<VoiceCategory, VoiceRow[]> = {
     ["vx03", "远处呼喊", "气息支撑的远距离喊话", "projected speech directed toward someone far away, without distortion", "喊话,远处,呼叫"],
     ["vx04", "标准播报", "音量均匀、停顿规整", "even-volume announcement with clear consonants and orderly pauses", "播报,通知,系统"],
     ["vx05", "咬牙挤出", "短促、牙关紧绷仍可听懂", "short clipped words through a tense jaw, still intelligible", "咬牙,忍耐,愤怒"],
-    ["vx06", "喘息间说话", "短句、可听换气、不缺词", "short phrases between audible breaths while retaining every scripted word", "喘息,奔跑,疲惫"],
+    ["vx06", "喘息间说话", "换气跟随受力和原话，保留完整台词", "audible breaths timed to the exertion and the full scripted line", "喘息,奔跑,疲惫"],
     ["vx07", "含笑发言", "音色带笑、词语轻微上扬", "smiling through the words with subtle buoyant emphasis", "含笑,开心,亲切"],
     ["vx08", "冷静机械播音", "精确且节奏有序、无明显情感波动", "precise synthesized-announcement delivery with steady loudness", "机械,系统,AI"],
     ["vx09", "清晰接话", "前一位说完后自然接话，字头和换气清楚", "clean turn handoff after the previous speaker finishes, with a clear onset and natural breath", "接话,轮流说话,交锋"],
@@ -210,6 +210,6 @@ export function compileVoiceCast(cast: readonly VoiceCastRole[]) {
   return {
     status: errors.length ? "invalid" as const : warnings.length ? "review" as const : "ok" as const,
     errors, warnings, defaultSpeedMultiplier: DEFAULT_H3_SPEECH_RATE, roles,
-    guidance: "H3 生成视频时同步生成音轨。每位说话人选用符合性格且可辨别的音区、共鸣或咬字特征；固定声线跨镜复用，情绪和语速可随本镜调整。仅对白使用语速提示，口音是生成指导。保留原台词，音频引用须来自真实素材。",
+    guidance: "H3 同步生成声画。模板调整发声和口吻，台词措辞、句子长短和接话顺序沿用定稿。声线跨镜保持，情绪和语速按本镜安排。发声来源以剧本和画面为准，音频引用使用实际素材。",
   };
 }

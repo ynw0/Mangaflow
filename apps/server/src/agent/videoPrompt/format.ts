@@ -57,12 +57,12 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
     ...getShotRequirements(shot),
     { id: "framing", text: "镜头数量及切点符合用户合同；cinematicPlan.shots（如有）与 [Shot N] 的时间和顺序一致，镜尾构图与同框要求相容" },
     { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
-    { id: "dialogueTiming", text: "逐句对照正文与对白计划，核对开口触发、先做动作、停顿、完整台词、听者闭口及 0.2 秒镜尾；无对白时说明依据" },
+    { id: "dialogueTiming", text: "逐句核对说话人、原话、开口和收句时刻。按原分镜核对确有先后关系的动作和停顿。画面口型与实际发声对齐，镜尾留 0.2 秒；无对白时说明依据" },
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
     { id: "bilingualConsistency", text: "中英文的主体、动作、时序、对白和镜尾事实一致" },
     { id: "creativeIntent", text: `叙事目的：${shot.purpose}；视觉风格：${shot.style}` },
     ...(shot.voiceCast?.length ? [{ id: "voiceCast", text: `声音身份与说话人逐项匹配：${shot.voiceCast.map(role =>
-      `${role.characterName}(${role.speakerId})${role.sourceId ? `（声源模板 ${role.sourceId}）` : ""}`).join("、")}；保留台词、情绪及对应语速，音轨必须开启${shot.voiceCast.some(role => role.sourceId) ? "；有画外音时核对固定短语、声源、听觉关系及台词后紧接的闭口说明" : ""}` }] : []),
+      `${role.characterName}(${role.speakerId})${role.sourceId ? `（声源模板 ${role.sourceId}）` : ""}`).join("、")}。对照剧本核对谁在何处发声、谁听得见。声源模板与发声事实冲突时定位到本轮配置，保留原台词、情绪和已确认语速。` }] : []),
   ];
 }
 
@@ -183,7 +183,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
       }
     }
   }
-  if (/<d>/.test(timeline.slice(0, opening?.index ?? timeline.length))) findings.push("对白须位于 [Shot 1] 正文中。");
+  if (/<d>/.test(timeline.slice(0, opening?.index ?? timeline.length))) findings.push("对白须放进实际发声的 [Shot N]，并位于首个镜头标记之后。");
   const tags = new Set([...prompt.matchAll(/<(?:Picture|Video|Audio) \d+>/g)].map(match => match[0]));
   const approved = new Set(setup.references.map(item => item.label));
   if ([...tags].some(tag => !approved.has(tag)) || (format === "h3Ref2va" && [...approved].some(tag => !tags.has(tag)))) {
@@ -199,7 +199,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     if (subjects.some(id => !retention.includes(`<Subject ${id}>`))) findings.push("retention_analysis 必须覆盖每个已定义 Subject。");
   }
   if ((prompt.match(/<\/?d\b[^>]*>/gi)?.length ?? 0) !== (timeline.match(/<\/?d\b[^>]*>/gi)?.length ?? 0)) findings.push("对白只能出现在镜头时间轴中。");
-  findings.push(...inspectDialogue(timeline, setup.duration, draft.cinematicPlan, prepared.shot.lockedDialogue, prepared.audioEnabled));
+  findings.push(...inspectDialogue(timeline, setup.duration, draft.cinematicPlan, prepared.shot.lockedDialogue, prepared.audioEnabled, prepared.shot.voiceCast));
   if (!/\p{Script=Han}/u.test(promptZh)) findings.push("提供与英文事实一致的简体中文对照。");
   // 跳过对白和引号原文，保留正文行号供导演定向返修。
   const narration = prompt.replace(/<d>[\s\S]*?<\/d>|"[^"\n]*"/gi, match => match.replace(/[^\r\n]/g, " "));
@@ -209,7 +209,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   for (const match of narration.matchAll(/\b(?:no subtitles|no dialogue)\b/gi)) {
     const line = narration.slice(0, match.index).split("\n").length;
     const correction = match[0].toLowerCase() === "no dialogue"
-      ? "无台词镜头的概要写实际环境声，时间轴写明可见角色闭嘴。"
+      ? "概要和时间轴写本镜实际能听到的声音，以及人物正在做的事。"
       : "请用具体可见、可验证的事实表达制作需求。";
     findings.push("英文正文第 " + line + " 行含“" + match[0] + "”。" + correction);
   }

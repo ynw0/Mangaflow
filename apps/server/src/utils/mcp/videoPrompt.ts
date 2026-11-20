@@ -49,7 +49,7 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
       voiceCast: prepared.voiceContext.roles.length ? prepared.voiceContext : undefined,
       speechPolicy: getVideoSpeechPolicy(prepared.audioEnabled),
       expectedRevision: prepared.revision, reviewRequirements: getVideoPromptRequirements(prepared.shot),
-      nextAction: "由当前外部 Agent 按工作流与 H3 技能编写单镜中英文稿，在 cinematicPlan.dialogue 逐句安排对白。调用 inspect 预检，再逐项审核并 submit。" };
+      nextAction: "按已确认的分镜决定单镜或多镜，依实际 H3 模式写中英文稿。在 cinematicPlan.dialogue 逐句安排原台词。调用 inspect 预检，再逐项审核并 submit。" };
   }
   const path = join(root, `${input.preparationId}.json`);
   const release = lockWorkspaceFiles([path]);

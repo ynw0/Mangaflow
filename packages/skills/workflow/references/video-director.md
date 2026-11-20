@@ -93,7 +93,7 @@
 - 跨镜须保留的外形事实（服装主色与形制、道具主色与材质、发型长度、伤口位置等）写入对应 `<Subject N>` 定义，并在 `retention_analysis` 用 `fully_preserved` / `partially_preserved` 钉住；**不得**以「参考帧已经交代过」为由删掉这些锁面事实。状态变化（破损进度、持有人）写在本镜动作句，不塞进锁面。
 
 ### cinematicPlan 按实际协调负荷确定详细程度
-- 不增加简单/复杂模式字段，不按时长、人数或英文词数机械分类。镜头只有一个可辨的动作或状态变化，无跨动作依赖、复杂口播同步、机械阶段、显著空间承接时，可用一条有意义的 `beats`、准确的开头/结尾与机位描述完成计划；`dialogue: []`，单镜时 `shots` 可省略。固定机位写“固定机位”，不要凭空设计运动或添加无关节拍。
+- 镜头只有一个动作或状态变化时，一条 `beats` 和实际的开场、机位与结尾即可。单镜可省略 `shots`。哪怕只有一句对白，也须写入 `dialogue`。无对白才填空数组。固定机位沿用分镜设定。
 - 当多镜切换、明确先做后说、多人台词同步、多级机械变化、复杂接触或状态传递产生验收依赖时，在 `beats`、`dialogue` 和 `shots` 中充分记录对应事实，不为压缩长度删剧情。所有镜头仍走程序预检与独立审核。
 
 ### 镜头结构：按合同选择单镜或剪辑
@@ -104,7 +104,6 @@
 - 顶视允许略微倾斜为斜俯，保持从上方观察的关系及画内方向。
 
 ### 对白与同音字
-- 对白保留已确认的原文文字和语言。
 - 每个实际说话人沿用自己的 `(Sx)`，按定稿原样把文字及标点写入 `<d>`。引用音频的转写和标点整理只适用于尚未锁定的文字。Ref2VA 已定义的角色用 `<Subject N> (Sx)`，转到画外仍沿用两个编号并标明声源。其他模式按角色或实际声源描述加 `(Sx)`。普通问答可以直接接话。按场戏写真正影响理解的语气、动作和停顿。多人齐声说同一句话用合并编号配一个 `<d>`。
 
 ### 说话时序
@@ -125,7 +124,7 @@
 - `must_not_have` 改写成画面上已成立的可见事实后再写入；不要照抄否定句。成片无 Negative Prompt 节点，不返回 `negative_constraints`。通则见 `common.md`。
 
 ### 声画与实际参考
-- `overall_soundscape` 只写贯穿全片的环境层；瞬间声、对白、警报写在 `detailed_description` 对应时间段。
+- `overall_soundscape` 写持续的环境声。瞬间声、对白和警报放在实际模式的镜头时间轴上。
 - `non_diegetic_music` 只写观众听到、角色听不到的配乐；无则 `N/A`。
 - 按已挂接视频或音频参考的实际用途选一个官方关系词，每个标签在 `retention_analysis` 独占一行。确定关系所需的用途缺失时，说明该项缺失。
 - 有视频或音频槽位时，按实际编号写 `<Video N>` 或 `<Audio N>`；关系词与官方四档一致。`fully_copy` / `partially_copy` 规则以 `ref-en.txt` 为准。
@@ -145,7 +144,7 @@
 
 ## 输出与交接
 
-内置导演经 `submitResult` 提交 `{ status: "ok", cinematicPlan, prompt, promptZh }`。规划先确定镜尾构图和同框对象，再写机位、停止运动的时间和表演节拍。中英文稿与规划应一致。核心输入缺失、槽位冲突或剧情无法在给定时长内完成时，提交 `{ status: "blocked", reason: "具体缺项或冲突" }`，保留原素材和剧情要求。
+内置导演经 `submitResult` 提交 `{ status: "ok", cinematicPlan, prompt, promptZh }`，三者的事实应一致。缺关键输入、槽位冲突或现有时长无法容纳完整剧情时，提交 `{ status: "blocked", reason: "具体缺项或冲突" }`。
 
 - 内置 `draftVideoPrompt` 完成预检与独立审核。提示词合同一致时，调整权重、LoRA、采样、种子或 GPU 主机可沿用已有审核号。已有节点请求写回且返回 `written: true` 时，正文和 `reviewId` 已在目标视频节点。需要查看全文时回读节点。获得 `reviewId` 但尚未写回时，返回 `generationRequest`、`promptZh` 和 `cinematicPlan`。有 `writeError` 时处理实际的写回障碍，确认节点状态后再推进。预检或审核退回按工具返回的 `nextAction` 处理。
 - 外部 MCP 将同样字段组成 `draft`，随 `preparationId` 送 `videoPrompt` 的 `inspect`。预检通过后按[审核提交与交接](video-prompt-review.md#提交与交接)办理。

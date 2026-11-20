@@ -36,7 +36,7 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | 场景原画 | [scene-art.md](references/scene-art.md) 然后 [scene-prompt-review.md](references/scene-prompt-review.md) | 要换机位或反复出现时做四方向拼版；只做氛围或转场时做无人空镜 |
 | 道具原画 | [prop-art.md](references/prop-art.md) 然后 [prop-prompt-review.md](references/prop-prompt-review.md) | 审核通过的产品图 |
 | 单集导演规划（可选） | [directorPlan.md](references/directorPlan.md) | 分集画布上的分场情绪与注意事项 |
-| 成片提示词 | 已有节点先核对实际工作流和模式，新镜用用户指定或 production.video。内置 Agent 用 draftVideoPrompt 读取 [导演 Skill](../cinematicPromptCraft/SKILL.md)、对应的 [H3 规则](../h3-prompt-writing/SKILL.md) 和 [视频审核规则](references/video-prompt-review.md) | 程序预检和独立审核通过后交接英中文稿。出片沿用匹配当前正文、实际参考、时长、画幅、音轨和提示词格式的审核。生成设置按实际能力与本次算力授权执行 |
+| 成片提示词 | 已有节点先核对实际工作流和模式，新镜用用户指定或 production.video。支持 H3 的工作流由内置 Agent 用 draftVideoPrompt 读取 [导演 Skill](../cinematicPromptCraft/SKILL.md)、对应的 [H3 规则](../h3-prompt-writing/SKILL.md) 和 [视频审核规则](references/video-prompt-review.md) | H3 程序预检和独立审核通过后交接英中文稿。其他模型按实际输入格式编写并对照已确认的分镜核对。出片沿用匹配当前正文、实际参考、时长、画幅和音轨的审核。生成设置按实际能力与本次算力授权执行 |
 
 ### 创作知识库（按阶段取用，严禁堆砌）
 
@@ -52,7 +52,7 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 
 官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing + cinematicPromptCraft 导演知识 → video-director → video-prompt-review → Comfy H3 Ref2VA）。
 
-画布出图时先通过图片生成节点的 `node:getConfig` 查询可用模型与当前配置，并由 `node:setConfig` 配置；可用 `listMediaModels` 交叉核实已启用项，但不得因此跳过画布生成节点。先按用户指定、配置的出图后端、是否有底图及参考图数量筛选，再读候选的 `usage`，按草稿速度、细节、底图保留需求选择。设置中的文生图和编辑工作流是对应任务的默认选项。Qwen-Image-2.1 Turbo 适合快速探索，标准版适合细节任务，具体以目录和验收结果为准。有底图的任务按 [图像编辑与变体](references/common.md#图像编辑与变体) 写词和验收。项目经验只补充本项目的设定与已验证的事实。编写、原画审核与生成均使用同一个工作流。出视频只用 ComfyUI 工作流，`providerId` 为 `comfyui`；`production.video.host` 为 `local` 时用本机地址，为 `autodl` 时用 AutoDL 实例。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片画幅遵从用户确认的镜头合同、项目生产配置与实际视频节点的比例设置；统一 H3 Ref2VA 工作流支持按能力选择 16:9、9:16 等比例，16:9 只是未指定时的默认值，不是强制规格。模型/工作流不支持所选比例或节点设置冲突时须先校验并处理，不能靠提示词文字静默覆盖。
+画布出图时先通过图片生成节点的 `node:getConfig` 查询可用模型与当前配置，并由 `node:setConfig` 配置；可用 `listMediaModels` 交叉核实已启用项，但不得因此跳过画布生成节点。先按用户指定、配置的出图后端、是否有底图及参考图数量筛选，再读候选的 `usage`，按草稿速度、细节、底图保留需求选择。设置中的文生图和编辑工作流是对应任务的默认选项。Qwen-Image-2.1 Turbo 适合快速探索，标准版适合细节任务，具体以目录和验收结果为准。有底图的任务按 [图像编辑与变体](references/common.md#图像编辑与变体) 写词和验收。项目经验只补充本项目的设定与已验证的事实。编写、原画审核与生成均使用同一个工作流。出视频按 `production.video` 和用户确认的节点配置。`comfyui` 走相应的本机或 AutoDL 工作流，`videoModel` 使用设置中已选的云端模型。提示词结构与实际模型匹配。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片画幅遵从用户确认的镜头合同、项目生产配置与实际视频节点的比例设置；统一 H3 Ref2VA 工作流支持按能力选择 16:9、9:16 等比例，16:9 只是未指定时的默认值，不是强制规格。模型/工作流不支持所选比例或节点设置冲突时须先校验并处理，不能靠提示词文字静默覆盖。
 
 统一 H3 双采的主模型由本次实际使用的 ComfyUI 实例和用户确认的选择决定。节点缺 checkpointName 时，在写成片提示词前通过 node:getConfig({refreshComfyChoices:true}) 读取 checkpointChoices，再用 node:setConfig 写回已确认的文件名。
 

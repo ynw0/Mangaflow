@@ -47,12 +47,11 @@ function guideRules(text: string, format: "h3Ref2va" | "h3Frames" | "h3Text") {
 }
 
 function videoCommonRules(text: string) {
-  // 从已有公共 Skill 读取成片相关章节，不维护第二套可能过期的规范。
-  const headings = new Set(["事实与边界", "成片正面改写（通用）", "原画 / 成片提示词语言", "跨镜连续性（原则）"]);
+  // 模式、语言和参考绑定由导演规则负责，公共文件只供成片正面写法。
   let include = false;
   return text.split(/\r?\n/).filter(line => {
     const heading = /^#{2,3} (.+)$/.exec(line);
-    if (heading) include = headings.has(heading[1]!);
+    if (heading) include = heading[1] === "成片正面改写（通用）";
     return include;
   }).join("\n").trim();
 }
@@ -294,11 +293,8 @@ export function createVideoPromptTools(options: SubAgentModel & {
           commonRules = videoCommonRules(common);
         }
         const draft = await specialist(draftSchema, draftSubmissionParameters, repair ? "导演返修" : "导演写作", [
-          "按已加载的 H3 与导演 Skill 写完整 cinematicPlan、英文正文和简体中文对照，通过 submitResult 提交 status=ok；无关键输入或合同不可执行则提交 blocked 与具体原因。时间均为整段视频内秒数。",
-          "遵守合同选择 [Shot N]：明确一镜到底仅 [Shot 1]；允许剪辑则切点递增、多镜须逐镜填写 cinematicPlan.shots；不添加 shotMode。单一动作/状态变化可只用一个 beats，单镜 shots 可省略；复杂机械、先做后说、精确对白与切镜须充分规划，不能省略必要事件。",
-          "按 speechPolicy 和 voiceCast 写声源、语速和收束。锁定台词按合同原样带入，包括定稿的标点；参考音频的转写规则用于尚无定稿的内容。无对白使用 dialogue: []，写实际环境声。",
-          "让观众从这镜的声画跟上关键事件。用通顺的句子交代谁做了什么、作用在什么对象上、随后发生什么。只有已确认的术语和标签可直接沿用。技术字段留在计划里。",
-          "按机位写镜尾实际拍到的内容，画外承接状态保持不变。合同明确要求同框而当前构图无法做到时，说明冲突并回分镜。稳定事实只定义一次。创作模板仅是可选参考；返修只针对 findings 修改，并同步完整规划与中英文正文。",
+          "依据实际镜头合同、已加载的导演规则与 H3 模式写稿，调用 submitResult 提交完整结果。时间使用整段视频内的秒数。",
+          ...(repair ? ["针对 findings 修订，保留原稿中仍然有效的内容，并使英文正文、中文对照和导演计划一致。"] : []),
           ...(repair ? [] : [`英文正文格式（只列本镜段首，按当前合同写内容）：\n${getPromptOutline(prepared.format, duration)}`]),
           // 自动命中只给适用条件，由导演对照当前合同选用；动作范例留在主动检索入口。
           JSON.stringify({ ...taskInput, ...(repair ? { previousDraft: lastDraft, findings } : {
@@ -325,8 +321,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
       try {
         const reviewRules = await read("workflow", "references/video-prompt-review.md");
         review = await specialist(reviewSubmission.schema, reviewSubmission.parameters, "独立提示词审核", [
-          `预检已核对格式和时间轴。审核剧情、素材用途、动作因果与双语事实，同一条依据用一句话定位到稿件。用 submitResult 的 result 提交判决。`,
-          "重点核查镜头切点、机位/构图、动作因果、末态及主体连续性；按 speechPolicy 检查每句说话人、起声与完整收句、口型和音轨，有问题才退回。不要因简短、固定机位、无特效或合理拍法分歧退稿。",
+          "程序预检已完成。按已加载的审核规则核对实际合同和稿件，在 submitResult 的 result 提交判决和具体依据。",
           JSON.stringify({
             // 剧情、必需项、禁止项、风格及连续性已逐条包含在 reviewRequirements。
             shotId: input.shotId, intent: input.intent, tone: input.tone, adjacentShots: input.adjacentShots,

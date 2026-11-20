@@ -239,7 +239,7 @@ The target video is in a cinematic, literary music-video style with soft lightin
 [Shot 2] At 00:09.000, the shot cuts to an extreme close-up...
 ```
 
-For generation tasks, `detailed_description` is normally 350-500 English words. Dialogue-dense content prioritizes fitting the complete spoken timeline rather than mechanically reaching a word count. Video-editing descriptions scale with the complexity of the source video and do not have to follow the generation-task range. A single shot does not automatically justify a shorter description; distribute detail across multiple shots according to their information load.
+In MangaFlow, write enough for the action, dialogue and sound to be understood in playback order. Match the detail to what changes on screen or in the audio. Keep the full dialogue timeline and the information needed to understand it.
 
 ### 5.3 Using Reference Labels in Shots
 
@@ -271,7 +271,7 @@ When verbal content is only a cue within a directly reused BGM or complete sound
 When <Audio 1> reaches the phrase <d>[English] I'm lonely lonely lonely lonely lonely I'm lonely</d>, <Subject 1> performs the corresponding hand gesture without becoming a separate speaker source.
 ```
 
-When dialogue, narration, or lyrics from reference audio are directly reused, or when the input prompt explicitly requests their reperformance, preserve the exact source words and original language inside `<d>`. Write `[unclear]` for unintelligible spans instead of guessing or paraphrasing them. Standardize punctuation to the basic written marks needed to express the sentence, such as `,`, `.`, `?`, and `!`; remove repeated tildes, emoji, bullets, and repeated or decorative punctuation. End complete statements, questions, and exclamations with `.`, `?`, or `!` respectively before `</d>`.
+Use the original language and words for dialogue, narration or lyrics taken from reference audio or requested for reperformance. If an approved transcript exists, copy its wording and punctuation inside `<d>`. When transcribing audio without an approved transcript, use readable punctuation and mark unintelligible spans with `[unclear]`.
 
 When only timbre, rhythm, emotion, or delivery is referenced, do not carry the original dialogue from the reference audio into the target video.
 

@@ -12,7 +12,7 @@
 - 核对外貌、体型、年龄感、发型、服装、已确认标记；原文没写的剧情伤疤、武器、身份纹章不得当作已锁定事实。
 - 本张必须是单人 `identity_sheet`：从左到右为面部近景、正面全身、侧面全身、背面全身，四格身份和服装一致。只有一张 3/4 全身竖图、多个人、或把本集场景当背景，判不合格。成片镜头比例不是这张设定图的比例。
 - canonical 只锁身份；把 allowed_changes 画进本张、或正面 prompt 出现否定写法，判不合格。
-- Qwen 和带负面节点的其他 Comfy 原画工作流：正面提示词只写画面内事实，不希望出现的东西进负面提示词，只写名词，例如人手。Flux.3 Klein 工作流按 `common.md`「Flux.3 Klein 出图」：`negative_constraints` 必须为 []，禁忌改写成正面可见事实；非空负面判不合格。
+- 按 [公共审核规则](prompt-review.md#文生图审核顺序)核对正负面及实际工作流的能力。
 
 ## 输出合同
 返回 `art_prompt_review`：status=ok 且 findings=[]，或 status=rejected 且 findings 含整改意见。asset_key、variant_key、asset_type 必须与被审合同一致。

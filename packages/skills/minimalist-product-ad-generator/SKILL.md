@@ -44,7 +44,7 @@ The start gate must confirm all of the following in one pass:
    - White-tech / dark rim light / brand color field / light lifestyle scene.
 
 6. **In-frame copy**
-   - User-provided copy, agent-generated Apple-style English copy, or user-approved product-only presentation.
+   - User-provided copy, new copy in the agreed language, or user-approved product-only presentation.
 
 7. **Video model strategy**
    - Default model is MiniMax-H3, because it often produces cleaner Apple-like product close-ups, negative space, and premium product-film camera language.
@@ -65,7 +65,7 @@ Start gate is mandatory. If the user has already uploaded product material, only
 
 2. **In-frame copy must appear as integrated video motion, not a subtitle fallback**
    - When copy is approved, typography in the final-composition anchor is a reference for font, placement, and single-line layout; when product-only, leave that anchor free of fabricated text.
-   - The precise beat storyboard may define multiple short English copy lines across shots. For agent-written promotional copy, prefer a legible 3-5-word single line when it fits, but accept a shorter approved product name or precise factual label. Follow the two-part color rule only when the copy genuinely has two distinct segments: in white-tech style the first half uses black or dark gray, in dark rim-light style the first half may use white, and the second half always uses the specific product color. Avoid isolated generic 1-2-word claims; a real product name or meaningful short label is valid.
+   - The precise beat storyboard may define multiple short approved copy lines across shots. For agent-written promotional copy, prefer a legible 3-5-word single line when it fits, but accept a shorter approved product name or precise factual label. Follow the two-part color rule only when the copy genuinely has two distinct segments: in white-tech style the first half uses black or dark gray, in dark rim-light style the first half may use white, and the second half always uses the specific product color. Avoid isolated generic 1-2-word claims; a real product name or meaningful short label is valid.
    - When storyboard copy is approved, video generation must include exactly that text inside the frame; a product-only brief does not require copy.
    - The copy does not need to appear in every shot. If the video model tends to make typography mistakes, reduce copy frequency proactively. For a 10-second film, usually keep only one mid-film copy moment plus one final copy moment; do not put text in every shot. The final shot must show a stable full-frame product hero; include a single-line copy only if agreed in the creative brief, otherwise preserve a clean product-only ending.
    - By default, ask the video model to generate in-frame typography and its timing directly. Do not silently degrade text into post-production subtitles or reserve empty space for later overlay. Use post-production fallback only when the user explicitly asks for it or when integrated video typography fails and the user accepts a fallback.
@@ -89,17 +89,17 @@ Start gate is mandatory. If the user has already uploaded product material, only
 
 A product-only brief skips typography throughout production. Keep each approved line intact unless it has two distinct parts.
 
-- In-frame advertising copy must be English.
-- If the user provides Chinese copy, translate it into concise English or ask for approval of the English version.
-- For newly written copy, 3-5 English words and approximately 32 characters is a readability guideline, not a compulsory word-count formula. Keep approved brand names, factual labels, and user-supplied copy intact when they fit legibly; do not invent filler words.
+- Use the approved language for on-screen copy.
+- Keep supplied wording as approved. Localize it only when the user asks and confirm the replacement before rendering.
+- For newly written copy, choose the length according to the reading time and available space. Keep approved brand names, factual labels, and user-supplied copy intact when they fit legibly; do not invent filler words.
 - Copy should feel like an Apple product film: sensory, benefit-led, material-led, or a light value proposition; avoid promotional slogans and ecommerce feature-tag wording.
 - Font reference: SF Pro Display / SF Pro Text. Prefer `SF Pro Display Semibold` in prompts.
 - Use no more than two text colors in a shot.
 - For two-part copy, set the first part in black or dark gray in white-tech style; white is an option in dark rim-light style. Use the specific product color for the second part.
 - Text must stay on one line. Do not wrap, stack, or split into multiple lines.
-- At any moment, only one single-line English copy line may appear in the frame. Do not show two rows of text, two-line titles, title + subtitle pairs, or multiple text blocks at the same time. Two-part typography must continue or replace within the same line, never split into upper and lower rows.
+- At any moment, only one line of approved copy may appear in the frame. Do not show two rows of text, two-line titles, title + subtitle pairs, or multiple text blocks at the same time. Two-part typography must continue or replace within the same line, never split into upper and lower rows.
 - Do not place text in a lower subtitle position. Prefer the vertically centered visual zone, left-aligned or right-aligned as part of the composition. Text should be slightly larger and feel like a product-film visual element, not an explanatory subtitle.
-- Approved mid-film pattern: clean negative space, product motion or product close-up leads the frame, the frame stays uncrowded, and only one single-line English copy appears. Text may sit near the product edge, product surface, or close-up highlight area so it feels integrated into the product image rather than floating like a subtitle. Do not damage negative space or add a second text block just to add copy.
+- Approved mid-film pattern: clean negative space, product motion or product close-up leads the frame, the frame stays uncrowded, and only one approved line of copy appears. Text may sit near the product edge, product surface, or close-up highlight area so it feels integrated into the product image rather than floating like a subtitle. Do not damage negative space or add a second text block just to add copy.
 - A single name or phrase enters once and holds. When a line has two parts, bring them in successively on the same line. The first can shift slightly (about 10–15 px or 8–12% of its width) to make room.
 
 ## STEP 1: Asset Check and Product Fact Summary
@@ -135,7 +135,7 @@ The production brief must include:
 - Target duration.
 - Selected Apple-style template.
 - Single-variant / multi-variant strategy.
-- In-frame copy mode: user-provided copy, agent-generated Apple-style English copy, or user-approved product-only presentation.
+- In-frame copy mode: supplied wording, new wording in the agreed language, or approved product-only presentation.
 
 Multi-variant product rules:
 
@@ -167,7 +167,7 @@ Recommended spines:
 
 Output one sentence describing the selected narrative spine, for example:
 
-> This film uses the Color Family spine: the purple main variant establishes the hero view, other colors enter as supporting layers, and the full product set closes with the English copy.
+> This film uses the Color Family spine: the purple main variant establishes the hero view, other colors enter as supporting layers, and the full product set closes with the approved copy, when included.
 
 ## STEP 4: Direct the Motion Language
 
@@ -204,17 +204,17 @@ Output one short “motion language” statement, for example:
 
 > This film uses product-edge highlights and the purple main variant sliding motion to drive transitions. The main peaks are variant entrance and full-copy landing, with a stable final hold for the product and copy.
 
-## STEP 5: Generate or Confirm Apple-style English Copy
+## STEP 5: Generate or Confirm Apple-style Copy
 
-Before the final-composition anchor and storyboard, agree on the in-frame copy plan: an approved English line when text is needed, or product-only presentation when the user explicitly prefers no copy.
+Before the final-composition anchor and storyboard, agree on the in-frame copy plan: approved wording and language when text is needed, or product-only presentation when the user explicitly prefers no copy.
 
 Rules:
 
 1. Analyze product category, usage feeling, and narrative spine.
-2. When the user wants in-frame text, offer 2-3 concise and truthful English options; do not pad or truncate copy to a fixed word count. When the approved brief is product-only, do not force an advertising line.
+2. When the user wants in-frame text, offer 2-3 concise and truthful options in the agreed language; do not pad or truncate copy to a fixed word count. When the approved brief is product-only, do not force an advertising line.
 3. Do not use fixed templates or fixed slogans; infer new copy for every product.
 4. Avoid promotional language.
-5. If the user already has copy, prioritize it. Chinese copy must be localized into concise English.
+5. If the user already has copy, use the approved wording.
 
 After the user confirms the text plan (approved copy or an explicit product-only choice), proceed to anchor generation. If the user says “you decide,” select a truthful recommended text plan and continue.
 
@@ -241,7 +241,7 @@ Final copy anchor typography rules:
 - Text must stay on one line.
 - Font: SF Pro Display Semibold.
 - When the approved copy has two parts, specify each part's color: the first uses black or white, and the second uses the specific product main color. If the main color is purple, write “first half black / white, second half purple.” Do not write only “product color + black or white.”
-- Photo 3 may contain only this format-reference copy line and no other text; however, later video copy is controlled by the precise beat storyboard and may include multiple short English copy lines.
+- Photo 3 may contain only this format-reference copy line and no other text; however, later video copy is controlled by the precise beat storyboard and may include multiple short approved copy lines.
 
 Show the three independent anchor photos and ask the user to approve, edit, or regenerate a specific photo before proceeding to the precise beat storyboard.
 
@@ -308,8 +308,8 @@ The video prompt must include:
 - The three independent anchor photos and the role of each photo.
 - The full precise beat storyboard table; read every beat and rewrite every beat into the video prompt. Do not summarize only early beats or omit later typography, variants, or closing requirements.
 - If any copy is planned, preserve each approved line verbatim with its timing, color, and single-line behavior; describe first-half/second-half animation only for two-part copy. A product-only ending has no invented copy. Do not rely on the storyboard table alone, and do not summarize this as “text beat sync” or “leave space for copy.”
-- Prompt completeness check: if the final video-generation prompt does not literally contain every intended English copy line, the task is not ready to dispatch. Rewrite the prompt before video generation.
-- Single-line typography hard constraint: at any moment, only one single-line English copy line may appear in the frame; forbid two rows, two-line titles, title + subtitle pairs, or multiple text blocks at the same time. If typography is error-prone, reduce copy frequency instead of putting text in every shot.
+- Prompt completeness check: if the final video-generation prompt does not literally contain every approved copy line, the task is not ready to dispatch. Rewrite the prompt before video generation.
+- Single-line typography hard constraint: at any moment, only one line of approved copy may appear in the frame; forbid two rows, two-line titles, title + subtitle pairs, or multiple text blocks at the same time. If typography is error-prone, reduce copy frequency instead of putting text in every shot.
 - For approved two-part copy, keep both parts on one line with sequential motion and clear contrast; for one-piece product names or factual labels, a single subtle entrance and stable hold is acceptable. Never invent another text segment to satisfy an animation template.
 - Shot continuity hard constraints.
 - MiniMax-H3 native audio setting and music prompt; native audio is on by default unless the user explicitly asks for silence or another model.

@@ -19,11 +19,11 @@ production_profile、资产规划、asset_key、variant_key、canonical_descript
 
 变体以 approved_master 锁定身份，只允许 allowed_variant_changes。短剧漫剧常见变体：战损、黑化、伪装、身份装束、打脸前后、觉醒/暴走、关键道具损坏或易主。冲突不能通过弱化锁定来处理。
 
-prompt 按 `_common.txt` 视觉化清单写正面画面：四格各写清景别和朝向、身份锚点、棚光、材质。身份锁必须写进 prompt 正文。情绪与风格拆成可看见的姿态、光线和材质，不复读形容词。基础图用中性站姿，不把手持道具或剧情动作画进设定图。
+prompt 按 [视觉化规则](common.md#正面提示词视觉化)写正面画面：四格各写清景别和朝向、身份锚点、棚光、材质。身份锁必须写进 prompt 正文。情绪与风格拆成可看见的姿态、光线和材质，不复读形容词。基础图用中性站姿，不把手持道具或剧情动作画进设定图。
 
 - `prompt` 正文用英文叙述可拍摄事实；另填 `prompt_zh` 简体中文对照给人审阅（不进模型）。不要在 `prompt` 末尾自写 `Visual Style:` 或 `Still:` 行；sidecar 入库时追加这两行英文页脚。
 
-Qwen 和带负面节点的其他 Comfy 原画工作流：禁忌进 `negative_constraints`（英文，进模型负面节点），写成不想要的画面事实（物体或服装状态本身），不要在正面写「不是/禁止/不穿」。Flux.3 Klein 工作流按 `common.md`「Flux.3 Klein 出图」：`negative_constraints` 返回 []，禁忌改写成正面可见事实。
+据 [公共原画规则](common.md#原画正负面与多格)写正负面，先核对实际工作流的 `usage`。
 
 写法克制、正负面与多格逐格正向见 `common.md`「写法克制」「原画正负面与多格」。
 

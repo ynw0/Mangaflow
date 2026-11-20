@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// 锁词与导演计划逐段对应，共用段数上限。
+export const maxVideoDialogueLines = 64;
+
 const text = z.string().trim().min(1).max(1200);
 const dialogueLineSchema = z.strictObject({
   speakerIds: z.array(z.string().regex(/^S[1-9]\d*$/)).min(1).max(12)
@@ -31,7 +34,7 @@ export const cinematicPlanSchema = z.object({
   ending: z.object({ composition: text, visible: z.array(text).min(1).max(8).describe("当前镜尾构图实际拍到的内容，包括空场；仅在画外延续的状态留在 continuityOut"), holdSeconds: z.number().finite().nonnegative() }),
   beats: z.array(z.object({ startSeconds: z.number().finite().nonnegative(), endSeconds: z.number().finite().positive(), action: text, performance: text })).min(1).max(8),
   // 历史审核记录保留当时的规划；新稿通过下方的必填规则。
-  dialogue: z.array(dialogueLineSchema).max(32).describe("按英文正文 <d> 出现顺序逐句填写；无对白填空数组").optional(),
+  dialogue: z.array(dialogueLineSchema).max(maxVideoDialogueLines).describe("按英文正文 <d> 出现顺序逐句填写；无对白填空数组").optional(),
   shots: z.array(cinematicShotSchema).min(1).max(20).optional()
     .describe("新多镜提示词按 [Shot N] 填写每个内部镜头；历史单镜或旧审核记录可省略。全局 beats/dialogue 仍使用整段视频的绝对秒数。"),
 });

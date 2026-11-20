@@ -12,6 +12,7 @@ import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { detectMimeType } from "@/utils/media/priceReference";
 import { prepareComfyWorkflow } from "@/utils/production/run";
 import { captureVideoReview } from "@/utils/production/videoReviews";
+import { maxVideoDialogueLines } from "@/utils/production/videoPlan";
 
 const shortText = z.string().trim().min(1).max(500);
 const description = z.string().trim().min(1).max(6000);
@@ -37,7 +38,7 @@ const ratioSchema = z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "
 const shotFields = {
   shotId: shortText.describe("顶层填写已确认镜头合同的真实编号。画布节点编号填 node.nodeId"),
   story: description,
-  lockedDialogue: z.array(description).max(64).optional().describe("从最新确认的正式剧本取本镜需要模型发声的原话，含旁白和独白，按起声顺序填写。直接复用的录音按素材用途记录。与旧分镜不一致时先对齐上游。无须生成台词时传 []"),
+  lockedDialogue: z.array(description).max(maxVideoDialogueLines).optional().describe("从最新确认的正式剧本取本镜需要模型发声的原话，含旁白和独白，按起声顺序填写。直接复用的录音按素材用途记录。与旧分镜不一致时先对齐上游。无须生成台词时传 []"),
   purpose: shortText,
   style: description,
   continuityIn: z.string().trim().max(3000).describe("本镜开始时从上镜承接的状态，可包含画外人物或物件"),

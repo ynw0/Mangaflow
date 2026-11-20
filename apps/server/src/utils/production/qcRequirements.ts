@@ -19,7 +19,8 @@ export function getShotRequirements(shot: z.infer<typeof shotSchema>): QcRequire
     ...shot.mustNotHave.map((text, index) => ({ id: `mustNotHave.${index}`, source: `mustNotHave[${index}]`, text: `禁止出现：${text}` })),
     ...["continuityIn", "continuityOut"].flatMap(source => {
       const text = shot[source as "continuityIn" | "continuityOut"].trim();
-      return text ? [{ id: source, source, text }] : [];
+      return text ? [{ id: source, source,
+        text: `承接状态：${text}。明确要求可见或可听的事实须逐项核对，画外延续的状态只检查已有声画是否与它冲突。` }] : [];
     }),
   ];
 }

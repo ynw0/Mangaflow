@@ -69,7 +69,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
   const initial: ToolDefinition = {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。按同一合同继续生成时复用已审稿。用户要求修改目标镜头的提示词、拍法或表演时传 regenerate=true；只复审原稿时传 reReview=true。已返回 draftId 时调用 resumeVideoPrompt，不重发合同。",
+    description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。按同一合同继续生成时复用已审稿。用户要求修改目标镜头的提示词、拍法或表演时传 regenerate=true；只复审原稿时传 reReview=true。原合同未变时用 draftId 调用 resumeVideoPrompt；台词或分镜已经修订时，用更新后的完整合同重新提交。",
     promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。shotId 用实际分镜编号，放在顶层。已有节点把当前 canvasId 和 nodeId 放进 node，从镜头合同填写本镜原话和实际参考。新镜头直接传 duration 和 ratio。需要拍法参考时选用 creativeSelection。",
     parameters: { type: "object", ...videoPromptToolSchema },
     prepareArguments(raw) {
@@ -297,7 +297,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
           "按已加载的 H3 与导演 Skill 写完整 cinematicPlan、英文正文和简体中文对照，通过 submitResult 提交 status=ok；无关键输入或合同不可执行则提交 blocked 与具体原因。时间均为整段视频内秒数。",
           "遵守合同选择 [Shot N]：明确一镜到底仅 [Shot 1]；允许剪辑则切点递增、多镜须逐镜填写 cinematicPlan.shots；不添加 shotMode。单一动作/状态变化可只用一个 beats，单镜 shots 可省略；复杂机械、先做后说、精确对白与切镜须充分规划，不能省略必要事件。",
           "按 speechPolicy 和 voiceCast 安排声源、语速、完整对白与末尾至少 0.2 秒收束；人物、参考与原台词须保持合同一致。无对白使用 dialogue: []，描述实际环境声音；无文件不可虚构参考槽位。",
-          "画框、机位、动作和结尾须相容；稳定事实只定义一次，不凑词数。创作模板仅是可选参考；返修只针对 findings 修改，并同步完整规划与中英文正文。",
+          "按机位写镜尾实际拍到的内容，画外承接状态保持不变。合同明确要求同框而当前构图无法做到时，说明冲突并回分镜。稳定事实只定义一次。创作模板仅是可选参考；返修只针对 findings 修改，并同步完整规划与中英文正文。",
           ...(repair ? [] : [`英文正文格式（只列本镜段首，按当前合同写内容）：\n${getPromptOutline(prepared.format, duration)}`]),
           // 自动命中只给适用条件，由导演对照当前合同选用；动作范例留在主动检索入口。
           JSON.stringify({ ...taskInput, ...(repair ? { previousDraft: lastDraft, findings } : {

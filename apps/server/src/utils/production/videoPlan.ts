@@ -22,13 +22,13 @@ export const cinematicShotSchema = z.strictObject({
   camera: text.describe("本镜实际机位、构图与运镜；不是全片统一运镜"),
   action: text.describe("本镜可观察的动作与表演结果，不额外增加剧情"),
   continuityIn: text.optional().describe("有必要时说明承接上一镜的主体位置、持物、光声或时间状态"),
-  continuityOut: text.optional().describe("有必要时说明交给下一镜的可见/可听状态"),
+  continuityOut: text.optional().describe("有必要时说明交给下一镜的实际状态，保留画外人物或物件的位置和关系"),
 });
 
 export const cinematicPlanSchema = z.object({
   openingFrame: text,
   camera: z.object({ movement: text, stopSeconds: z.number().finite().nonnegative().nullable() }),
-  ending: z.object({ composition: text, visible: z.array(text).min(1).max(8), holdSeconds: z.number().finite().nonnegative() }),
+  ending: z.object({ composition: text, visible: z.array(text).min(1).max(8).describe("当前镜尾构图实际拍到的内容，包括空场；仅在画外延续的状态留在 continuityOut"), holdSeconds: z.number().finite().nonnegative() }),
   beats: z.array(z.object({ startSeconds: z.number().finite().nonnegative(), endSeconds: z.number().finite().positive(), action: text, performance: text })).min(1).max(8),
   // 历史审核记录保留当时的规划；新稿通过下方的必填规则。
   dialogue: z.array(dialogueLineSchema).max(32).describe("按英文正文 <d> 出现顺序逐句填写；无对白填空数组").optional(),

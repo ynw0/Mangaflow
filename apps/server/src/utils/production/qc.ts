@@ -382,7 +382,7 @@ function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "vi
     "以下是已批准镜头合同的强制验收清单。每个 id 必须各有且只有一条 checks，使用 requirementId 原样返回编号；技术性检查不填 requirementId。逐项检查原文中的全部事实，不得用笼统画面通过替代。",
     "有 domain 的条目必须使用该域作答。对白计划秒数用于查找证据，实际起声、末字和收句以听到的音轨为准。",
     "请先逐项按 id 完成检查，再选择性补充最多 3 条有证据的无编号技术异常。不能重复同一 id、同一事实或用一个失败描述批量套多个不同 id；同一条不得同时给 pass 与 fail。",
-    "pass 必须提供可定位的 time 和该项完整成立的证据；需要动作过程、镜尾或声音但输入不能证明时用 unverified。禁止项必须确认其适用时段，不能凭单帧未出现就通过。",
+    "pass 须提供可定位的 time 和证据。连续性项只核对明定的可见可听要求与实际入画或入声的部分。完全留在画外的延续状态可以通过，说明检查时刻和画幅；明确要求出现的事实缺失，或证据不足，仍分别使用 fail 或 unverified。禁止项按适用时段核对。",
     JSON.stringify(requirements),
   );
   if (generation) {

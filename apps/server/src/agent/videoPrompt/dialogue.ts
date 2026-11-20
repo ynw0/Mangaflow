@@ -16,7 +16,7 @@ export function getVideoSpeechPolicy(audioEnabled: boolean) {
       identity: "旁白和内心独白在说话人编号后标明画外发声，纯文本和首尾帧按指南使用 phrase。台词外写实际声源与 (Sx)，<d> 内只放语言标签与原台词。独立系统声和旁白按本视频首次发声顺序编号；内心独白与同一角色的画内对白共用声线及编号。",
       timing: "每段画外发声纳入 cinematicPlan.dialogue。按剧本标明谁听得见；观众旁白不驱动画中人物反应。对应人物入画且未开口时，交代口型保持静止，其他人继续剧本中的行为。提示音写作音效，实际参考音频才使用 <Audio N>。",
     },
-    note: "启用同期音轨时按剧本和已确认的语速说原话。按 <d> 的顺序记录实际需要的开口、收句、停顿和前置动作，镜尾保留 0.2 秒。字数估时用于提示风险，实际起声和收句以成片为准。未绑定真实音频时不虚构音频标签。",
+    note: "启用同期音轨时按剧本和已确认的语速说原话。按起声顺序记录开口、收句、停顿和前置动作，镜尾保留 0.2 秒。定稿明确安排抢话时，每人保留自己的 <d> 和原话，关键内容仍需听清。字数估时提示风险，实际发声以成片为准。实际参考音频才使用音频标签。",
   };
 }
 
@@ -44,6 +44,7 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
     findings.push(`正文有 ${allBlocks.length} 段 <d>，cinematicPlan.dialogue 有 ${plan.dialogue.length} 项，请按出现顺序逐句对应。`);
   }
   let previousBlockEnd = 0;
+  let previousSpeechStart = 0;
   let previousSpeechEnd = 0;
   const sources = new Map(voiceCast?.map(({ speakerId, sourceId }) => [speakerId, sourceId]));
   for (const [index, block] of allBlocks.entries()) {
@@ -83,7 +84,12 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
     if (speakerIds.length && speakerIds.join(",") !== line.speakerIds.join(",")) {
       findings.push(`${label}正文说话人为 (${speakerIds.join(",")})，规划为 (${line.speakerIds.join(",")})，请核对角色。`);
     }
-    if (line.startSeconds < previousSpeechEnd - timeTolerance) findings.push(`${label}在 ${line.startSeconds} 秒开口，与前句重叠；齐声请写成同一个 <d>。`);
+    if (line.startSeconds < previousSpeechStart - timeTolerance) {
+      findings.push(`${label}的起声早于上一句，须按实际起声顺序排列对白计划和 <d>。`);
+    } else if (line.startSeconds < previousSpeechEnd - timeTolerance) {
+      warnings.push(`${label}在 ${line.startSeconds} 秒开口，与前面的台词交叠。审核按定稿判断交叠是否有依据，成片核对关键台词是否听清。`);
+    }
+    previousSpeechStart = line.startSeconds;
     previousSpeechEnd = Math.max(previousSpeechEnd, line.endSeconds);
     if (line.endSeconds <= line.startSeconds) findings.push(`${label}结束时间须晚于开口时间。`);
     if (line.endSeconds > duration - endingReserveSeconds + timeTolerance) {

@@ -27,7 +27,8 @@ export function createReviewSchema(requirementIds: string[]) {
   const coverage = z.array(z.object({ requirementId, evidence })).length(requirementIds.length)
     .refine(items => new Set(items.map(item => item.requirementId)).size === requirementIds.length, "审核证据须逐项覆盖且不得重复");
   return z.discriminatedUnion("status", [
-    z.object({ status: z.literal("ok"), framingEvidence: z.string().trim().min(1).max(1500), coverage, findings: z.tuple([]) }),
+    z.object({ status: z.literal("ok"), framingEvidence: z.string().trim().min(1).max(1500).optional()
+      .describe("仅用于说明合同指定的镜尾构图或画内证据"), coverage, findings: z.tuple([]) }),
     z.object({ status: z.literal("rejected"), needsAdjacentShots: z.literal(true).optional(), findings: z.array(z.object({
       requirementId, location: z.string().trim().min(1).max(300), evidence,
       fixTarget: z.string().trim().min(1).max(500),
@@ -57,7 +58,7 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
     ...getShotRequirements(shot),
     { id: "framing", text: "镜头数量及切点符合用户合同；cinematicPlan.shots（如有）与 [Shot N] 的时间和顺序一致，镜尾构图与同框要求相容" },
     { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
-    { id: "dialogueTiming", text: "逐句核对说话人、原话、开口和收句时刻。按原分镜核对确有先后关系的动作和停顿。画面口型与实际发声对齐，镜尾留 0.2 秒；无对白时说明依据" },
+    { id: "dialogueTiming", text: "逐句核对说话人、原话及起声和收句。对照剧本核对停顿、先后关系及抢话；定稿要求不重叠或关键台词会被盖住时，退回不符的交叠。画面口型与实际发声对齐，镜尾留 0.2 秒；无对白时说明依据" },
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
     { id: "bilingualConsistency", text: "中英文的主体、动作、时序、对白和镜尾事实一致" },
     { id: "creativeIntent", text: `叙事目的：${shot.purpose}；视觉风格：${shot.style}` },

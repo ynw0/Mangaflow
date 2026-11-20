@@ -146,7 +146,7 @@ draftVideoPrompt({
 
 - **由 H3 视频生成工作流同时生成声音**，不额外接入独立 TTS 或声音克隆模型。使用已有视频节点，开启 `generateAudio=true`。
 - 统一调用 `searchVideoPromptTemplates` 的 `searchCreative(library:"voices")` 检索：音色 `timbre`、情绪 `emotion`、性格 `personality`、语速 `pace`、年龄感 `age`、外国人说中文感 `foreignAccent`、普通话地方口音 `dialect` 和发声方式 `delivery`。优先少量相关模板，避免为一位角色堆叠长串矛盾的形容词。
-- `draftVideoPrompt.voiceCast` 按本镜说话人编号独立传入。例如：`[{"speakerId":"S1","characterName":"主角","voiceIdentity":"已定稿的固定声线","timbreId":"vt01","emotionId":"ve09"}]`。`S1` 指当前 H3 镜头的说话人顺序，不等于跨镜头角色的稳定 ID；长期声线需由角色资产或剧本一致性合同提供，不能仅靠模板保证声纹相同。
+- `draftVideoPrompt.voiceCast` 按本镜真实说话人填写 `speakerId`、`characterName` 和已确认的声线。按发声方式选择可选的 `sourceId`，画内说话用 `vs01`，仅观众听到的剧情旁白用 `vs02`。音色、情绪和语速按本场另行选择。`S1` 是当前 H3 镜头的说话人编号，跨镜声线沿用角色设定或已确认的对白要求。
 - 有对白、启用音轨时默认使用英文指导 `speak at about 1.3 times normal conversational pace`。特殊人物或剧情语速可传 `paceId` 或 `speedMultiplier`（互斥）。**1.3倍只是生成提示**，不保证实际语速；对白时长仍按原有保守规则估算。
 - “外国人说中文感”和“地方口音普通话”只描述**原中文台词的发音习惯**，不能改写台词、编造发音错别字或冒称精确复现方言。两类口音不能同时应用于一个说话人。方言原文要由剧本提供，不能擅自把普通话改成方言。
 - `<Audio N>` 仅引用实际绑定的音频文件；声音模板绝不伪造音频引用。静默镜头不强制速度，未讲话角色保持闭嘴。对 H3 实际发声情况用成片 QC 听验，无法确认则标记未验证。

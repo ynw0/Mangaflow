@@ -30,20 +30,20 @@ For each approved table row, call the chosen video model to generate the corresp
 
 Per-shot rules common to all video models:
 
-- Use the text storyboards document as the authoritative per-shot reference for narrative, composition, camera movement, action staging, per-second timing, and shot number. For shots that have been extracted to a standalone node, read the extracted node instead. If a pencil image storyboard also exists, use it only for human-side pose / silhouette pre-check; do not let it override the text storyboard.
+- Use the text storyboards document as the authoritative per-shot reference for narrative, composition, camera movement, action staging, timed beats, and shot number. For shots that have been extracted to a standalone node, read the extracted node instead. If a pencil image storyboard also exists, use it only for human-side pose / silhouette pre-check; do not let it override the text storyboard.
 - Use character cards as the authoritative identity source.
 - Use scene cards as the authoritative environment source.
 - **Strip all storyboard double-binding labels** (`[char:…]`, `[scene:…]`, `[shot:…]`, `[dur:…]`, `[hook:…]`) before video render — these labels are storyboard-only reference markers and must NOT appear in the final clip. Pencil image storyboards additionally have their own shot numbers, camera icons, arrows, and notes that must be removed at render time.
-- The rendered clip must contain only clean full-color Pixar-inspired 3D animation content.
+- Render in the approved full-color 3D style using the character and scene cards.
 - No storyboard line art, no hand-drawn sketch texture, no labels, no subtitles unless requested, no watermarks.
 - Maintain the approved screen size / aspect ratio and the approved video resolution from the resolution choice card.
 
 ### Model-specific prompt shaping
 
-The text storyboards document (or the extracted standalone node for that shot) feeds both models, but the prompt prefix around the storyboard differs:
+Write the prompt from the approved storyboard. Group continuous states into a single description and time the changes the audience needs to see or hear. Draw the visual description from the approved art direction and asset cards.
 
-- **H3 prompt prefix** (default): emphasize packaging keywords, design language, motion clarity, text/UI presence when relevant, and dual-channel audio intent. H3 is strong at instruction following, so the per-second directive can be sent almost verbatim. Add: `Pixar-inspired 3D cartoon rendering, C4D + Octane look, stylized Q-version proportions, warm SSS skin, designed-with-detail hair, strong character design language, clean motion, on-brand color palette`.
-- **Seedance 2.0 prompt prefix** (performance fallback): emphasize cinematic camera language, elastic squash-and-stretch, anticipation, follow-through, lighting drama, and lens choice. Add: `cinematic Pixar-quality 3D animation, elastic squash-and-stretch performance, Disney-style anticipation and overshoot, dramatic key lighting, lens-specific depth of field`.
+- **H3**: use the prompt format for the active reference mode. Preserve the approved spoken lines, their sources and timing. Describe UI and screen text when the shot calls for them.
+- **Seedance 2.0**: describe the planned acting and camera. Include anticipation, squash-and-stretch or follow-through where the action warrants them.
 
-When the user picked `per-shot mixed`, apply the prefix that matches the row’s `video_model` field.
+For per-shot mixed mode, use the confirmed `video_model` and workflow for that row.
 

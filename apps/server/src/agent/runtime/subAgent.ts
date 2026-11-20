@@ -148,7 +148,7 @@ export async function runSubAgent(options: SubAgentModel & {
         // 当前专家只补交一次，保留任务、原结果和校验反馈。
         onProgress?.("字段校验失败，正在补交");
         const previousReply = submissionReply;
-        await session.prompt(`本阶段结果未提交成功。只修正以下字段错误，保留原结论和有效内容，重新调用 ${resultTool.name} 一次。数组使用 []，对象使用 {}，不要把它们编码成字符串。\n${message}`, { expandPromptTemplates: false });
+        await session.prompt(`本阶段结果未提交成功。按工具 Schema 修正下列字段，保留原结论和有效内容，重新调用 ${resultTool.name} 一次。数组或对象须用实际内容和原生 JSON 类型，遵守元素数量和必填属性。可选字段不适用时省略。\n${message}`, { expandPromptTemplates: false });
         signal.throwIfAborted();
         const corrected = session.messages.findLast(item => item.role === "assistant");
         if (!corrected || corrected.role !== "assistant" || corrected === previousReply) throw new Error("模型未返回补交结果");

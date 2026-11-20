@@ -65,7 +65,7 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     expect(cn).not.toContain("每连续 3 镜至少 1 镜");
     expect(cn).not.toContain("表演必须夸张弹性");
     expect(cn).toContain("六项必检");
-    expect(cn).toContain("每秒指令覆盖");
+    expect(cn).toContain("时间轴覆盖");
     expect(cn).toContain("Hook 作用与分布");
     expect(en).toContain("Global Visual Style Lock");
     expect(table).not.toContain("at least one of every three consecutive shots");

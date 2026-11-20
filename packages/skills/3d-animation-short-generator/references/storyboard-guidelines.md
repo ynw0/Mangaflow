@@ -4,7 +4,7 @@
 
 After the Step 5.5 self-check passes, show a storyboard-mode choice card before producing any storyboard artifact:
 
-- **Text storyboards document only (default, recommended)** — one canvas text node containing all shot storyboards as in-document sections. Mirrors the half-narrated-drama storyboard structure: per-shot fields (title / hook / scene / characters / spatial anchors / continuity / performance) plus Pixar's per-panel four-quadrant content + optional ASCII layout. Carries the full quality-control payload at near-zero cost. The video model selected in Step 7 reads this directly as the per-shot rendering reference.
+- **Text storyboards document only (default, recommended)** — one canvas text node containing all shot storyboards as in-document sections. Mirrors the half-narrated-drama storyboard structure: per-shot fields (title / hook / scene / characters / spatial anchors / continuity / performance) plus timed beat panels + optional ASCII layout. Carries the full quality-control payload at near-zero cost. Use it to write the shot prompt for the selected model.
 - **Text storyboards document + multi-panel pencil image (visualization mode, opt-in)** — the text storyboards document is still produced as the authoritative artifact, AND one multi-panel pencil image is generated per shot for human review. Higher cost, useful when the user wants a visual preview before committing to video generation, or when squash-and-stretch / pose silhouette is the main risk and the user wants to pre-check it visually.
 
 Store the chosen storyboard mode in the Project Brief and reuse it in Step 7, Step 9, and the Regeneration discipline.
@@ -32,19 +32,13 @@ Per-shot section structure (one `##` heading per shot, in shot order). Every sec
    - `Continuity from S(N-1)` — one or two sentences referencing the previous shot’s ending state.
    - `Continuity to S(N+1)` — one sentence setting up the next shot’s opening.
 6. **Double-binding** — `[char:角色名-01] [char:角色名-02] ... [scene:场景名] [hook: visual-joke]` — exact character card names, scene card name, hook type. These are storyboard-only reference markers; the video model strips them at render time.
-7. **Per-panel four-quadrant content** (one block per panel, in time order; this is the Pixar per-second directive, kept verbatim from the table row):
-   - `Timecode` — e.g. `0–1s`.
+7. **Timed beat panels** (one block for each storyboard beat, in order):
+   - `Timecode` — the beat’s actual start and end.
    - `Pose + Expression` — concrete body posture, silhouette, key prop grip, eye-line, and any **actual** expression change; stable expressions may be marked held, and silence needs no invented gesture. For approved elastic beats, call out squash / stretch / anticipation / overshoot. This field anchors the visual beat, not an obligation to animate every face each second.
    - `Camera` — shot size, camera movement (push / pull / pan / tilt / handheld-shake / locked / orbit), Dutch angle note when applicable.
    - `Audio + Anchor` — audio cue (`♪ narration: ...` / `dialogue: ...` / `SFX: ...` / `silent`) and spatial anchor note (`door-frame: right third` / `Mia: center midground facing camera`).
-   - Performance notes (mirrors half-narrated): for narration seconds, mark `narrator-mouth-closed: true`; for on-screen dialogue, mark `mouth-open: speaker` and record only actual expression, eye-line or body-action changes. When the actor stays still, preserve the held pose instead of inventing a reaction.
-8. **Layout rules** (apply per shot):
-   - 3-second shot → 3 panels (1 per second).
-   - 4-second shot → 4 panels.
-   - 5-second shot → 5 panels.
-   - 6-second shot → 6 panels.
-   - 7+ second shot → one panel per second; for sub-second critical beats, add an extra mini-panel such as `2.0–2.5s` only when the beat is the hook of the shot.
-   - Panels must cover the full shot duration from first frame to last frame with no time gaps.
+   - Performance notes: for off-screen narration mark `narrator-mouth-closed: true`. For on-screen dialogue, mark the speaker and the time range of the line.
+8. **Layout rules**: illustrate the action and sound changes the audience needs to follow. A panel can span several seconds. Together the panels cover the full shot.
 9. **Per-panel binding**:
    - Bind the exact character cards listed in the table row to lock appearance, face, hairstyle, body proportions, costume, signature props, and role identity. Use the same character names as the table.
    - Bind the exact scene card listed in the row to preserve environment, props, landmarks, movement paths, and spatial logic.
@@ -53,53 +47,31 @@ Per-shot section structure (one `##` heading per shot, in shot order). Every sec
       ```
       [0-1s]  Mia (L, mid)         door-frame (R)
               ──kneels, hands on apple basket──
-              cam: low push-in, locked
+              cam: locked
               audio: silent | anchor: basket center-bottom
       [1-2s]  ...
       ```
-    - The ASCII block is informational only; the video model reads the structured `Per-panel four-quadrant content` above, not the ASCII.
+    - Use the ASCII layout to check positions. Write the generation prompt from the approved timed beats.
 11. **Storyboard-only markers**:
     - When a beat is critical, append `[BEAT]` after the panel timecode.
     - When a panel must handoff a specific state to the next panel or the next shot, append `[HANDOFF → ...]` with a short label such as `[HANDOFF → S04 opening]`.
 
-Per-shot section template (copy-paste skeleton, valid for any shot):
+Fill each shot section from the approved storyboard.
 
 ```markdown
-## S03 / 6s — Title: 奶奶把苹果筐递给 Mia
+## {Shot number} / {Duration} — {Shot title}
 
-- **Hook type**: reveal
-- **Scene & characters**: scene:kitchen | char:Mia, char:Grandma
-- **Spatial anchor card**:
-  - Fixed landmarks: door-frame (right third), kitchen-island (center bottom)
-  - Character positions: Mia (L, midground, facing camera) | Grandma (R, foreground, facing Mia)
-  - Exited character status: —
-  - Lighting baseline: warm overhead key + cool bounce right
-- **Continuity from S02**: 奶奶弯下腰从中岛拿起苹果筐
-- **Continuity to S04**: Mia 接住筐转身，门铃响起
-- **Double-binding**: [char:Mia] [char:Grandma] [scene:kitchen] [hook:reveal]
+- **Hook type**: {The shot's actual narrative purpose}
+- **Scene and characters**: {Approved scene and character cards}
+- **Spatial anchors**: {Visible landmarks, positions, facing and lighting}
+- **Continuity**: {State carried in and state handed off}
+- **Bindings**: {Storyboard tags for the actual cards}
 
-### Per-panel four-quadrant content
-
-#### 0–1s
-- Pose + Expression: 奶奶弯腰双手持筐；Mia 左侧站姿，眼神好奇
-- Camera: locked medium shot, eye-level
-- Audio + Anchor: silent | Mia: L midground | basket: center bottom
-- Performance: [BEAT]
-
-#### 1–2s
-- Pose + Expression: 奶奶手臂伸向 Mia，筐倾斜；Mia 双手前伸准备接
-- Camera: locked medium shot, eye-level
-- Audio + Anchor: ♪ SFX: basket rustle | anchor: door-frame: right third
-- Performance: [HANDOFF → S04 opening]
-
-#### 2–3s
-...
-
-### ASCII layout (optional)
-[0-1s]  Grandma (R, fg)        door-frame (R, bg)
-        ──lifts basket──        Mia (L, mid)
-        cam: locked | silent
-[1-2s]  ...
+### Timed beat panels
+#### {Beat start and end}
+- Pose and action: {Actual change or held state}
+- Camera: {Approved framing and movement}
+- Audio and anchors: {Relevant cues, dialogue and spatial references}
 ```
 
 After all sections are written, place the document on canvas and move directly to Step 7. Do not call any image generation model in default mode.
@@ -132,14 +104,8 @@ For each pencil image storyboard:
   - These labels are storyboard-only reference markers; they are stripped at video render time.
 - Bind the exact character cards listed in that row to lock character appearance, face, hairstyle, body proportions, costume, signature props, and role identity.
 - Bind the exact scene card listed in that row to preserve environment, props, landmarks, movement paths, and spatial logic.
-- Convert every per-second directive in the row into one storyboard panel or one clearly labeled beat panel; for a 4-second shot, normally create 4 panels; for a 6-second shot, normally create 6 panels; for sub-second critical beats, add extra mini-panels only when needed.
-- **Panel physical layout (mandatory)**:
-  - 3-second shot → 1×3 strip.
-  - 4-second shot → 2×2 grid.
-  - 5-second shot → top row 3 + bottom row 2.
-  - 6-second shot → 2×3 grid.
-  - 7+ second shot → 3 rows, balanced panels.
-  - Each panel occupies the same canvas area; do not let one panel dominate.
+- Draw the beats from the approved timeline. Add a smaller timed panel when a quick action or sound cue needs a separate view.
+- **Panel layout**: arrange equal-sized panels in a strip or grid according to how many beats the shot needs.
 - **Per-panel four-quadrant content (mandatory)**:
   - Top-left: timecode (e.g. `0–1s`).
   - Top-right: pose + expression sketch (the largest area; the actual visual beat).

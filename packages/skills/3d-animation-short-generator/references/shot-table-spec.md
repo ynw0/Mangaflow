@@ -6,7 +6,7 @@ After character cards and scene cards are locked, output standardized video prom
 
 The table must have exactly six columns in this order:
 
-| Shot ID & Duration | Continuity Handoff | Reference Anchors (Spatial + Identity) | Hook Type | Shot Description (Per-Second Directives) | Audio & Dialogue Track |
+| Shot ID & Duration | Continuity Handoff | Reference Anchors (Spatial + Identity) | Hook Type | Shot Description (Timeline) | Audio & Dialogue Track |
 |---|---|---|---|---|---|
 
 Column rules:
@@ -20,28 +20,22 @@ Column rules:
   - `Lighting Baseline` — inherited key/fill/rim direction from the scene card, plus any per-shot modifier (e.g. `key: warm overhead, fill: cool bounce right, modifier: window-backlit silhouette`).
   - Plus identity bindings: exact approved character card names and exact approved scene card name.
 - **Hook Type**: one short label from a controlled vocabulary to describe the shot's existing function rather than force a stunt, e.g. `visual-joke`, `reversal`, `suspense`, `tender`, `chase`, `reveal`, `callback`, `expression-beat`. Used for the per-episode hook distribution self-check.
-- **Shot Description**: shot size, camera movement, Dutch-angle design, performance style, SFX, negative prompt, **video-model generation notes** (the model chosen in Step 7 — H3 or Seedance 2.0 — receives slightly different prompt shapes; for H3 emphasize packaging keywords and text/UI/motion-graphics clarity, for Seedance 2.0 emphasize cinematic camera and elastic performance), and a required `Per-Second Directives` subsection. The subsection must break the shot into second-by-second instructions such as `0–1s`, `1–2s`, `2–3s`; for sub-second critical beats, use `2.0–2.5s` style markers. Each per-second directive MUST cover all five required elements:
-  1. Action / pose / expression (squash-and-stretch, anticipation, overshoot, follow-through where applicable)
-  2. Camera movement (push / pull / pan / tilt / handheld-shake / locked / orbit)
-  3. Spatial position (where the character is, what they hold, what landmark is in frame)
-  4. Audio cue (narration / dialogue / SFX / breath / silence — or `silent` if intentional)
-  5. Handoff to the next second or next shot (what state this second locks in for the next one)
-- **Audio & Dialogue Track**: full audio script for the shot in time order, separate from per-second cues. Fields:
+- **Shot Description (Timeline)**: establish the opening framing, camera, spatial anchors, and prop state. Mark a timed beat where the action, camera, or sound changes. A held pose or continuous action can span several seconds. Use sub-second timing when a sync point or a quick action needs it.
+- **Audio & Dialogue Track**: list the shot's sound cues and spoken lines in time order. Fields:
   - `Narration` — voiceover text with time range (omit if no narration).
   - `Dialogue` — line, speaker, tone, time range.
   - `SFX` — keyed sound effects, time-anchored.
-  - `Performance Note` — when the protagonist is narrating off-screen, mark `narrator-mouth-closed: true`; describe expression path during narration; describe concrete eye-line and body-action changes for each dialogue line.
+  - `Performance Note` — when the protagonist narrates off-screen, mark `narrator-mouth-closed: true`. Record expression or movement where the scene calls for it.
 
 Table-wide rules:
 
 - Each shot must naturally inherit the previous shot’s image state through the `Continuity Handoff` column and set up the next shot in the same column.
-- Each shot row must include per-second directives covering the entire shot from first to last frame, recording action/pose/expression, camera state, spatial position, sound cue, and continuity handoff. A held pose, fixed camera, or intentional silence counts as an explicit state; do not invent a new gesture or move each second.
-- Per-second directives must be specific enough to generate storyboard panels directly; avoid vague timing such as “continues moving” without body, camera, or prop detail.
+- Cover the full shot with consecutive time ranges. Carry forward the opening position, lighting, and room tone until they change. Record the details a storyboard artist needs at each change.
 - Performance may use elastic stylized animation when the approved action and tone call for it; do not impose exaggerated squash-and-stretch, fast poses, or comic reactions on every shot. Quiet character moments, restrained faces, and held poses are valid if the story needs them.
 - Vary shot sizes when the story changes what the audience needs to see. Repeated framing is valid when it preserves a relationship or makes a later change readable; do not alternate close-up / extreme close-up mechanically.
 - Dutch-angle tilted compositions are an option for chase, imbalance, surprise, or slapstick beats when they genuinely clarify the scene, not a compulsory effect.
 - Dialogue language only if explicitly requested by the user; otherwise use minimal non-language-specific reactions or mark dialogue as optional / pending confirmation.
-- For shots containing narration or dialogue, every second where the character is speaking must record whether the mouth is open or closed; the default is closed for off-screen narrator, open for on-screen dialogue.
+- Mark who speaks and when. Sync visible speakers to their lines and keep off-screen narration separate from the on-screen characters’ lip movements.
 - A character who left the frame must still be tracked in `Exited Character Status` for at least one shot, then dropped after they are explicitly off-stage for two consecutive shots.
 
 Then show a user choice card:
@@ -62,7 +56,7 @@ Six required checks:
 2. **Single-shot duration**: no shot exceeds 15 seconds. If a beat needs more, split it.
 3. **Character count per shot**: no shot contains more than three important characters (defined as characters with on-screen action or dialogue).
 4. **Spatial anchor inheritance**: for every interior scene with two or more shots, the `Fixed Landmarks` and `Lighting Baseline` of the next shot must either match the previous shot or include an explicit continuity note (e.g. `door-frame moves from right third to center as camera orbits left`).
-5. **Per-second directive coverage**: every second from `0s` to the shot duration is covered by a `Per-Second Directives` entry, and each entry contains all five required elements (action/pose/expression, camera, spatial, audio cue, handoff). Sub-second beats like `2.0–2.5s` are allowed but must not leave any time gap.
+5. **Timeline coverage**: timed beats cover the shot from `0s` to the end without gaps. Check the order of actions, dialogue and sound cues. A continuous state can stay in one range.
 6. **Cross-shot continuity**: reading the `Continuity Handoff` column row by row produces a continuous chain — no shot starts from a state that contradicts the previous shot’s ending. Any shot that flips eyeline, character position, prop state, or lighting must mark the flip explicitly (e.g. `HARD CUT — time skip: 2h`).
 
 If all six pass, place a `shot-table self-check: passed` stamp at the top of the canvas table node and show the user choice card:

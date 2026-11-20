@@ -6,7 +6,6 @@ import { addUsage, emptyUsage, type SubAgentModel } from "@/agent/runtime/subAge
 import type { AgentEvent } from "@/agent/runtime/types";
 import { prepareVideoPrompt, videoPromptParameters, videoPromptToolSchema } from "@/agent/videoPrompt/input";
 import { createReviewSchema, createReviewSubmission, draftSchema, draftSubmissionParameters, getPromptOutline, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
-import { videoPromptNodeExample } from "@/agent/videoPrompt/examples";
 import { runStructuredSpecialist } from "@/agent/runtime/structuredSpecialist";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
@@ -71,7 +70,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
     description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。相同镜头合同和模板不变时优先复用已审稿，用户明确要求重写才传 regenerate=true；明确要求复审已通过的原稿时传 reReview=true。已返回 draftId 时调用 resumeVideoPrompt，不重发合同。",
-    promptSnippet: `制作 H3 视频提示词时调用 draftVideoPrompt。已有画布节点传 node 和镜头合同，新镜头必须传 duration 和 ratio。先 searchVideoPromptTemplates 检索所需模板，选中的 ID 通过 creativeSelection 传入，已确认的镜头基调填入 tone。已有节点示例（取实际合同编号与参考）：${JSON.stringify(videoPromptNodeExample)}。canvasId 仅放 node 内。`,
+    promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。shotId 用实际分镜编号，放在顶层。已有节点把当前 canvasId 和 nodeId 放进 node，从镜头合同填写本镜原话和实际参考。新镜头直接传 duration 和 ratio。需要拍法参考时选用 creativeSelection。",
     parameters: { type: "object", ...videoPromptToolSchema },
     prepareArguments(raw) {
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("draftVideoPrompt 需要单个镜头合同对象");

@@ -13,7 +13,7 @@ The six-column shot table, visual style lock, and approval gates are production 
 
 Use this Skill when the user wants a complete story-first animated short workflow, from one-line idea to final edited video. The workflow must place every major artifact on the canvas in production order and pause at creative gates with user choice cards before expensive or high-impact steps.
 
-Core rule: **story first, ask screen size and total duration with choice cards immediately after user intake, ordered canvas artifacts, every required confirmation via choice card, fixed order after character/scene cards: six-column standardized shot table with per-second directives + audio cues + spatial anchor chain → shot-table self-check gate → one single text storyboards document with one section per shot (multi-panel pencil image only when user explicitly opts into visualization mode; any shot flagged for heavy iteration is extracted to a standalone text storyboard node) → video-model choice card (H3 default, Seedance 2.0 fallback) + resolution choice card → single-shot clips rendered by the chosen video model → full-film assembly with BGM; final video must remove all storyboard artifacts**.
+Core rule: **story first, ask screen size and total duration with choice cards immediately after user intake, ordered canvas artifacts, every required confirmation via choice card, fixed order after character/scene cards: six-column standardized shot table with timed beats + audio cues + spatial anchor chain → shot-table self-check gate → one single text storyboards document with one section per shot (multi-panel pencil image only when user explicitly opts into visualization mode; any shot flagged for heavy iteration is extracted to a standalone text storyboard node) → video-model choice card (H3 default, Seedance 2.0 fallback) + resolution choice card → single-shot clips rendered by the chosen video model → full-film assembly with BGM; final video must remove all storyboard artifacts**.
 
 ## Global Visual Style Lock
 
@@ -35,7 +35,7 @@ Negative style constraints: no photorealistic live-action, no flat 2D anime, no 
 Capture:
 
 - One-line idea or rough premise
-- Desired output: blueprint only, assets only, standardized shot table with per-second directives, single text storyboards document (default) + extracted single-shot text storyboard nodes for heavy-iteration shots + multi-panel pencil storyboards (opt-in), single-shot video clips (with video model chosen in Step 7), assembled main video, or final BGM-composited film
+- Desired output: blueprint only, assets only, standardized shot table with timed beats, single text storyboards document (default) + extracted single-shot text storyboard nodes for heavy-iteration shots + multi-panel pencil storyboards (opt-in), single-shot video clips (with video model chosen in Step 7), assembled main video, or final BGM-composited film
 - Approximate length, if the user already stated it
 - Screen size / aspect ratio, if the user already stated it
 - Visual tone: default warm stylized 3D animation
@@ -60,7 +60,7 @@ Total duration card:
 - 90–180 seconds
 - Custom duration
 
-Only proceed after the user chooses both screen size/aspect ratio and total duration, or explicitly supplies custom values. Store the approved screen size/aspect ratio and duration in the Project Brief and reuse them in shot timing, transition continuity, the standardized shot table with per-second directives, single-shot storyboards (text by default, pencil image when user opts in), single-shot video clips, assembly, BGM matching, and final composite settings.
+Only proceed after the user chooses both screen size/aspect ratio and total duration, or explicitly supplies custom values. Store the approved screen size/aspect ratio and duration in the Project Brief and reuse them in shot timing, transition continuity, the standardized shot table with timed beats, single-shot storyboards (text by default, pencil image when user opts in), single-shot video clips, assembly, BGM matching, and final composite settings.
 
 Create or later update canvas artifacts in this order:
 
@@ -68,7 +68,7 @@ Create or later update canvas artifacts in this order:
 2. Story Outline text node
 3. Labeled Character Card image nodes
 4. Environment-only Scene Card image nodes
-5. Standardized Shot Information Table node with six columns; each row must include per-second directives inside `Shot Description`
+5. Standardized Shot Information Table node with six columns; each row must include timed beats inside `Shot Description`
 6. **Single text storyboards document** — one canvas text node named `<title> text storyboards` containing one section per shot (mirrors the half-narrated-drama storyboard structure). When the user flags a shot for heavy iteration, that section is extracted to a standalone text node and a `(extracted)` marker is left in the document. Pencil image storyboards, if opted in, are separate image nodes.
 7. Single-Shot Video Clip nodes (rendered by the video model selected in Step 7 — H3 default, Seedance 2.0 fallback)
 8. Assembled Main Video node
@@ -186,13 +186,13 @@ Then show a user choice card:
 
 After character cards and scene cards are locked, output standardized video prompts as a shot information table. This step is mandatory and cannot be swapped with storyboard or video generation.
 
-Required reference: read and follow `references/shot-table-spec.md` for the exact six-column schema, per-second directive requirements, table-wide rules, user approval card, and mandatory Step 5.5 self-check gate.
+Required reference: read and follow `references/shot-table-spec.md` for the exact six-column schema, timeline requirements, table-wide rules, user approval card, and mandatory Step 5.5 self-check gate.
 
 Minimum runtime contract:
 
 - Create a canvas table node named `标准镜头信息表` or `standard-shot-table`.
-- Use exactly six columns: `Shot ID & Duration`, `Continuity Handoff`, `Reference Anchors (Spatial + Identity)`, `Hook Type`, `Shot Description (Per-Second Directives)`, `Audio & Dialogue Track`.
-- Every row must include complete per-second directives, continuity handoff, reference anchors, hook type, and audio/dialogue timing.
+- Use exactly six columns: `Shot ID & Duration`, `Continuity Handoff`, `Reference Anchors (Spatial + Identity)`, `Hook Type`, `Shot Description (Timeline)`, `Audio & Dialogue Track`.
+- Every row must include complete timed beats, continuity handoff, reference anchors, hook type, and audio/dialogue timing.
 - Run the Step 5.5 self-check from `references/shot-table-spec.md` before storyboarding. Do not enter Step 6 until the self-check passes.
 
 Then show the table approval/self-check choice cards defined in `references/shot-table-spec.md`.

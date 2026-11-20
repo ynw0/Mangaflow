@@ -32,7 +32,7 @@ export function createReviewSchema(requirementIds: string[]) {
       .describe("仅用于说明合同指定的镜尾构图或画内证据"), coverage, findings: z.tuple([]) }),
     z.object({ status: z.literal("rejected"), needsAdjacentShots: z.literal(true).optional(), findings: z.array(z.object({
       requirementId, location: z.string().trim().min(1).max(300), evidence,
-      fixTarget: z.string().trim().min(1).max(500),
+      fixTarget: z.string().trim().min(1).max(500).describe("说明需要恢复的剧情事实、声画关系或可读性，具体文案和拍法交由导演决定"),
     })).min(1).max(maxReviewFindings) }),
   ]);
 }

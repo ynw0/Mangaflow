@@ -94,7 +94,7 @@ export const videoTemplateSearch = {
   name: "searchVideoPromptTemplates",
   label: "分类检索：导演、创作知识与 H3 声音模板",
   description: "统一分类创作知识库：listTags/search 检索原有导演镜头模板；listCreativeTags/searchCreative 检索2026来源网络热梗、原创喜剧、表情、画风/滤镜和叙事结构和 H3 角色声音模板；checkCreativeSelection 检查模板组合、适用时长、风格与题材冲突。不生成、不修改画布。",
-  promptSnippet: "需要剧情节拍可查 narrative；导演拍法用原 search；人物颜艺查 expressions、画风滤镜查 styles、喜剧查 memes/absurd；对白、网文系统声、旁白及独白检索 voices，声源模板填 voiceCast.sourceId，音色与语速可独立选配。先小范围按需检索，挑选 1–3 个互补模板，用 checkCreativeSelection 校验冲突后再独立改写成符合剧本/工作流的提示词，禁止直接拼接模板全文。",
+  promptSnippet: "有具体创作问题时按需检索。拍法用 search，剧情节拍、表情、画风、喜剧或声音用 searchCreative。先对照分镜和实际素材判断条目是否适用。组合条目有疑问时可用 checkCreativeSelection 核对。",
   parameters: z.toJSONSchema(searchToolInput, { io: "input", target: "draft-07" }),
   execute(args: unknown, signal?: AbortSignal) {
     signal?.throwIfAborted();

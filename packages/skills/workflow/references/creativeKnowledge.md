@@ -1,6 +1,6 @@
 # 创作知识库：选材、组合与质量约束
 
-这是可检索的创作参考，不是额外生成引擎，也不是独立 Agent。主 Agent、剧本/分镜、角色、场景和视频导演共用 **`searchVideoPromptTemplates`**：旧 `listTags/search` 保留原有导演镜头模板；新增内容用 `listCreativeTags/searchCreative`，组合前可用 `checkCreativeSelection` 检查冲突。**不能把检索出的多条模板原文串接成最终提示词**。只加载当前镜头需要的 1–3 条。
+剧本、分镜、原画和视频导演共用 `searchVideoPromptTemplates` 查询创作参考。按当前问题选择适用条目，再用本场已确认的人物、事件、动作和素材写正文。
 
 ## 分类与职责
 
@@ -17,28 +17,9 @@
 
 ## 检索
 
-```ts
-// 发现类别：只有这一工具，不要重复注册新的检索工具
-searchVideoPromptTemplates({ action:"listCreativeTags" })
-
-// 原导演结构接口保持不变
-searchVideoPromptTemplates({ action:"listTags" })
-searchVideoPromptTemplates({ action:"search", tags:{scene:["机械变形"]}, limit:2 })
-
-// 按需选 1–3 个匹配项，先确认内容再复制 ID
-searchVideoPromptTemplates({ action:"searchCreative", library:"memes", query:"我超威", limit:2 })
-searchVideoPromptTemplates({ action:"searchCreative", library:"memes", query:"我 Chovy", limit:2 })
-searchVideoPromptTemplates({ action:"searchCreative", library:"narrative", query:"机械展开", limit:2 })
-searchVideoPromptTemplates({ action:"searchCreative", library:"expressions", creativeTags:["极夸张表情"], limit:2 })
-searchVideoPromptTemplates({ action:"searchCreative", library:"styles", creativeTags:["滤镜"], query:"胶片", limit:2 })
-
-// 模板组合检查：不生成媒体；无权覆盖用户明确指令
-searchVideoPromptTemplates({
-  action:"checkCreativeSelection",
-  medium:"video", tone:"serious", durationSeconds:5,
-  selected:{ narrativeId:"n12", expressionId:"e21", styleId:"s01", filterId:"f01" }
-})
-```
+- 用 `listTags` 查看拍法标签，按当前镜头的问题填 `search.tags`。提供已知的时长和参考条件。
+- 用 `listCreativeTags` 查看创作分类。`searchCreative` 按 `library`、`query` 和 `creativeTags` 检索，填写的 `creativeTags` 需要全部匹配。
+- 组合条目需要核对时，用 `checkCreativeSelection` 检查已选 ID，按实际媒介、基调和时长填写参数。
 
 ## 与 draftVideoPrompt 的直接衔接
 
@@ -46,55 +27,8 @@ searchVideoPromptTemplates({
 
 内置导演的拍法候选来自 `draftVideoPrompt.templateTags`。有具体拍摄问题时传对应标签，已有拍法时可省略；仅传 `intent` 会选择适用的导演资料。外部 Agent 需要拍法时使用 `searchVideoPromptTemplates` 的 `search`。
 
-```ts
-// 检索只发生一次，返回的 id 分别为 e02、s01
-searchVideoPromptTemplates({action:"searchCreative",library:"expressions",query:"温和微笑",limit:1})
-searchVideoPromptTemplates({action:"searchCreative",library:"styles",query:"电影级写实",limit:1})
-
-// 合同与素材输入来自当前已确认的分镜和画布；以下为字段形态示意
-draftVideoPrompt({
-  shotId:"S01", story:"已确认的镜头动作", lockedDialogue:[], purpose:"本镜要交付的信息",
-  style:"已批准视觉风格", continuityIn:"从上一镜承接的状态",
-  continuityOut:"本镜结束的状态",
-  mustHave:["必须出现的第一个事实"], mustNotHave:[],
-  intent:"reveal",
-  references:[],
-  duration:10, ratio:"9:16",
-  creativeSelection:{expressionId:"e02",styleId:"s01"}
-})
-```
-
-上例演示新镜头参数。参考素材按实际工作流和槽位填写，新镜头的 `duration` 和 `ratio` 为必填项。
-
-已有视频生成节点时，先用 `node:getConfig` 核对配置，有需调整的参数才用 `node:setConfig`，然后读取 `node:getPromptContext`。顶层仍填写原合同的 `shotId`、剧情和实际参考。画布和节点 ID 放在 `node` 对象内，个别生成参数从节点读取。下面的值仅用于演示结构，调用时用已确认的镜头合同和实际素材替换。
-
-```json
-{
-  "shotId": "EP001-S11b",
-  "story": "陆明确认屏幕上的警报后抬头。",
-  "lockedDialogue": [],
-  "purpose": "交代陆明发现异常",
-  "style": "写实工业科幻",
-  "continuityIn": "陆明坐在工作台前",
-  "continuityOut": "陆明抬头看向门口",
-  "mustHave": ["陆明停手后抬头"],
-  "mustNotHave": [],
-  "intent": "reveal",
-  "references": [
-    {
-      "path": "素材/陆明.png",
-      "kind": "image",
-      "purpose": "角色身份参考",
-      "description": "陆明的脸部与服装参考"
-    }
-  ],
-  "node": {
-    "canvasId": "EP001.json",
-    "nodeId": "实际视频节点ID",
-    "write": true
-  }
-}
-```
+- 从确认的分镜填写顶层 `shotId`、`story`、`purpose`、`style`、`intent`、连续性及必需和禁止项。`lockedDialogue` 按正式剧本填本镜需要模型发出的原话。`references` 按实际槽位顺序填写文件、类型、用途和描述。
+- 新镜头填写 `duration` 和 `ratio`。已有节点先用 `node:getConfig` 核对配置，仅在需要时用 `node:setConfig` 更新，随后读取 `node:getPromptContext`。画布与节点 ID 填入 `node`，确认允许写回时填 `node.write: true`。
 
 - 已有节点时省略顶层 `canvasId`、`modelId`、`duration`、`ratio`、`sampling`、`seed` 和 `seedMode`。
 - 首次 `draftVideoPrompt` 调用未通过入参校验时，按报错修正当前调用。缺 `shotId` 时补原合同编号，多传顶层 `canvasId` 时移除它并保留 `node.canvasId`。此阶段没有该次调用生成的待审稿。
@@ -103,7 +37,7 @@ draftVideoPrompt({
 
 **宿主兼容要求**：`mustHave`、`mustNotHave`、`references` 必须是 JSON 数组，`templateTags`、`sampling`、`creativeSelection` 为 JSON 对象，`duration` 为数字；不得发送成 `"[]"`、`"{}"` 或 `"10"`。工具现在对外暴露单一对象 Schema，分支互斥由服务器在解析时验证。参数校验失败属于工具调用失败，**不意味着视频已生成，也不应自动重试消耗算力**。
 
-检索支持 `query`、`tags`（多个标签**必须全部匹配**）、`limit`（最多 10 条）和 `library:"all"`。标题与别名优先排序；“我Chovy/我超威”只对应同一条，不重复计数。未命中时不要从记忆编造，应简化标签、减少关键词或改用别的分类。无创作需求不要默认全文检索。
+创作检索可用 `library: "all"` 跨分类查询，`limit` 最多 10 条。标题与别名优先匹配。同义词归入同一条目。未命中时可收窄关键词，或沿用分镜的原有拍法。
 
 ## 一次镜头怎样选模板
 
@@ -123,13 +57,6 @@ draftVideoPrompt({
 - “我超威/我Chovy”是直播喊话的空耳二创，**并非选手 Chovy 本人语录**；原片发布时间和最早空耳创作时间不等于媒体记录时间。已收录词条注明禁用和原创改写建议。
 - DeepSeek“蓝色大肥鱼/鲸鱼娘”为社区非官方二创，不应把别人的具体图形设计当成免费商用素材。“嘉豪文学”须避免污名化真实同名者。
 - 旧电影、2021 网帖、以前的表情在 2026 年再次传播，只能记为**2026 再传播**，不能标为该年首次创造；不得搬运未授权完整录音、视频、歌词和真人声线。
-
-## 维护
-
-- `apps/server/src/agent/creativeKnowledge/`：数据 `memesCN.ts`、`absurdPrompts.ts`、`expressionTemplates.ts`、`visualStyles.ts`、`narrativeTemplates.ts`，以及数据索引、组合检查和测试。
-- `apps/server/src/agent/videoPrompt/templates/`：已有导演模板与唯一分类搜索工具；禁止重复创建检索工具或复写导演节点。
-- 新增词条需有稳定 ID、准确来源和日期、适用场景及禁用边界。新增模板需有可执行动作/结构、结果态、适用时长、可验收项及常见失败；优先修质量缺陷，不按数量灌库。
-- 变更后必须通过 `bun test src/agent/creativeKnowledge/index.test.ts` 和 GitHub CI 类型检查、生产链路回归测试。程序测试不能替代真实 ComfyUI 的生成 A/B 验证。
 
 ## H3 同期角色声音提示词模板
 

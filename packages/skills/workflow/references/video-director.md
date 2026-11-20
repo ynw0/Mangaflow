@@ -108,14 +108,11 @@
 ### 说话时序
 - 中文口播按每秒约 4 字做保守估时，句间停顿及开口前必需动作另计。台词与关键动作在镜尾前完成，最后保留 0.2 秒自然收束，人物说完闭口后保持末态或延续自然底声。
 - 按英文正文 `<d>` 顺序在 `cinematicPlan.dialogue` 逐句填 `speakerIds`、`startSeconds`、`endSeconds`、`pauseSeconds`。如果必须等动作完成，在 `beats` 中单列该动作，用从 1 开始的 `afterBeat` 引用。行走等可边做边说的动作允许重叠；无对白填空数组。
-- 写明可见的开口触发，例如手放稳文件后开口，或回头到脸可见时边走边说。逐句核对听者整句期间闭口及说话人收句后合唇；画外音保持画内人物闭口。中英文时序一致，原台词完整。
+- 按本场对话安排开口：可以直接接上一句，也可以因听见声音或看见动作而开口。只在确有先后依赖时写前置动作。听者不对口型，说话人说完合唇；画外音按实际声源处理。中英文时序一致，原台词完整。
 
 ### 动作时序
-- 一次接触（伸腿绊倒、出手、撞上）写成一个连续动作，伸出和碰上落在同一时间段。拆成两段、中间留空，模型会让对方停下来等。
-- 对方这段没有停顿的，写明全程保持原来的节奏，例如一直跑、冲刺不减速，直到接触发生。
-- 突然的小动作写贴地、幅度小、一下探出。横伸、膝伸直、脚尖绷直会被做成劈叉或双腿大开，并把这个姿势撑满整段。
-- 本镜里将要发生的动作，不要提前摆成准备姿势。动作只在碰上那一刻发生。要衔接上一镜结尾动作时，视频开头就已经是那个姿势。
-- 理应快速连贯的动作，一句话写完，时间窗按这个速度给够。不要用「晚一拍」「再侧转」「停一下再倒」这类分拍，把快动作说成慢动作分解。剧情本身要慢动作时，按慢动作写。
+- 突发接触按现场速度写：伸脚绊人时，脚探出和绊到对方是一个连贯动作。对方原本在跑，就让他跑到接触的那一刻。
+- 犹豫、蓄力或改变主意本身有戏时，保留让观众看懂的准备动作。承接前镜时从已经发生的姿势接起，时长按剧本安排。
 
 ### 方向性道具 / 特效体
 外形不对称、有明确前缘/刃口/尖端/出射方向者：批准原画只锁轮廓与材质，不锁静帧朝向。`subject_definitions` 钉前缘与后缘（相对运动或作用方向）；`detailed_description` 各时间段复述。轮廓材质 `fully_preserved`；仅改朝向用 `partially_preserved` 并写明改掉的是静帧朝向。禁止只写「飞向某侧」却不写前缘。
@@ -136,46 +133,12 @@
 - 任务类型只用官方允许的集合：`keyframe completion`、`reference generation`、`video editing`、`video continuation`、`audio reuse`、`audio reference`。
 
 ### 其它制作规则
-- 视频模型不懂剧情：只写镜头中实际出现的东西。
+- 观众需要知道的剧情落实到本镜能看见的动作或听见的声音。
 - 外形依据该槽已批准的素材与描述；丢掉棚拍机位与白底；与批准原画冲突的旧外形不进定义。姿态位置以 `story` 动作为准。
 - 可补充实现镜头所需的正向描写，保留编剧的全部硬性要求。
-- 只写当前画面内可见内容；角色视线中但摄像头看不到的不要写。
+- 画外的敲门声、呼唤或广播写在响起的那一刻。人物听得到才据此反应；观众专属的旁白不触发人物反应。声源未入画时，保持剧本安排的机位，写清传来的声音。
 - 不要在末尾追加 “No cuts / no subtitles” 这类英文否定句。
 
-## 精简格式示例（英文进模型；另交 promptZh）
-槽号与登记名随本镜替换。身份经 Subject cite Picture；无首帧锚时不单独列 Picture 行；`retention_analysis` 覆盖已定义 Subject。
-
-```
-subject_definitions:
-<Subject 1> is Lin Yuan from <Picture 1>. East Asian young man, short black hair, deep indigo crew-neck knit sweater, dark grey trousers.
-<Subject 2> is the spirit stone from <Picture 2>. Hexagonal grey-white translucent crystal with fine surface cracks.
-<Subject 3> is the stainless tray from <Picture 3>. Brushed metal with a raised rim.
-<Subject 4> is the underground lab from <Picture 4>. Cool white overhead lights, pale grey bench, cabinets and a fire door behind.
-
-summary:
-[reference generation] 8s film. <Subject 1> studies <Subject 2> on <Subject 3> and speaks once.
-
-retention_analysis:
-<Subject 1> (appears in [Shot 1]): fully_preserved - short black hair, deep indigo knit sweater, dark grey trousers.
-<Subject 2> (appears in [Shot 1]): fully_preserved - hexagonal silhouette and cracks.
-<Subject 3> (appears in [Shot 1]): fully_preserved - tray silhouette and brushed metal.
-<Subject 4> (appears in [Shot 1]): fully_preserved - lab layout and cool white overhead lights.
-
-detailed_description:
-Realistic-proportion 3D animation under cool overhead laboratory lighting.
-[Shot 1] Slightly high medium shot of <Subject 4> the lab. <Subject 1> Lin Yuan sits beside the bench, staring at <Subject 2> the spirit stone in <Subject 3> the tray.
-The camera slowly pushes toward Lin Yuan's face as his gaze stays on the stone. Once the camera settles, <Subject 1> (S1) says quietly, <d>[Chinese] 再来一次</d>. He closes his lips and holds his gaze on the stone through the ending.
-
-overall_soundscape:
-Low HVAC hum running throughout.
-
-non_diegetic_music:
-N/A
-```
-
-`promptZh` 示例（给人对照，不进模型）：用简体中文复述同上六段事实，结构可对齐六段标题，勿塞回 `prompt`。
-
-有视频或音频参考时 时按官方在定义段与 `retention_analysis` 补 `<Video 1>`/`<Audio 1>` 及关系词；对白仍只在 `<d>` 里。
 
 ## 输出与交接
 

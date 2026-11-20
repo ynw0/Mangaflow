@@ -84,6 +84,14 @@ export function requiresContinuousTake(shot: { story: string; mustHave: string[]
 const refSections = ["subject_definitions", "summary", "retention_analysis", "detailed_description", "overall_soundscape", "non_diegetic_music"];
 const baseSections = ["integrated_multimodal_description", "overall_soundscape", "non_diegetic_music"];
 
+// 首稿只展示本模式的段首，字段顺序与下方预检共用。
+export function getPromptOutline(format: Prepared["format"], duration: number) {
+  const sections = format === "h3Ref2va" ? refSections : baseSections;
+  const headings = sections.map(section => section + ":").join("\n");
+  if (format !== "h3Frames") return headings;
+  return `Picture 1 (from Shot 1) aligns with the 0.00-second mark; Picture 2 (from Shot 1) aligns with the ${duration.toFixed(2)}-second mark.\n${headings}`;
+}
+
 export function inspectDraft(draft: { prompt: string; promptZh: string; cinematicPlan: DraftCinematicPlan }, prepared: Prepared) {
   const { prompt, promptZh } = draft;
   const { format, setup } = prepared;

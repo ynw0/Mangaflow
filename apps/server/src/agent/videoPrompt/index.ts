@@ -5,8 +5,8 @@ import { z } from "zod";
 import { addUsage, emptyUsage, type SubAgentModel } from "@/agent/runtime/subAgent";
 import type { AgentEvent } from "@/agent/runtime/types";
 import { prepareVideoPrompt, videoPromptParameters, videoPromptToolSchema } from "@/agent/videoPrompt/input";
-import { createReviewSchema, createReviewSubmission, draftSchema, draftSubmissionParameters, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
-import { directorSubmissionExample, videoPromptNodeExample } from "@/agent/videoPrompt/examples";
+import { createReviewSchema, createReviewSubmission, draftSchema, draftSubmissionParameters, getPromptOutline, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
+import { videoPromptNodeExample } from "@/agent/videoPrompt/examples";
 import { runStructuredSpecialist } from "@/agent/runtime/structuredSpecialist";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
 import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
@@ -289,7 +289,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
           "遵守合同选择 [Shot N]：明确一镜到底仅 [Shot 1]；允许剪辑则切点递增、多镜须逐镜填写 cinematicPlan.shots；不添加 shotMode。单一动作/状态变化可只用一个 beats，单镜 shots 可省略；复杂机械、先做后说、精确对白与切镜须充分规划，不能省略必要事件。",
           "按 speechPolicy 和 voiceCast 安排声源、语速、完整对白与末尾至少 0.2 秒收束；人物、参考与原台词须保持合同一致。无对白使用 dialogue: []，描述实际环境声音；无文件不可虚构参考槽位。",
           "画框、机位、动作和结尾须相容；稳定事实只定义一次，不凑词数。创作模板仅是可选参考；返修只针对 findings 修改，并同步完整规划与中英文正文。",
-          ...(repair ? [] : [`提交结构示例（事实与时长按当前任务填写）：${JSON.stringify(directorSubmissionExample)}`]),
+          ...(repair ? [] : [`英文正文格式（只列本镜段首，按当前合同写内容）：\n${getPromptOutline(prepared.format, duration)}`]),
           JSON.stringify({ ...taskInput, ...(repair ? { previousDraft: lastDraft, findings } : { candidates }) }),
         ].join("\n"), [...directorRules, commonRules ?? ""]);
         if (draft.status === "blocked") {

@@ -8,7 +8,6 @@ import { prepareVideoPrompt, videoPromptParameters, videoPromptToolSchema } from
 import { createReviewSchema, createReviewSubmission, draftSchema, draftSubmissionParameters, getPromptOutline, getVideoPromptRequirements, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
 import { runStructuredSpecialist } from "@/agent/runtime/structuredSpecialist";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
-import type { VideoPromptTags } from "@/agent/videoPrompt/templates/schema";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { findReusableVideoReview, requireSameVideoReview, saveVideoReview, videoPromptReviewScope } from "@/utils/production/videoReviews";
 import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
@@ -25,14 +24,6 @@ const directorReferences = {
   mechanical: ["mechanicalTransformation.md", "actionChoreography.md"],
   reveal: ["scenePlaybooks.md", "compositionAndLens.md"],
   environment: ["environmentDesign.md", "compositionAndLens.md"],
-};
-const scenesByIntent: Record<keyof typeof directorReferences, NonNullable<VideoPromptTags["scene"]>> = {
-  dialogue: ["对话", "质问", "谈判", "告别", "交接"],
-  action: ["追逐", "战斗", "格挡", "救援", "撤离", "交接"],
-  effects: ["觉醒", "施法", "灾变", "战斗", "格挡"],
-  mechanical: ["机械变形", "装置启动"],
-  reveal: ["揭示", "调查", "反转", "危险逼近", "反应", "登场"],
-  environment: ["场景建立", "转场", "战后余波"],
 };
 const skillList = z.object({ skills: z.array(z.object({
   name: z.string(), scope: z.enum(["global", "workspace"]), disableModelInvocation: z.boolean().optional(),
@@ -69,7 +60,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
     description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。按同一合同继续生成时复用已审稿。用户要求修改目标镜头的提示词、拍法或表演时传 regenerate=true；只复审原稿时传 reReview=true。原合同未变时用 draftId 调用 resumeVideoPrompt；台词或分镜已经修订时，用更新后的完整合同重新提交。",
-    promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。shotId 用实际分镜编号，放在顶层。已有节点把当前 canvasId 和 nodeId 放进 node，从镜头合同填写本镜原话和实际参考。新镜头直接传 duration 和 ratio。需要拍法参考时选用 creativeSelection。",
+    promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。shotId 用实际分镜编号，放在顶层。已有节点把当前 canvasId 和 nodeId 放进 node，从镜头合同填写本镜原话和实际参考。新镜头直接传 duration 和 ratio。需要导演拍法时传 templateTags，选用分类创作知识时在 creativeSelection 传 ID。",
     parameters: { type: "object", ...videoPromptToolSchema },
     prepareArguments(raw) {
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("draftVideoPrompt 需要单个镜头合同对象");
@@ -122,13 +113,13 @@ export function createVideoPromptTools(options: SubAgentModel & {
     const pendingPath = pendingDraftPath(cwd, parentFile, draftId);
     const prepared = await prepareVideoPrompt(cwd, input, canvas, signal);
     const { creativeContext, voiceContext } = prepared;
-    const tags = { scene: scenesByIntent[input.intent], ...prepared.templateTags };
-    const candidates = findVideoPromptTemplates(tags, {
+    // 只按调用方为本镜提供的标签查拍法，镜头用途仍用于加载导演资料。
+    const candidates = prepared.templateTags ? findVideoPromptTemplates(prepared.templateTags, {
       ...prepared.templateConditions,
       duration: prepared.setup.duration,
       format: prepared.format,
       imageCount: prepared.setup.references.filter(reference => reference.kind === "image").length,
-    });
+    }) : [];
     const templateMatches = candidates.map(({ id, title, matches }) => ({ id, title, matches }));
     const usage = emptyUsage();
     const modelCalls: { name: string; elapsedMs: number; status: string; providerId?: string; modelId?: string; thinkingLevel?: SubAgentModel["thinkingLevel"]; rulesChars: number; taskChars: number; usage: ReturnType<typeof emptyUsage> }[] = [];
@@ -230,10 +221,17 @@ export function createVideoPromptTools(options: SubAgentModel & {
       }
     }
     const { modelId, duration, ratio, mode, references } = prepared.setup;
-    const taskInput = { shot: prepared.shot, format: prepared.format, workflow: { modelId, duration, ratio, mode, references },
+    // 原声线配置随合同保存，导演和审核员使用同一份已解析的说话人说明。
+    const { voiceCast: _voiceTemplates, ...directorShot } = prepared.shot;
+    const voiceCast = {
+      roles: voiceContext.roles.map(({ speakerId, characterName, voiceIdentity, source, speedMultiplier, identityCues, performanceCues }) =>
+        ({ speakerId, characterName, voiceIdentity, source, speedMultiplier, identityCues, performanceCues })),
+      warnings: voiceContext.warnings,
+    };
+    const taskInput = { shot: directorShot, format: prepared.format, workflow: { modelId, duration, ratio, mode, references },
       speechPolicy: getVideoSpeechPolicy(prepared.audioEnabled),
-      ...(voiceContext.roles.length ? { voiceCast: voiceContext } : {}),
-      ...(creativeContext ? { creativeTemplates: creativeContext } : {}) };
+      ...(voiceCast.roles.length ? { voiceCast } : {}),
+      ...(creativeContext?.selected.length ? { creativeTemplates: { selected: creativeContext.selected, warnings: creativeContext.warnings } } : {}) };
     const specialistModels = new Map<string, SubAgentModel>();
     async function specialist<T>(schema: z.ZodType<T>, parameters: ToolDefinition["parameters"], name: string, task: string, rules: string[]) {
       signal?.throwIfAborted();
@@ -296,10 +294,11 @@ export function createVideoPromptTools(options: SubAgentModel & {
           "依据实际镜头合同、已加载的导演规则与 H3 模式写稿，调用 submitResult 提交完整结果。时间使用整段视频内的秒数。",
           ...(repair ? ["针对 findings 修订，保留原稿中仍然有效的内容，并使英文正文、中文对照和导演计划一致。"] : []),
           ...(repair ? [] : [`英文正文格式（只列本镜段首，按当前合同写内容）：\n${getPromptOutline(prepared.format, duration)}`]),
-          // 自动命中只给适用条件，由导演对照当前合同选用；动作范例留在主动检索入口。
-          JSON.stringify({ ...taskInput, ...(repair ? { previousDraft: lastDraft, findings } : {
-            candidates: candidates.map(({ title, useWhen, matches }) => ({ title, useWhen, matches })),
-          }) }),
+          // 拍法候选随已指定的标签传入，只提供判断是否适用的信息。
+          JSON.stringify({ ...taskInput,
+            ...(repair ? { previousDraft: lastDraft, findings } : {}),
+            ...(!repair && candidates.length ? { candidates: candidates.map(({ title, useWhen, matches }) => ({ title, useWhen, matches })) } : {}),
+          }),
         ].join("\n"), [...directorRules, commonRules ?? ""]);
         if (draft.status === "blocked") {
           attempts.push({ round: round + 1, stage: "director", findings: [draft.reason] });
@@ -327,7 +326,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
             shotId: input.shotId, intent: input.intent, tone: input.tone, adjacentShots: input.adjacentShots,
             format: taskInput.format, workflow: taskInput.workflow,
             speechPolicy: taskInput.speechPolicy,
-            ...(voiceContext.roles.length ? {voiceCast: voiceContext} : {}),
+            ...(voiceCast.roles.length ? { voiceCast } : {}),
             reviewRequirements, draft: lastDraft,
           }),
         ].join("\n"), [reviewRules]);

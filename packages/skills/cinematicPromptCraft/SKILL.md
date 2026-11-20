@@ -46,7 +46,7 @@ metadata:
 
 ## 根据镜头目的读取知识（每条镜头按需）
 
-内置 Agent 可调用 searchVideoPromptTemplates 的 listTags 查看标签，再用 search 多选剧情、情绪、表演、动作、特效、摄影、构图、光影、声音和环境。剧情上游如涉及结构设计，可另用同一工具的 `searchCreative` 查询 `narrative`；表情用 `expressions`，画风与滤镜用 `styles`。根据 `checkCreativeSelection` 排除错误组合；多镜 `scope:scene` 可以用于允许剪辑的视频片段构思，但仍须在 4～15 秒内具体化镜头、切点和动作，不直接粘贴模板。已知时传入时长、参考模式、参考图数量、主体数量和可用锚点。draftVideoPrompt 用同一目录检索，并记录命中的模板。模板里的摄影或动作标签可以表示可选拍法，采纳时核对适用条件，只保留当前镜头确实需要的运动和事件。
+有具体拍摄问题时，可用 `searchVideoPromptTemplates` 的 `listTags` 和 `search` 检索。填写实际时长、参考模式、素材数量及已知锚点，用适用条件核对本镜，再决定是否采纳拍法。内置 `draftVideoPrompt` 只用调用方填写的 `templateTags` 检索候选。叙事、表情和画风模板的选材与制作边界见 [创作知识库](../workflow/references/creativeKnowledge.md)。
 
 | 任务特征 | 必读参考 | 按需增读 |
 | --- | --- | --- |

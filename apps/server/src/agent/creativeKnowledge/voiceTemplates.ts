@@ -11,7 +11,7 @@ export type VoiceTemplate = {
   speedMultiplier?: number;
 };
 type VoiceRow = [id: string, title: string, descriptionZh: string, englishCue: string, tags: string, speedMultiplier?: number];
-export const defaultH3SpeechCue = "speaks at a brisk, natural conversational pace, approximately 1.3 times normal speed, with crisp articulation and brief, purposeful pauses; no unnecessary slow delivery or drawn-out syllables";
+export const defaultH3SpeechCue = "speaks naturally and clearly at about 1.3 times the usual conversational pace, with pauses and emphasis that fit the exchange";
 
 const rows: Record<VoiceCategory, VoiceRow[]> = {
   timbre: [

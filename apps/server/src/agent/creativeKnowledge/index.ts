@@ -123,11 +123,12 @@ export type CreativeSelectionOptions = {
   tone?: (typeof creativeTones)[number];
   durationSeconds?: number;
   singleShot?: boolean;
+  forDraft?: boolean;
 };
 
 /** 只读检查已选模板，发现冲突时要求 Agent 做取舍，不进行 AI 生成或自动修改合同。 */
 export function checkCreativeSelection(options: CreativeSelectionOptions) {
-  const { selected } = options;
+  const { selected, forDraft } = options;
   const video = options.medium === "video";
   const errors: string[] = [], warnings: string[] = [];
   function pick<T extends { id: string }>(id: string | undefined, items: readonly T[], slot: string): T | undefined {
@@ -168,10 +169,13 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
     status: errors.length ? "invalid" : warnings.length ? "review" : "ok",
     errors, warnings,
     selected: [
+      // 成片已有分镜合同，只传叙事目的和喜剧手法，具体示范留在构思阶段。
       narrative && {
-        slot: "narrative", id: narrative.id, title: narrative.title, scope: narrative.scope,
-        purpose: narrative.purpose, setup: narrative.setup, escalation: narrative.escalation,
-        visibleResult: narrative.visibleResult, shotGuidance: narrative.shotGuidance, verify: narrative.verify, avoid: narrative.avoid,
+        slot: "narrative", id: narrative.id, scope: narrative.scope, purpose: narrative.purpose,
+        ...(!forDraft ? {
+          title: narrative.title, setup: narrative.setup, escalation: narrative.escalation,
+          visibleResult: narrative.visibleResult, shotGuidance: narrative.shotGuidance, verify: narrative.verify, avoid: narrative.avoid,
+        } : {}),
       },
       expression && {
         slot: "expression", id: expression.id, title: expression.title,
@@ -182,14 +186,16 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
       visualSummary(style),
       visualSummary(filter),
       absurd && {
-        slot: "absurd", id: absurd.id, title: absurd.title, jokeMechanism: absurd.jokeMechanism, avoid: absurd.avoid,
-        ...(video ? { videoBeat: absurd.videoBeat, camera: absurd.camera, continuity: absurd.continuity }
-          : { imagePrompt: absurd.imagePrompt }),
+        slot: "absurd", id: absurd.id, jokeMechanism: absurd.jokeMechanism,
+        ...(!forDraft ? { title: absurd.title, avoid: absurd.avoid,
+          ...(video ? { videoBeat: absurd.videoBeat, camera: absurd.camera, continuity: absurd.continuity }
+            : { imagePrompt: absurd.imagePrompt }),
+        } : {}),
       },
-      meme && {
+      meme && (forDraft ? undefined : {
         slot: "meme", id: meme.id, title: meme.phrase, sourceUrl: meme.sourceUrl, observedAt: meme.observedAt,
         meaning: meme.meaning, usage: meme.usage, avoid: meme.avoid,
-      },
+      }),
     ].filter(Boolean),
     guidance: "叙事条目用来组织剧本已有的事件。表情和声音从人物此刻听见什么、对谁说话来选，表情范例里的几个动作可按需取舍。画风和滤镜只处理画面。喜剧条目须有本场已经成立的笑点，沿用已确认的原话和人物关系。按已批准的主画风、参考图及单镜或剪辑合同制作。",
   };

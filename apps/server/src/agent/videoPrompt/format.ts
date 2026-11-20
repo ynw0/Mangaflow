@@ -217,9 +217,10 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
   for (const match of narration.matchAll(/\b(?:no subtitles|no dialogue)\b/gi)) {
     const line = narration.slice(0, match.index).split("\n").length;
     const correction = match[0].toLowerCase() === "no dialogue"
-      ? "概要和时间轴写本镜实际能听到的声音，以及人物正在做的事。"
-      : "请用具体可见、可验证的事实表达制作需求。";
-    findings.push("英文正文第 " + line + " 行含“" + match[0] + "”。" + correction);
+      ? "可检查是否已写清本镜实际能听见的声音和人物动作。"
+      : "可检查字幕要求是否与当前画面和制作合同一致。";
+    // 用词提示由审核员结合合同判断，避免词串命中触发整稿自动返修。
+    dialogue.warnings.push(`英文正文第 ${line} 行含「${match[0]}」。${correction}`);
   }
   return { findings, warnings: dialogue.warnings };
 }

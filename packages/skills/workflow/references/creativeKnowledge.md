@@ -42,7 +42,9 @@ searchVideoPromptTemplates({
 
 ## 与 draftVideoPrompt 的直接衔接
 
-检索工具的 `searchCreative` 返回含稳定 `id` 的匹配模板，外层 Agent 只选择符合当前镜头的少量条目。内置 Agent 在 `draftVideoPrompt.creativeSelection` 传模板 ID，外部 Agent 在 `videoPrompt` 的 `prepare` 操作中传 `input.creativeSelection`。已确认的镜头基调填写在合同的 `tone` 字段。服务端据 ID 取视频摘要并检查冲突，内置导演直接收到摘要，外部 Agent 从 `prepare` 的 `creativeTemplates` 读取摘要。多镜模板留在分镜规划阶段。导演工具内部还会自动使用原 `findVideoPromptTemplates` 候选。无需相关模板时省略 `creativeSelection`。
+检索工具的 `searchCreative` 返回带稳定 `id` 的条目。内置 Agent 在 `draftVideoPrompt.creativeSelection` 传模板 ID，外部 Agent 在 `videoPrompt` 的 `prepare` 中传 `input.creativeSelection`。镜头基调按已确认合同填写 `tone`。两条路径使用同一份制作摘要。叙事和喜剧条目的具体事件在构思分镜时使用，热梗原话如需入片也在定稿阶段确认。成片写作从已确认的分镜取事件、切点和原话。
+
+内置导演的拍法候选来自 `draftVideoPrompt.templateTags`。有具体拍摄问题时传对应标签，已有拍法时可省略；仅传 `intent` 会选择适用的导演资料。外部 Agent 需要拍法时使用 `searchVideoPromptTemplates` 的 `search`。
 
 ```ts
 // 检索只发生一次，返回的 id 分别为 e02、s01
@@ -147,6 +149,6 @@ draftVideoPrompt({
 - **由 H3 视频生成工作流同时生成声音**，不额外接入独立 TTS 或声音克隆模型。使用已有视频节点，开启 `generateAudio=true`。
 - 统一调用 `searchVideoPromptTemplates` 的 `searchCreative(library:"voices")` 检索：音色 `timbre`、情绪 `emotion`、性格 `personality`、语速 `pace`、年龄感 `age`、外国人说中文感 `foreignAccent`、普通话地方口音 `dialect` 和发声方式 `delivery`。优先少量相关模板，避免为一位角色堆叠长串矛盾的形容词。
 - `draftVideoPrompt.voiceCast` 按本镜真实说话人填写 `speakerId`、`characterName` 和已确认的声线。按发声方式选择可选的 `sourceId`，画内说话用 `vs01`，仅观众听到的剧情旁白用 `vs02`。音色、情绪和语速按本场另行选择。`S1` 是当前 H3 镜头的说话人编号，跨镜声线沿用角色设定或已确认的对白要求。
-- 有对白、启用音轨时默认使用英文指导 `speak at about 1.3 times normal conversational pace`。特殊人物或剧情语速可传 `paceId` 或 `speedMultiplier`（互斥）。**1.3倍只是生成提示**，不保证实际语速；对白时长仍按原有保守规则估算。
+- 有对白且启用音轨时按 `speechPolicy` 使用约正常交谈语速 1.3 倍的默认值。特殊角色或场戏可传 `paceId` 或 `speedMultiplier`（二选一）。写清吐字、停顿和重音，实际语速与台词完整性在成片核对。
 - “外国人说中文感”和“地方口音普通话”只描述**原中文台词的发音习惯**，不能改写台词、编造发音错别字或冒称精确复现方言。两类口音不能同时应用于一个说话人。方言原文要由剧本提供，不能擅自把普通话改成方言。
 - `<Audio N>` 仅引用实际绑定的音频文件；声音模板绝不伪造音频引用。静默镜头不强制速度，未讲话角色保持闭嘴。对 H3 实际发声情况用成片 QC 听验，无法确认则标记未验证。

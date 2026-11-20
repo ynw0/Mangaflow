@@ -191,6 +191,6 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
         meaning: meme.meaning, usage: meme.usage, avoid: meme.avoid,
       },
     ].filter(Boolean),
-    guidance: "先遵守剧本合同、已批准的主画风和参考图；用少量可观察的动作、表情和构图信息重写，不直接拼接模板全文。视频允许按照用户合同设计单镜或多镜剪辑，并按 H3 专用流程制作、审核。",
+    guidance: "叙事条目用来组织剧本已有的事件。表情和声音从人物此刻听见什么、对谁说话来选，表情范例里的几个动作可按需取舍。画风和滤镜只处理画面。喜剧条目须有本场已经成立的笑点，沿用已确认的原话和人物关系。按已批准的主画风、参考图及单镜或剪辑合同制作。",
   };
 }

@@ -29,10 +29,10 @@ export const craftTemplates: VideoPromptTemplate[] = [
       sound: ["呼吸","静默"],
       setting: ["室内","狭窄空间"],
     },
-    useWhen: "剧本需要愤怒可见，角色仍克制。",
-    fragment: "[人物]闭口听完，短吸一口气，指尖慢慢压住[已有物件]；目光保持在对方身上，身体仍留在原支点。",
+    useWhen: "人物正握着剧本已有的东西，手上的变化能让观众看出他压住了原本要做的事。",
+    fragment: "从人物正在做的事拍起，让刺激发生后手上那一点变化可见。呼吸声只在这场戏听得见、也确实有用时写。",
     avoid: "添加未获确认的砸物、台词或抬手攻击。",
-    verify: "手部压力、呼吸和视线都在同一节奏内。",
+    verify: "观众能否看出人物听到或察觉了什么，手上的事为何随之改变？",
   },
   {
     id: "firstPersonClue", title: "主观视点沿真实路径发现线索", minSeconds: 4, minSubjects: 1,

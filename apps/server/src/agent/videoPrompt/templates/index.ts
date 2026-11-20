@@ -112,7 +112,8 @@ export const videoTemplateSearch = {
       case "checkCreativeSelection":
         return checkCreativeSelection(input);
       case "search":
-        return { templates: findVideoPromptTemplates(input.tags, input.conditions, input.limit) };
+        return { templates: findVideoPromptTemplates(input.tags, input.conditions, input.limit),
+          guidance: "先用 useWhen 对照本镜已有的人物关系、空间和动作。条件成立时才参考 fragment 的拍法；verify 只用于已采用的拍法。没有合适条目就沿原分镜拍。" };
     }
   },
 };

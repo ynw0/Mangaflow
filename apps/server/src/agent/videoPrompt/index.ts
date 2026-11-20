@@ -290,7 +290,10 @@ export function createVideoPromptTools(options: SubAgentModel & {
           "按 speechPolicy 和 voiceCast 安排声源、语速、完整对白与末尾至少 0.2 秒收束；人物、参考与原台词须保持合同一致。无对白使用 dialogue: []，描述实际环境声音；无文件不可虚构参考槽位。",
           "画框、机位、动作和结尾须相容；稳定事实只定义一次，不凑词数。创作模板仅是可选参考；返修只针对 findings 修改，并同步完整规划与中英文正文。",
           ...(repair ? [] : [`英文正文格式（只列本镜段首，按当前合同写内容）：\n${getPromptOutline(prepared.format, duration)}`]),
-          JSON.stringify({ ...taskInput, ...(repair ? { previousDraft: lastDraft, findings } : { candidates }) }),
+          // 自动命中只给适用条件，由导演对照当前合同选用；动作范例留在主动检索入口。
+          JSON.stringify({ ...taskInput, ...(repair ? { previousDraft: lastDraft, findings } : {
+            candidates: candidates.map(({ title, useWhen, matches }) => ({ title, useWhen, matches })),
+          }) }),
         ].join("\n"), [...directorRules, commonRules ?? ""]);
         if (draft.status === "blocked") {
           attempts.push({ round: round + 1, stage: "director", findings: [draft.reason] });

@@ -152,9 +152,6 @@ export type CreativeSelectionOptions = {
   storyIntent?: string;
 };
 
-const mechanicalExpression = (item: (typeof expressionTemplates)[number]) =>
-  item.category === "abstract" && item.tags.some(tag => /卡顿|机械|掉线|机器人|颜艺/.test(tag));
-
 /** 只读检查已选模板，发现冲突时要求 Agent 做取舍，不进行 AI 生成或自动修改合同。 */
 export function checkCreativeSelection(options: CreativeSelectionOptions) {
   const { selected, forDraft } = options;
@@ -189,8 +186,8 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
     const fits = narrative.domains.some(domain => explicitDomains.some(item => item === domain.toLocaleLowerCase() || item.includes(domain.toLocaleLowerCase())));
     if (!fits) warnings.push(`「${narrative.purpose}」面向 ${narrative.domains.join("/")}；已给题材域对不上。关键词对不上不拒绝出稿。`);
   }
-  if (expression && style?.group === "影视写实" && (expression.category === "extreme" || mechanicalExpression(expression))) {
-    errors.push("写实画风不可使用极夸张颜艺或机械卡顿表情；按人物此刻真正能看见、听见的变化取自然反应。");
+  if (expression && (expression.category === "extreme" || expression.category === "abstract") && style?.group === "影视写实") {
+    warnings.push("写实画风选了夸张或抽象颜艺。按人物此刻真正能看见、听见的变化取自然反应，停格、跳变或机械动作须以定稿为准。");
   }
   if (options.tone === "serious" && absurd) {
     warnings.push("用户要求严肃基调，却选择了搞怪模板；除非当前镜头明确需要喜剧，否则不要注入。");

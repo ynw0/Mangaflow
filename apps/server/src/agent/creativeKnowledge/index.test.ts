@@ -237,7 +237,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
       selected: {narrativeId:"n12",styleId:"s01",expressionId:"e21",memeId:"m26-chovy"},
       medium:"video",tone:"serious",durationSeconds:5,
     });
-    expect(result.status).toBe("invalid");
+    expect(result.status).toBe("review");
     const notes = [...result.errors, ...result.warnings].join(" ");
     expect(notes).toContain("允许切镜");
     expect(notes).toContain("至少按15s");

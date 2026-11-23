@@ -44,8 +44,8 @@ export const cinematicPlanSchema = z.object({
   })).min(1).max(8),
   // 历史审核记录保留当时的规划；新稿通过下方的必填规则。
   dialogue: z.array(dialogueLineSchema).max(maxVideoDialogueLines).describe("按英文正文 <d> 出现顺序逐句填写；无对白填空数组").optional(),
-  shots: z.array(cinematicShotSchema).min(1).max(20).optional()
-    .describe("新多镜提示词按 [Shot N] 填写每个内部镜头；历史单镜或旧审核记录可省略。全局 beats/dialogue 仍使用整段视频的绝对秒数。"),
+  shots: z.array(cinematicShotSchema).max(20).optional()
+    .describe("新多镜提示词按 [Shot N] 填写每个内部镜头。单镜可省略或填空数组，旧审核记录也可省略。全局 beats/dialogue 使用整段视频的绝对秒数。"),
 });
 export const draftCinematicPlanSchema = cinematicPlanSchema.required({ dialogue: true });
 export type DraftCinematicPlan = z.infer<typeof draftCinematicPlanSchema>;

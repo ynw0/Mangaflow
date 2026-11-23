@@ -18,7 +18,7 @@ A complete rewrite output consists of six sections in the following order:
 | `summary` | Summarizes the task type, target video, and main reference relationships |
 | `retention_analysis` | Describes how referenced content is preserved, transferred, or reused |
 | `detailed_description` | Describes visuals, actions, shots, sound, and dialogue in playback order |
-| `overall_soundscape` | Summarizes ambience and physical sounds |
+| `overall_soundscape` | Describes continuing background ambience |
 | `non_diegetic_music` | Describes background music audible only to the audience |
 
 ## 2. Reference Labels and Definitions (`subject_definitions`)
@@ -265,11 +265,6 @@ The definitions of these two sound categories follow the Video Prompt Writing Gu
 
 `non_diegetic_music` describes any score that only the audience hears. Give the relevant instrumentation, pace, and changes in level. Use `N/A` when there is no score.
 
-When reference audio is used, state its copy or reference relationship only in the section that matches the audible layer: ambience and sound effects belong in `overall_soundscape`, while audience-only score belongs in `non_diegetic_music`. If the same audio provides both kinds of content, describe the corresponding relationship in each section:
-
-```text
-overall_soundscape: The copied ambience layer from <Audio 1> continues throughout the target video.
-non_diegetic_music: <Audio 2> is directly reused as the complete audience-only score.
-```
+When reference audio is used, cite it where its audible content belongs. Put continuing ambience in `overall_soundscape`, synchronized events in `detailed_description`, and audience-only score in `non_diegetic_music`.
 
 Write complete dialogue and lyrics only inside `<d>` in `detailed_description`; do not repeat them in these two sections.

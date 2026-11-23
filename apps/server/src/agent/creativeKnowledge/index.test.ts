@@ -40,6 +40,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
   test("抽象图库的动作、机位、连续性与原创笑点不退化成热梗列表", () => {
     for (const item of absurdPrompts) {
       expect(item.jokeSkeleton.length).toBeGreaterThan(20);
+      expect(item.imagePrompt.length).toBeGreaterThan(30);
       expect(item.videoBeat.length).toBeGreaterThan(20);
       expect(item.continuity.length).toBeGreaterThan(10);
       expect(item.jokeMechanism.length).toBeGreaterThan(5);
@@ -60,6 +61,8 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     expect(cast.roles[0]?.speedMultiplier).toBe(1.3);
     expect(cast.roles[1]?.speedMultiplier).toBe(0.9);
     expect(cast.roles[1]?.promptCue).toContain("Northeastern");
+    expect(cast.roles[0]?.promptCue).toMatch(/^主角 \(S1\): /);
+    expect(cast.roles[0]?.promptCue).not.toMatch(/\. with /);
     expect(compileVoiceCast([{speakerId:"S1",characterName:"A",foreignAccentId:"vf01",dialectId:"vd01"}]).status).toBe("invalid");
     expect(compileVoiceCast([{speakerId:"S1",characterName:"A",timbreId:"vd01"}]).status).toBe("invalid");
     expect(compileVoiceCast([{speakerId:"S1",characterName:"A",paceId:"vr04",speedMultiplier:1.2}]).status).toBe("invalid");
@@ -133,7 +136,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
         expect(item.face.length).toBeGreaterThan(6);
         expect(item.gesture.length).toBeGreaterThanOrEqual(5);
         expect(item.videoBeat.trim().length).toBeGreaterThan(12);
-        expect(item).not.toHaveProperty("imagePrompt");
+        expect(item.imagePrompt).toContain("保持原角色五官比例");
         expect(item.continuity).toContain("身份");
       }
     }
@@ -249,6 +252,11 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     const expressionSlot = result.selected.find(item => item && "slot" in item && item.slot === "expression");
     expect(narrativeSlot).not.toHaveProperty("title");
     expect(expressionSlot).not.toHaveProperty("imagePrompt");
+    const imageSelection = checkCreativeSelection({
+      selected: { expressionId: "e21", absurdId: "a04" }, medium: "image",
+    });
+    expect(JSON.stringify(imageSelection.selected)).toContain("保持原角色五官比例");
+    expect(JSON.stringify(imageSelection.selected)).toContain("旧轿车停在改装车间");
     const drafted = checkCreativeSelection({
       selected: { memeId: "m26-chovy", absurdId: "a04" },
       medium: "video", tone: "comedy", forDraft: true,
@@ -256,15 +264,16 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     expect(drafted.selected.some(item => item && "slot" in item && (item.slot === "meme" || item.slot === "absurd"))).toBe(false);
     const absurdHit = searchCreativeKnowledge({ library: "absurd", query: "飞行", tags: [], limit: 1 });
     expect(absurdHit[0]?.details).not.toHaveProperty("videoBeat");
+    expect(absurdHit[0]?.details).not.toHaveProperty("imagePrompt");
     expect(absurdHit[0]?.details).toHaveProperty("jokeMechanism");
     const domainMiss = checkCreativeSelection({
-      selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyContext: "两人在厨房说话",
+      selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyDomains: ["日常对话"],
     });
-    expect(domainMiss.errors.join(" ")).not.toContain("系统觉醒");
+    expect(domainMiss.warnings.join(" ")).toContain("题材域对不上");
     const domainHit = checkCreativeSelection({
-      selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyContext: "终端亮起后系统觉醒",
+      selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyDomains: ["系统觉醒"],
     });
-    expect(domainHit.errors.join(" ")).not.toContain("系统觉醒");
+    expect(domainHit.warnings.join(" ")).not.toContain("题材域对不上");
     const softFace = checkCreativeSelection({
       selected: { styleId: "s01", expressionId: "e32" }, medium: "video", tone: "neutral",
     });

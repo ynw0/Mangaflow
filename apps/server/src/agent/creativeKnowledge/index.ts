@@ -9,10 +9,11 @@ import { voiceCategories, voiceTemplates } from "@/agent/creativeKnowledge/voice
 export type CreativeLibrary = "memes" | "absurd" | "expressions" | "styles" | "narrative" | "voices" | "all";
 export type CreativeSearchOptions = { library: CreativeLibrary; query: string; tags: string[]; limit: number };
 type AbsurdPublic = Pick<(typeof absurdPrompts)[number], "id" | "title" | "tags" | "setup" | "jokeSkeleton" | "jokeMechanism" | "avoid">;
+type ExpressionPublic = Omit<(typeof expressionTemplates)[number], "imagePrompt">;
 type CreativeDetails =
   | (typeof memesCN)[number]
   | AbsurdPublic
-  | (typeof expressionTemplates)[number]
+  | ExpressionPublic
   | (typeof visualStyles)[number]
   | (typeof narrativeTemplates)[number]
   | (typeof voiceTemplates)[number];
@@ -147,9 +148,6 @@ export type CreativeSelectionOptions = {
   forDraft?: boolean;
   /** 调用方显式给出的题材域 */
   storyDomains?: string[];
-  /** 镜头合同正文；有内容时才核对专属叙事域，避免无合同时空警告 */
-  storyContext?: string;
-  storyIntent?: string;
 };
 
 /** 只读检查已选模板，发现冲突时要求 Agent 做取舍，不进行 AI 生成或自动修改合同。 */
@@ -223,12 +221,14 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
         slot: "expression", id: expression.id,
         face: expression.face, gesture: expression.gesture, avoid: expression.avoid,
         ...(!forDraft ? { intensity: expression.intensity } : {}),
-        ...(video ? { videoBeat: expression.videoBeat, continuity: expression.continuity } : {}),
+        ...(video ? { videoBeat: expression.videoBeat, continuity: expression.continuity }
+          : { imagePrompt: expression.imagePrompt }),
       },
       visualSummary(style),
       visualSummary(filter),
       !forDraft && absurd && {
         slot: "absurd", id: absurd.id, jokeMechanism: absurd.jokeMechanism, jokeSkeleton: absurd.jokeSkeleton, avoid: absurd.avoid,
+        ...(!video ? { imagePrompt: absurd.imagePrompt } : {}),
       },
       !forDraft && meme && {
         slot: "meme", id: meme.id, phrase: meme.phrase, meaning: meme.meaning, usage: meme.usage, avoid: meme.avoid,

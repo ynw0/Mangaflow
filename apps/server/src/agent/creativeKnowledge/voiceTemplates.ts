@@ -203,19 +203,14 @@ export function compileVoiceCast(cast: readonly VoiceCastRole[]) {
     const performanceCues = selected.filter(item => ["emotion", "delivery"].includes(item.category)).map(item => item.englishCue);
     const paceCue = speedMultiplier === DEFAULT_H3_SPEECH_RATE
       ? defaultH3SpeechCue
-      : [pace?.englishCue, `speaks at about ${speedMultiplier} times normal conversational pace with clear articulation`].filter(Boolean).join(", ");
-    const voiceBits = [voiceIdentity, ...identityCues, ...performanceCues].filter(Boolean);
-    const hearing = [
-      source?.englishCue,
-      voiceBits.length ? `with ${voiceBits.join(", ")}` : "",
-      paceCue,
-    ].filter(Boolean).join(". ");
+      : [pace?.englishCue, `speaks at about ${speedMultiplier} times normal conversational pace with clear articulation`].filter(Boolean).join("; ");
+    const cues = [source?.englishCue, voiceIdentity, ...identityCues, ...performanceCues, paceCue].filter(Boolean);
     return {
       speakerId: role.speakerId, characterName: role.characterName,
       ...(voiceIdentity ? { voiceIdentity } : {}),
       ...(source ? { source: { id: source.id, title: source.title, cue: source.englishCue } } : {}),
       templateIds: selected.map(item => item.id), speedMultiplier, identityCues, performanceCues,
-      promptCue: `${role.characterName} (${role.speakerId}) ${hearing}.`,
+      promptCue: `${role.characterName} (${role.speakerId}): ${cues.join("; ")}.`
     };
   });
   return {

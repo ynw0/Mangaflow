@@ -107,7 +107,7 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
       + (text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length ?? 0) / 3;
     const windowSeconds = line.endSeconds - line.startSeconds;
     if (windowSeconds > 0 && speechSeconds + line.pauseSeconds > windowSeconds + timeTolerance) {
-      warnings.push(`${label}留了 ${windowSeconds.toFixed(2)} 秒，按字数粗估需 ${(speechSeconds + line.pauseSeconds).toFixed(2)} 秒（含停顿）。成片时听验是否完整说完。`);
+      warnings.push(`${label}留了 ${windowSeconds.toFixed(2)} 秒，按普通语速和字数粗估约 ${(speechSeconds + line.pauseSeconds).toFixed(2)} 秒（含停顿）。成片时按实际语速听验是否完整说完。`);
     }
   }
   return { findings, warnings };

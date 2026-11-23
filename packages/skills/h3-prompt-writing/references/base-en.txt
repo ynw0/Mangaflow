@@ -112,7 +112,7 @@ Describe the movement in a natural sentence. Say what the camera follows or reve
 
 Subjects who speak, sing, or produce an off-screen human voice use stable IDs such as `(S1)` and `(S2)`. When multiple already-numbered speakers speak or sing together, use a compound ID such as `(S1,S2)`. A speaker keeps the same ID across shots; characters who never vocalize receive no speaker ID.
 
-When a speaker first appears, provide enough information from the visual and audio context to establish a stable identity, such as character type, age, gender, whether the person is on-screen, pitch, timbre, speaking rate, or accent. Place the speaker's identifying phrase, ID, action, and delivery outside `<d>`. Inside `<d>`, include only the language tag and the actual user-provided spoken content. Preserve every original word and punctuation mark verbatim; do not translate or rewrite them.
+When a speaker first appears, provide the details needed to recognize their voice. Place the speaker ID, action and delivery outside the dialogue block. Use `<d>[Language] …</d>` in the video prompt. Put the full English language name in square brackets immediately after the opening tag, followed by the approved words and punctuation. Add quotation marks only when they are part of the approved line.
 
 For narration or inner speech, use `says in an off-screen voiceover`. If the character is visible while their inner voice plays, describe their visible action and that they are not mouthing the words. For speech audible to people in the scene, identify where it comes from and who hears it, including when the speaker is outside the frame.
 

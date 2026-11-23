@@ -8,7 +8,7 @@
 
 ## draftVideoPrompt 工具参数
 
-视频提示词创建由 **`draftVideoPrompt`** 执行，`searchVideoPromptTemplates` 只负责检索。工具对外使用一个顶层 JSON 对象，禁止把 `mustHave`、`mustNotHave`、`references` 数组变成 JSON 字符串，`duration` 必须是数字。已有画布节点必填顶层 `shotId`、镜头合同和实际参考，`canvasId` 只填写在 `node.canvasId`；先 `node:getConfig` 核对配置，有变化时用 `node:setConfig` 更新，再读取 `node:getPromptContext`，已有节点不传 `duration/ratio/modelId/sampling/seed/seedMode`。新镜头省略 `node`，必须提供 `duration` 和 `ratio`。已选创作模板通过 `creativeSelection` 中稳定的模板 ID 传入，按[调用示例](creativeKnowledge.md#与-draftvideoprompt-的直接衔接)填写已有节点或新镜头所需的字段。
+内置 Agent 直接调用会话工具 `draftVideoPrompt`，外部 MCP 调用 `videoPrompt` 的 `prepare`、`inspect`、`submit`。画布 `nodeTools` 用于读取节点配置、参考和写回已审稿。`searchVideoPromptTemplates` 负责检索创作参考。镜头合同字段按[工具调用规则](creativeKnowledge.md#与-draftvideoprompt-的直接衔接)填写，数组使用 JSON 数组，时长使用数字。已有节点核对 `node:getConfig`，有变化才调用 `node:setConfig`，随后读取 `node:getPromptContext`。
 
 本镜回应先前的一句话或事件时，回读相关分镜。把场次或镜号、说话人、原句或关键动作填入 `adjacentShots`，可以摘录更早的铺垫。已交代过的原因供导演核对承接，本镜接着拍回应和后果。
 
@@ -65,7 +65,7 @@
 按目标节点的真实工作流及引用模式写作。新建镜头从用户指定或当前 production.video 取工作流，再核对实际能力。
 
 - Ref2VA 普通参考模式按 [ref-en.txt](../../h3-prompt-writing/references/ref-en.txt)，依次输出 subject_definitions、summary、retention_analysis、detailed_description、overall_soundscape、non_diegetic_music。
-- 纯文生视频按 [base-en.txt](../../h3-prompt-writing/references/base-en.txt) 的三段正文。首尾帧模式先写帧对齐说明，将尾帧对应实际最后一镜与片段总时长。
+- 无参考素材的纯文生视频用 `h3Text`，按 [base-en.txt](../../h3-prompt-writing/references/base-en.txt) 写三段正文。工作流名称带 Ref2VA 时仍按实际准备结果的 `format` 写。首尾帧模式先写帧对齐说明，将尾帧对应实际最后一镜与片段总时长。
 - 以下 Subject、retention_analysis、summary 专属规则用于 Ref2VA。三段格式直接在 integrated_multimodal_description 交代身份、空间和时间变化。
 
 

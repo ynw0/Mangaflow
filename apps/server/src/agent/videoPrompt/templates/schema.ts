@@ -17,8 +17,8 @@ export const templateFormats = ["h3Ref2va", "h3Frames", "h3Text"] as const;
 export const templateAnchors = ["底图", "末态图", "接触对象", "障碍物", "入口", "可见光源", "可变形零件", "水面", "可见受力表面", "可揭示物件"] as const;
 
 export const templateTagSchema = z.strictObject({
-  scene: z.array(z.enum(templateTags.scene)).min(1).optional().describe("剧情用途"),
-  emotion: z.array(z.enum(templateTags.emotion)).min(1).optional().describe("要表达的情绪"),
+  scene: z.array(z.enum(templateTags.scene)).min(1).optional().describe("剧情用途，可选多项"),
+  emotion: z.array(z.enum(templateTags.emotion)).min(1).optional().describe("要表达的情绪，可选多项"),
   performance: z.array(z.enum(templateTags.performance)).min(1).optional(),
   action: z.array(z.enum(templateTags.action)).min(1).optional(),
   effect: z.array(z.enum(templateTags.effect)).min(1).optional(),

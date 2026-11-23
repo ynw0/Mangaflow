@@ -30,7 +30,7 @@ ${chineseWritingRules}
 - 统一 H3 双采须有 checkpointName。未选时先 node:getConfig（refreshComfyChoices=true）从 checkpointChoices 核对已安装权重，按用户确认写回后再写本镜提示词。
 - 用户追加消息是补充要求，不是停止信号。已提交的生成、运行中的子 Agent 与当前工具不得因此取消或重提。区分还能改的后续步骤与已经开始不能回头的任务；保留原结果，在后续审核或计划里落实新要求。额外 GPU 或超原授权仍须算力确认。
 - H3 成片提示词：按 workflow 备好镜头合同与参考，用 draftVideoPrompt 完成导演、预检与独立审核。合同与参考/时长/画幅/音轨/格式未变时可复用已审稿；换采样或主机沿用 reviewId 并重校验。须重写正文时传 regenerate=true。导演与审核 Skill 由工具内读，主 Agent 不重复载入全文，除非用户明确要求审查或修订技能。written=true 用 nextAction 指向节点；未写入则用返回的 generationRequest/reviewId 接续。nextAction 不等于已获准生成。预检 warnings 不自动返修；对白交叠按定稿审核，字数估时留到成片听验；退稿以 findings 为准；审核过期项按变化重审，不伪造编号或用文本 status=ok 代替。缺少工具或读取权限时说明阻塞项。
-- 拍摄问题可给 draftVideoPrompt 一个相符模板标签；searchVideoPromptTemplates 每次只填一个标签，选用前核对条件并保留已确认人事对白。
+- 拍摄问题可给 draftVideoPrompt.templateTags 提供多个相关维度的标签，searchVideoPromptTemplates 的 search.tags 也可组合多个相关标签，以便按匹配度排序；searchCreative 的 creativeTags 多项时必须全部命中。选用前核对条件并保留已确认的人物、道具、事件和对白。
 - 委派 story/character/scene/prop 时填写对应 subAgent role。视频节点：getConfig → 核对模型能力 → setConfig → getPromptContext → draftVideoPrompt；新建也须确认模型、时长、画幅。顶层带原合同 shotId，canvasId 只在 node.canvasId。合同未变用 resumeVideoPrompt；中断后用原 shotId 查待审稿。定稿或分镜已变则用更新后的完整合同重提。参数失败后按 Schema 修正，不得原样重试；列表没有的模型说明阻塞，不猜 ID，不擅自更换用户指定的模型。
 - 普通咨询或编辑技能本身不启动制作；用户只要对话文字时直接交文字。已明确风格与素材沿用；结构与阶段成果跟当前技能，不机械补齐无关文档。
 - 有 skillOperator 时先 list 再按返回的 name、scope、path 读取。不以源码路径当安装路径，不绕过关闭的读取权限。

@@ -267,13 +267,13 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     expect(absurdHit[0]?.details).not.toHaveProperty("imagePrompt");
     expect(absurdHit[0]?.details).toHaveProperty("jokeMechanism");
     const domainMiss = checkCreativeSelection({
-      selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyContext: "两人在厨房说话",
+      selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyDomains: ["日常对话"],
     });
-    expect(domainMiss.errors.join(" ")).not.toContain("系统觉醒");
+    expect(domainMiss.warnings.join(" ")).toContain("题材域对不上");
     const domainHit = checkCreativeSelection({
-      selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyContext: "终端亮起后系统觉醒",
+      selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyDomains: ["系统觉醒"],
     });
-    expect(domainHit.errors.join(" ")).not.toContain("系统觉醒");
+    expect(domainHit.warnings.join(" ")).not.toContain("题材域对不上");
     const softFace = checkCreativeSelection({
       selected: { styleId: "s01", expressionId: "e32" }, medium: "video", tone: "neutral",
     });

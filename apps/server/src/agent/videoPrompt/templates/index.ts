@@ -41,11 +41,11 @@ export function findVideoPromptTemplates(tags: VideoPromptTags, conditions: Temp
 }
 
 const searchFields = {
-  tags: templateTagSchema.describe("search 必填：按维度提供标签对象"),
+  tags: templateTagSchema.describe("search 必填。每次只填一个维度，数组内只填一个标签"),
   conditions: templateConditions.describe("search 可选：镜头时长与画面条件"),
   library: z.enum(["memes", "absurd", "expressions", "styles", "narrative", "voices", "all"]).describe("searchCreative 可选：创作知识库类别"),
   query: z.string().trim().max(200).describe("searchCreative 可选：检索关键词"),
-  creativeTags: z.array(z.string().trim().min(1).max(24)).max(8).describe("searchCreative 可选：标签字符串数组"),
+  creativeTags: z.array(z.string().trim().min(1).max(24)).max(8).describe("searchCreative 按标签检索时只填一项。按名称查找时用 query"),
   limit: z.number().int().min(1).max(10).describe("search 可传 1–5，searchCreative 可传 1–10"),
   selected: z.strictObject({
     narrativeId: z.string().trim().min(1).max(40).optional(),
@@ -95,8 +95,8 @@ const searchToolInput = z.strictObject(searchFields).partial().extend({
 export const videoTemplateSearch = {
   name: "searchVideoPromptTemplates",
   label: "分类检索：导演、创作知识与 H3 声音模板",
-  description: "统一分类创作知识库：listTags/search 检索原有导演镜头模板；listCreativeTags/searchCreative 检索2026来源网络热梗、原创喜剧、表情、画风/滤镜和叙事结构和 H3 角色声音模板；checkCreativeSelection 检查模板组合、适用时长、风格与题材冲突。不生成、不修改画布。",
-  promptSnippet: "有具体创作问题时按需检索。拍法用 search，剧情节拍、表情、画风、喜剧或声音用 searchCreative。先对照分镜和实际素材判断条目是否适用。组合条目有疑问时可用 checkCreativeSelection 核对。",
+  description: "只读检索创作参考。listTags/search 查导演拍法。listCreativeTags/searchCreative 查剧情节拍、表情、画风、喜剧、热梗和 H3 声音。按标签检索时每次只用一个标签。search 只填一个维度，searchCreative 先选需要的分类。checkCreativeSelection 核对选中条目的适用条件。",
+  promptSnippet: "有具体创作问题时按需检索，每次只填一个标签。拍法用 search，其余创作参考用 searchCreative。用分镜和实际素材核对条目的使用条件。",
   parameters: z.toJSONSchema(searchToolInput, { io: "input", target: "draft-07" }),
   execute(args: unknown, signal?: AbortSignal) {
     signal?.throwIfAborted();
@@ -115,7 +115,7 @@ export const videoTemplateSearch = {
         return checkCreativeSelection(input);
       case "search":
         return { templates: findVideoPromptTemplates(input.tags, input.conditions, input.limit),
-          guidance: "先用 useWhen 核对本镜的人物关系、空间和动作。适用时从 fragment 取解决拍摄问题的一项做法，再用本镜实际人物、物件和动作写正文。verify 只用于已采用的拍法。已有拍法足够清楚时直接沿用。" };
+          guidance: "同分候选按编号排列。先用 useWhen 核对本镜的人物关系、空间和动作。适用时从 fragment 取本镜需要的拍法，再用实际人物、物件和动作写正文。verify 只用于已采用的拍法。已有拍法足够清楚时直接沿用。" };
     }
   },
 };

@@ -17,15 +17,16 @@
 
 ## 检索
 
-- 用 `listTags` 查看拍法标签，按当前镜头的问题填 `search.tags`。提供已知的时长和参考条件。
-- 用 `listCreativeTags` 查看创作分类。`searchCreative` 按 `library`、`query` 和 `creativeTags` 检索，填写的 `creativeTags` 需要全部匹配。
+- 按标签检索时，每次只用一个来自工具目录的标签。先选最直接描述当前问题的标签，需要查另一个标签时另开一次检索。
+- 用 `listTags` 查看拍法标签。`search.tags` 只填一个维度，数组里填一个标签。可同时提供实际时长、参考数量和画面条件。同分时按编号排，取用前核对 `useWhen`。
+- 用 `listCreativeTags` 查看创作分类，按实际需要选择 `library`。`searchCreative` 按标签查找时只填一个 `creativeTags`，按标题或名称查找时用 `query`。
 - 组合条目需要核对时，用 `checkCreativeSelection` 检查已选 ID，按实际媒介、基调和时长填写参数。
 
 ## 与 draftVideoPrompt 的直接衔接
 
 检索工具的 `searchCreative` 返回带稳定 `id` 的条目。内置 Agent 在 `draftVideoPrompt.creativeSelection` 传模板 ID，外部 Agent 在 `videoPrompt` 的 `prepare` 中传 `input.creativeSelection`。镜头基调按已确认合同填写 `tone`。两条路径使用同一份制作摘要。叙事和喜剧条目的具体事件在构思分镜时使用，热梗原话如需入片也在定稿阶段确认。成片写作从已确认的分镜取事件、切点和原话。
 
-内置导演的拍法候选来自 `draftVideoPrompt.templateTags`。有具体拍摄问题时传对应标签，已有拍法时可省略；仅传 `intent` 会选择适用的导演资料。外部 Agent 需要拍法时使用 `searchVideoPromptTemplates` 的 `search`。
+内置导演的拍法候选来自 `draftVideoPrompt.templateTags`。有具体拍摄问题时传一个标签，已有拍法时可省略。仅传 `intent` 会选择适用的导演资料。外部 Agent 需要拍法时使用 `searchVideoPromptTemplates` 的 `search`。
 
 - 从确认的分镜填写顶层 `shotId`、`story`、`purpose`、`style`、`intent`、连续性及必需和禁止项。`lockedDialogue` 按正式剧本填本镜需要模型发出的原话。`references` 按实际槽位顺序填写文件、类型、用途和描述。
 - 新镜头填写 `duration` 和 `ratio`。已有节点先用 `node:getConfig` 核对配置，仅在需要时用 `node:setConfig` 更新，随后读取 `node:getPromptContext`。画布与节点 ID 填入 `node`，确认允许写回时填 `node.write: true`。

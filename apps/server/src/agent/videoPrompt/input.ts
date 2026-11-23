@@ -50,7 +50,7 @@ const shotFields = {
   adjacentShots: z.string().trim().max(6000).optional().describe("本镜回应先前台词或事件时，摘录已确认的相关场次或镜号、说话人和原句或动作，可引用更早的铺垫。仅供核对承接"),
   regenerate: z.boolean().optional().describe("用户要求修改目标镜头的提示词、拍法或表演时传 true，从已确认的镜头合同重写。仅调整生成参数时复用已审稿"),
   reReview: z.boolean().optional().describe("用户明确要求用当前审核员复审已通过的现稿时传 true，与 regenerate 互斥"),
-  templateTags: templateTagSchema.optional().describe("可选：本镜有具体拍摄问题时提供对应标签，用于检索拍法"),
+  templateTags: templateTagSchema.optional().describe("有具体拍摄问题时填一个维度和一个标签，用于检索拍法"),
   templateConditions: templateConditions.pick({ subjectCount: true, anchors: true }).optional(),
   references: z.array(reference).max(24).describe("按实际槽位顺序传 JSON 对象数组，不是字符串"),
   voiceCast: z.array(z.strictObject({

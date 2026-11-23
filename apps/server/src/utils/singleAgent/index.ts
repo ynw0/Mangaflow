@@ -6,6 +6,7 @@ import type { AgentSession, CreateAgentSessionOptions, ToolDefinition } from "@e
 import type { QuestionContext } from "@toonflow/tools-scaffold/runtime";
 import { createAgentToolContext } from "@/agent/tools";
 import { createAgentModel, toSdkThinkingLevel } from "@/agent/runtime/model";
+import { chineseWritingRules } from "@/agent/runtime/prompt";
 import { configureAgentRequests } from "@/agent/runtime/requests";
 import { getToolResultText } from "@/agent/runtime/sessions";
 import { createQuestionContext, answerQuestion } from "@/agent/bridge/question";
@@ -208,7 +209,11 @@ export async function run(options: {
     active.controller.signal.throwIfAborted();
     const settingsManager = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } });
     const agentDir = join(state.cwd, ".agent");
-    const systemPrompt = [...new Set([state.systemPrompt || "请根据用户要求完成当前任务，按需使用提供的工具。", ...tools.flatMap(tool => tool.promptGuidelines ?? [])])].filter(Boolean).join("\n\n");
+    const systemPrompt = [...new Set([
+      state.systemPrompt || "请根据用户要求完成当前任务，按需使用提供的工具。",
+      chineseWritingRules,
+      ...tools.flatMap(tool => tool.promptGuidelines ?? []),
+    ])].filter(Boolean).join("\n\n");
     const resourceLoader = new DefaultResourceLoader({
       cwd: state.cwd, agentDir, settingsManager,
       noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,

@@ -51,12 +51,11 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
     const label = `第 ${index + 1} 句对白`;
     const language = /^\s*\[([A-Za-z][A-Za-z -]*)\]\s*([\s\S]*?)\s*$/.exec(block[1]!);
     if (!language || /^[a-z]{2}(?:[-_][a-z]+)*$/i.test(language[1]!) || !language[2]) {
-      findings.push(`${label}须使用语言全称与非空原文。`);
-    }
-    const preceding = timeline.slice(previousBlockEnd, block.index);
-    if (lockedDialogue?.[index] !== undefined && language?.[2] !== lockedDialogue[index]) {
+      findings.push(`${label}须使用语言全称与非空原文，格式为 <d>[Language] 原话</d>。`);
+    } else if (lockedDialogue?.[index] !== undefined && language[2] !== lockedDialogue[index]) {
       findings.push(`${label}与锁定原话不一致，应为「${lockedDialogue[index]}」。`);
     }
+    const preceding = timeline.slice(previousBlockEnd, block.index);
     previousBlockEnd = block.index + block[0].length;
     const speakerMatch = [...preceding.matchAll(/\((S[1-9]\d*(?:,\s*S[1-9]\d*)*)\)/g)].at(-1);
     const speakerIds = speakerMatch?.[1]?.replace(/\s+/g, "").split(",") ?? [];

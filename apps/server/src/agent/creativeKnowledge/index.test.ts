@@ -159,6 +159,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
       expect(item.avoid.length).toBeGreaterThan(15);
     }
     expect(searchCreativeKnowledge({library:"styles",query:"实拍写实",tags:[],limit:2})[0]?.title).toBe("实拍写实");
+    expect(searchCreativeKnowledge({library:"styles",query:"电影级写实",tags:[],limit:2})[0]?.title).toBe("实拍写实");
     const filters = searchCreativeKnowledge({library:"styles",query:"胶片",tags:["滤镜"],limit:10});
     expect(filters.length).toBeGreaterThan(0);
     expect(filters.every(item => item.library === "styles" && item.tags.includes("滤镜"))).toBe(true);

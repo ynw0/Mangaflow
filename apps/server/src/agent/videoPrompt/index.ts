@@ -287,7 +287,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
         const draft = await specialist(draftSchema, draftSubmissionParameters, repair ? "导演返修" : "导演写作", [
           "依据实际镜头合同、已加载的导演规则与 H3 模式写稿，调用 submitResult 提交完整结果。时间使用整段视频内的秒数。",
           ...(repair ? ["用 findings 的位置和证据定位问题。具体修法按当前镜头合同和已加载的写作规则取舍。保留仍有作用的声画事实，使英文正文、中文对照和导演计划一致。"] : []),
-          ...(repair ? [] : [`英文正文段名：\n${getPromptOutline(prepared.format)}`]),
+          `英文正文段名：\n${getPromptOutline(prepared.format)}`,
           // 拍法候选只在首稿提供，导演先判断条件，再用实际分镜撰写正文。
           JSON.stringify({ ...taskInput,
             ...(repair ? { previousDraft: lastDraft, findings } : {}),

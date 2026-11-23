@@ -8,9 +8,10 @@ import { voiceCategories, voiceTemplates } from "@/agent/creativeKnowledge/voice
 
 export type CreativeLibrary = "memes" | "absurd" | "expressions" | "styles" | "narrative" | "voices" | "all";
 export type CreativeSearchOptions = { library: CreativeLibrary; query: string; tags: string[]; limit: number };
+type AbsurdPublic = Pick<(typeof absurdPrompts)[number], "id" | "title" | "tags" | "setup" | "jokeSkeleton" | "jokeMechanism" | "avoid">;
 type CreativeDetails =
   | (typeof memesCN)[number]
-  | (typeof absurdPrompts)[number]
+  | AbsurdPublic
   | (typeof expressionTemplates)[number]
   | (typeof visualStyles)[number]
   | (typeof narrativeTemplates)[number]
@@ -50,27 +51,47 @@ function matchingScore(title: string, aliases: string[], tags: string[], content
 }
 const categoryTags = (items: readonly { tags: string[] }[]) => [...new Set(items.flatMap(x => x.tags))].sort();
 
+/** 检索对外细节：去掉可整段粘贴的成品示范句，热梗保留 phrase 供编剧改写。 */
+function publicDetails(library: CreativeSearchResult["library"], item: CreativeDetails): CreativeDetails {
+  if (library === "absurd") {
+    const absurd = item as (typeof absurdPrompts)[number];
+    return {
+      id: absurd.id, title: absurd.title, tags: absurd.tags, setup: absurd.setup,
+      jokeSkeleton: absurd.jokeSkeleton, jokeMechanism: absurd.jokeMechanism, avoid: absurd.avoid,
+    };
+  }
+  if (library === "expressions") {
+    const expression = item as (typeof expressionTemplates)[number];
+    return {
+      id: expression.id, title: expression.title, category: expression.category, intensity: expression.intensity,
+      tags: expression.tags, face: expression.face, gesture: expression.gesture, videoBeat: expression.videoBeat,
+      camera: expression.camera, continuity: expression.continuity, avoid: expression.avoid,
+    };
+  }
+  return item;
+}
+
 export function listCreativeKnowledgeCategories() {
   return {
     asOf: "2026-11-11",
     categories: [
       { id: "memes", title: "2026网络热梗与二创文化", count: memesCN.length,
         tags: categoryTags(memesCN), observedFrom: "2026-05-08", observedThrough: "2026-11-11",
-        caveat: "公开日期只证明2026年有传播记录，不等于首发日期或实时全网排名，勿复刻未授权原视频/真人音色。"},
+        caveat: "有喜剧空间时适当写入剧本：借语气、空耳结构或反差机制，改写成符合人物身份与当场处境的原话；先让观众看见触发再出梗。勿把 phrase 原句当万能口头禅硬贴；严肃戏无喜剧空间时不要打断因果。勿复刻未授权原视频/真人音色。"},
       { id: "absurd", title: "原创抽象搞怪剧情/镜头", count: absurdPrompts.length,
-        tags: categoryTags(absurdPrompts), caveat: "单镜构思必须符合剧情、时长与参考资产，不直接变成 H3 提示词。"},
+        tags: categoryTags(absurdPrompts), caveat: "只取 jokeMechanism 与短骨架；单镜构思必须符合剧情、时长与参考资产，不直接变成 H3 提示词。"},
       { id: "expressions", title: "人物表情与颜艺模板", count: expressionTemplates.length,
         tags: categoryTags(expressionTemplates), groups: ["basic", "funny", "extreme", "abstract"],
-        caveat: "身份和五官结构固定；写实片中极夸张颜艺只能放大表演，不默认改成卡通变形。"},
+        caveat: "只取 face/gesture/videoBeat；身份和五官结构固定；写实片中极夸张颜艺与机械卡顿表演须有剧本依据，否则不可用。"},
       { id: "styles", title: "画风与滤镜模板", count: visualStyles.length,
         tags: categoryTags(visualStyles), groups: ["style", "filter"],
-        caveat: "主画风与滤镜分层组合，提示词只是视觉建议，不等于真实 LUT 或后期滤镜执行。"},
+        caveat: "主画风与滤镜分层组合；只输出可观测 look/lighting/palette/texture，不等于真实 LUT。"},
       { id: "narrative", title: "叙事结构与剧情节拍模板", count: narrativeTemplates.length,
         tags: categoryTags(narrativeTemplates), groups: ["hook","establish","conflict","reveal","choice","payoff","aftermath"],
-        caveat: "scene 是多镜叙事模板，只有在用户允许切镜且时长足够时，才能编成一个 H3 视频片段；单镜合同需拆开或换模板。"},
+        caveat: "scene 是多镜叙事模板，只有在用户允许切镜且时长足够时，才能编成一个 H3 视频片段；单镜合同需拆开或换模板。专属题材条目看 domains。"},
       { id: "voices", title: "H3 同期角色声音提示词模板", count: voiceTemplates.length,
         tags: categoryTags(voiceTemplates), groups: voiceCategories,
-        caveat: "H3 同期合成声音；有对白时默认约正常语速的1.3倍。口音和年龄感只是生成指导，不保证方言准确或声纹一致。"},
+        caveat: "H3 同期合成声音；有对白时默认约正常语速的1.3倍。机械/合成音色限系统、广播或机器角色。口音和年龄感只是生成指导，不保证方言准确或声纹一致。"},
     ],
   };
 }
@@ -82,23 +103,23 @@ export function searchCreativeKnowledge(options: CreativeSearchOptions): Creativ
   const add = (library: CreativeSearchResult["library"], id: string, title: string, aliases: string[], tags: string[], content: string,
     details: CreativeDetails, observedAt?: string) => {
     const score = matchingScore(title, aliases, tags, content, options.query, options.tags);
-    if (score > 0) results.push({ library, id, title, tags, score, ...(observedAt ? { observedAt } : {}), details });
+    if (score > 0) results.push({ library, id, title, tags, score, ...(observedAt ? { observedAt } : {}), details: publicDetails(library, details) });
   };
   if (wants("memes")) for (const item of memesCN)
     add("memes", item.id, item.phrase, item.aliases ?? [], item.tags,
       [item.meaning, item.usage].join(" "), item, item.observedAt);
   if (wants("absurd")) for (const item of absurdPrompts)
     add("absurd", item.id, item.title, [], item.tags,
-      [item.setup, item.imagePrompt, item.videoBeat, item.jokeMechanism].join(" "), item);
+      [item.setup, item.jokeSkeleton, item.videoBeat, item.jokeMechanism].join(" "), item);
   if (wants("expressions")) for (const item of expressionTemplates)
     add("expressions", item.id, item.title, [], item.tags,
-      [item.face, item.gesture, item.imagePrompt, item.videoBeat, item.category].join(" "), item);
+      [item.face, item.gesture, item.videoBeat, item.category].join(" "), item);
   if (wants("styles")) for (const item of visualStyles)
     add("styles", item.id, item.title, [], item.tags,
       [item.group, item.imagePrompt, item.videoPrompt, item.palette, item.lighting].join(" "), item);
   if (wants("narrative")) for (const item of narrativeTemplates)
     add("narrative", item.id, item.title, [], item.tags,
-      [item.purpose,item.setup,item.escalation,item.visibleResult,item.shotGuidance].join(" "), item);
+      [item.purpose,item.setup,item.escalation,item.visibleResult,item.shotGuidance,(item.domains ?? []).join(" ")].join(" "), item);
   if (wants("voices")) for (const item of voiceTemplates)
     add("voices", item.id, item.title, [], item.tags,
       [item.descriptionZh, item.englishCue, item.category].join(" "), item);
@@ -124,7 +145,15 @@ export type CreativeSelectionOptions = {
   durationSeconds?: number;
   singleShot?: boolean;
   forDraft?: boolean;
+  /** 调用方显式给出的题材域 */
+  storyDomains?: string[];
+  /** 镜头合同正文；有内容时才核对专属叙事域，避免无合同时空警告 */
+  storyContext?: string;
+  storyIntent?: string;
 };
+
+const mechanicalExpression = (item: (typeof expressionTemplates)[number]) =>
+  item.category === "abstract" && item.tags.some(tag => /卡顿|机械|掉线|机器人|颜艺/.test(tag));
 
 /** 只读检查已选模板，发现冲突时要求 Agent 做取舍，不进行 AI 生成或自动修改合同。 */
 export function checkCreativeSelection(options: CreativeSelectionOptions) {
@@ -155,15 +184,26 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
       : "使用前须确认片段允许切镜、时长足够且不丢剧情";
     narrativeIssues.push(`「${narrative.title}」属于多镜场次结构。${reason}。`);
   }
-  if (expression && (expression.category === "extreme" || expression.category === "abstract") && style?.group === "影视写实") {
-    warnings.push("写实画风选了夸张或抽象颜艺。按人物此刻真正能看见、听见的变化取自然反应，停格、跳变或机械动作须以定稿为准。");
+  const explicitDomains = (options.storyDomains ?? []).map(item => item.toLocaleLowerCase());
+  if (narrative?.domains?.length && explicitDomains.length) {
+    const fits = narrative.domains.some(domain => explicitDomains.some(item => item === domain.toLocaleLowerCase() || item.includes(domain.toLocaleLowerCase())));
+    if (!fits) warnings.push(`「${narrative.purpose}」面向 ${narrative.domains.join("/")}；已给题材域对不上。关键词对不上不拒绝出稿。`);
   }
-  if (options.tone === "serious" && (absurd || meme)) {
-    warnings.push("用户要求严肃基调，却选择了热梗/搞怪模板；除非当前镜头明确需要喜剧，否则不要注入。");
+  if (expression && style?.group === "影视写实" && (expression.category === "extreme" || mechanicalExpression(expression))) {
+    errors.push("写实画风不可使用极夸张颜艺或机械卡顿表情；按人物此刻真正能看见、听见的变化取自然反应。");
+  }
+  if (options.tone === "serious" && absurd) {
+    warnings.push("用户要求严肃基调，却选择了搞怪模板；除非当前镜头明确需要喜剧，否则不要注入。");
+  }
+  if (options.tone === "serious" && meme) {
+    warnings.push("严肃基调选了热梗：须先确认本镜有喜剧空间；若有，把梗核改写成该人物当场会说的话，勿原句硬贴；无喜剧空间则移除。");
+  } else if (meme && options.tone !== "comedy") {
+    warnings.push("热梗入戏前确认有喜剧空间；改写成角色原话，先让观众看见触发再出梗。");
   }
   if (filter && !style) warnings.push("只选择滤镜而无项目已批准主画风；保留项目原画风，不从滤镜推断新人物造型。");
-  if (meme) warnings.push("热梗仅作文化参考：保留来源/日期，避免原录音、未授权IP形象和对真实人物的攻击。");
-  if (forDraft && (absurd || meme)) warnings.push("热梗和搞怪示例留在构思阶段。视频稿的笑点、事件和对白从已确认的分镜取。");
+  if (meme) warnings.push("热梗仅作文化参考：保留来源/日期，避免原录音、未授权IP形象和对真实人物的攻击。phrase 供编剧改写，成片 H3 只照录已锁定台词。");
+  if (forDraft && absurd) warnings.push("搞怪示例留在构思阶段。视频稿的笑点、事件和对白从已确认的分镜取；只取机制与短骨架，勿整段粘贴。");
+  if (forDraft && meme) warnings.push("热梗已选：在剧本对白中改写成人物原话后再锁定；导演成片阶段不再另贴库内原句。");
 
   const visualSummary = (item: (typeof visualStyles)[number] | undefined) => item && {
     slot: item.category, id: item.id, title: item.title,
@@ -173,33 +213,32 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
     status: errors.length ? "invalid" : warnings.length ? "review" : "ok",
     errors, warnings,
     selected: [
-      // 成片已有分镜合同，只传叙事目的和验收问题，具体示范留在构思阶段。
+      // 成片已有分镜合同，只传叙事目的和验收问题，具体示范留在构思阶段；摘要不带 title。
       narrative && {
         slot: "narrative", id: narrative.id, scope: narrative.scope, purpose: narrative.purpose, verify: narrative.verify,
+        ...(narrative.domains?.length ? { domains: narrative.domains } : {}),
         ...(!forDraft ? {
-          title: narrative.title, setup: narrative.setup, escalation: narrative.escalation,
+          setup: narrative.setup, escalation: narrative.escalation,
           visibleResult: narrative.visibleResult, shotGuidance: narrative.shotGuidance, avoid: narrative.avoid,
         } : {}),
       },
       expression && {
         slot: "expression", id: expression.id,
-        face: expression.face, avoid: expression.avoid,
-        ...(!forDraft ? { title: expression.title, intensity: expression.intensity } : {}),
-        ...(video ? { videoBeat: expression.videoBeat, continuity: expression.continuity }
-          : { imagePrompt: expression.imagePrompt }),
+        face: expression.face, gesture: expression.gesture, avoid: expression.avoid,
+        ...(!forDraft ? { intensity: expression.intensity } : {}),
+        ...(video ? { videoBeat: expression.videoBeat, continuity: expression.continuity } : {}),
       },
       visualSummary(style),
       visualSummary(filter),
       !forDraft && absurd && {
-        slot: "absurd", id: absurd.id, jokeMechanism: absurd.jokeMechanism, title: absurd.title, avoid: absurd.avoid,
-        ...(video ? { videoBeat: absurd.videoBeat, camera: absurd.camera, continuity: absurd.continuity }
-          : { imagePrompt: absurd.imagePrompt }),
+        slot: "absurd", id: absurd.id, jokeMechanism: absurd.jokeMechanism, jokeSkeleton: absurd.jokeSkeleton, avoid: absurd.avoid,
       },
-      meme && (forDraft ? undefined : {
-        slot: "meme", id: meme.id, title: meme.phrase, sourceUrl: meme.sourceUrl, observedAt: meme.observedAt,
-        meaning: meme.meaning, usage: meme.usage, avoid: meme.avoid,
-      }),
+      !forDraft && meme && {
+        slot: "meme", id: meme.id, phrase: meme.phrase, meaning: meme.meaning, usage: meme.usage, avoid: meme.avoid,
+        sourceUrl: meme.sourceUrl, observedAt: meme.observedAt,
+        rewriteRule: "有喜剧空间时写入剧本：借语气/空耳结构/反差机制，改写成该人物当场会说的话；先让观众看见触发再出梗。勿原句硬贴。",
+      },
     ].filter(Boolean),
-    guidance: "先看观众已经知道什么、这镜要让他们看懂什么。取用的条目只服务于分镜里已有的事。表演跟着人物实际看见、听见的内容和双方关系走。模板标题、范例和资料术语留在库里，正文用明确的人物、具体动作和寻常词语。切点、对白、画风和素材均以当前定稿为准。",
+    guidance: "先看观众已经知道什么、这镜要让他们看懂什么。取用的条目只服务于分镜里已有的事。表演跟着人物实际看见、听见的内容和双方关系走。模板标题、范例和资料术语留在库里，正文用明确的人物、具体动作和寻常词语。网络热梗可在喜剧空间入戏，须改写成人物原话。切点、对白、画风和素材均以当前定稿为准。",
   };
 }

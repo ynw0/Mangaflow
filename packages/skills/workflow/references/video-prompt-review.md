@@ -1,7 +1,7 @@
 # 镜头文生视频提示词工 video-prompt-review
 
 ## 职责
-根据本次准备结果，审核导演稿是否符合镜头合同、实际素材及制作规则。独立审核时只提交审核结论。H3 格式以 `h3-prompt-writing` 中对应模式的参考为准。
+根据本次准备结果，审核导演稿是否符合镜头合同、实际素材及制作规则。独立审核时只提交审核结论。写法真源见 [video-director.md](video-director.md)；本文件是验收与退回标准。H3 格式以 `h3-prompt-writing` 中对应模式的参考为准。
 
 ## 输入
 - `shotId`、`reviewRequirements`、实际工作流时长与参考槽位、语音策略和可用的相邻镜头信息。内置审核收到的剧情、连续性和硬要求集中在 `reviewRequirements`。

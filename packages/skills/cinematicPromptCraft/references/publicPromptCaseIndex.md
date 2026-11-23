@@ -35,7 +35,7 @@
 - source: Google DeepMind Veo 官方提示指南（A） https://deepmind.google/models/veo/prompt-guide/
 - observable: 前车先冲进水面掀起泥水障碍，后车紧跟冲过；提示词明确水、石块、悬架与动力声音，演示视频可在源页查看。
 - extract: 前车事件 → 产生遮挡 → 后车穿越 → 可见落地，事件的物理反馈让动作可信。
-- limitation: 该例包含复杂多主体负荷，若 MangaFlow 单镜仅 5 秒，应拆成“障碍形成”“穿越障碍”等相邻镜头，绝不在一条提示词内切镜。
+- limitation: 该例包含复杂多主体负荷。若合同是单镜且仅约 5 秒，应拆成相邻视频片段或经上游确认的多 `[Shot N]`，不要为塞进单镜而删剧情；合同允许多摄影镜头时按合同写切点，用户要求一镜到底时禁止内部切镜。
 
 ### P06｜废弃泳池：慢推中的线索显现
 - source: fal.ai MiniMax H3 供应商示例（B） https://fal.ai/learn/tools/minimax-h3-explained
@@ -53,13 +53,13 @@
 - source: fal.ai MiniMax H3 供应商示例（B） https://fal.ai/learn/tools/minimax-h3-explained
 - observable: 玻璃滤杯的产品演示，细节涉及水线、咖啡液滴、蒸汽、容器声学和高光维持；供应商页面提供样例。
 - extract: 物体身份锁 + 操作点 + 材质反光 + 与动作同步的声音。
-- limitation: 公开样例有镜头剪切与 12 秒分段；MangaFlow 单镜场景只可借鉴其中一个连续段，不能借鉴跨镜切换。
+- limitation: 公开样例有镜头剪切与 12 秒分段；合同为单镜时只借鉴其中一个连续段；合同允许多 `[Shot N]` 时只迁移动作因果，不照搬样例切点文案。
 
 ### P09｜MiniMax H3 官方多模态模式案例目录
 - source: MiniMax-AI 官方仓库（A） https://github.com/MiniMax-AI/MiniMax-H3
 - observable: 官方提供 T2VA、FL2VA、Ref2VA 的 prompt writing skill、参考标签规则与示例，不是“所有模式能自动保留末帧”的保证。
 - extract: 首帧/尾帧/参考图用途分清，六段式与 speaker 绑定严格按官方规则，避免把普通 Reference Image 当成精确关键帧。
-- limitation: 官方文档中的多镜头示例不等于 MangaFlow 允许多摄影镜头；项目一视频节点一镜约束优先。
+- limitation: 官方多镜头示例不等于必须切镜。是否在一个视频节点内写多个 `[Shot N]`，以当前镜头合同与用户要求为准：合同允许多摄影镜头则按合同；一镜到底或合同单镜则禁止内部切镜。
 
 ## 反馈
 选用公开案例时记 public_id 与 original_case_id，并单独标注“外部公开来源/未在本地复现”。真正量化提升须持有相同工作流与相同素材的 A/B 视频、prompt、模型、设置和成片 QC 观察。不得凭文本评价填写成功率。

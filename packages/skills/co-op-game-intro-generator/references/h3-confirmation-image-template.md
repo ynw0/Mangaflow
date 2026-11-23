@@ -347,7 +347,7 @@ Avoid forcing modern UI effects into incompatible artistic styles.
 ---
 
 ## Rendering
-Generate a polished AAA-quality commercial game menu artwork.
+Generate a polished commercial game menu artwork with clear hierarchy (no empty “AAA-quality” padding).
 Characters, environment, UI, typography, icons, and decorative elements should feel like one cohesive production.
 Maintain premium rendering quality.
 Strong visual hierarchy.

@@ -1,4 +1,4 @@
-/** 剧情结构模板（镜头上游规划），与现有导演镜头模板互补，不代替镜头合同。 */
+/** 剧情结构模板（镜头上游规划），与现有导演镜头模板互补，不代替镜头合同。标题仅供检索，正文用当前项目人事重写，勿照搬标题腔。 */
 export type NarrativePhase = "hook" | "establish" | "conflict" | "reveal" | "choice" | "payoff" | "aftermath";
 export type NarrativeTemplate = {
   id: string;
@@ -7,6 +7,8 @@ export type NarrativeTemplate = {
   scope: "shot" | "scene";
   minSeconds: number;
   tags: string[];
+  /** 专属题材域：无对应设定时不应召回 */
+  domains?: string[];
   purpose: string;
   setup: string;
   escalation: string;
@@ -66,7 +68,7 @@ const rows: Row[] = [
   ],
   [
     "n04",
-    "压迫性索债对峙",
+    "索债对峙（力量差）",
     "conflict",
     "shot",
     5,
@@ -111,7 +113,7 @@ const rows: Row[] = [
   ],
   [
     "n07",
-    "系统觉醒的可信触发",
+    "系统启动的触发与反馈",
     "reveal",
     "shot",
     5,
@@ -141,7 +143,7 @@ const rows: Row[] = [
   ],
   [
     "n09",
-    "改装案例：系统免除本次费用",
+    "系统免除本次费用（可验证）",
     "payoff",
     "shot",
     4,
@@ -350,7 +352,14 @@ const rows: Row[] = [
     "悬念,钩子,结尾,反转"
   ]
 ];
-export const narrativeTemplates: NarrativeTemplate[] = rows.map(([id,title,phase,scope,minSeconds,purpose,setup,escalation,visibleResult,shotGuidance,verify,avoid,tags]) => ({
-  id,title,phase,scope,minSeconds,purpose,setup,escalation,visibleResult,shotGuidance,verify,avoid,
-  tags:[...tags.split(","),scope === "shot" ? "单镜" : "多镜场次",phase],
-}));
+/** 专属题材域：仅挂在明确依赖设定的模板上，避免普通冲突/能力戏误报 */
+const domainKeys = ["系统觉醒", "机械变形", "机翼"] as const;
+export const narrativeTemplates: NarrativeTemplate[] = rows.map(([id,title,phase,scope,minSeconds,purpose,setup,escalation,visibleResult,shotGuidance,verify,avoid,tags]) => {
+  const tagList = tags.split(",");
+  const domains = [...new Set(tagList.filter(tag => (domainKeys as readonly string[]).includes(tag)))];
+  return {
+    id, title, phase, scope, minSeconds, purpose, setup, escalation, visibleResult, shotGuidance, verify, avoid,
+    tags: [...tagList, scope === "shot" ? "单镜" : "多镜场次", phase],
+    ...(domains.length ? { domains } : {}),
+  };
+});

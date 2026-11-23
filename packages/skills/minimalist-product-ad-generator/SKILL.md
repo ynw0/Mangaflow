@@ -255,7 +255,7 @@ The storyboard table must be organized as “User Choice Statement → Beat Cont
 
 Write the confirmed style, aspect ratio, duration, narrative spine, main variant, product main color, variant strategy, and copy. Example:
 
-> White-tech style, 16:9, 10 seconds, Color Family spine, purple as the main variant, other colors as supporting layers, copy: Color Meets Sound.
+> {approved style}, {aspect}, {duration}, {narrative spine}, main variant and supporting colors from the confirmed product, copy: {approved product line or none}.
 
 ### Beat Content Table
 
@@ -322,7 +322,7 @@ Video generation defaults to MiniMax-H3 native audio first, and the Apple-style 
 Default music direction:
 
 ```text
-Around 100 BPM, fast tech feeling, block chords, pluck and airy noise bed, kick + sub-bass + sine sweep, wooden percussion, sudden cut-off, within 0.5s everything stops, leaving only the pluck tail to decay.
+Tempo and instrumentation follow the approved product mood: clear pulse, restrained tech accents, short ending decay. Do not paste a fixed BPM recipe; rewrite from the actual brief.
 ```
 
 Extended interpretation:

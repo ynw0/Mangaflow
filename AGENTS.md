@@ -142,7 +142,7 @@ apps/server/
 | `src/routes/settings/get.ts` | `GET` | `/api/settings/get` |
 | `src/routes/settings/save.ts` | `PUT` | `/api/settings/save` |
 
-- **不要手工维护 `src/router.ts` 的 imports、注册项或 hash。** 新增、移动、重命名或删除接口文件后，在 `apps/server` 执行 `bun run routes`。
+- **不要手工维护** `src/router.ts` **的 imports、注册项或 hash。** 新增、移动、重命名或删除接口文件后，在 `apps/server` 执行 `bun run routes`。
 - 自动生成的 `route1` 等名称由生成器维护，不手工重命名。`createApp` 仅在 `NODE_ENV === "dev"` 时自动生成路由，不假定启动、监听文件变化或构建会自动补齐路由。
 - 改动路径或 HTTP 方法前搜索所有调用方，同步更新调用；文件归档不应意外改变配置文件、静态资源等磁盘路径。
 

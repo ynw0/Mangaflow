@@ -48,7 +48,7 @@ Choose new values for all of these:
 7. 拍摄者反应；
 8. 最后的空间级变形；情境确有自然的可爱笑点时再保留。
 
-Good example directions include: 雨天厨房水槽、旧阳台晾衣角、清晨玄关、小书店走廊、火车窗边小桌、浴室镜柜、手作桌、温室通道、自助洗衣店长椅、旧餐桌. Use only one or adjacent connected areas.
+Pick one ordinary lived-in space that fits the brief (kitchen sink, balcony, hallway, desk, etc.). The list of sample rooms is not a rotation menu—invent from the user’s situation, do not cycle stock locations.
 
 ## Step 3: Required output format
 

@@ -59,6 +59,9 @@ const searchFields = {
   tone: z.enum(creativeTones).describe("checkCreativeSelection 可选：镜头基调"),
   durationSeconds: z.number().positive().max(300).describe("checkCreativeSelection 可选：镜头时长（秒）"),
   singleShot: z.boolean().describe("checkCreativeSelection 可选：已确认全程连续拍摄时填 true"),
+  storyContext: z.string().trim().max(6000).describe("checkCreativeSelection 可选：镜头合同正文，用于核对专属叙事域"),
+  storyDomains: z.array(z.string().trim().min(1).max(24)).max(8).describe("checkCreativeSelection 可选：已确认题材域"),
+  storyIntent: z.enum(["dialogue", "action", "effects", "mechanical", "reveal", "environment"]).describe("checkCreativeSelection 可选：镜头意图"),
 };
 
 const searchParameters = z.discriminatedUnion("action", [
@@ -78,6 +81,9 @@ const searchParameters = z.discriminatedUnion("action", [
     tone: searchFields.tone.default("neutral"),
     durationSeconds: searchFields.durationSeconds.optional(),
     singleShot: searchFields.singleShot.optional(),
+    storyContext: searchFields.storyContext.optional(),
+    storyDomains: searchFields.storyDomains.optional(),
+    storyIntent: searchFields.storyIntent.optional(),
   }),
   z.strictObject({
     action: z.literal("search"),
@@ -109,13 +115,13 @@ export const videoTemplateSearch = {
       case "searchCreative":
         return {
           matches: searchCreativeKnowledge({ library: input.library, query: input.query, tags: input.creativeTags, limit: input.limit }),
-          notice: "剧情、热梗和搞怪条目用于构思，片中事件和原话从定稿取。按角色看见、听见什么选择表演。画风和滤镜只描述观感，保留剧情用来辨认人物和线索的画面特征。模板标题、示范台词和资料术语留在检索结果中。",
+          notice: "剧情与搞怪用于构思，只取机制与短骨架。热梗有喜剧空间时写入剧本，改写成人物原话后再锁定。片中事件和原话从定稿取。按角色看见、听见什么选择表演。画风和滤镜只描述观感。模板标题与示范句留在库里，勿整段粘进成片。",
         };
       case "checkCreativeSelection":
         return checkCreativeSelection(input);
       case "search":
         return { templates: findVideoPromptTemplates(input.tags, input.conditions, input.limit),
-          guidance: "同分候选按编号排列。先用 useWhen 核对本镜的人物关系、空间和动作。适用时从 fragment 取本镜需要的拍法，再用实际人物、物件和动作写正文。verify 只用于已采用的拍法。已有拍法足够清楚时直接沿用。" };
+          guidance: "同分候选按编号排列。先用 useWhen 核对本镜的人物关系、空间和动作。适用时从 fragment 取本镜需要的拍法，再用实际人物、物件和动作写正文。verify 仅作自检清单，不写入 H3 正文。已有拍法足够清楚时直接沿用。" };
     }
   },
 };

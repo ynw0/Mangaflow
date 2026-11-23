@@ -71,10 +71,10 @@ export const sceneTemplates: VideoPromptTemplate[] = [
       composition: ["中景","负空间"],
       sound: ["脚步","环境底声"],
     },
-    useWhen: "剧情要求角色离开并保留一次回望。",
+    useWhen: "仅当剧本已写明角色离开前有一次回望；剧本未写回望则不要召回。",
     fragment: "沿剧本确定的出口拍人物离开，在他确实回望的时刻让视线有明确对象，并保留离场方向。",
-    avoid: "突然走向相反方向或反复回头。",
-    verify: "能否从前后画面辨认他回头看谁或看什么，之后往哪走？",
+    avoid: "突然走向相反方向或反复回头；勿给未写回望的离场戏硬加回望。",
+    verify: "自检（不写入 H3 正文）：能否从前后画面辨认他回头看谁或看什么，之后往哪走？",
   },
   {
     id: "detailFocus", title: "随人物看到线索", minSeconds: 3, minSubjects: 1,

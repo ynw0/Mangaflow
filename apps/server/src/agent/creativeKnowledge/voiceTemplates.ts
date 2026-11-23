@@ -191,20 +191,31 @@ export function compileVoiceCast(cast: readonly VoiceCastRole[]) {
     const voiceIdentity = role.voiceIdentity?.trim();
     const source = selected.find(item => item.category === "source");
     if (!voiceIdentity && !selected.some(item => ["timbre", "age", "personality"].includes(item.category))) warnings.push(`${role.speakerId} 缺少长期稳定的声线描述或音色模板`);
+    const machineVoice = selected.some(item =>
+      (item.category === "timbre" || item.category === "delivery")
+      && (/合成|机械|电子音/.test(item.tags.join(",")) || /synthesized|synthetic|electronic/i.test(item.englishCue)));
+    const machineRole = (source && /system|disembodied|announce|loudspeaker/i.test(source.englishCue))
+      || /系统|机械|广播|机器|AI|机器人|电子/.test(`${role.characterName} ${voiceIdentity ?? ""}`);
+    if (machineVoice && !machineRole) warnings.push(`${role.speakerId} 选用了机械/合成音色；仅适用于系统、广播或机器角色。`);
     const pace = selected.find(item => item.category === "pace");
     const speedMultiplier = role.speedMultiplier ?? pace?.speedMultiplier ?? DEFAULT_H3_SPEECH_RATE;
     const identityCues = selected.filter(item => ["timbre", "age", "personality", "foreignAccent", "dialect"].includes(item.category)).map(item => item.englishCue);
     const performanceCues = selected.filter(item => ["emotion", "delivery"].includes(item.category)).map(item => item.englishCue);
     const paceCue = speedMultiplier === DEFAULT_H3_SPEECH_RATE
       ? defaultH3SpeechCue
-      : [pace?.englishCue, `speaks at about ${speedMultiplier} times normal conversational pace with clear articulation`].filter(Boolean).join("; ");
-    const cues = [source?.englishCue, voiceIdentity, ...identityCues, ...performanceCues, paceCue].filter(Boolean);
+      : [pace?.englishCue, `speaks at about ${speedMultiplier} times normal conversational pace with clear articulation`].filter(Boolean).join(", ");
+    const voiceBits = [voiceIdentity, ...identityCues, ...performanceCues].filter(Boolean);
+    const hearing = [
+      source?.englishCue,
+      voiceBits.length ? `with ${voiceBits.join(", ")}` : "",
+      paceCue,
+    ].filter(Boolean).join(". ");
     return {
       speakerId: role.speakerId, characterName: role.characterName,
       ...(voiceIdentity ? { voiceIdentity } : {}),
       ...(source ? { source: { id: source.id, title: source.title, cue: source.englishCue } } : {}),
       templateIds: selected.map(item => item.id), speedMultiplier, identityCues, performanceCues,
-      promptCue: `${role.characterName} (${role.speakerId}): ${cues.join("; ")}.`,
+      promptCue: `${role.characterName} (${role.speakerId}) ${hearing}.`,
     };
   });
   return {

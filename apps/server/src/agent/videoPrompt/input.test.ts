@@ -6,7 +6,7 @@ const base = {
   story: "主角在车间用仪器检查旧车的机械接点。",
   lockedDialogue: [],
   purpose: "确认机械零件的启动状态",
-  style: "电影级写实，车间维修顶灯",
+  style: "实拍写实，车间维修顶灯",
   continuityIn: "人物站在旧车左前侧",
   continuityOut: "人物继续停留在车侧",
   mustHave: ["主角使用工具接触车辆", "机械零件在画面内保持可追踪"],

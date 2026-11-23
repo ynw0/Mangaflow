@@ -18,14 +18,14 @@ type VisualRow = readonly [id: string, title: string, category: VisualCategory, 
 const rows: VisualRow[] = [
   [
     "s01",
-    "电影级写实",
+    "实拍写实",
     "style",
     "影视写实",
     "保留接近实拍的肤质、材质和物体尺度",
     "沿用场景原有的主光和反射方向",
     "自然中性色、局部强调色",
     "保留肤质和材质的细小差异",
-    "短剧主镜头,写实,电影,机械"
+    "短剧主镜头,写实,实拍,机械"
   ],
   [
     "s02",
@@ -549,7 +549,8 @@ const rows: VisualRow[] = [
 export const visualStyles: VisualStyleTemplate[] = rows.map(([id, title, category, group, look, lighting, palette, texture, tags]) => ({
   id, title, category, group,
   tags: [...tags.split(","), category === "style" ? "画风" : "滤镜", group],
-  imagePrompt: `视觉${category === "style" ? "画风" : "滤镜"}「${title}」：${look}；光线：${lighting}；色彩：${palette}；材质/纹理：${texture}。主体身份、场景物理关系及既有参考保持一致。`,
+  // 只输出可观测 look/lighting/palette/texture，不带标题前缀，避免整段粘贴成品示范句
+  imagePrompt: `${look}。光线：${lighting}。色彩：${palette}。材质/纹理：${texture}。`,
   videoPrompt: `${look}。${lighting}。色彩可参考${palette}，纹理可参考${texture}。保留辨认线索所需的颜色。`,
   palette, lighting, texture,
   avoid: category === "filter"

@@ -152,20 +152,9 @@ Include:
 - Style continuity notes
 - Avoid list for this specific still
 
-Use this style signature:
+Style checklist (rewrite into the prompt; do not paste a fixed English signature block): flat bold color field; black-and-white halftone cut-outs; selective colored cardstock; warm cream keylines; soft paper shadows; uncoated grain; clean torn edges; layered seams.
 
-```text
-flat bold color field, black-and-white halftone photographic cut-outs, selective colored cardstock accents, warm cream keylines, soft paper shadows, fine uncoated-paper grain, premium editorial paper collage, clean refined hand-torn paper edges, subtle fibrous edges, layered paper seams
-```
-
-Color guidance:
-
-- Burnt orange or red: labor, time pressure, urgency
-- Mustard yellow: tools, warning, accumulated errors
-- Ink green: cognition, reset, judgment, surreal calm
-- Deep purple: memory, structure, mystery, dream logic
-- Teal: collaboration, execution, system flow
-- Rose red: absurdity, ceremony, theatrical tension
+Color guidance: pick a small palette that fits the beat. Do not treat fixed color→meaning tables (urgency orange, dream purple, etc.) as mandatory symbolism.
 
 Do not make cobalt blue the automatic default. Keep the batch visually unified through paper texture, halftone treatment, keylines, shadows, framing, and a controlled palette. Vary the color field only when the story beat benefits from contrast.
 
@@ -199,11 +188,7 @@ Default motion order:
 5. Final relationship locks into the approved composition.
 6. Hold the completed still-like frame briefly at the end.
 
-Motion prompt guidance:
-
-```text
-Paper-collage stop-motion assembly. Start on a clean paper field matching the approved still's background color and tone. Assemble the scene piece by piece with tactile stop-motion timing: foreground, midground, and background paper groups appear in a readable order; each paper object appears, slides or pops in, lightly bounces, presses flat, pauses, and locks into place. Preserve the halftone dots, cream keylines, subtle fibrous torn edges, layered paper seams, soft shadows, paper grain, color field, and approved aspect ratio. End by holding the completed composition matching the approved still frame. Sound design: tactile collage SFX only, synchronized to paper-piece motion: soft paper slide, pop-in, press-flat tap, light rustle, and tiny paper snap where appropriate. Default: do not add BGM, voiceover, dialogue, or subtitles unless the user explicitly requested them. No mismatched kraft-paper opening, no brown/yellowed base unless approved, no fast spinning, no chaotic object flight, no smooth digital layer movement, no scene cuts, no camera move, no zoom, no morphing, no new objects, no text, no logos, no watermark, no UI.
-```
+Motion prompt guidance: rewrite from the approved still—start on its paper field; assemble foreground/mid/background pieces in a readable order; each piece lands and locks; hold the final still. Collage SFX only unless the user asked for BGM/VO. Negatives: no kraft mismatch, no chaotic flight, no digital morph, no unapproved text/UI. Do not paste a canned English paragraph.
 
 ## STEP 6: Generate Collage-SFX B-roll Clips
 

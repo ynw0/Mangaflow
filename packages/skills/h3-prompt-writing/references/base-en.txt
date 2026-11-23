@@ -75,7 +75,7 @@ Recommended structure: **plausible preceding state → explicit action and trans
 
 `integrated_multimodal_description` is the main body of the rewritten prompt. Every detail should correspond to something visible or audible: visual style, initial composition, subject appearance and position, scene and key props, actions and reactions, shot changes, spoken language, and synchronized diegetic sound.
 
-At the beginning of `[Shot 1]`, state the overall style and initial composition. Common styles include `Cinematic`, `live-action`, `2D-animated`, `3D CG`, `claymation`, `watercolor`, and `vintage film`. For keyframe tasks, derive the style from the reference image; for T2VA, select it from the user's text.
+At the beginning of `[Shot 1]`, state the overall style and initial composition in concrete words. Prefer styles such as `live-action`, `2D-animated`, `3D CG`, `claymation`, `watercolor`, and `vintage film`. Do not open with empty words like `Cinematic` or “movie-grade”. For keyframe tasks, derive the style from the reference image; for T2VA, select it from the user's text.
 
 ### 4.2 Shots and Cuts
 
@@ -85,7 +85,7 @@ Do not add a timestamp to the first shot. Use sequential shot numbers for later 
 [Shot N] At MM:SS.mmm, ...
 ```
 
-For ordinary cuts, use `the camera cuts to`, `the shot cuts to`, `the shot transitions to`, `the shot changes to`, or `the shot switches to`. When explicitly requested by the user, cross-dissolve, fade, or wipe may also be used. A cut should introduce new information about the subject, space, state, viewpoint, or time. If only the distance or a slight angle needs to change, prefer camera motion.
+For ordinary cuts, write a natural full sentence. Phrases such as `the camera cuts to` or `the shot cuts to` are examples, not a closed word list—do not paste the same cut phrase into every shot. When explicitly requested by the user, cross-dissolve, fade, or wipe may also be used. A cut should introduce new information about the subject, space, state, viewpoint, or time. If only the distance or a slight angle needs to change, prefer camera motion.
 
 ### 4.3 Camera Motion: Motion Type + Amplitude + Speed
 
@@ -106,7 +106,7 @@ A complete camera-motion expression has three dimensions: the **motion type** de
 | Motion type | `POV` | The subject's point of view |
 | Motion type | `Roll Clockwise / Roll Counterclockwise` | The camera rolls clockwise / counterclockwise around the lens axis |
 
-Describe the movement in a natural sentence. Say what the camera follows or reveals. Add speed and range when they affect what the audience sees.
+Describe the movement in a natural sentence. Say what the camera follows or reveals. Add speed and range when they affect what the audience sees. The Title Case labels in the table above are a vocabulary glossary, not required phrases—do not dump them as a checklist or paste them verbatim into every shot.
 
 ### 4.4 Speakers, Dialogue, and Singing
 

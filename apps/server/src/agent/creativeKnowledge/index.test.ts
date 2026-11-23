@@ -39,10 +39,11 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
 
   test("抽象图库的动作、机位、连续性与原创笑点不退化成热梗列表", () => {
     for (const item of absurdPrompts) {
-      expect(item.imagePrompt.length).toBeGreaterThan(30);
+      expect(item.jokeSkeleton.length).toBeGreaterThan(20);
       expect(item.videoBeat.length).toBeGreaterThan(20);
       expect(item.continuity.length).toBeGreaterThan(10);
       expect(item.jokeMechanism.length).toBeGreaterThan(5);
+      expect(item.jokeSkeleton).not.toMatch(/无可读文字|电影画面|真实景深/);
     }
   });
 
@@ -132,13 +133,14 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
         expect(item.face.length).toBeGreaterThan(6);
         expect(item.gesture.length).toBeGreaterThanOrEqual(5);
         expect(item.videoBeat.trim().length).toBeGreaterThan(12);
-        expect(item.imagePrompt).toContain("保持原角色");
+        expect(item).not.toHaveProperty("imagePrompt");
         expect(item.continuity).toContain("身份");
       }
     }
     const result = searchCreativeKnowledge({ library: "expressions", query: "瞳孔地震", tags: [], limit: 3 });
     expect(result[0]?.title).toBe("瞳孔地震");
     expect(result.every(x => x.library === "expressions")).toBe(true);
+    expect(JSON.stringify(result[0]?.details)).not.toMatch(/保持原角色五官比例/);
   });
 
   test("画风和滤镜有独立类型及可执行提示词，标签与交叉检索兼容", () => {
@@ -146,12 +148,14 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     expect(visualStyles.filter(item => item.category === "style")).toHaveLength(32);
     expect(visualStyles.filter(item => item.category === "filter")).toHaveLength(16);
     for (const item of visualStyles) {
-      expect(item.imagePrompt.length).toBeGreaterThan(30);
+      expect(item.imagePrompt.length).toBeGreaterThan(20);
+      expect(item.imagePrompt).not.toContain("视觉画风「");
+      expect(item.imagePrompt).not.toContain("视觉滤镜「");
       expect(item.videoPrompt).toContain(item.palette);
       expect(item.videoPrompt).not.toContain("不切镜头");
       expect(item.avoid.length).toBeGreaterThan(15);
     }
-    expect(searchCreativeKnowledge({library:"styles",query:"电影级写实",tags:[],limit:2})[0]?.title).toBe("电影级写实");
+    expect(searchCreativeKnowledge({library:"styles",query:"实拍写实",tags:[],limit:2})[0]?.title).toBe("实拍写实");
     const filters = searchCreativeKnowledge({library:"styles",query:"胶片",tags:["滤镜"],limit:10});
     expect(filters.length).toBeGreaterThan(0);
     expect(filters.every(item => item.library === "styles" && item.tags.includes("滤镜"))).toBe(true);
@@ -202,7 +206,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     const exact = searchCreativeKnowledge({library:"memes",query:"我超威",tags:[],limit:3});
     expect(exact[0]?.title).toBe("我超威");
     expect(searchCreativeKnowledge({library:"styles",query:"胶片",tags:["滤镜","非实际标签"],limit:4})).toEqual([]);
-    expect(searchCreativeKnowledge({library:"styles",query:"电影级写实 不存在的光源名",tags:[],limit:3})).toEqual([]);
+    expect(searchCreativeKnowledge({library:"styles",query:"实拍写实 不存在的光源名",tags:[],limit:3})).toEqual([]);
     const filter = searchCreativeKnowledge({library:"styles",query:"胶片",tags:["滤镜"],limit:8});
     expect(filter.length).toBeGreaterThan(0);
     expect(filter.every(item=>item.tags.includes("滤镜"))).toBe(true);
@@ -233,13 +237,38 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
       selected: {narrativeId:"n12",styleId:"s01",expressionId:"e21",memeId:"m26-chovy"},
       medium:"video",tone:"serious",durationSeconds:5,
     });
-    expect(result.status).toBe("review");
-    const notes = result.warnings.join(" ");
+    expect(result.status).toBe("invalid");
+    const notes = [...result.errors, ...result.warnings].join(" ");
     expect(notes).toContain("允许切镜");
     expect(notes).toContain("至少按15s");
     expect(notes).toContain("颜艺");
-    expect(notes).toContain("严肃基调");
+    expect(notes).toContain("喜剧空间");
     expect(notes).toContain("来源/日期");
+    expect(JSON.stringify(result.selected)).toContain("rewriteRule");
+    const narrativeSlot = result.selected.find(item => item && "slot" in item && item.slot === "narrative");
+    const expressionSlot = result.selected.find(item => item && "slot" in item && item.slot === "expression");
+    expect(narrativeSlot).not.toHaveProperty("title");
+    expect(expressionSlot).not.toHaveProperty("imagePrompt");
+    const drafted = checkCreativeSelection({
+      selected: { memeId: "m26-chovy", absurdId: "a04" },
+      medium: "video", tone: "comedy", forDraft: true,
+    });
+    expect(drafted.selected.some(item => item && "slot" in item && (item.slot === "meme" || item.slot === "absurd"))).toBe(false);
+    const absurdHit = searchCreativeKnowledge({ library: "absurd", query: "飞行", tags: [], limit: 1 });
+    expect(absurdHit[0]?.details).not.toHaveProperty("videoBeat");
+    expect(absurdHit[0]?.details).toHaveProperty("jokeMechanism");
+    const domainMiss = checkCreativeSelection({
+      selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyContext: "两人在厨房说话",
+    });
+    expect(domainMiss.errors.join(" ")).not.toContain("系统觉醒");
+    const domainHit = checkCreativeSelection({
+      selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyContext: "终端亮起后系统觉醒",
+    });
+    expect(domainHit.errors.join(" ")).not.toContain("系统觉醒");
+    const softFace = checkCreativeSelection({
+      selected: { styleId: "s01", expressionId: "e32" }, medium: "video", tone: "neutral",
+    });
+    expect(softFace.errors.join(" ")).not.toContain("颜艺");
     const invalid = checkCreativeSelection({
       selected: {styleId:"f01",expressionId:"does-not-exist"},
       medium:"image",tone:"neutral",

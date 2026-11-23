@@ -177,7 +177,7 @@ For >15s stitching, enforce five continuity locks:
 
 **Rhythm & Beat Matching**: Choose cuts around actual phrasing, performance and visual changes. Use beat accents where they serve the edit and preserve natural blinks, breaths and uninterrupted vocals.
 
-**Aesthetic & Color Grading**: Every cross-shot generation carries the same aesthetic header prompt: grain level, LUT direction, and light direction. Final assembly uses unified 35mm film grain and LUT to hide batch color differences.
+**Aesthetic & Color Grading**: Keep a consistent aesthetic header across shots (grain, grade direction, light). Unified film grain / LUT is optional finishing for batch matching—not a mandatory “anti-AI” recipe.
 
 **Transition & Motion Continuity**: For long-shot continuation, use the previous tail frame as the next head frame and prompt continuation of action. For hard scene switches, use kinetic continuity such as same-direction pan or hand-occlusion match cut.
 
@@ -205,5 +205,5 @@ After the complete MV prompt script is locked, write it to a dedicated canvas te
 1. **Prompt lock and canvas write**: confirm the full multi-shot prompt script with timestamps, lyric mapping, and transition logic is written to canvas.
 2. **Parallel shot generation**: the video agent generates each 2–5s shot from the Shotlist. For continuation shots, extract the prior shot’s tail frame as the next I2V head frame.
 3. **Multi-track editing and stitching**: the editing agent imports the global Master Audio, aligns all shot videos by timestamp, trims and speed-ramps on the beat grid, and checks seams with same-direction motion or flash-cut masking.
-4. **Finishing**: apply unified Movie LUT and 35mm film grain overlay to reduce AI plasticity and lock visual consistency.
+4. **Finishing**: optional unified grade/grain for batch consistency when needed; do not treat “Movie LUT + 35mm grain” as the only correct look.
 5. **Delivery**: output the seamless complete MV video file.

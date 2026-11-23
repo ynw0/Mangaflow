@@ -185,7 +185,9 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   // 内置导演和外部 MCP 均按同一镜头合同检查模板，再读取参考素材。
   const selection = selectedCreative && checkCreativeSelection({
     selected: selectedCreative, medium: "video", tone: shot.tone, durationSeconds: seconds,
-    singleShot: requiresContinuousTake(shot), forDraft: true,
+    singleShot: requiresContinuousTake(shot), forDraft: true, storyIntent: shot.intent,
+    storyContext: [shot.story, shot.purpose, shot.style, shot.continuityIn, shot.continuityOut,
+      ...(shot.mustHave ?? []), ...(shot.mustNotHave ?? [])].join("\n"),
   });
   if (selection?.status === "invalid") throw new Error(`创作模板无法用于当前视频片段：${selection.errors.join("；")}`);
   const creativeContext = selection && { selected: selection.selected, warnings: selection.warnings, guidance: selection.guidance };

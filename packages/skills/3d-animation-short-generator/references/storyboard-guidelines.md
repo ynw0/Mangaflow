@@ -36,7 +36,7 @@ Per-shot section structure (one `##` heading per shot, in shot order). Every sec
    - `Timecode` — the beat’s actual start and end.
    - `Pose + Expression` — concrete body posture, silhouette, key prop grip, eye-line, and any **actual** expression change; stable expressions may be marked held, and silence needs no invented gesture. For approved elastic beats, call out squash / stretch / anticipation / overshoot. This field anchors the visual beat, not an obligation to animate every face each second.
    - `Camera` — shot size, camera movement (push / pull / pan / tilt / handheld-shake / locked / orbit), Dutch angle note when applicable.
-   - `Audio + Anchor` — audio cue (`♪ narration: ...` / `dialogue: ...` / `SFX: ...` / `silent`) and spatial anchor note (`door-frame: right third` / `Mia: center midground facing camera`).
+   - `Audio + Anchor` — audio cue (`♪ narration: ...` / `dialogue: ...` / `SFX: ...` / `silent`) and spatial anchor note (`door-frame: right third` / `{Character}: center midground facing camera`).
    - Performance notes: for off-screen narration mark `narrator-mouth-closed: true`. For on-screen dialogue, mark the speaker and the time range of the line.
 8. **Layout rules**: illustrate the action and sound changes the audience needs to follow. A panel can span several seconds. Together the panels cover the full shot.
 9. **Per-panel binding**:
@@ -45,10 +45,10 @@ Per-shot section structure (one `##` heading per shot, in shot order). Every sec
 10. **Optional ASCII layout block (highly recommended, free)**:
     - Append a small ASCII sketch per panel (or one combined sketch for the whole shot) so the user can scan the spatial layout in seconds without rendering an image. Example:
       ```
-      [0-1s]  Mia (L, mid)         door-frame (R)
-              ──kneels, hands on apple basket──
+      [0-1s]  {Character} (L, mid)   {anchor} (R)
+              ──{approved action with approved prop}──
               cam: locked
-              audio: silent | anchor: basket center-bottom
+              audio: silent | anchor: {prop} position
       [1-2s]  ...
       ```
     - Use the ASCII layout to check positions. Write the generation prompt from the approved timed beats.

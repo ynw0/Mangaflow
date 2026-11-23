@@ -19,12 +19,12 @@ Core rule: **story first, ask screen size and total duration with choice cards i
 
 Unless the user explicitly requests another visual style, all character cards, scene cards, shot tables, text storyboards, optional pencil storyboards, single-shot video clips (regardless of which video model is selected), assembled videos, and final composites must use this visual style:
 
-- Rendering style: Pixar-inspired 3D cartoon rendering, C4D + Octane renderer look, high-end animated feature quality.
+- Rendering style: stylized 3D cartoon rendering consistent with the approved project look (C4D/Octane-like is optional language, not a mandatory Pixar clone).
 - Character design: exaggerated geometric simplification balanced with excellent material detail. Avoid 100% realistic human anatomy; use high-level shape language, large readable silhouettes, and Q-version proportions when appropriate.
 - Proportion language: friendly stylized proportions, often 2.5–3 head-tall for cute or childlike characters, with big heads, compact bodies, clear silhouettes, and high recognizability.
 - Hair / fur: combine strong sculpted clumps and clean block shapes with fine edge flyaway hairs or fuzzy rim details, so hair/fur feels designed but tactile under light.
 - Skin / material: warm subsurface scattering skin quality, soft translucent reddish light through ears, cheeks, nose, and fingertips; avoid hard plastic skin.
-- Acting style: readable Disney/Pixar-inspired character animation; use elastic squash-and-stretch and expressive facial changes when the scene and character warrant them. Restrained reactions and held poses remain valid within the same 3D style.
+- Acting style: readable stylized 3D character animation; use squash-and-stretch and facial changes only when the scene warrants them. Restrained reactions and held poses remain valid.
 - Motion style: preserve clear lines of action, readable timing and coherent body mechanics. Use forward lean, strong anticipation, fast poses or elastic motion for energetic moments, not as default movement for every character.
 - Emotional range: follow the character's circumstances and relationships; a warm or serious scene may stay quiet. For genuinely intense or comic moments, dramatic facial deformation is available while preserving character identity and appeal.
 
@@ -148,7 +148,7 @@ Each character card should be a 16:9 production reference sheet when possible. U
 - Front / side / back views
 - Expressions
 - Material / costume / prop details
-- Important prop labels, such as handbag, wallet, skateboard, apple basket, scarf, shoes, glasses
+- Important prop labels from the approved story (bags, tools, vehicles, etc.—do not invent a default apple basket)
 - Identity lock repeated in the prompt
 - A short visual-ID note listing age range, body type, hairstyle, outfit colors, signature props, and do-not-change traits
 

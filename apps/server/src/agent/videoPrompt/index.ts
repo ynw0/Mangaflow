@@ -161,8 +161,9 @@ export function createVideoPromptTools(options: SubAgentModel & {
     };
     const finish = (result: Record<string, unknown>) => {
       const advisory = preflightWarnings.length ? { warnings: preflightWarnings } : {};
+      const reviewScope = result.reviewId ? { reviewScope: "审核编号只适用于本工作区。稿件移到其他工作区后，须在目标工作区重新审核。" } : {};
       const details = { ...result, reviewer: result.reviewId ? reviewerSource : undefined, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, creativeSelection: creativeContext, attempts,
-        ...advisory, modelCalls, elapsedMs: Math.round(performance.now() - startedAt) };
+        ...advisory, ...reviewScope, modelCalls, elapsedMs: Math.round(performance.now() - startedAt) };
       // 节点已写回时，主 Agent 只接收审核状态与定位信息，完整稿仍保存在节点和工具详情中。
       const visible = result.status === "ok" && result.written && input.node
         ? { status: result.status, shotId: input.shotId, reviewId: result.reviewId, reviewer: reviewerSource, written: true,
@@ -173,7 +174,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
         : result.status === "ok" && result.generationRequest
           ? { status: result.status, shotId: input.shotId, reviewId: result.reviewId, generationRequest: result.generationRequest, promptZh: result.promptZh, cinematicPlan: result.cinematicPlan, written: result.written, writeError: result.writeError, totalTokens: usage.totalTokens }
           : { ...result, shotId: input.shotId, totalTokens: usage.totalTokens };
-      return { details, content: [{ type: "text" as const, text: JSON.stringify({ ...visible, ...advisory }) }], usage };
+      return { details, content: [{ type: "text" as const, text: JSON.stringify({ ...visible, ...advisory, ...reviewScope }) }], usage };
     };
     async function writePrompt(draft: { prompt: string; promptZh: string }, reviewId: string) {
       let written = false;

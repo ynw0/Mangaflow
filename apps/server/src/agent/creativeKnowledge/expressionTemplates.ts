@@ -8,6 +8,7 @@ export type ExpressionTemplate = {
   tags: string[];
   face: string;
   gesture: string;
+  imagePrompt: string;
   videoBeat: string;
   camera: string;
   continuity: string;
@@ -403,7 +404,9 @@ const rows: ExpressionRow[] = [
 export const expressionTemplates: ExpressionTemplate[] = rows.map(([id, title, category, intensity, face, gesture, videoBeat, tags]) => ({
   id, title, category, intensity,
   tags: [...tags.split(","), category === "basic" ? "常规表情" : category === "funny" ? "搞怪表情" : category === "extreme" ? "极夸张表情" : "抽象表情"],
-  face, gesture, videoBeat,
+  face, gesture,
+  imagePrompt: `保持原角色五官比例、发型、服装和年龄。按场戏需要选用这一处表情变化：${face}。已有姿态、构图、光线和画风沿用当前画面要求。`,
+  videoBeat,
   camera: "沿用分镜的景别和机位，保留表情与眼前正在发生的事之间的关系。",
   continuity: "延续角色身份、五官比例、服装和上一拍的状态，情绪变化跟随当前场戏。",
   avoid: "保持角色原有五官。定稿已经安排夸张动画或机械表演时，才采用相应动作。",

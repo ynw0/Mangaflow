@@ -37,7 +37,7 @@ const sampling = z.strictObject({
 const ratioSchema = z.enum(["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"]);
 const shotFields = {
   shotId: shortText.describe("顶层填写已确认镜头合同的真实编号。画布节点编号填 node.nodeId"),
-  story: description,
+  story: description.describe("已确认的镜头剧情。有对白时交代每句由谁说，齐声时列明共同发声的人"),
   lockedDialogue: z.array(description).max(maxVideoDialogueLines).optional().describe("从最新确认的正式剧本取本镜需要模型发声的原话，含旁白和独白，按起声顺序填写。直接复用的录音按素材用途记录。与旧分镜不一致时先对齐上游。无须生成台词时传 []"),
   purpose: shortText,
   style: description,
@@ -54,7 +54,7 @@ const shotFields = {
   templateConditions: templateConditions.pick({ subjectCount: true, anchors: true }).optional(),
   references: z.array(reference).max(24).describe("按实际槽位顺序传 JSON 对象数组，不是字符串"),
   voiceCast: z.array(z.strictObject({
-    speakerId: z.string().regex(/^S[1-9]\d*$/).describe("当前 H3 镜头说话人编号 S1、S2..."),
+    speakerId: z.string().regex(/^S[1-9]\d*$/).describe("按定稿中人物在本片首次发声的顺序从 S1 编号，同一人沿用同一编号。齐声首次出声者按合同列名顺序编号"),
     characterName: shortText,
     voiceIdentity: z.string().trim().min(1).max(800).optional().describe("填已确认且跨镜稳定的音色、音区、共鸣或发音特点。本镜停顿、重音和情绪按场戏另写，原话、数字和单位照录"),
     sourceId: shortText.optional().describe("画内对白用 vs01，仅观众听到的旁白用 vs02，内心独白用 vs03。现场说话人暂在构图外或交替入画时，可省略此项，逐句写实际声源与听觉范围"),

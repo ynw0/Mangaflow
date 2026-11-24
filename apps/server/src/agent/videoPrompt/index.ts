@@ -15,7 +15,7 @@ import { resolveAgentProfile, type AgentModelSelection } from "@/agent/runtime/p
 import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
 import { lockWorkspaceFiles } from "@/utils/workspace/files";
 import { pendingDraftPath, readPendingDraft, removePendingDraft, findPendingDrafts, resumeParameters, savePendingDraft, type PendingDraft } from "./pendingDraft";
-import { clipSpeakerIds, getVideoSpeechPolicy } from "@/agent/videoPrompt/dialogue";
+import { getVideoSpeechPolicy } from "@/agent/videoPrompt/dialogue";
 
 const directorReferences = {
   dialogue: ["characterPerformance.md", "soundDesign.md"],
@@ -219,8 +219,8 @@ export function createVideoPromptTools(options: SubAgentModel & {
     // 原声线配置随合同保存，导演和审核员使用同一份已解析的说话人说明。
     const { voiceCast: _voiceTemplates, ...directorShot } = prepared.shot;
     const voiceCast = {
-      roles: clipSpeakerIds(voiceContext.roles).map(({ speakerId, characterName, voiceIdentity, source, speedMultiplier }) =>
-        ({ speakerId, characterName, voiceIdentity, source, speedMultiplier })),
+      roles: voiceContext.roles.map(({ speakerId, characterName, voiceIdentity, source, speedMultiplier, identityCues, performanceCues }) =>
+        ({ speakerId, characterName, voiceIdentity, source, speedMultiplier, identityCues, performanceCues })),
       warnings: voiceContext.warnings,
     };
     const taskInput = { shot: directorShot, format: prepared.format, workflow: { modelId, duration, ratio, mode, references },

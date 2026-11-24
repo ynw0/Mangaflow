@@ -187,18 +187,18 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
   if (expression && (expression.category === "extreme" || expression.category === "abstract") && style?.group === "影视写实") {
     warnings.push("写实画风选了夸张或抽象颜艺。按人物此刻真正能看见、听见的变化取自然反应，停格、跳变或机械动作须以定稿为准。");
   }
-  if (options.tone === "serious" && absurd) {
-    warnings.push("用户要求严肃基调，却选择了搞怪模板；除非当前镜头明确需要喜剧，否则不要注入。");
-  }
-  if (options.tone === "serious" && meme) {
-    warnings.push("严肃基调选了热梗：须先确认本镜有喜剧空间；若有，把梗核改写成该人物当场会说的话，勿原句硬贴；无喜剧空间则移除。");
-  } else if (meme && options.tone !== "comedy") {
-    warnings.push("热梗入戏前确认有喜剧空间；改写成角色原话，先让观众看见触发再出梗。");
+  if (forDraft) {
+    if (absurd || meme) warnings.push("所选的热梗与搞怪模板用于编剧和分镜构思。成片按已确认的事件、人物反应和锁定台词写。");
+  } else {
+    if (options.tone === "serious" && absurd) {
+      warnings.push("严肃场戏选用了搞怪模板。只有本场确有喜剧空间时才参考。");
+    }
+    if (meme) {
+      if (options.tone !== "comedy") warnings.push("热梗入戏前先确认本场有喜剧空间，再写成角色当场会说的话。观众应能看出这句从何而来。");
+      warnings.push("热梗用作文化参考，保留来源/日期。原录音、形象和声线须有相应授权，避免攻击真实人物。");
+    }
   }
   if (filter && !style) warnings.push("只选择滤镜而无项目已批准主画风；保留项目原画风，不从滤镜推断新人物造型。");
-  if (meme) warnings.push("热梗仅作文化参考：保留来源/日期，避免原录音、未授权IP形象和对真实人物的攻击。phrase 供编剧改写，成片 H3 只照录已锁定台词。");
-  if (forDraft && absurd) warnings.push("搞怪示例留在构思阶段。视频稿的笑点、事件和对白从已确认的分镜取；只取机制与短骨架，勿整段粘贴。");
-  if (forDraft && meme) warnings.push("热梗已选：在剧本对白中改写成人物原话后再锁定；导演成片阶段不再另贴库内原句。");
 
   const visualSummary = (item: (typeof visualStyles)[number] | undefined) => item && {
     slot: item.category, id: item.id, title: item.title,
@@ -237,6 +237,6 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
         rewriteRule: "有喜剧空间时写入剧本：借语气/空耳结构/反差机制，改写成该人物当场会说的话；先让观众看见触发再出梗。勿原句硬贴。",
       },
     ].filter(Boolean),
-    guidance: "先看观众已经知道什么、这镜要让他们看懂什么。取用的条目只服务于分镜里已有的事。表演跟着人物实际看见、听见的内容和双方关系走。模板标题、范例和资料术语留在库里，正文用明确的人物、具体动作和寻常词语。网络热梗可在喜剧空间入戏，须改写成人物原话。切点、对白、画风和素材均以当前定稿为准。",
+    guidance: "先看观众已经知道什么、这镜要让他们看懂什么。取用的条目只服务于分镜里已有的事。表演跟着人物实际看见、听见的内容和双方关系走。模板标题、范例和资料术语留在库里，正文用明确的人物、具体动作和寻常词语。切点、对白、画风和素材均以当前定稿为准。",
   };
 }

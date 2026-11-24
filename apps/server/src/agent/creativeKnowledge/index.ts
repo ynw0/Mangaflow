@@ -219,10 +219,11 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
       },
       expression && {
         slot: "expression", id: expression.id,
-        face: expression.face, gesture: expression.gesture, avoid: expression.avoid,
-        ...(!forDraft ? { intensity: expression.intensity } : {}),
-        ...(video ? { videoBeat: expression.videoBeat, continuity: expression.continuity }
-          : { imagePrompt: expression.imagePrompt }),
+        face: expression.face, avoid: expression.avoid,
+        ...(!forDraft ? { gesture: expression.gesture, intensity: expression.intensity } : {}),
+        ...(video
+          ? { continuity: expression.continuity, ...(!forDraft ? { videoBeat: expression.videoBeat } : {}) }
+          : !forDraft ? { imagePrompt: expression.imagePrompt } : {}),
       },
       visualSummary(style),
       visualSummary(filter),

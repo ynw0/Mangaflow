@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { prepareVideoPrompt } from "@/agent/videoPrompt/input";
-import { inspectDialogue } from "@/agent/videoPrompt/dialogue";
+import { clipSpeakerIds, inspectDialogue } from "@/agent/videoPrompt/dialogue";
 import { draftCinematicPlanSchema, inspectVideoPlan, type DraftCinematicPlan } from "@/utils/production/videoPlan";
 import { getShotRequirements } from "@/utils/production/qcRequirements";
 
@@ -55,6 +55,7 @@ export type VideoPromptReview = z.infer<ReturnType<typeof createReviewSchema>>;
 
 // 内置与外部 Agent 使用相同验收范围，避免两套审核门禁漂移。
 export function getVideoPromptRequirements(shot: Prepared["shot"]) {
+  const speakers = clipSpeakerIds(shot.voiceCast ?? []);
   return [
     ...getShotRequirements(shot),
     { id: "framing", text: "镜头数量及切点符合用户合同；cinematicPlan.shots（如有）与 [Shot N] 的时间和顺序一致，镜尾构图与同框要求相容" },
@@ -62,9 +63,9 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
     { id: "dialogueTiming", text: "有对白时先按定稿核对说话人、原话和接话顺序，再查起声、收句、抢话、口型和声场。核对推动剧情、接话或下镜承接的台词是否有合适的发声安排，避免被音乐、音效或别人的声音盖住。时长不足时指出冲突，保留原话并交回分镜调整。无对白时说明依据。" },
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
     { id: "bilingualConsistency", text: "先核对中英文的主体、属性、动作、时序、对白和镜尾事实，再单独连读 promptZh，检查物件、动作和声线说明是否通顺、具体。通过证据须摘录一处实际的中文叙述并说明如何保留原意。发现临时简称、生造缩略、电报体压缩、词语搭配不当或语义偏移时，引用原句并退回局部修订。已锁定的台词、专名和原样显示的文字按原文核对。" },
-    { id: "creativeIntent", text: `叙事目的：${shot.purpose}。视觉风格：${shot.style}。按播放顺序核对观众何时看懂本镜应交代的信息，以及后续才揭晓的内容是否留在正确时机。指出对应的声画和触发人物反应的事。检查正文有无照抄模板动作、无来由的表情，或现场可用普通词说清却自造缩写和术语的地方。` },
-    ...(shot.voiceCast?.length ? [{ id: "voiceCast", text: `声音身份与说话人逐项匹配：${shot.voiceCast.map(role =>
-      `${role.characterName}(${role.speakerId})${role.sourceId ? `（声源模板 ${role.sourceId}）` : ""}`).join("、")}。对照剧本核对谁在何处发声、谁听得见。声源模板与发声事实冲突时定位到本轮配置，保留原台词、情绪和已确认语速。` }] : []),
+    { id: "creativeIntent", text: `叙事目的：${shot.purpose}。视觉风格：${shot.style}。按播放顺序核对观众何时看懂本镜应交代的信息，以及后续才揭晓的内容是否留在正确时机。指出对应的声画和触发人物反应的事。后文重复没有变化的事实，正文加入剧本没有的表演或声线细节，或同一画面要求同时看清的内容超过这一镜需要观众看懂的范围，退回删减。照抄模板动作、无来由的表情，或现场可用普通词说清却自造缩写和术语，同样退回。` },
+    ...(speakers.length ? [{ id: "voiceCast", text: `声音身份与说话人逐项匹配：${speakers.map(role =>
+      `${role.characterName}(${role.speakerId})${role.sourceId ? `（声源模板 ${role.sourceId}）` : ""}`).join("、")}。本片说话人编号按本次给出的顺序使用。对照剧本核对谁在何处发声、谁听得见。声源模板与发声事实冲突时定位到本轮配置，保留原台词、情绪和已确认语速。` }] : []),
   ];
 }
 
@@ -209,7 +210,8 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     if (subjects.some(id => !retention.includes(`<Subject ${id}>`))) findings.push("retention_analysis 必须覆盖每个已定义 Subject。");
   }
   if ((prompt.match(/<\/?d\b[^>]*>/gi)?.length ?? 0) !== (timeline.match(/<\/?d\b[^>]*>/gi)?.length ?? 0)) findings.push("对白只能出现在镜头时间轴中。");
-  const dialogue = inspectDialogue(timeline, setup.duration, draft.cinematicPlan, prepared.shot.lockedDialogue, prepared.audioEnabled, prepared.shot.voiceCast);
+  const dialogue = inspectDialogue(timeline, setup.duration, draft.cinematicPlan, prepared.shot.lockedDialogue, prepared.audioEnabled,
+    prepared.shot.voiceCast?.length ? clipSpeakerIds(prepared.shot.voiceCast) : prepared.shot.voiceCast);
   findings.push(...dialogue.findings);
   if (!/\p{Script=Han}/u.test(promptZh)) findings.push("提供与英文事实一致的简体中文对照。");
   // 跳过对白和引号原文，保留正文行号供导演定向返修。

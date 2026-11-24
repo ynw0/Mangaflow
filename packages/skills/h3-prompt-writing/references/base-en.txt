@@ -110,7 +110,7 @@ Describe the movement in a natural sentence. Say what the camera follows or reve
 
 ### 4.4 Speakers, Dialogue, and Singing
 
-Subjects who speak, sing, or produce an off-screen human voice use stable IDs such as `(S1)` and `(S2)`. When multiple already-numbered speakers speak or sing together, use a compound ID such as `(S1,S2)`. A speaker keeps the same ID across shots; characters who never vocalize receive no speaker ID.
+Subjects who speak, sing, or produce an off-screen human voice are numbered from `(S1)` in the order they first speak in this generated video. The same person keeps that ID across `[Shot N]` inside this video. A voice that stays recognizable from another video is carried by the person and their confirmed voice description, not by that video's speaker index. When multiple speakers vocalize together, use a compound ID such as `(S1,S2)`. Characters who never vocalize receive no speaker ID.
 
 When a speaker first appears, provide the details needed to recognize their voice. In each line of dialogue, put the current speaker's name or description and their ID before the `<d>` block. Place actions and delivery outside the block as well. Use `<d>[Language] …</d>` in the video prompt. Put the full English language name in square brackets immediately after the opening tag, followed by the approved words and punctuation. Add quotation marks only when they are part of the approved line.
 

@@ -24,6 +24,10 @@ export function readDialogueBlocks(timeline: string) {
   return [...timeline.matchAll(/<d>((?:(?!<\/?d>)[\s\S])*?)<\/d>/g)];
 }
 
+export function clipSpeakerIds<T extends { speakerId: string }>(roles: readonly T[]): T[] {
+  return roles.map((role, index) => ({ ...role, speakerId: `S${index + 1}` }));
+}
+
 export function inspectDialogue(timeline: string, duration: number, plan: DraftCinematicPlan, lockedDialogue?: readonly string[], audioEnabled?: boolean,
   voiceCast?: readonly { speakerId: string; sourceId?: string }[]) {
   const findings: string[] = [];

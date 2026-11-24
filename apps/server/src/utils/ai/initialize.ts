@@ -23,7 +23,7 @@ async function refreshLanguageModels(previousSettings?: Record<string, unknown>)
   if (!apiKey || (previousSettings && apiKey === normalizeApiKey(getLanguageProvider(previousSettings)?.apiKey))) return;
   const fetched = await fetchProviderModels({ apiUrl: provider.apiUrl, protocol: provider.protocol, apiKey });
   if (!fetched.length) throw new Error("未获取到文本模型，保留原有列表");
-  type StoredModel = { id?: unknown; inputs?: unknown; thinkingLevels?: unknown; reasoningMode?: unknown };
+  type StoredModel = { id?: unknown; inputs?: unknown; thinkingLevels?: unknown; reasoningMode?: unknown; contextWindow?: number; maxOutputTokens?: number };
   const previousModels = new Map<string, StoredModel>((Array.isArray(provider.models) ? provider.models : []).flatMap((model: StoredModel) => {
     const id = typeof model?.id === "string" ? model.id : "";
     return id ? [[id, model] as const] : [];
@@ -33,6 +33,9 @@ async function refreshLanguageModels(previousSettings?: Record<string, unknown>)
     if (!prior) return model;
     return {
       ...model,
+      // 自动刷新目录时保留用户确认保存的模型上限。
+      contextWindow: prior.contextWindow ?? model.contextWindow,
+      maxOutputTokens: prior.maxOutputTokens ?? model.maxOutputTokens,
       ...(prior.inputs ? { inputs: prior.inputs } : {}),
       ...(Array.isArray(prior.thinkingLevels) ? { thinkingLevels: prior.thinkingLevels } : {}),
       ...(prior.reasoningMode === "toggle" || prior.reasoningMode === "effort" ? { reasoningMode: prior.reasoningMode } : {}),

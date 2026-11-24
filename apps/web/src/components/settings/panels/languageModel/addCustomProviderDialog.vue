@@ -27,7 +27,7 @@
         </el-form-item>
         <div class="modelHeader">
           <el-text tag="strong">模型列表</el-text>
-          <el-button :icon="IconDownload" :loading="fetching" @click="fetchModels()">获取模型列表</el-button>
+          <el-button :icon="IconDownload" :loading="fetching" :disabled="!!tokenProbeModelKey || !!probingModelKey" @click="fetchModels()">获取模型列表</el-button>
         </div>
         <div class="modelList">
           <div v-for="item in models" :key="item.key" class="modelItem">
@@ -58,6 +58,7 @@
                 <el-form-item label="上下文窗口">
                   <el-input-number
                     v-model="item.contextWindow"
+                    :disabled="tokenProbeModelKey === item.key"
                     :min="1"
                     :max="Number.MAX_SAFE_INTEGER"
                     :precision="0"
@@ -68,6 +69,7 @@
                 <el-form-item label="最大输出 token">
                   <el-input-number
                     v-model="item.maxOutputTokens"
+                    :disabled="tokenProbeModelKey === item.key"
                     :min="1"
                     :max="Number.MAX_SAFE_INTEGER"
                     :precision="0"
@@ -75,6 +77,11 @@
                     placeholder="未设置"
                     aria-label="最大输出 token" />
                 </el-form-item>
+              </div>
+              <div class="levelProbe">
+                <el-button size="small" plain :loading="tokenProbeModelKey === item.key"
+                  :disabled="saving || fetching || !!tokenProbeModelKey || !!probingModelKey || !item.id.trim() || !form.apiUrl.trim()"
+                  @click="probeTokenLimits(item)">探测 token 上限</el-button>
               </div>
               <el-form-item label="思考等级">
                 <el-select
@@ -90,7 +97,7 @@
                 </el-select>
                 <div class="levelProbe">
                   <el-button size="small" plain :loading="probingModelKey === item.key"
-                    :disabled="saving || !!fetching || !!probingModelKey || !canProbeModel(item)"
+                    :disabled="saving || fetching || !!tokenProbeModelKey || !!probingModelKey || !canProbeModel(item)"
                     @click="probeThinking(item)">探测支持的思考等级</el-button>
                   <span v-if="probeNotices[item.key]" class="probeNotice" role="status">{{ probeNotices[item.key] }}</span>
                 </div>
@@ -107,7 +114,7 @@
     </el-scrollbar>
     <template #footer>
       <el-button :disabled="saving" @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" :disabled="fetching || !!probingModelKey" @click="addProvider">
+      <el-button type="primary" :loading="saving" :disabled="fetching || !!tokenProbeModelKey || !!probingModelKey" @click="addProvider">
         {{ provider ? "保存修改" : "确定添加供应商" }}
       </el-button>
     </template>
@@ -164,6 +171,7 @@ const fetchedModels = shallowRef<CustomProviderModel[]>([]);
 const selectedIds = ref(new Set<string>());
 const modelSearch = ref("");
 const saving = ref(false);
+const tokenProbeModelKey = ref("");
 const probingModelKey = ref("");
 const probeNotices = ref<Record<string, string>>({});
 let probeRequest: AbortController | undefined;
@@ -179,7 +187,7 @@ function canProbeModel(item: FormModel) {
 
 async function probeThinking(item: FormModel) {
   const original = props.provider;
-  if (!original || probingModelKey.value || !canProbeModel(item)) return;
+  if (!original || request || saving.value || probingModelKey.value || !canProbeModel(item)) return;
   const modelId = item.id.trim();
   const controller = new AbortController();
   probeRequest = controller;
@@ -301,41 +309,81 @@ function resetForm() {
   modelSearch.value = "";
   formError.value = "";
   probeNotices.value = {};
+  tokenProbeModelKey.value = "";
   probingModelKey.value = "";
 }
 
+async function requestProviderModels(signal: AbortSignal): Promise<CustomProviderModel[]> {
+  const { data } = await axios.post(
+    "/api/providers/models",
+    { apiUrl: form.apiUrl.trim(), protocol: form.protocol, apiKey: form.apiKey.trim() },
+    { signal, timeout: 35000 }
+  );
+  if (data.code !== 200 || !Array.isArray(data.data)) throw new Error(data.message || "获取模型列表失败");
+  return data.data;
+}
+
+function modelListError(error: unknown) {
+  return axios.isAxiosError(error)
+    ? error.response?.data?.message || "获取模型列表失败，请检查连接配置"
+    : error instanceof Error ? error.message : "获取模型列表失败";
+}
+
+async function probeTokenLimits(item: FormModel) {
+  const modelId = item.id.trim();
+  if (request || saving.value || probingModelKey.value || !modelId || !form.apiUrl.trim()) return;
+  const controller = new AbortController();
+  request = controller;
+  tokenProbeModelKey.value = item.key;
+  try {
+    const entries = await requestProviderModels(controller.signal);
+    // 回包只应用到仍在编辑的同一模型。连接变化时由表单监听取消请求。
+    if (controller.signal.aborted || !visible.value || !models.value.includes(item) || item.id.trim() !== modelId) return;
+    const found = entries.find(model => model.id === modelId);
+    if (!found) {
+      ElMessage.warning("供应商的模型列表中没有找到这个模型 ID");
+      return;
+    }
+    const { contextWindow, maxOutputTokens } = found;
+    if (contextWindow !== undefined) item.contextWindow = contextWindow;
+    if (maxOutputTokens !== undefined) item.maxOutputTokens = maxOutputTokens;
+    if (contextWindow === undefined && maxOutputTokens === undefined) {
+      ElMessage.warning("供应商未提供可用的上下文窗口和最大输出 token");
+    } else if (contextWindow === undefined || maxOutputTokens === undefined) {
+      ElMessage.warning(`供应商未提供${contextWindow === undefined ? "上下文窗口" : "最大输出 token"}。已填入查到的数值，保存后生效。`);
+    } else {
+      ElMessage.success("已填入上下文窗口和最大输出 token，保存后生效");
+    }
+  } catch (error) {
+    if (!controller.signal.aborted) ElMessage.error(modelListError(error));
+  } finally {
+    request = undefined;
+    tokenProbeModelKey.value = "";
+  }
+}
+
 async function fetchModels() {
-  if (fetching.value || !(await providerForm.value?.validateField("apiUrl").catch(() => false))) return;
+  if (!(await providerForm.value?.validateField("apiUrl").catch(() => false)) || request || saving.value || probingModelKey.value || !visible.value) return;
   fetching.value = true;
   formError.value = "";
   const controller = new AbortController();
   request = controller;
   try {
-    const { data } = await axios.post(
-      "/api/providers/models",
-      { apiUrl: form.apiUrl.trim(), protocol: form.protocol, apiKey: form.apiKey.trim() },
-      { signal: controller.signal, timeout: 35000 }
-    );
+    const entries = await requestProviderModels(controller.signal);
     if (controller.signal.aborted) return;
-    if (data.code !== 200 || !Array.isArray(data.data)) throw new Error(data.message || "获取模型列表失败");
     if (isTfRouterProvider(form)) {
-      if (!data.data.length) throw new Error("未获取到可用模型，请检查 API Key 后重试");
-      models.value = data.data.map((item: CustomProviderModel) => ({ ...item, key: crypto.randomUUID(), inputs: modelInputs(item.inputs), thinkingLevels: modelThinkingLevels(item) }));
+      if (!entries.length) throw new Error("未获取到可用模型，请检查 API Key 后重试");
+      models.value = entries.map((item) => ({ ...item, key: crypto.randomUUID(), inputs: modelInputs(item.inputs), thinkingLevels: modelThinkingLevels(item) }));
       return;
     }
-    fetchedModels.value = data.data;
+    fetchedModels.value = entries;
     selectedIds.value = new Set();
     modelSearch.value = "";
     resultsVisible.value = true;
   } catch (error) {
-    if (!controller.signal.aborted) {
-      formError.value = axios.isAxiosError(error)
-        ? error.response?.data?.message || "获取模型列表失败，请检查连接配置"
-        : error instanceof Error
-        ? error.message
-        : "获取模型列表失败";
-    }
+    if (!controller.signal.aborted) formError.value = modelListError(error);
   } finally {
+    request = undefined;
     fetching.value = false;
   }
 }
@@ -357,9 +405,8 @@ function addManualModel() {
 }
 
 async function addProvider() {
-  if (fetching.value) return;
   formError.value = "";
-  if (saving.value || !(await providerForm.value?.validate().catch(() => false))) return;
+  if (!(await providerForm.value?.validate().catch(() => false)) || saving.value || request || probingModelKey.value || !visible.value) return;
   const providerId = props.provider?.id;
   const ids = models.value.map((item) => item.id.trim());
   if (ids.some((id) => !id) || new Set(ids).size !== ids.length) {

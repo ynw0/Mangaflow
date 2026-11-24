@@ -1,11 +1,15 @@
 import { t } from "@/lib/i18n";
 import { z } from "zod";
 
+const declaredTokenLimit = z.number().int().positive().optional().catch(undefined);
 const modelSchema = z.object({
   id: z.string().optional(), name: z.string().optional(),
   display_name: z.string().optional(), displayName: z.string().optional(),
   inputTokenLimit: z.number().int().positive().optional(),
   outputTokenLimit: z.number().int().positive().optional(),
+  context_length: declaredTokenLimit,
+  max_tokens: declaredTokenLimit,
+  top_provider: z.object({ context_length: declaredTokenLimit, max_completion_tokens: declaredTokenLimit }).optional().catch(undefined),
 });
 
 export async function fetchProviderModels({ apiUrl, protocol, apiKey }: { apiUrl: string; protocol: string; apiKey: string }) {
@@ -33,7 +37,11 @@ export async function fetchProviderModels({ apiUrl, protocol, apiKey }: { apiUrl
     for (const item of items) {
       const id = item.id?.trim();
       if (!id) throw new Error("模型列表包含无效的模型 ID");
-      models.set(id, { id, label: item.display_name || item.displayName || id, contextWindow: item.inputTokenLimit, maxOutputTokens: item.outputTokenLimit });
+      // Anthropic 的 max_input_tokens 是输入上限，不能直接填作总上下文窗口。
+      const contextWindow = item.top_provider?.context_length ?? item.context_length ?? item.inputTokenLimit;
+      const maxOutputTokens = (protocol === "anthropic-messages" ? item.max_tokens : item.top_provider?.max_completion_tokens)
+        ?? item.outputTokenLimit;
+      models.set(id, { id, label: item.display_name || item.displayName || id, contextWindow, maxOutputTokens });
     }
     const cursor = protocol === "anthropic-messages" && result.has_more ? result.last_id : undefined;
     if (protocol === "anthropic-messages" && result.has_more && !cursor) throw new Error("模型列表缺少分页游标");

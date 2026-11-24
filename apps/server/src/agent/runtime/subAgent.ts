@@ -41,6 +41,7 @@ export async function runSubAgent(options: SubAgentModel & {
   const result: SubAgentResult = { name, status: "running", result: "准备执行" };
   const usage = emptyUsage();
   let session: AgentSession | undefined;
+  let resultAccepted = false;
   const abort = () => { void session?.abort(); };
   signal.addEventListener("abort", abort, { once: true });
   // A2A 继续任务复用内存历史；只汇总本次新增记录，避免重复计费。
@@ -53,6 +54,12 @@ export async function runSubAgent(options: SubAgentModel & {
         signal.throwIfAborted();
         // ACT: SDK 在整批工具结束后才停轮；提出问题后不再执行本批后续操作。
         if (inputRequired?.()) throw new Error("任务正在等待调用方补充输入，不能继续执行工具");
+        if (tool === resultTool) {
+          const output = await tool.execute(...args);
+          // 本次子任务已有通过校验的结果，同批后续的重复调用不会撤销它。
+          resultAccepted = true;
+          return output;
+        }
         if (tool.name !== "askUser" || !onTool) return tool.execute(...args);
         // 子会话的模型调用 ID 可能重复，提问卡片与回答通道使用独立 ID。
         const id = crypto.randomUUID();
@@ -123,6 +130,11 @@ export async function runSubAgent(options: SubAgentModel & {
     if (resultTool) {
       let submissionReply = reply;
       for (let attempt = 0; attempt < 2; attempt++) {
+        if (resultAccepted) {
+          result.status = "completed";
+          result.result = "结构化结果校验通过";
+          return { result, usage };
+        }
         if (submissionReply.stopReason === "error" || submissionReply.stopReason === "aborted") {
           throw new Error(submissionReply.errorMessage || "模型补交失败");
         }
@@ -149,11 +161,6 @@ export async function runSubAgent(options: SubAgentModel & {
         }
         const submitted = session.messages.findLast(message => message.role === "toolResult" && message.toolCallId === call.id);
         if (!submitted || submitted.role !== "toolResult") throw new Error("结果提交未完成");
-        if (!submitted.isError) {
-          result.status = "completed";
-          result.result = "结构化结果校验通过";
-          return { result, usage };
-        }
         const message = getToolResultText(submitted.content).split("\n\nReceived arguments:")[0]!.slice(0, 900);
         if (attempt === 1) throw new Error(`${resultTool.name} 字段校验失败：${message}`);
         // 当前专家只补交一次，保留任务、原结果和校验反馈。

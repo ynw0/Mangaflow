@@ -41,11 +41,11 @@ export function findVideoPromptTemplates(tags: VideoPromptTags, conditions: Temp
 }
 
 const searchFields = {
-  tags: templateTagSchema.describe("search 必填：可组合多个相关维度及各维度标签，供候选按匹配度排序；只填与当前镜头问题有关的标签"),
+  tags: templateTagSchema.describe("search 必填。每次只填一个维度，数组内只填一个标签"),
   conditions: templateConditions.describe("search 可选：镜头时长与画面条件"),
   library: z.enum(["memes", "absurd", "expressions", "styles", "narrative", "voices", "all"]).describe("searchCreative 可选：创作知识库类别"),
   query: z.string().trim().max(200).describe("searchCreative 可选：检索关键词"),
-  creativeTags: z.array(z.string().trim().min(1).max(24)).max(8).describe("searchCreative 按标签筛选时，数组内所有标签都必须命中；按名称或关键词查找时用 query"),
+  creativeTags: z.array(z.string().trim().min(1).max(24)).max(8).describe("searchCreative 按标签检索时只填一项。按名称查找时用 query"),
   limit: z.number().int().min(1).max(10).describe("search 可传 1–5，searchCreative 可传 1–10"),
   selected: z.strictObject({
     narrativeId: z.string().trim().min(1).max(40).optional(),
@@ -97,8 +97,8 @@ const searchToolInput = z.strictObject(searchFields).partial().extend({
 export const videoTemplateSearch = {
   name: "searchVideoPromptTemplates",
   label: "分类检索：导演、创作知识与 H3 声音模板",
-  description: "只读检索创作参考。listTags/search 查导演拍法，可组合多个相关维度的标签；listCreativeTags/searchCreative 查剧情节拍、表情、画风、喜剧、热梗和 H3 声音，creativeTags 多项时按全部命中筛选。checkCreativeSelection 核对选中条目的适用条件。",
-  promptSnippet: "有具体拍摄问题时，search 可组合多个相关维度的标签；其他创作参考用 searchCreative，creativeTags 多项时必须全部命中。用分镜和实际素材核对条目的使用条件。",
+  description: "只读检索创作参考。listTags/search 查导演拍法。listCreativeTags/searchCreative 查剧情节拍、表情、画风、喜剧、热梗和 H3 声音。按标签检索时每次只用一个标签。search 只填一个维度，searchCreative 先选需要的分类。checkCreativeSelection 核对选中条目的适用条件。",
+  promptSnippet: "有具体创作问题时按需检索，每次只填一个标签。拍法用 search，其余创作参考用 searchCreative。用分镜和实际素材核对条目的使用条件。",
   parameters: z.toJSONSchema(searchToolInput, { io: "input", target: "draft-07" }),
   execute(args: unknown, signal?: AbortSignal) {
     signal?.throwIfAborted();

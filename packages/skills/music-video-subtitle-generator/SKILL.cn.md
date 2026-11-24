@@ -1,7 +1,7 @@
 ---
 name: music-video-subtitle-generator
 description: |
-  面向音乐人、视频创作者和社交媒体剪辑者，用于制作带歌词贴字的 AI MV 或情绪短片。用户提供音乐、歌词、参考图、角色、字体方向、情绪意图或发布平台。Skill 会分析节拍与人声时序，区分人物、场景和文字参考，设计随节奏变化的空间字幕，拆解长视频为可衔接镜头，审查提示词并路由 H3 等视频生成工具。最终输出 MV 概念、分镜提示词、歌词文字方案和拼接建议。适用于风格化音乐视觉和动态字幕 MV，不适用于普通字幕校对、照搬已有 IP 或完全手工后期剪辑。
+  面向音乐人、视频创作者和社交媒体剪辑者，用于制作带歌词贴字的 AI MV 或情绪短片。用户提供音乐、歌词、参考图、角色、字体方向、情绪意图或发布平台。Skill 会分析节拍与人声时序，区分用于人物、场景和文字的参考素材，设计随节奏变化的空间字幕，拆解长视频为可衔接镜头，审核提示词，并交由 H3 等适用的视频生成工具执行。最终输出 MV 概念、分镜提示词、歌词文字方案和拼接建议。适用于风格化音乐视觉和动态字幕 MV，不适用于普通字幕校对、照搬已有 IP 或完全手工后期剪辑。
 trigger-words: [MV, music video, lyric typography, on-screen text, prompt audit, Trap MV, Gospel hip-hop, Dark-pop, Cyber-grunge, MV提示词, 歌词文字, 字幕MV, 贴字MV, 卡点MV, 多镜头拼接]
 ---
 
@@ -149,7 +149,7 @@ trigger-words: [MV, music video, lyric typography, on-screen text, prompt audit,
 多镜头分镜脚本必须按镜头（Shot）进行模块化输出，每个 Shot 标注准确的时长与音频映射：
 
 ```text
-[Global Aesthetic & Character Lock]: (全局人物与美学锚点 Prompt)
+[Global Aesthetic & Character Lock]: (整段视频中需要保持一致的人物特征与视觉风格提示词)
 
 Shot 1 (0.0s - 3.5s)
 Vocal Line: "..."
@@ -210,7 +210,7 @@ Transition Out: ...
 
 ## STEP 9：最终 MV 生成与合成流程
 
-1. **Prompt 锁死与画布写入**：确认完整的多镜头 Prompt 脚本（包含时间戳、歌词映射、转场逻辑）已写入画布。
+1. **确认提示词并写入画布**：确认完整的多镜头 Prompt 脚本（包含时间戳、歌词映射、转场逻辑）已写入画布。
 2. **分镜素材并行生成**：视频 Agent 根据 Shotlist 逐个生成 2~5 秒的短片段。需要长镜头接续的片段，提取上一片段末帧作为首帧图生视频（I2V）。
 3. **多轨剪辑与自然缝合（Editing & Stitching）**：剪辑 Agent 导入全局 Master Audio 轨，将生成的各 Shot 视频按时间戳对齐上轨，在鼓点（Beat Grid）上进行精细剪辑与速度曲线微调（Speed Ramping），确保人声口型与画面动作完美卡拍。检查镜头接缝处，应用同向运镜或闪切遮瑕。
 4. **全局调色与质感统一（Finishing）**：全局叠加统一的 Movie LUT 与 35mm 胶片颗粒 Overlay，消除 AI 塑料感并锁定画风一致性。

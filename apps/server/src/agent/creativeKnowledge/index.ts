@@ -50,6 +50,90 @@ function matchingScore(title: string, aliases: string[], tags: string[], content
       + (ownTags.some(tag => tag.includes(term)) ? 5 : 0)
       + (body.includes(term) ? 1 : 0), 0);
 }
+// 旧名称只用于兼容已有搜索，不进入模板标题或提示词正文。
+const legacyCreativeNames: Record<string, string[]> = {
+  "vt01": [
+    "清亮青年"
+  ],
+  "vt02": [
+    "温润磁性"
+  ],
+  "vt04": [
+    "少年明快"
+  ],
+  "vt05": [
+    "成熟厚重"
+  ],
+  "vt11": [
+    "细窄冷亮"
+  ],
+  "vt13": [
+    "干净低柔"
+  ],
+  "vt14": [
+    "中性干燥合成音"
+  ],
+  "vt16": [
+    "低磁 AI 管家"
+  ],
+  "vt18": [
+    "轻透空灵声"
+  ],
+  "vt26": [
+    "清透中性青年"
+  ],
+  "vt28": [
+    "轻哑年长女声"
+  ],
+  "ve04": [
+    "悲伤强忍"
+  ],
+  "vr03": [
+    "紧急快语"
+  ],
+  "vr06": [
+    "连续快嘴"
+  ],
+  "vr07": [
+    "庄重缓述"
+  ],
+  "va01": [
+    "稚嫩童声感"
+  ],
+  "va02": [
+    "青春少年感"
+  ],
+  "va03": [
+    "二十出头青年感"
+  ],
+  "va04": [
+    "成熟三四十岁感"
+  ],
+  "va05": [
+    "五六十岁阅历感"
+  ],
+  "va06": [
+    "高龄长者感"
+  ],
+  "vf08": [
+    "西语背景说中文"
+  ],
+  "vf09": [
+    "非母语中文感"
+  ],
+  "vx05": [
+    "咬牙挤出"
+  ],
+  "vx10": [
+    "紧凑收句"
+  ],
+  "n21": [
+    "温柔反差的喜剧收束"
+  ],
+  "n22": [
+    "下一集悬念锚点"
+  ]
+};
 const categoryTags = (items: readonly { tags: string[] }[]) => [...new Set(items.flatMap(x => x.tags))].sort();
 
 /** 检索对外细节：去掉可整段粘贴的成品示范句，热梗保留 phrase 供编剧改写。 */
@@ -119,10 +203,10 @@ export function searchCreativeKnowledge(options: CreativeSearchOptions): Creativ
     add("styles", item.id, item.title, [], item.tags,
       [item.group, item.imagePrompt, item.videoPrompt, item.palette, item.lighting].join(" "), item);
   if (wants("narrative")) for (const item of narrativeTemplates)
-    add("narrative", item.id, item.title, [], item.tags,
+    add("narrative", item.id, item.title, legacyCreativeNames[item.id] ?? [], item.tags,
       [item.purpose,item.setup,item.escalation,item.visibleResult,item.shotGuidance,(item.domains ?? []).join(" ")].join(" "), item);
   if (wants("voices")) for (const item of voiceTemplates)
-    add("voices", item.id, item.title, [], item.tags,
+    add("voices", item.id, item.title, legacyCreativeNames[item.id] ?? [], item.tags,
       [item.descriptionZh, item.englishCue, item.category].join(" "), item);
   return results.sort((a,b) => b.score - a.score
     || (b.observedAt ?? "").localeCompare(a.observedAt ?? "")
@@ -182,7 +266,7 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
   const explicitDomains = (options.storyDomains ?? []).map(item => item.toLocaleLowerCase());
   if (narrative?.domains?.length && explicitDomains.length) {
     const fits = narrative.domains.some(domain => explicitDomains.some(item => item === domain.toLocaleLowerCase() || item.includes(domain.toLocaleLowerCase())));
-    if (!fits) warnings.push(`「${narrative.purpose}」面向 ${narrative.domains.join("/")}；与当前提供的题材范围不一致（题材域对不上）。不能仅因关键词不匹配就拒绝编写稿件。`);
+    if (!fits) warnings.push(`「${narrative.purpose}」面向 ${narrative.domains.join("/")}；与当前提供的题材范围不一致。不能仅因关键词不匹配就拒绝编写稿件。`);
   }
   if (expression && (expression.category === "extreme" || expression.category === "abstract") && style?.group === "影视写实") {
     warnings.push("写实画风选了夸张或抽象颜艺。根据人物此刻真正能看到或听到的变化，安排符合其处境的自然反应，停格、跳变或机械动作须以定稿为准。");

@@ -38,7 +38,7 @@ describe("画布优先的生产媒体工具路由", () => {
   test("画布不可用时应明确告知缺失环境，不能提供聊天生成作为隐式替代", () => {
     const instructions = canvasMediaRoutingInstructions(false, false);
     expect(instructions).toContain("未连接可操作画布");
-    expect(instructions).toContain("不能用对话直出媒体");
+    expect(instructions).toContain("不能以直接在对话中生成媒体");
     expect(routeAgentMediaTools(all, "继续出图", false).some(tool => tool.name === "generateImage")).toBe(false);
   });
 

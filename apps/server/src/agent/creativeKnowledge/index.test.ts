@@ -50,6 +50,10 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
 
   test("声音提示词111条覆盖9维度，分角色独立选择，默认1.3倍并检查口音冲突", () => {
     expect(voiceTemplates).toHaveLength(111);
+    expect(searchCreativeKnowledge({ library: "voices", query: "细窄冷亮", tags: [], limit: 3 })[0]?.id).toBe("vt11");
+    expect(searchCreativeKnowledge({ library: "voices", query: "清冷明亮、共鸣集中的中高音", tags: [], limit: 3 })[0]?.id).toBe("vt11");
+    expect(searchCreativeKnowledge({ library: "voices", query: "低磁 AI 管家", tags: [], limit: 3 })[0]?.id).toBe("vt16");
+    expect(searchCreativeKnowledge({ library: "narrative", query: "下一集悬念锚点", tags: [], limit: 3 })[0]?.id).toBe("n22");
     for (const category of voiceCategories) expect(voiceTemplates.filter(t => t.category === category).length).toBeGreaterThanOrEqual(6);
     expect(new Set(voiceTemplates.map(t => t.id)).size).toBe(voiceTemplates.length);
     expect(DEFAULT_H3_SPEECH_RATE).toBe(1.3);
@@ -270,11 +274,11 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     const domainMiss = checkCreativeSelection({
       selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyDomains: ["日常对话"],
     });
-    expect(domainMiss.warnings.join(" ")).toContain("题材域对不上");
+    expect(domainMiss.warnings.join(" ")).toContain("与当前提供的题材范围不一致");
     const domainHit = checkCreativeSelection({
       selected: { narrativeId: "n07" }, medium: "video", durationSeconds: 8, storyDomains: ["系统觉醒"],
     });
-    expect(domainHit.warnings.join(" ")).not.toContain("题材域对不上");
+    expect(domainHit.warnings.join(" ")).not.toContain("与当前提供的题材范围不一致");
     const softFace = checkCreativeSelection({
       selected: { styleId: "s01", expressionId: "e32" }, medium: "video", tone: "neutral",
     });

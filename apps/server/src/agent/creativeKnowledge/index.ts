@@ -78,21 +78,21 @@ export function listCreativeKnowledgeCategories() {
     categories: [
       { id: "memes", title: "2026网络热梗与二创文化", count: memesCN.length,
         tags: categoryTags(memesCN), observedFrom: "2026-05-08", observedThrough: "2026-11-11",
-        caveat: "有喜剧空间时适当写入剧本：借语气、空耳结构或反差机制，改写成符合人物身份与当场处境的原话；先让观众看见触发再出梗。勿把 phrase 原句当万能口头禅硬贴；严肃戏无喜剧空间时不要打断因果。勿复刻未授权原视频/真人音色。"},
+        caveat: "剧情适合幽默表达时，可以借用原梗的语气、谐音或反差效果，改写成符合人物身份和当时处境的话。先让观众看到引出笑点的事，再让人物开口。不要把 phrase 的原句生硬地套在不同人物身上，也不要在不适合幽默的严肃场戏中打断剧情发展。未经授权，不得复刻原视频或真实人物的音色。"},
       { id: "absurd", title: "原创抽象搞怪剧情/镜头", count: absurdPrompts.length,
-        tags: categoryTags(absurdPrompts), caveat: "只取 jokeMechanism 与短骨架；单镜构思必须符合剧情、时长与参考资产，不直接变成 H3 提示词。"},
+        tags: categoryTags(absurdPrompts), caveat: "只参考 jokeMechanism 中的笑点原理和简短的场景构思；构思单个镜头时必须符合剧情、时长和参考素材，不得直接将示例当作 H3 提示词。"},
       { id: "expressions", title: "人物表情与颜艺模板", count: expressionTemplates.length,
         tags: categoryTags(expressionTemplates), groups: ["basic", "funny", "extreme", "abstract"],
-        caveat: "只取 face/gesture/videoBeat；身份和五官结构固定；写实片中极夸张颜艺与机械卡顿表演须有剧本依据，否则不可用。"},
+        caveat: "只参考 face、gesture 和 videoBeat 中的表情和动作。保持角色身份和五官结构一致。写实影片中的极度夸张表情或类似机械卡顿的表演必须有剧本依据，否则不得采用。"},
       { id: "styles", title: "画风与滤镜模板", count: visualStyles.length,
         tags: categoryTags(visualStyles), groups: ["style", "filter"],
-        caveat: "主画风与滤镜分层组合；只输出可观测 look/lighting/palette/texture，不等于真实 LUT。"},
+        caveat: "主画风和滤镜可以分层组合使用。这里只提供 look、lighting、palette、texture 中能够在画面上观察到的风格、光线、色彩和纹理描述，并不代表实际应用了 LUT。"},
       { id: "narrative", title: "叙事结构与剧情节拍模板", count: narrativeTemplates.length,
         tags: categoryTags(narrativeTemplates), groups: ["hook","establish","conflict","reveal","choice","payoff","aftermath"],
-        caveat: "scene 是多镜叙事模板，只有在用户允许切镜且时长足够时，才能编成一个 H3 视频片段；单镜合同需拆开或换模板。专属题材条目看 domains。"},
+        caveat: "scene 是多镜叙事模板，只有在用户允许切镜且时长足够时，才能编成一个 H3 视频片段；如果合同要求一镜到底，需要拆分这类模板的叙事结构，或改用适合单镜头的模板。特定题材的适用范围见 domains。"},
       { id: "voices", title: "H3 同期角色声音提示词模板", count: voiceTemplates.length,
         tags: categoryTags(voiceTemplates), groups: voiceCategories,
-        caveat: "H3 同期合成声音；有对白时默认约正常语速的1.3倍。机械/合成音色限系统、广播或机器角色。口音和年龄感只是生成指导，不保证方言准确或声纹一致。"},
+        caveat: "H3 同期合成声音；有对白时默认约正常语速的1.3倍。机械感或合成音色只用于系统、广播或机器角色。口音和年龄感只是生成指导，不保证方言准确或声纹一致。"},
     ],
   };
 }
@@ -176,29 +176,29 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
   if (narrative?.scope === "scene" && video) {
     const reason = options.singleShot
       ? "当前合同要求连续单镜，请从本镜选择中移除这条模板，沿用定稿的事件"
-      : "使用前须确认片段允许切镜、时长足够且不丢剧情";
+      : "使用前须确认片段允许切镜、时长足够，并且不会遗漏剧情";
     narrativeIssues.push(`「${narrative.title}」属于多镜场次结构。${reason}。`);
   }
   const explicitDomains = (options.storyDomains ?? []).map(item => item.toLocaleLowerCase());
   if (narrative?.domains?.length && explicitDomains.length) {
     const fits = narrative.domains.some(domain => explicitDomains.some(item => item === domain.toLocaleLowerCase() || item.includes(domain.toLocaleLowerCase())));
-    if (!fits) warnings.push(`「${narrative.purpose}」面向 ${narrative.domains.join("/")}；已给题材域对不上。关键词对不上不拒绝出稿。`);
+    if (!fits) warnings.push(`「${narrative.purpose}」面向 ${narrative.domains.join("/")}；与当前提供的题材范围不一致（题材域对不上）。不能仅因关键词不匹配就拒绝编写稿件。`);
   }
   if (expression && (expression.category === "extreme" || expression.category === "abstract") && style?.group === "影视写实") {
-    warnings.push("写实画风选了夸张或抽象颜艺。按人物此刻真正能看见、听见的变化取自然反应，停格、跳变或机械动作须以定稿为准。");
+    warnings.push("写实画风选了夸张或抽象颜艺。根据人物此刻真正能看到或听到的变化，安排符合其处境的自然反应，停格、跳变或机械动作须以定稿为准。");
   }
   if (forDraft) {
     if (absurd || meme) warnings.push("所选的热梗与搞怪模板用于编剧和分镜构思。成片按已确认的事件、人物反应和锁定台词写。");
   } else {
     if (options.tone === "serious" && absurd) {
-      warnings.push("严肃场戏选用了搞怪模板。只有本场确有喜剧空间时才参考。");
+      warnings.push("当前是严肃场戏，却选用了搞怪模板。只有剧情确实适合幽默表达时，才参考该模板。");
     }
     if (meme) {
       if (options.tone !== "comedy") warnings.push("热梗入戏前先确认本场有喜剧空间，再写成角色当场会说的话。观众应能看出这句从何而来。");
       warnings.push("热梗用作文化参考，保留来源/日期。原录音、形象和声线须有相应授权，避免攻击真实人物。");
     }
   }
-  if (filter && !style) warnings.push("只选择滤镜而无项目已批准主画风；保留项目原画风，不从滤镜推断新人物造型。");
+  if (filter && !style) warnings.push("目前只选择了滤镜，未选择项目已批准的主画风。请保留项目原有画风，不要根据滤镜推断新的角色造型。");
 
   const visualSummary = (item: (typeof visualStyles)[number] | undefined) => item && {
     slot: item.category, id: item.id, title: item.title,
@@ -234,9 +234,9 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
       !forDraft && meme && {
         slot: "meme", id: meme.id, phrase: meme.phrase, meaning: meme.meaning, usage: meme.usage, avoid: meme.avoid,
         sourceUrl: meme.sourceUrl, observedAt: meme.observedAt,
-        rewriteRule: "有喜剧空间时写入剧本：借语气/空耳结构/反差机制，改写成该人物当场会说的话；先让观众看见触发再出梗。勿原句硬贴。",
+        rewriteRule: "剧情适合幽默表达时，可以借用原梗的语气、谐音或反差效果，将其写成角色当时会说的话。先让观众看到引出笑点的事件，再安排人物开口，不要生硬地照搬原句。",
       },
     ].filter(Boolean),
-    guidance: "先看观众已经知道什么、这镜要让他们看懂什么。取用的条目只服务于分镜里已有的事。表演跟着人物实际看见、听见的内容和双方关系走。模板标题、范例和资料术语留在库里，正文用明确的人物、具体动作和寻常词语。切点、对白、画风和素材均以当前定稿为准。",
+    guidance: "先看观众已经知道什么、这镜要让他们看懂什么。所选模板只用于表现分镜中已经确定的事件。表演跟着人物实际看见、听见的内容和双方关系走。模板标题、范例和资料术语留在库里，正文用明确的人物、具体动作和寻常词语。切点、对白、画风和素材均以当前定稿为准。",
   };
 }

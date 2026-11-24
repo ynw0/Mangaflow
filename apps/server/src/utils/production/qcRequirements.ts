@@ -20,7 +20,7 @@ export function getShotRequirements(shot: z.infer<typeof shotSchema>): QcRequire
     ...["continuityIn", "continuityOut"].flatMap(source => {
       const text = shot[source as "continuityIn" | "continuityOut"].trim();
       return text ? [{ id: source, source,
-        text: `承接状态：${text}。明确要求可见或可听的事实须逐项核对，画外延续的状态只检查已有声画是否与它冲突。` }] : [];
+        text: `需要延续的状态：${text}。对明确要求看到或听到的事实逐项核对。对于在画外延续的状态，只检查实际画面和声音是否与之冲突。` }] : [];
     }),
   ];
 }
@@ -39,7 +39,7 @@ export async function readQcRequirements(directory: string, request?: MediaGener
   const dialoguePlan = plan?.dialogue;
   const lines = shot.lockedDialogue ?? (dialoguePlan ? readDialogueBlocks(review.snapshot.prompt).map(block => block[1]!) : []);
   if (dialoguePlan && dialoguePlan.length !== lines.length) {
-    throw new Error("已审对白计划与台词段数不一致，无法核对成片");
+    throw new Error("已经审核的对白计划与台词段数不一致，无法核对成片");
   }
   const dialogue = lines.map((text, index): QcRequirement => {
     const timing = dialoguePlan?.[index];

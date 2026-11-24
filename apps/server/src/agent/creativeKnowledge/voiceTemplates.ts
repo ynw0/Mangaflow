@@ -134,12 +134,12 @@ const rows: Record<VoiceCategory, VoiceRow[]> = {
   // 声源层描述声音来自哪里、谁听得见，音色与语速仍由角色选配。
   source: [
     ["vs01", "画内对白", "声音来自可见说话人，口型与自己的台词同步", "speech comes from the visible speaker with their mouth moving in sync", "声源,画内对白,口型"],
-    ["vs02", "剧情旁白", "旁白面向观众，画中角色不会对旁白作出反应", "an unseen narrator addresses only the audience over the scene", "声源,旁白,画外音,叙事"],
-    ["vs03", "角色内心独白", "沿用角色声线和编号，画中人物闭嘴，其他角色听不到", "the character's own voice presents unspoken thoughts, audible only to the audience", "声源,内心独白,心理活动,画外音"],
-    ["vs04", "冷漠机械系统", "无实体的系统播报，听得见的人按剧本，机械音色可另选", "a disembodied system announces the scripted information to its intended listeners", "声源,系统,网文系统,系统声音,机械系统,画外音"],
-    ["vs05", "甜美女声系统", "无实体的系统提示，听得见的人按剧本，女声音色可另选", "a disembodied system gives a scripted notification to its intended listeners", "声源,系统,网文系统,系统声音,甜美,萌妹,画外音"],
-    ["vs06", "AI 管家系统", "无实体智能助理对剧本指定的人发声", "an unseen assistant speaks to the listener designated in the script", "声源,系统,网文系统,系统声音,AI管家,画外音"],
-    ["vs07", "搞怪系统", "无实体的系统对剧本指定的人发声，玩笑和语气沿用原场戏", "an unseen system delivers its scripted line to its intended listeners", "声源,系统,网文系统,系统声音,搞怪,吐槽,画外音"],
+    ["vs02", "剧情旁白", "旁白面向观众。说话人编号后使用固定短语，该段对白结束后立即写明画面人物嘴唇闭合", "says in an off-screen voiceover", "声源,旁白,画外音,叙事"],
+    ["vs03", "角色内心独白", "沿用角色声线。说话人编号后使用固定短语，该段对白结束后立即写明画面人物嘴唇闭合", "says in an off-screen voiceover", "声源,内心独白,心理活动,画外音"],
+    ["vs04", "冷漠机械系统", "无实体的系统播报。说话人编号后使用固定短语，该段对白结束后立即写明画面人物嘴唇闭合", "says in an off-screen voiceover", "声源,系统,网文系统,系统声音,机械系统,画外音"],
+    ["vs05", "甜美女声系统", "无实体的系统提示。说话人编号后使用固定短语，该段对白结束后立即写明画面人物嘴唇闭合", "says in an off-screen voiceover", "声源,系统,网文系统,系统声音,甜美,萌妹,画外音"],
+    ["vs06", "AI 管家系统", "无实体智能助理发声。说话人编号后使用固定短语，该段对白结束后立即写明画面人物嘴唇闭合", "says in an off-screen voiceover", "声源,系统,网文系统,系统声音,AI管家,画外音"],
+    ["vs07", "搞怪系统", "无实体的系统发声，玩笑沿用原场戏。说话人编号后使用固定短语，该段对白结束后立即写明画面人物嘴唇闭合", "says in an off-screen voiceover", "声源,系统,网文系统,系统声音,搞怪,吐槽,画外音"],
     ["vs08", "神秘传音", "无实体的定向传音，只让剧本指定的人听见", "a disembodied mystical voice reaches only its intended listener", "声源,神秘传音,心灵传音,画外音"],
     ["vs09", "电子广播", "声音来自场景内的扩音设备，场景内可听见的人能作出反应", "an unseen announcer is heard through the scene's loudspeakers by the people within earshot", "声源,广播,电子广播,画外音"],
     ["vs10", "回忆声音", "既有角色的回忆声沿用其声线和编号，当前场景人物按剧本反应", "a remembered voice carries the original speaker's timbre over the present scene", "声源,回忆声音,闪回,画外音"],
@@ -194,7 +194,7 @@ export function compileVoiceCast(cast: readonly VoiceCastRole[]) {
     const machineVoice = selected.some(item =>
       (item.category === "timbre" || item.category === "delivery")
       && (/合成|机械|电子音/.test(item.tags.join(",")) || /synthesized|synthetic|electronic/i.test(item.englishCue)));
-    const machineRole = (source && /system|disembodied|announce|loudspeaker/i.test(source.englishCue))
+    const machineRole = (source && (/system|disembodied|announce|loudspeaker/i.test(source.englishCue) || /系统|广播/.test(source.tags.join(","))))
       || /系统|机械|广播|机器|AI|机器人|电子/.test(`${role.characterName} ${voiceIdentity ?? ""}`);
     if (machineVoice && !machineRole) warnings.push(`${role.speakerId} 选用了机械/合成音色；仅适用于系统、广播或机器角色。`);
     const pace = selected.find(item => item.category === "pace");

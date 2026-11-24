@@ -58,7 +58,7 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
   const speakers = shot.voiceCast ?? [];
   return [
     ...getShotRequirements(shot),
-    { id: "framing", text: "镜头数量及切点符合用户合同；cinematicPlan.shots（如有）与 [Shot N] 的时间和顺序一致，镜尾构图与同框要求相容" },
+    { id: "framing", text: "镜头数量及切点符合用户合同；cinematicPlan.shots（如有）与 [Shot N] 的时间和顺序一致，镜尾构图与同框要求相容。合同未指定的角度以主体和动作清楚、画面效果符合场戏为准" },
     { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
     { id: "dialogueTiming", text: "有对白时先按定稿核对说话人、原话和接话顺序，再查起声、收句、抢话、口型和声场。核对推动剧情、接话或下镜承接的台词是否有合适的发声安排，避免被音乐、音效或别人的声音盖住。时长不足时指出冲突，保留原话并交回分镜调整。无对白时说明依据。" },
     { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },

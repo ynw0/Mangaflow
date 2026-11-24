@@ -57,7 +57,7 @@ const shotFields = {
     speakerId: z.string().regex(/^S[1-9]\d*$/).describe("按定稿中人物在本片首次发声的顺序从 S1 编号，同一人沿用同一编号。齐声首次出声者按合同列名顺序编号"),
     characterName: shortText,
     voiceIdentity: z.string().trim().min(1).max(800).optional().describe("填已确认且跨镜稳定的音色、音区、共鸣或发音特点。本镜停顿、重音和情绪按场戏另写，原话、数字和单位照录"),
-    sourceId: shortText.optional().describe("画内对白用 vs01，仅观众听到的旁白用 vs02，内心独白用 vs03。现场说话人暂在构图外或交替入画时，可省略此项，逐句写实际声源与听觉范围"),
+    sourceId: shortText.optional().describe("画内对白用 vs01，仅观众听到的旁白用 vs02，内心独白用 vs03，无实体网文系统用 vs04 至 vs07。现场说话人暂在构图外或交替入画时，可省略此项，逐句写实际声源与听觉范围"),
     timbreId: shortText.optional(), ageId: shortText.optional(), personalityId: shortText.optional(),
     foreignAccentId: shortText.optional(), dialectId: shortText.optional(), emotionId: shortText.optional(),
     deliveryId: shortText.optional(), paceId: shortText.optional(),

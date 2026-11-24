@@ -114,7 +114,7 @@ Subjects who speak, sing, or produce an off-screen human voice are numbered from
 
 When a speaker first appears, provide the details needed to recognize their voice. In each line of dialogue, put the current speaker's name or description and their ID before the `<d>` block. Place actions and delivery outside the block as well. Use `<d>[Language] …</d>` in the video prompt. Put the full English language name in square brackets immediately after the opening tag, followed by the approved words and punctuation. Add quotation marks only when they are part of the approved line.
 
-For narration or inner speech, use `says in an off-screen voiceover`. If the character is visible while their inner voice plays, describe their visible action and that they are not mouthing the words. For speech audible to people in the scene, identify where it comes from and who hears it, including when the speaker is outside the frame.
+For every voiceover line, including narration, inner speech and a disembodied system speaking to its intended listener, write `says in an off-screen voiceover` after the speaker ID. Immediately after each closing `</d>`, state whose lips remain closed on screen during that line. If no person is visible, say so. For live speech from someone outside the frame, identify the actual source and who hears it.
 
 In MangaFlow, use a single `<d>` block for each approved line at its onset, even across a cut. Mark its audio continuation at the cut with `<scenetrans>` outside the dialogue text. Use `<cutoff>` outside the dialogue text only when the script calls for speech to be interrupted at the end.
 

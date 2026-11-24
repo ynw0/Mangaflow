@@ -2,7 +2,7 @@ import type { VideoPromptTemplate } from "@/agent/videoPrompt/templates/schema";
 
 export const actionTemplates: VideoPromptTemplate[] = [
   {
-    id: "sidePursuit", title: "侧跟保持追赶距离", minSeconds: 4, minSubjects: 2,
+    id: "sidePursuit", title: "侧面跟拍表现追赶距离", minSeconds: 4, minSubjects: 2,
     tags: {
       scene: ["追逐","撤离"],
       emotion: ["焦急","紧张"],
@@ -13,12 +13,12 @@ export const actionTemplates: VideoPromptTemplate[] = [
       action: ["奔跑","转向"],
     },
     useWhen: "故事重点是两者距离缩短或拉开。",
-    fragment: "从侧面平行跟上既定路线，让地面或建筑参照显出两者距离的变化。快慢和是否停下按原追逐结果安排。",
+    fragment: "沿既定路线从侧面平行跟拍，借助地面或建筑物的参照，让观众看清两者距离的变化。快慢和是否停下按原追逐结果安排。",
     avoid: "为维持画面间距擅自改变角色速度或路线。",
     verify: "步态连贯，方向一致，两者的距离变化清晰可见。",
   },
   {
-    id: "cornerChase", title: "固定视点拍出拐点", minSeconds: 4, minSubjects: 2,
+    id: "cornerChase", title: "固定机位拍清转弯方向", minSeconds: 4, minSubjects: 2,
     tags: {
       scene: ["追逐","撤离"],
       emotion: ["紧张"],
@@ -86,7 +86,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
     verify: "接触点、挡具偏转和脚跟位移连贯。",
   },
   {
-    id: "dodgeLine", title: "先给来袭线再闪身", minSeconds: 3, minSubjects: 1,
+    id: "dodgeLine", title: "先交代来袭方向，再表现闪避", minSeconds: 3, minSubjects: 1,
     tags: {
       scene: ["战斗","格挡"],
       emotion: ["紧张","决绝"],
@@ -98,7 +98,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
       effect: ["碎片"],
     },
     useWhen: "需要表现主动闪避以及来袭物落点。",
-    fragment: "保留分镜已建立的来向，使观众看清人物避开了什么。剧本要求交代后续落点时，把落点放在观众能辨认的位置。",
+    fragment: "保持分镜已经确定的来袭方向，使观众看清人物避开了什么。剧本要求交代后续落点时，把落点放在观众能辨认的位置。",
     avoid: "人物瞬移，或来袭物在空中改道追过去。",
     verify: "闪避方向、时点与来袭物的轨迹能同时看清。",
   },
@@ -115,12 +115,12 @@ export const actionTemplates: VideoPromptTemplate[] = [
     },
     anchors: ["接触对象"],
     useWhen: "物件最终由谁持有，或者人物是否成功抓住物件，是本镜必须交代的信息。",
-    fragment: "连续拍清物件靠近、人物伸手接住，以及镜头结束时物件仍由人物持有的过程。缓冲的幅度取决于原道具的重量和来向。",
+    fragment: "连续拍清物件靠近、人物伸手接住，以及镜头结束时物件仍由人物持有的过程。接住物件时的缓冲幅度取决于该道具的重量和来向。",
     avoid: "手还没碰到物件，物件已经出现在掌心。",
     verify: "物件的移动路径、手指合拢的动作以及最终持有物件的状态能够清楚对应。",
   },
   {
-    id: "passProp", title: "双人递交与释放", minSeconds: 3, minSubjects: 2,
+    id: "passProp", title: "两人交接物件", minSeconds: 3, minSubjects: 2,
     tags: {
       scene: ["交接","对话"],
       emotion: ["平静","犹豫"],
@@ -133,11 +133,11 @@ export const actionTemplates: VideoPromptTemplate[] = [
     anchors: ["接触对象"],
     useWhen: "同一物件在两人之间转手。",
     fragment: "让交接前后的持有人都可辨。普通交接中，接收者接稳后递出者才松手；迟疑、拒接、接空或掉落按剧本表现。",
-    avoid: "两边同时松手，或末尾重新切回递出方持物。",
+    avoid: "双方同时松手，或镜头结束时物件又回到递出者手中。",
     verify: "观众能否看清交接是否成功，以及物件最终在谁手里？",
   },
   {
-    id: "pullRescue", title: "抓住受力点再拉离", minSeconds: 4, minSubjects: 2,
+    id: "pullRescue", title: "抓稳后将人拉离危险处", minSeconds: 4, minSubjects: 2,
     tags: {
       scene: ["救援","撤离"],
       emotion: ["焦急","决绝"],
@@ -154,7 +154,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
     verify: "抓握点、两人的支撑脚和脱离位置都有证据。",
   },
   {
-    id: "fallLanding", title: "坠落与接地分量", minSeconds: 4, minSubjects: 1,
+    id: "fallLanding", title: "表现坠落及落地时的冲击", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["战斗","灾变","救援"],
       emotion: ["恐惧","紧张"],
@@ -172,7 +172,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
     verify: "先看清接地，扬尘或变形紧随接触，声音与接触同步。",
   },
   {
-    id: "hingeFold", title: "把折叠写成真实转轴", minSeconds: 5, minSubjects: 1,
+    id: "hingeFold", title: "沿实际转轴折叠部件", minSeconds: 5, minSubjects: 1,
     tags: {
       scene: ["机械变形","装置启动"],
       emotion: ["震撼","紧张"],
@@ -190,7 +190,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
     verify: "同一面板的起始边缘、旋转轴和锁止位置可追踪。",
   },
   {
-    id: "sliderExtension", title: "滑轨展开到确定止点", minSeconds: 4, minSubjects: 1,
+    id: "sliderExtension", title: "沿滑轨展开至确定的停止位置", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["机械变形","装置启动"],
       emotion: ["震撼","克制"],
@@ -208,7 +208,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
     verify: "导轨连接处在运动过程中保持连续，最终停止的位置可以确认。",
   },
   {
-    id: "wheelDeployment", title: "轮组从旧部件展开", minSeconds: 5, minSubjects: 1,
+    id: "wheelDeployment", title: "轮组从原有部件中展开", minSeconds: 5, minSubjects: 1,
     tags: {
       scene: ["机械变形"],
       emotion: ["震撼","兴奋"],
@@ -226,7 +226,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
     verify: "轮组来源、数量、方向和地面接触均可确认。",
   },
   {
-    id: "anchorStateTransition", title: "固定首尾帧中间结构路径", minSeconds: 5, minSubjects: 1, minImages: 2,
+    id: "anchorStateTransition", title: "沿连续的结构变化连接首尾帧", minSeconds: 5, minSubjects: 1, minImages: 2,
     tags: {
       scene: ["机械变形","反转"],
       emotion: ["震撼"],
@@ -240,7 +240,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
     formats: ["h3Frames"],
     useWhen: "首尾帧真实绑定、两图结构可一一对应，且中间变化有本镜故事原因（不能为变而变）。",
     fragment: "让实际首尾帧中的同一物件在镜头内连续变化。按分镜展示必要的部件变化，最后落到尾帧的姿态、位置和构图。每一步中间变化须能说清本镜故事原因。",
-    avoid: "把两幅静态外观当成两个主体或用跳变连接；勿在无剧情动机时硬塞结构变换。",
+    avoid: "把两幅静态外观当成两个主体或用跳变连接；不要在没有剧情依据时强行加入结构变化。",
     verify: "自检（不写入 H3 正文）：首尾帧位置成立，中间能追踪同一结构，且每步变化有本镜故事原因。",
   },
   {

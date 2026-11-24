@@ -2,7 +2,7 @@ import type { VideoPromptTemplate } from "@/agent/videoPrompt/templates/schema";
 
 export const craftTemplates: VideoPromptTemplate[] = [
   {
-    id: "shoulderNegotiation", title: "肩后视点留住谈判双方", minSeconds: 4, minSubjects: 2,
+    id: "shoulderNegotiation", title: "从过肩机位表现谈判双方", minSeconds: 4, minSubjects: 2,
     tags: {
       scene: ["对话","谈判","质问"],
       emotion: ["克制","压迫"],
@@ -18,7 +18,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     verify: "双方的视线方向、说话人的口型以及人物之间的空间关系清楚可辨。",
   },
   {
-    id: "angerGrip", title: "压住怒意的手与呼吸", minSeconds: 4, minSubjects: 1,
+    id: "angerGrip", title: "用手部动作与呼吸表现克制的愤怒", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["质问","反应"],
       emotion: ["愤怒","克制"],
@@ -66,7 +66,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     },
     anchors: ["入口"],
     useWhen: "人物沿一条连续通路进入已批准空间。",
-    fragment: "顺着人物实际走过的路线跟进入口，让观众辨认这是同一个空间，并看出人物走向哪里。",
+    fragment: "沿着人物实际行进的路线跟拍，经过入口，让观众辨认这是同一个空间，并看出人物走向哪里。",
     avoid: "跨过多个不相邻地点，或进门时布局重排。",
     verify: "入口和终点能沿同一条路线追踪。",
   },
@@ -89,7 +89,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     verify: "镜头开始时的视线能够引导观众看向正确的物件，镜头结束时能够辨认该物件的特征。",
   },
   {
-    id: "sizeRevealTilt", title: "低处锚点向上摇揭示尺度", minSeconds: 4, minSubjects: 1,
+    id: "sizeRevealTilt", title: "从低处向上摇镜头，交代主体的大小", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["登场","灾变"],
       emotion: ["震撼","恐惧"],
@@ -105,7 +105,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     verify: "主体脚下的位置、轮廓和参照物始终能够辨认，镜头结束时构图保持稳定。",
   },
   {
-    id: "breakawayReveal", title: "拉开显示完整余波", minSeconds: 4, minSubjects: 1,
+    id: "breakawayReveal", title: "拉远镜头，展示事件造成的影响", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["战后余波","反转","场景建立"],
       emotion: ["孤独","哀伤"],
@@ -122,7 +122,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     verify: "原人物位置可追溯，逐步增加的是空间信息。",
   },
   {
-    id: "distantLure", title: "画外声在遮挡解除前建立方向", minSeconds: 4, minSubjects: 1,
+    id: "distantLure", title: "先用画外声交代方向，再揭示声源", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["危险逼近","调查"],
       emotion: ["恐惧","紧张"],
@@ -155,7 +155,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     verify: "谁看见了、谁只听见了、谁还不知道，应符合场面里各人的位置。",
   },
   {
-    id: "practicalLightChange", title: "实景光源切换仍保住人物轮廓", minSeconds: 4, minSubjects: 1,
+    id: "practicalLightChange", title: "实景灯光变化时保持人物轮廓清楚", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["装置启动","危险逼近","反转"],
       emotion: ["紧张","希望"],
@@ -183,7 +183,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
       lighting: ["自然侧光","局部亮区"],
       sound: ["呼吸","静默"],
     },
-    useWhen: "不改变机位方向就能从人物和物件同框推进到证据可读，同时保住剧情需要的动作。",
+    useWhen: "无需改变机位方向，就能从人物和物件同框的画面推进到可以看清证据的距离，同时保留剧情需要的动作。",
     fragment: "按原分镜逐渐靠近关键细节，保持它与人物的空间关系。观众在决定性变化发生时能看清证据，快慢取决于这一动作。",
     avoid: "镜头推进过快，在关键动作发生前就让物件离开画面。",
     verify: "推进有明确起止，变小的视野仍保留主要证据。",
@@ -207,7 +207,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     verify: "离场方向能直接接到下一镜的入画方向。",
   },
   {
-    id: "groundedActuation", title: "启动装置从明确接触触发", minSeconds: 3, minSubjects: 1,
+    id: "groundedActuation", title: "通过明确的接触动作启动装置", minSeconds: 3, minSubjects: 1,
     tags: {
       scene: ["装置启动","调查"],
       emotion: ["克制","兴奋"],
@@ -223,7 +223,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     anchors: ["接触对象"],
     useWhen: "机械启动有清楚的手部动作及真实反馈部件。",
     fragment: "让观众看见手确实触发了装置，以及哪个部件因此有了剧本规定的反馈。开关声、亮灯和装置动作按原设定出现。",
-    avoid: "开关尚未接触整台机器已经全亮。",
+    avoid: "人物的手尚未接触开关，整台机器就已经亮了起来。",
     verify: "观众能指出装置因何启动，以及看到或听到了什么反馈。",
   },
 ];

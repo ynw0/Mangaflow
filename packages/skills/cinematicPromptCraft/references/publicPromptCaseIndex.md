@@ -3,23 +3,23 @@
 版本 1.0.0 / 2026-11-10。此索引汇集网页上能看到原提示词或生成示例的条目。指向官方页面/模型供应商教程，便于继续查看。**已公开案例不等于已在 MangaFlow 本地 H3、当前工作流和参数下复现。**
 
 ## 检索规范
-单镜根据 intent / movement / dialogue / transformation / product / physical_effect 选取 0–2 条。优先 A（模型开发商官方）再考虑 B（供应商公开演示）。不从网页复制整段原稿；只借鉴已公开的技术思路，转写成当镜自有表达。所有真实案例来自别的模型或托管环境时，标注 portability=needs_H3_test。用户已锁定剧情和外观时，以用户资产优先。
+单镜根据 intent / movement / dialogue / transformation / product / physical_effect 选取 0–2 条。优先 A（模型开发商官方）再考虑 B（供应商公开演示）。不从网页复制整段原稿；只借鉴已公开的技术思路，根据当前镜头的实际内容重新编写。所有真实案例来自别的模型或托管环境时，标注 portability=needs_H3_test。用户已锁定剧情和外观时，以用户资产优先。
 
 ## 真实公开案例
 
 ### P01｜沙漠机械公牛：跟拍与沙尘拖尾
 - source: Runway Gen-4 官方视频提示指南（A） https://help.runwayml.com/hc/en-us/articles/39789879462419-Gen-4-Video-Prompting-Guide
 - observable: 示例提示词让手持摄影机跟着沙漠里奔跑的机械公牛，并让运动产生拖尾沙尘；页面提供输入图与结果预览。
-- extract: 主体运动 + 单一跟拍 + 可见环境反应；可借鉴给高速驾驶、车辆追逐，但不能照搬机械公牛外形。
+- extract: 主体运动 + 单一跟拍 + 可见环境反应；可以借鉴到高速驾驶或车辆追逐镜头中，但不能照搬机械公牛外形。
 - limitation: Runway 的视频模型，需验证本机 H3；不代表所有参考图均保持身份。
 
 ### P02｜镜面气泡：静态机位的局部异常
 - source: Runway Gen-4 官方视频提示指南（A） https://help.runwayml.com/hc/en-us/articles/39789879462419-Gen-4-Video-Prompting-Guide
 - observable: 女子检查镜子时，镜面以不同大小的透明泡状隆起；指定锁定机位，官方提供示例输出。
-- extract: 把特效作用限制在既定介质，减少运镜竞争；适用实验室异常、系统觉醒、道具通电。
+- extract: 把特效限制在既定介质上，避免运镜分散观众对特效的注意力；适用实验室异常、系统觉醒、道具通电。
 - limitation: 其光学形变不能直接等同于物理可解释的机械变形。
 
-### P03｜岩石人形变化：材质由起点带向终点
+### P03｜岩石人形变化：让观众看清原有材料如何形成最终主体
 - source: Runway Gen-4 官方视频提示指南（A） https://help.runwayml.com/hc/en-us/articles/39789879462419-Gen-4-Video-Prompting-Guide
 - observable: 一堆岩石变成岩质人形并走动，有页面提供的输入图与动图结果。
 - extract: 先定义“来自哪里”的材料来源，再描述形成和随后移动的次序。
@@ -27,8 +27,8 @@
 
 ### P04｜老水手独白：声画主体一致
 - source: Google DeepMind Veo 官方提示指南（A） https://deepmind.google/models/veo/prompt-guide/
-- observable: 水手中景，手中烟斗手势、海面背景、可听独白，官方给提示词和演示视频。
-- extract: 同时说明人物可见特征、手的动作、说话文本与环境，让“发声者是谁”可追踪。
+- observable: 水手中景，拿着烟斗的手部动作、海面背景、可听独白，官方给提示词和演示视频。
+- extract: 同时说明人物可见特征、手的动作、说话文本与环境，让观众能够辨认实际说话人。
 - limitation: H3 Ref2VA 仍需 <Subject N> (Sx) 和 <d>[Language] ...</d>，不可直接复制 Veo 的自由对白句法。
 
 ### P05｜越野过河：运动的先后因果

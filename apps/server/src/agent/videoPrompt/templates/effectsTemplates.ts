@@ -12,13 +12,13 @@ export const effectsTemplates: VideoPromptTemplate[] = [
       sound: ["呼吸","静默"],
       effect: ["脉冲","能量汇聚","局部反光"],
     },
-    useWhen: "仅当剧本已有力量/异象出现设定，且观众要先看清力量从何处出现；无力量设定不召回。",
+    useWhen: "仅当剧本已有力量/异象出现设定，且观众要先看清力量从何处出现；没有相应的力量设定时，不使用此模板。",
     fragment: "用近景让观众认出力量从哪里出现、局部哪里先变。人物动作只按他能看到或感觉到的变化推进。",
     avoid: "开场全场同时发光，来源被遮住。",
     verify: "自检（不写入 H3 正文）：来源先出现，路径与人物反应随后可见。",
   },
   {
-    id: "awakeningBurst", title: "扩散靠环境反馈变得可读", minSeconds: 4, minSubjects: 1,
+    id: "awakeningBurst", title: "通过环境变化表现力量的扩散", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["觉醒","施法"],
       emotion: ["震撼","失控"],
@@ -29,13 +29,13 @@ export const effectsTemplates: VideoPromptTemplate[] = [
       effect: ["冲击波","碎片","烟尘"],
     },
     anchors: ["可见受力表面"],
-    useWhen: "仅当剧本已有力量范围/施法设定，力量范围是主要信息且已有可受力表面；无力量设定不召回。",
+    useWhen: "仅当剧本已有力量范围/施法设定，力量范围是主要信息且已有可受力表面；没有相应的力量设定时，不使用此模板。",
     fragment: "从已设定的发出位置开始，沿剧本给出的范围表现可见反馈。远处若也受到影响，让变化晚于近处出现。",
     avoid: "过度曝光使力量发出的位置和扩散前缘无法辨认。",
     verify: "自检（不写入 H3 正文）：扩散具有可观察的近远顺序。",
   },
   {
-    id: "awakeningFace", title: "把觉醒拍成角色发现", minSeconds: 4, minSubjects: 1,
+    id: "awakeningFace", title: "通过角色的发现表现觉醒", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["觉醒","反应"],
       emotion: ["震惊","惊疑"],
@@ -45,13 +45,13 @@ export const effectsTemplates: VideoPromptTemplate[] = [
       sound: ["呼吸"],
       effect: ["局部反光","能量汇聚"],
     },
-    useWhen: "仅当剧本已有觉醒/力量发现设定，且角色对自己力量的反应比规模更重要；无力量设定不召回。",
+    useWhen: "仅当剧本已有觉醒/力量发现设定，且角色对自己力量的反应比规模更重要；没有相应的力量设定时，不使用此模板。",
     fragment: "让来源和人物处在同一视点里。按原场戏安排人物是先察觉身体变化还是先看见亮光，保留他接下来实际做的事。",
     avoid: "用强光盖掉脸，或让人物先反应后出现力量。",
     verify: "自检（不写入 H3 正文）：观众能否看懂人物是怎么察觉变化的，又因此做了什么？",
   },
   {
-    id: "environmentOmen", title: "让既有环境先告警", minSeconds: 4, minSubjects: 1,
+    id: "environmentOmen", title: "先通过已有环境表现危险的预兆", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["觉醒","危险逼近"],
       emotion: ["恐惧","惊疑"],
@@ -82,7 +82,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     useWhen: "发出点和落点可以从侧面同时辨认。",
     fragment: "从侧面保留虚构光束的起点和落点，用落点处的可见变化表现结果。光束消退后留下分镜约定的状态。",
     avoid: "沿传播轴正对镜头，起点和终点叠在一起。",
-    verify: "来源、传播方向、落点和收束各自可核验。",
+    verify: "能够分别确认光束的来源、传播方向、命中位置和消退过程。",
   },
   {
     id: "shieldCrack", title: "护盾受击与裂解", minSeconds: 4, minSubjects: 1,
@@ -211,7 +211,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     verify: "液体路径、受损起点与残留状态有证据。",
   },
   {
-    id: "warpEdges", title: "局部扭曲保留空间锚点", minSeconds: 4,
+    id: "warpEdges", title: "局部空间扭曲时保留原有参照物", minSeconds: 4,
     tags: {
       scene: ["觉醒","施法","揭示"],
       emotion: ["惊疑","恐惧"],
@@ -228,7 +228,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     verify: "能对照同一条线在变形前、过程中和结束时的位置。",
   },
   {
-    id: "particleDissolve", title: "把散落粒子留给镜尾", minSeconds: 3,
+    id: "particleDissolve", title: "在镜头结束时表现粒子逐渐消散", minSeconds: 3,
     tags: {
       scene: ["施法","战后余波"],
       emotion: ["释然","孤独"],
@@ -244,7 +244,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     verify: "衰减方向、出现先后和镜尾状态连续。",
   },
   {
-    id: "rainHighlight", title: "用湿面反光强化夜景接触", minSeconds: 4,
+    id: "rainHighlight", title: "用雨夜湿润表面的反光表现接触动作", minSeconds: 4,
     tags: {
       scene: ["场景建立","战斗"],
       emotion: ["紧张","压迫"],
@@ -257,7 +257,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
       setting: ["夜景","雨天","街道","桥面"],
     },
     anchors: ["可见光源"],
-    useWhen: "已有夜雨与已批准光源，镜头需要可读的接触点。",
+    useWhen: "已有夜雨与已批准光源，镜头需要让观众清楚看见接触位置。",
     fragment: "延续已有雨声和光源。接触仅改变落点附近原有的水和反光，重点留给实际碰到的地方。",
     avoid: "让反光跨场景换颜色，或让雨声随着每次动作消失。",
     verify: "光源、反光位置和动作触发的局部变化一致。",

@@ -26,7 +26,7 @@ export function readDialogueBlocks(timeline: string) {
 }
 
 export function inspectDialogue(timeline: string, duration: number, plan: DraftCinematicPlan, lockedDialogue?: readonly string[], audioEnabled?: boolean,
-  voiceCast?: readonly { speakerId: string; sourceId?: string }[]) {
+  voiceCast?: readonly { speakerId: string; characterName?: string; sourceId?: string }[]) {
   const findings: string[] = [];
   const warnings: string[] = [];
   const allBlocks = readDialogueBlocks(timeline);
@@ -47,7 +47,9 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
   let previousBlockEnd = 0;
   let previousSpeechStart = 0;
   let previousSpeechEnd = 0;
-  const sources = new Map(voiceCast?.map(({ speakerId, sourceId }) => [speakerId, sourceId]));
+  const sources = new Map(voiceCast?.map(role => [role.speakerId, role]));
+  // 按实际对白首次出现的顺序编号，整段视频共用同一组编号，不随内部切镜重置。
+  const spoken = new Set<string>();
   for (const [index, block] of allBlocks.entries()) {
     const label = `第 ${index + 1} 句对白`;
     const language = /^\s*\[([A-Za-z][A-Za-z -]*)\]\s*([\s\S]*?)\s*$/.exec(block[1]!);
@@ -63,19 +65,31 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
     if (!speakerMatch) {
       findings.push(`${label}前须标明说话人 (S1) 或 (S1,S2)。`);
     } else {
+      if (new Set(speakerIds).size !== speakerIds.length) {
+        findings.push(`${label}的说话人编号不得重复。`);
+      }
+      for (const id of speakerIds) {
+        if (spoken.has(id)) continue;
+        const expected = `S${spoken.size + 1}`;
+        const name = sources.get(id)?.characterName;
+        if (id !== expected) {
+          findings.push(`${label}首次发声的${name ? `角色「${name}」` : "说话人"}使用 ${id}，应为 ${expected}。每次独立生成视频从 S1 连续编号，内部切镜不重新编号。核对定稿并统一英文正文、中文对照及导演计划；若合同编号本身错误，请退回调用方修正合同，不得交换台词或声线。`);
+        }
+        spoken.add(id);
+      }
       const originalDelivery = preceding.slice(speakerMatch.index + speakerMatch[0].length);
       const delivery = originalDelivery.toLowerCase();
       const voiceover = /\bvoice[- ]?over\b/.test(delivery)
         || /^\s*\(off[- ]screen\)/.test(delivery)
         || /\b(?:speaks?|says?|asks?|replies|calls?|narrates?)\s+(?:from\s+)?off[- ]screen\b/.test(delivery);
       for (const speakerId of speakerIds) {
-        const sourceId = sources.get(speakerId);
+        const sourceId = sources.get(speakerId)?.sourceId;
         if (sourceId === "vs01" && voiceover) {
           findings.push(`${label}的 ${speakerId} 选了画内对白，正文却标成画外音。请按剧本核对声源和配置。`);
         }
       }
       // 现场人物在镜外说话也可能标有 off-screen，须和叙事画外音区分。
-      if (speakerIds.some(id => voiceoverSources.has(sources.get(id) ?? "")) || /\bvoice[- ]?over\b/.test(delivery)) {
+      if (speakerIds.some(id => voiceoverSources.has(sources.get(id)?.sourceId ?? "")) || /\bvoice[- ]?over\b/.test(delivery)) {
         if (!originalDelivery.includes(voiceoverPhrase)) findings.push(`${label}须在说话人编号后使用固定短语 ${voiceoverPhrase}。`);
         // 只读本段结束后的第一句，不能借用下一句台词或下一镜的闭口说明。
         const after = timeline.slice(previousBlockEnd, allBlocks[index + 1]?.index);
@@ -116,6 +130,11 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
     const windowSeconds = line.endSeconds - line.startSeconds;
     if (windowSeconds > 0 && speechSeconds + line.pauseSeconds > windowSeconds + timeTolerance) {
       warnings.push(`${label}留了 ${windowSeconds.toFixed(2)} 秒，按普通语速和字数粗估约 ${(speechSeconds + line.pauseSeconds).toFixed(2)} 秒（含停顿）。生成视频后，实际听辨这句台词是否完整说完。`);
+    }
+  }
+  for (const role of voiceCast ?? []) {
+    if (!spoken.has(role.speakerId)) {
+      findings.push(`声音配置中的${role.characterName ? `角色「${role.characterName}」` : "说话人"} (${role.speakerId}) 在本视频没有实际对白。请对照定稿核对是否遗漏原话；如果该角色没有发声，则退回调用方移除其说话人配置，不为未发声的人物分配 S 编号。`);
     }
   }
   return { findings, warnings };

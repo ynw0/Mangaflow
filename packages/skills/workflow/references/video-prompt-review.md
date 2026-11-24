@@ -1,4 +1,4 @@
-# 镜头文生视频提示词工 video-prompt-review
+# 视频提示词审核员 video-prompt-review
 
 ## 职责
 根据本次准备结果，审核导演稿是否符合镜头合同、实际素材及制作规则。独立审核时只提交审核结论。提示词的具体写法见 [video-director.md](video-director.md)；本文件是验收与退回标准。H3 格式以 `h3-prompt-writing` 中对应模式的参考为准。
@@ -47,7 +47,7 @@
 - `overall_soundscape` 只描述整段视频中持续存在的环境声。瞬间声、对白或警报写进该段，或 `partially_copy` 声音在指定开始时刻前出现，判不合格。完整台词放在对应的 `<d>` 标签内，不要在两个声音描述段落中重复整段台词。文件时间与成片不一致却用 `fully_copy`，判不合格。
 - 核对 `dialogueTiming` 时根据对白计划定位开口、说完及停顿的时间，检查正文中的接话顺序、动作和实际声源。正文写了具体对白秒数时，与计划逐句对照。动作节拍记录动作本身，可以和发声同时发生，确有依赖时再核对 `afterBeat`。镜尾反应与台词中断按定稿处理。见 `video-director.md`「说话时序」。
 - 两段不同台词交叠时，对照定稿核对是否确有抢话及哪一句须听清。有交叠依据时保留各自的原话和声源。定稿要求分开说、未交代抢话或交叠会遮住关键台词时，指出冲突并退回。多人齐声说同一句话使用合并的说话人编号。
-- 跨镜接话或跨场回扣时，用 `adjacentShots` 核对观众先前能听到或看见的依据。相邻问答保留完整顺序，较早交代的线索可以直接回扣。依据不足时指出待核的回话或决定，请调用方回读相关场次。原分镜确实漏掉关键台词或事件时退回分镜。
+- 跨镜接话或跨场回扣时，用 `adjacentShots` 核对观众先前能听到或看见的依据。相邻问答保留完整顺序，较早交代的线索可以直接回扣。依据不足时，指出需要进一步核实的回应或决定，请调用方重新读取相关场次的内容。原分镜确实漏掉关键台词或事件时退回分镜。
 - 按剧本核对动作和声音的因果。突然绊倒时，对方不应停下来等接触；犹豫、蓄力或改变决定所需的准备动作应当保留。若决定由画外声音触发，核对人物在什么时刻听见什么；只有观众听见的旁白不能驱动角色反应。跨镜头的动作和状态，应从上一镜实际结束时的情况接起。
 - 方向性道具或特效的初始朝向要明确。动作换向、转动或接触时，核对其影响的前缘、连接点和落点。稳定朝向沿用前文。仅在遗漏或矛盾影响动作及承接时退稿。见 `video-director.md`。
 
@@ -85,10 +85,10 @@
 
 通过审核时，提交 `status: "ok"`、`coverage` 和 `findings: []`。合同指定了收尾构图或可见事实时，可用 `framingEvidence` 记录对应证据。`coverage` 按 `reviewRequirements` 的原编号逐项填写 `{ requirementId, evidence }`。证据定位到稿件中的事实或时间点。画外承接说明与画内安排是否冲突，禁止项写明核对范围。
 
-稿件有明确缺陷时，提交 `status: "rejected"` 和非空 `findings` 数组。每条含 `requirementId`、`location`、`evidence` 和 `fixTarget`。退回时省略 `coverage` 与 `framingEvidence`，由导演根据问题定向返修。缺少核验某项所必需的稿件内容时，在对应要求下说明具体缺项。若无法完成审核，向调用方说明缺少的输入，审核保持未通过。
+稿件有明确缺陷时，提交 `status: "rejected"` 和非空 `findings` 数组。每条含 `requirementId`、`location`、`evidence` 和 `fixTarget`。退回时省略 `coverage` 与 `framingEvidence`，由导演针对指出的问题进行修改。缺少核验某项所必需的稿件内容时，在对应要求下说明具体缺项。若无法完成审核，向调用方说明缺少的输入，审核保持未通过。
 
-核验接话或回扣所需的分镜或场次依据缺失时，在退回结果中另填 `needsAdjacentShots: true`，并指出需回读的场次或镜头。调用方补齐合同后重新派发。依据齐全时按实际稿件缺陷定向返修。
+核验接话或回扣所需的分镜或场次依据缺失时，在退回结果中另填 `needsAdjacentShots: true`，并指出需要重新读取的场次或镜头。调用方补齐合同后，重新委派审核任务。依据齐全时，针对稿件中实际存在的问题进行修改。
 
 - 内置独立审核用 `submitResult({ result: { ... } })` 提交上述判决。`result` 只使用 `ok` 或 `rejected` 分支对应的字段。上游的 `shotId` 用于核对合同，审核结果无镜号字段。审核员提交后由服务端处理。已有节点请求 `node.write: true` 时，成功结果中的 `written: true` 表示英文稿、中文对照和 `reviewId` 已写入目标视频节点。
-- 外部 MCP 在 `videoPrompt` 的 `args.action: "submit"` 中同时传 `preparationId`、`draft` 和 `review`。上述判决字段直接放在 `review` 对象内。服务端返回 `reviewId`、`generationRequest` 和 `written: false`。已有节点需要写回时，调用 `node:setPrompt`，使用 `generationRequest.prompt`、原稿的 `promptZh`、`reviewId` 和服务端返回的 `expectedRevision`。写回后回读视频节点。
+- 外部 MCP 在 `videoPrompt` 的 `args.action: "submit"` 中同时传 `preparationId`、`draft` 和 `review`。上述审核结论字段直接放在 `review` 对象内。服务端返回 `reviewId`、`generationRequest` 和 `written: false`。已有节点需要写回时，调用 `node:setPrompt`，使用 `generationRequest.prompt`、原稿的 `promptZh`、`reviewId` 和服务端返回的 `expectedRevision`。将提示词写入节点后，重新读取视频节点中的内容进行核对。
 - 生成前按当前运行模式及已获授权范围推进。提示词审核通过记录使用 `reviewId`，成片质检结论另查生成任务的实际结果。

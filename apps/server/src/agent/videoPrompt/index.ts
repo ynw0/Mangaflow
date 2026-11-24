@@ -53,7 +53,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
   const initial: ToolDefinition = {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；先 getConfig → setConfig → getPromptContext，写回须 node.write=true。新镜头无 node，必须传 duration、ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。按同一合同继续生成时复用已审稿。用户要求修改目标镜头的提示词、拍法或表演时传 regenerate=true；只复审原稿时传 reReview=true。原合同未变时用 draftId 调用 resumeVideoPrompt；台词或分镜已经修订时，用更新后的完整合同重新提交。",
+    description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；依次调用 getConfig、setConfig 和 getPromptContext；需要将提示词写入节点时，须设置 node.write=true。新镜头没有对应节点时，不传 node，必须传入 duration 和 ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。按同一合同继续生成时，复用已经通过审核的提示词。用户要求修改目标镜头的提示词、拍法或表演时传 regenerate=true；如果只重新审核原稿，传入 reReview=true。原合同未变时用 draftId 调用 resumeVideoPrompt；台词或分镜已经修订时，用更新后的完整合同重新提交。",
     promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。shotId 用实际分镜编号，放在顶层。已有节点把当前 canvasId 和 nodeId 放进 node，从镜头合同填写本镜原话和实际参考。新镜头直接传 duration 和 ratio。需要导演拍法时传 templateTags，选用分类创作知识时在 creativeSelection 传 ID。",
     parameters: { type: "object", ...videoPromptToolSchema },
     prepareArguments(raw) {
@@ -95,7 +95,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
   };
   function requestAdjacentShots(shotId: string, findings: string[]) {
     const details = { status: "blocked", shotId, findings, written: false,
-      reason: "请回读已确认的分镜，补充本镜所回应的原话或事件，再重新提交镜头合同",
+      reason: "请重新读取已确认的分镜，补充本镜所回应的原话或事件，再重新提交镜头合同",
       nextAction: { tool: initial.name, when: "已在 adjacentShots 补齐相关场次或镜号、原句或触发动作后，使用完整的新合同" } };
     return { details, content: [{ type: "text" as const, text: JSON.stringify(details) }] };
   }
@@ -306,7 +306,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
         findings = preflight.findings;
         preflightWarnings = preflight.warnings;
         attempts.push({ round: round + 1, stage: "preflight", findings });
-        update(findings.length ? "程序预检未通过，准备定向返修" : "程序预检通过");
+        update(findings.length ? "程序预检未通过，准备针对发现的问题进行修改" : "程序预检通过");
         if (findings.length) continue;
       }
       // 审核前保存候选稿，只有通过审核才能签发 reviewId。

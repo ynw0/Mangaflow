@@ -78,7 +78,7 @@ export function listCreativeKnowledgeCategories() {
     categories: [
       { id: "memes", title: "2026网络热梗与二创文化", count: memesCN.length,
         tags: categoryTags(memesCN), observedFrom: "2026-05-08", observedThrough: "2026-11-11",
-        caveat: "剧情适合幽默表达时，可以借用原梗的语气、谐音或反差效果，改写成符合人物身份和当时处境的话。先让观众看到引出笑点的事，再让人物开口。不要把 phrase 的原句生硬地套在不同人物身上，也不要在不适合幽默的严肃场戏中打断剧情发展。未经授权，不得复刻原视频或真实人物的音色。"},
+        caveat: "剧情适合幽默表达时，可以借用原梗的语气、空耳表达或反差效果，改写成符合人物身份和当时处境的话。先让观众看到引出笑点的事，再让人物开口。不要把 phrase 的原句生硬地套在不同人物身上，也不要在不适合幽默的严肃场戏中打断剧情发展。未经授权，不得复刻原视频或真实人物的音色。"},
       { id: "absurd", title: "原创抽象搞怪剧情/镜头", count: absurdPrompts.length,
         tags: categoryTags(absurdPrompts), caveat: "只参考 jokeMechanism 中的笑点原理和简短的场景构思；构思单个镜头时必须符合剧情、时长和参考素材，不得直接将示例当作 H3 提示词。"},
       { id: "expressions", title: "人物表情与颜艺模板", count: expressionTemplates.length,
@@ -234,7 +234,7 @@ export function checkCreativeSelection(options: CreativeSelectionOptions) {
       !forDraft && meme && {
         slot: "meme", id: meme.id, phrase: meme.phrase, meaning: meme.meaning, usage: meme.usage, avoid: meme.avoid,
         sourceUrl: meme.sourceUrl, observedAt: meme.observedAt,
-        rewriteRule: "剧情适合幽默表达时，可以借用原梗的语气、谐音或反差效果，将其写成角色当时会说的话。先让观众看到引出笑点的事件，再安排人物开口，不要生硬地照搬原句。",
+        rewriteRule: "剧情适合幽默表达时，可以借用原梗的语气、空耳表达或反差效果，将其写成角色当时会说的话。先让观众看到引出笑点的事件，再安排人物开口，不要生硬地照搬原句。",
       },
     ].filter(Boolean),
     guidance: "先看观众已经知道什么、这镜要让他们看懂什么。所选模板只用于表现分镜中已经确定的事件。表演跟着人物实际看见、听见的内容和双方关系走。模板标题、范例和资料术语留在库里，正文用明确的人物、具体动作和寻常词语。切点、对白、画风和素材均以当前定稿为准。",

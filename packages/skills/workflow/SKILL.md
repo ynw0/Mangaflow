@@ -17,7 +17,7 @@ metadata:
 
 用户明确否定某句对白或某段写法后，保留原句，明确需要修改的位置。复核新稿时对照本轮意见，确认旧句式已经改掉，且原剧情、人物关系和对话的衔接及因果关系仍然成立。定稿更新后，受影响的分镜和锁定对白从同一版本重新取用。
 
-只有用户明确要求排除旧剧情重新创作，或用户纠正后同一项已作废内容又被写回来时，才启用从零起稿的独立编剧会话；新写场戏定稿前按需委派专业对白精修属于局部改稿，不属于重新起稿。交给编剧本轮要求、明确需要保留的事实和选定的原文；局部返修还要带上待改的当前稿片段。从混写剧情和设定的文档中只提取保留项。清理旧成果的范围另行确定。确需确认方向时，询问题材、基调或保留范围，避免把已作废的开场列进选项。
+只有用户明确要求排除旧剧情重新创作，或用户纠正后同一项已作废内容又被写回来时，才启用从零起稿的独立编剧会话；新写场戏定稿前按需委派专业对白精修属于局部改稿，不属于重新起稿。交给编剧本轮要求、明确需要保留的事实和选定的原文；只修改局部内容时，还要提供当前稿件中需要修改的片段。从混写剧情和设定的文档中只提取保留项。清理旧成果的范围另行确定。确需确认方向时，询问题材、基调或保留范围，避免把已作废的开场列进选项。
 
 references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前画布的文本节点；审核通过后才生成。审核不通过时，只把 findings 退回原来的专职重写，负责统筹制作的 Agent 不修改 prompt，也不调整参考槽位。
 
@@ -28,7 +28,7 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | 阶段 | 先读 | 完成后 |
 | --- | --- | --- |
 | 文本改编 | [adaptationStrategy.md](references/adaptationStrategy.md)，题材相符时再阅读 [genreCraft.md](references/genreCraft.md) | 剧本画布上的改编原则与取舍 |
-| 场次剧本 | [episodeScript.md](references/episodeScript.md) | 原创或重写时先写完整场次并复核。已有定稿时回读当前版本，核对它是否已落实本轮对白修改意见 |
+| 场次剧本 | [episodeScript.md](references/episodeScript.md) | 原创或重写时先写完整场次并复核。已有定稿时，重新读取当前版本，核对本轮对白修改意见是否已经落实 |
 | 对白精修（新写或大幅重写场戏） | 复用 `subAgent` 的 `role: "story"`，由子 Agent 按需读取 `dialoguePolish/SKILL.md`，主 Agent 不重复载入全文 | 独立提交局部对白建议，主编剧对比原稿、核对剧情与时长后采纳，锁定前完成；无实质问题则保留原稿 |
 | 分镜 | [story-planner.md](references/story-planner.md) | 从通过场次复核的正文拆出本次范围的镜头合同 |
 | 资产规划 | [asset-planner.md](references/asset-planner.md) | 资产画布上的复用、新建与变体 |
@@ -36,7 +36,7 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | 场景原画 | [scene-art.md](references/scene-art.md) 然后 [scene-prompt-review.md](references/scene-prompt-review.md) | 要换机位或反复出现时做四方向拼版；只做氛围或转场时做无人空镜 |
 | 道具原画 | [prop-art.md](references/prop-art.md) 然后 [prop-prompt-review.md](references/prop-prompt-review.md) | 审核通过的产品图 |
 | 单集导演规划（可选） | [directorPlan.md](references/directorPlan.md) | 分集画布上的分场情绪与注意事项 |
-| 成片提示词 | 已有节点先核对实际工作流和模式，新镜用用户指定或 production.video。支持 H3 的工作流由内置 Agent 用 draftVideoPrompt 读取 [导演 Skill](../cinematicPromptCraft/SKILL.md)、对应的 [H3 规则](../h3-prompt-writing/SKILL.md) 和 [视频审核规则](references/video-prompt-review.md) | H3 程序预检和独立审核通过后交接英中文稿。其他模型按实际输入格式编写并对照已确认的分镜核对。出片沿用匹配当前正文、实际参考、时长、画幅和音轨的审核。生成设置按实际能力与本次算力授权执行 |
+| 成片提示词 | 已有节点先核对实际工作流和模式，新镜用用户指定或 production.video。支持 H3 的工作流由内置 Agent 用 draftVideoPrompt 读取 [导演 Skill](../cinematicPromptCraft/SKILL.md)、对应的 [H3 规则](../h3-prompt-writing/SKILL.md) 和 [视频审核规则](references/video-prompt-review.md) | H3 程序预检和独立审核通过后交付英文提示词及中文对照。其他模型按实际输入格式编写并对照已确认的分镜核对。出片沿用匹配当前正文、实际参考、时长、画幅和音轨的审核。生成设置按实际能力与本次算力授权执行 |
 
 ### 创作知识库（按阶段取用，严禁堆砌）
 
@@ -50,7 +50,7 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 
 官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing + cinematicPromptCraft 导演知识 → video-director → video-prompt-review → Comfy H3 Ref2VA）。
 
-画布出图时先通过图片生成节点的 `node:getConfig` 查询可用模型与当前配置，并由 `node:setConfig` 配置；可用 `listMediaModels` 交叉核实已启用项，但不得因此跳过画布生成节点。先按用户指定、配置的出图后端、是否有底图及参考图数量筛选，再读候选的 `usage`，按草稿速度、细节、底图保留需求选择。设置中的文生图和编辑工作流是对应任务的默认选项。Qwen-Image-2.1 Turbo 适合快速探索，标准版适合细节任务，具体以目录和验收结果为准。有底图的任务按 [图像编辑与变体](references/common.md#图像编辑与变体) 编写提示词并验收。项目经验只补充本项目的设定与已验证的事实。编写、原画审核与生成均使用同一个工作流。出视频按 `production.video` 和用户确认的节点配置。`comfyui` 走相应的本机或 AutoDL 工作流，`videoModel` 使用设置中已选的云端模型。提示词结构与实际模型匹配。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片画幅遵从用户确认的镜头合同、项目生产配置与实际视频节点的比例设置；统一 H3 Ref2VA 工作流支持按能力选择 16:9、9:16 等比例，16:9 只是未指定时的默认值，不是强制规格。模型/工作流不支持所选比例或节点设置冲突时须先校验并处理，不能靠提示词文字静默覆盖。
+画布出图时先通过图片生成节点的 `node:getConfig` 查询可用模型与当前配置，并由 `node:setConfig` 配置；可用 `listMediaModels` 交叉核实已启用项，但不得因此跳过画布生成节点。先按用户指定、配置的出图后端、是否有底图及参考图数量筛选，再读候选的 `usage`，按草稿速度、细节、底图保留需求选择。设置中的文生图和编辑工作流是对应任务的默认选项。Qwen-Image-2.1 Turbo 适合快速探索，标准版适合细节任务，具体以目录和验收结果为准。有底图的任务按 [图像编辑与变体](references/common.md#图像编辑与变体) 编写提示词并验收。项目经验只补充本项目的设定与已验证的事实。编写、原画审核与生成均使用同一个工作流。出视频按 `production.video` 和用户确认的节点配置。`comfyui` 走相应的本机或 AutoDL 工作流，`videoModel` 使用设置中已选的云端模型。提示词结构与实际模型匹配。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片画幅遵从用户确认的镜头合同、项目生产配置与实际视频节点的比例设置；统一 H3 Ref2VA 工作流支持按能力选择 16:9、9:16 等比例，16:9 只是未指定时的默认值，不是强制规格。模型/工作流不支持所选比例或节点设置冲突时须先校验并处理，不能仅通过修改提示词，在没有说明的情况下覆盖实际配置。
 
 统一 H3 双采的主模型由本次实际使用的 ComfyUI 实例和用户确认的选择决定。节点缺 checkpointName 时，在写成片提示词前通过 node:getConfig({refreshComfyChoices:true}) 读取 checkpointChoices，再用 node:setConfig 写回已确认的文件名。
 

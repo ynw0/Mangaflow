@@ -10,7 +10,7 @@
 
 内置 Agent 直接调用会话工具 `draftVideoPrompt`，外部 MCP 调用 `videoPrompt` 的 `prepare`、`inspect`、`submit`。画布 `nodeTools` 用于读取节点配置、参考和保存已通过审核的提示词。`searchVideoPromptTemplates` 负责检索创作参考。镜头合同字段按[工具调用规则](creativeKnowledge.md#与-draftvideoprompt-的直接衔接)填写，数组使用 JSON 数组，时长使用数字。已有节点核对 `node:getConfig`，有变化才调用 `node:setConfig`，随后读取 `node:getPromptContext`。
 
-本镜回应先前的一句话或事件时，重新读取相关分镜。把场次或镜号、说话人、原句或关键动作填入 `adjacentShots`，可以摘录更早的铺垫。已交代过的原因供导演核对承接，本镜接着拍回应和后果。
+本镜回应先前的一句话或事件时，重新读取相关分镜。把场次或镜号、说话人、原句或关键动作填入 `adjacentShots`，可以摘录更早的铺垫。已经交代过的起因供导演核对前后剧情是否衔接，本镜继续表现人物的回应以及事件造成的后果。
 
 派发前按 [分镜的定稿核对规则](story-planner.md#决策规则) 重新读取正式剧本和本镜合同。将本镜需要模型发声的原话按实际开口顺序填入 `lockedDialogue`，每个 `<d>` 对应一段原文。无需生成台词时填空数组。直接复用的录音、相邻镜头中的引语、屏幕文字和表演指示按各自的用途记录。
 

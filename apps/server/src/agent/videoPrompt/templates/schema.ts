@@ -34,7 +34,7 @@ export const templateConditions = z.strictObject({
   format: z.enum(templateFormats).optional(),
   imageCount: z.number().int().min(0).optional(),
   subjectCount: z.number().int().min(0).optional(),
-  anchors: z.array(z.enum(templateAnchors)).optional().describe("已核实可用的画面条件，省略时只提示所需条件"),
+  anchors: z.array(z.enum(templateAnchors)).optional().describe("已经核实的画面条件。末态图指表现动作或变化结束时状态的参考图，可揭示物件指能够通过当前镜头逐步展示的物件。省略 anchors 时只提示模板需要的条件"),
 });
 
 export type VideoPromptTags = z.infer<typeof templateTagSchema>;

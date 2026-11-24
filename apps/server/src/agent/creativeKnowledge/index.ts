@@ -134,6 +134,8 @@ const legacyCreativeNames: Record<string, string[]> = {
     "下一集悬念锚点"
   ]
 };
+// 旧标签仅用于兼容检索，不再作为模板展示标签返回。
+const legacyVoiceTags: Record<string, string[]> = { vt11: ["冷亮"], vt13: ["低柔"], vx10: ["收句"] };
 const categoryTags = (items: readonly { tags: string[] }[]) => [...new Set(items.flatMap(x => x.tags))].sort();
 
 /** 检索对外细节：去掉可整段粘贴的成品示范句，热梗保留 phrase 供编剧改写。 */
@@ -187,7 +189,8 @@ export function searchCreativeKnowledge(options: CreativeSearchOptions): Creativ
   const wants = (library: CreativeSearchResult["library"]) => options.library === "all" || options.library === library;
   const add = (library: CreativeSearchResult["library"], id: string, title: string, aliases: string[], tags: string[], content: string,
     details: CreativeDetails, observedAt?: string) => {
-    const score = matchingScore(title, aliases, tags, content, options.query, options.tags);
+    const searchTags = library === "voices" ? [...tags, ...(legacyVoiceTags[id] ?? [])] : tags;
+    const score = matchingScore(title, aliases, searchTags, content, options.query, options.tags);
     if (score > 0) results.push({ library, id, title, tags, score, ...(observedAt ? { observedAt } : {}), details: publicDetails(library, details) });
   };
   if (wants("memes")) for (const item of memesCN)

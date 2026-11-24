@@ -53,6 +53,15 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     expect(searchCreativeKnowledge({ library: "voices", query: "细窄冷亮", tags: [], limit: 3 })[0]?.id).toBe("vt11");
     expect(searchCreativeKnowledge({ library: "voices", query: "清冷明亮、共鸣集中的中高音", tags: [], limit: 3 })[0]?.id).toBe("vt11");
     expect(searchCreativeKnowledge({ library: "voices", query: "低磁 AI 管家", tags: [], limit: 3 })[0]?.id).toBe("vt16");
+    for (const [legacy, current, id] of [["冷亮", "清冷明亮", "vt11"], ["低柔", "轻柔的低音", "vt13"], ["收句", "台词结束", "vx10"]]) {
+      const legacyMatches = searchCreativeKnowledge({ library: "voices", query: "", tags: [legacy!], limit: 10 });
+      const currentMatches = searchCreativeKnowledge({ library: "voices", query: "", tags: [current!], limit: 10 });
+      expect(legacyMatches.map(item => item.id)).toContain(id!);
+      expect(currentMatches.map(item => item.id)).toContain(id!);
+      expect(legacyMatches.find(item => item.id === id)?.tags).toContain(current!);
+      expect(legacyMatches.find(item => item.id === id)?.tags).not.toContain(legacy!);
+      expect(searchCreativeKnowledge({ library: "voices", query: legacy!, tags: [], limit: 10 }).map(item => item.id)).toContain(id!);
+    }
     expect(searchCreativeKnowledge({ library: "narrative", query: "下一集悬念锚点", tags: [], limit: 3 })[0]?.id).toBe("n22");
     for (const category of voiceCategories) expect(voiceTemplates.filter(t => t.category === category).length).toBeGreaterThanOrEqual(6);
     expect(new Set(voiceTemplates.map(t => t.id)).size).toBe(voiceTemplates.length);

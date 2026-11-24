@@ -17,7 +17,7 @@ export function getVideoSpeechPolicy(audioEnabled: boolean) {
       identity: "所有 H3 模式中，画外音、旁白、角色内心独白和无实体的网文系统对白在 (Sx) 后使用 phrase 原文。每段 </d> 后紧接一句，说明对应画面人物在这段发声期间嘴唇保持闭合。空镜写明无人入画。现场人物在构图外正常开口时写实际方向和听者。内心独白与同一角色的现场对白共用声线及编号。",
       timing: "由模型生成的画外发声纳入 cinematicPlan.dialogue。现场对白可以被同场人物听见，听觉范围按剧本写。只给观众听的旁白与独白不改变画中人的反应。角色的口型按实际发声和可见范围写。提示音写作音效，实际参考音频才使用 <Audio N>。",
     },
-    note: "有同期对白时，在时间轴写一次适用整段的默认语速。角色另有指定语速时单独说明。按剧本说原话并记录开口、收句、停顿和前置动作。endingReserveSeconds 是镜尾余量参考，按实际场戏安排。抢话时保留各自的 <d> 和原话，关键内容仍需听清。字数估时提示风险，实际发声以成片为准。",
+    note: "有同期对白时，在时间轴中统一说明整段视频的默认语速。角色另有指定语速时单独说明。保留剧本原话，并记录开口、说完、停顿的时间及必须先完成的动作。endingReserveSeconds 是镜头结束前预留时间的参考值，具体安排应符合这场戏的需要。抢话时保留各自的 <d> 和原话，关键内容仍需听清。按字数估算的时长仅用于提示风险，实际说话效果以成片为准。",
   };
 }
 
@@ -115,7 +115,7 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
       + (text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length ?? 0) / 3;
     const windowSeconds = line.endSeconds - line.startSeconds;
     if (windowSeconds > 0 && speechSeconds + line.pauseSeconds > windowSeconds + timeTolerance) {
-      warnings.push(`${label}留了 ${windowSeconds.toFixed(2)} 秒，按普通语速和字数粗估约 ${(speechSeconds + line.pauseSeconds).toFixed(2)} 秒（含停顿）。成片时按实际语速听验是否完整说完。`);
+      warnings.push(`${label}留了 ${windowSeconds.toFixed(2)} 秒，按普通语速和字数粗估约 ${(speechSeconds + line.pauseSeconds).toFixed(2)} 秒（含停顿）。生成视频后，实际听辨这句台词是否完整说完。`);
     }
   }
   return { findings, warnings };

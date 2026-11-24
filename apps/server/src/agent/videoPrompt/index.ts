@@ -70,7 +70,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
   };
   const resume: ToolDefinition = {
     name: "resumeVideoPrompt", label: "继续视频提示词审核",
-    description: "按 draftId 继续原镜头。审核提交失败只重审原稿；内容退回则按原合同和整改意见定向返修。编号遗失时只传 shotId 查询本会话待审稿；用户明确放弃时可传 draftId 和 discard=true。",
+    description: "按 draftId 继续原镜头。审核提交失败只重审原稿；内容未通过审核时，按原合同和整改意见修改存在问题的部分。编号遗失时只传 shotId 查询本会话待审稿；用户明确放弃时可传 draftId 和 discard=true。",
     parameters: z.toJSONSchema(resumeParameters, { target: "draft-07" }),
     executionMode: "sequential",
     async execute(...args) {
@@ -95,7 +95,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
   };
   function requestAdjacentShots(shotId: string, findings: string[]) {
     const details = { status: "blocked", shotId, findings, written: false,
-      reason: "请回读已确认的分镜，补齐本镜所回应的原话或事件后重新提交镜头合同",
+      reason: "请回读已确认的分镜，补充本镜所回应的原话或事件，再重新提交镜头合同",
       nextAction: { tool: initial.name, when: "已在 adjacentShots 补齐相关场次或镜号、原句或触发动作后，使用完整的新合同" } };
     return { details, content: [{ type: "text" as const, text: JSON.stringify(details) }] };
   }
@@ -199,7 +199,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
       const existing = await findReusableVideoReview(draftKey, prepared.snapshot, prepared.nodeDraft, prepared.shot);
       const preflight = existing && inspectDraft(existing, prepared);
       if (input.reReview) {
-        if (!existing || !preflight) throw new Error("当前合同没有可复审的已通过稿");
+        if (!existing || !preflight) throw new Error("当前合同没有已经通过审核、可供复审的稿件");
         if (preflight.findings.length) throw new Error("现稿未通过当前预检，请先按实际问题修订");
         lastDraft = { prompt: existing.prompt, promptZh: existing.promptZh, cinematicPlan: existing.cinematicPlan };
       } else if (existing && preflight && !preflight.findings.length) {
@@ -287,7 +287,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
         }
         const draft = await specialist(draftSchema, draftSubmissionParameters, repair ? "导演返修" : "导演写作", [
           "依据实际镜头合同、已加载的导演规则与 H3 模式写稿，调用 submitResult 提交完整结果。时间使用整段视频内的秒数。",
-          ...(repair ? ["用 findings 的位置和证据定位问题。具体修法按当前镜头合同和已加载的写作规则取舍。保留仍有作用的声画事实，使英文正文、中文对照和导演计划一致。"] : []),
+          ...(repair ? ["用 findings 的位置和证据定位问题。具体修法按当前镜头合同和已加载的写作规则取舍。保留仍有作用的画面和声音信息，使英文正文、中文对照和导演计划保持一致。"] : []),
           `英文正文段名：\n${getPromptOutline(prepared.format)}`,
           // 拍法候选只在首稿提供，导演先判断条件，再用实际分镜撰写正文。
           JSON.stringify({ ...taskInput,
@@ -316,7 +316,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
       try {
         const reviewRules = await read("workflow", "references/video-prompt-review.md");
         review = await specialist(reviewSubmission.schema, reviewSubmission.parameters, "独立提示词审核", [
-          "程序预检已完成。按已加载的审核规则核对实际合同和稿件，在 submitResult 的 result 提交判决和具体依据。",
+          "程序预检已完成。按已加载的审核规则核对实际合同和稿件，通过 submitResult 的 result 字段提交审核结论和具体依据。",
           JSON.stringify({
             // 剧情、必需项、禁止项、风格及连续性已逐条包含在 reviewRequirements。
             shotId: input.shotId, intent: input.intent, tone: input.tone, adjacentShots: input.adjacentShots,

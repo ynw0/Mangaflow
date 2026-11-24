@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { inspectDraft, requiresContinuousTake } from "./format";
+import { inspectDialogue } from "./dialogue";
 import { cinematicShotSchema, draftCinematicPlanSchema } from "@/utils/production/videoPlan";
 import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
 
@@ -26,12 +27,12 @@ const prompt = (body: string) => [
 ].join("\n");
 const make = (
   body: string, story = "女主进入大厅找到一封信",
-  extra: { mustHave?: string[]; mustNotHave?: string[]; plan?: DraftCinematicPlan } = {},
+  extra: { mustHave?: string[]; mustNotHave?: string[]; plan?: DraftCinematicPlan; voiceCast?: { speakerId: string; characterName: string; sourceId?: string }[]; lockedDialogue?: string[] } = {},
 ) => inspectDraft({
   cinematicPlan: extra.plan ?? cinematicPlan, prompt: prompt(body), promptZh: "女主进入大厅，镜头反打展示发现信件的反应。",
 }, {
   format: "h3Ref2va", setup: { duration: 15, references: [] },
-  shot: { story, mustHave: extra.mustHave ?? [], mustNotHave: extra.mustNotHave ?? [] },
+  shot: { story, mustHave: extra.mustHave ?? [], mustNotHave: extra.mustNotHave ?? [], voiceCast: extra.voiceCast, lockedDialogue: extra.lockedDialogue },
 } as unknown as Parameters<typeof inspectDraft>[1]).findings;
 
 describe("Ref2VA 按合同使用单镜或多镜", () => {
@@ -128,5 +129,58 @@ describe("Ref2VA 按合同使用单镜或多镜", () => {
   test("明确单镜合同可以使用单个 [Shot 1]", () => {
     expect(make("[Shot 1] The camera follows the woman continuously as she picks up the letter.",
       "15秒单镜头，不切镜。")).toEqual([]);
+  });
+});
+
+
+describe("对白编号按整段视频首次发声顺序校验", () => {
+  const lines = ["注意。", "三号闸不对。", "哪里不对？"];
+  const makePlan = (ids: string[][]): DraftCinematicPlan => ({
+    ...cinematicPlan,
+    dialogue: ids.map((speakerIds, i) => ({ speakerIds, startSeconds: i * 4, endSeconds: i * 4 + 2, pauseSeconds: 0 })),
+  });
+  const body = (ids: string[]) => [
+    `[Shot 1] Announcer (${ids[0]}) says in an off-screen voiceover <d>[Mandarin Chinese] ${lines[0]}</d> No one is visible in the shot.`,
+    `[Shot 2] At 00:04.000, Tan Xiaoman (${ids[1]}) says <d>[Mandarin Chinese] ${lines[1]}</d>.`,
+    `Zheng Kai (${ids[2]}) asks <d>[Mandarin Chinese] ${lines[2]}</d>.`,
+  ].join("\n");
+  const cast = (ids: string[]) => ids.map((speakerId, index) => ({
+    speakerId, characterName: ["播报员", "谭小满", "郑楷"][index]!,
+  }));
+  test("即使正文与导演计划一致，仍拦截 S7/S4/S3", () => {
+    const ids = ["S7", "S4", "S3"];
+    const findings = make(body(ids), "画外播报后两位工作人员问答", {
+      plan: makePlan(ids.map(id => [id])), voiceCast: cast(ids), lockedDialogue: lines,
+    });
+    expect(findings.some(x => x.includes("角色「播报员」使用 S7，应为 S1"))).toBe(true);
+    expect(findings.some(x => x.includes("角色「谭小满」使用 S4，应为 S2"))).toBe(true);
+  });
+  test("连续但首次发声顺序错误的 S1/S3/S2 也不能通过", () => {
+    const ids = ["S1", "S3", "S2"];
+    expect(make(body(ids), "画外播报后问答", { plan: makePlan(ids.map(id => [id])) })
+      .some(x => x.includes("使用 S3，应为 S2"))).toBe(true);
+  });
+  test("切镜后连续编号，画外播报计入编号，未配置声线也允许", () => {
+    const ids = ["S1", "S2", "S3"];
+    expect(make(body(ids), "画外播报后问答", { plan: makePlan(ids.map(id => [id])), lockedDialogue: lines })).toEqual([]);
+    expect(make(body(ids), "画外播报后问答", {
+      plan: makePlan(ids.map(id => [id])), voiceCast: cast(ids), lockedDialogue: lines,
+    })).toEqual([]);
+  });
+  test("未实际发声的角色不能占用声音配置中的编号", () => {
+    const ids = ["S1", "S2", "S3"];
+    const findings = make(body(ids), "画外播报后问答", {
+      plan: makePlan(ids.map(id => [id])),
+      voiceCast: [...cast(ids), { speakerId: "S4", characterName: "温潞" }],
+    });
+    expect(findings.some(x => x.includes("角色「温潞」 (S4) 在本视频没有实际对白"))).toBe(true);
+  });
+  test("齐声、切镜后重复发声及第三位首次发声均使用正确编号", () => {
+    const timeline = "[Shot 1] The pair (S1,S2) says <d>[Mandarin Chinese] 好。</d>.\n"
+      + "[Shot 2] At 00:04.000, one (S2) says <d>[Mandarin Chinese] 走吧。</d>.\n"
+      + "Another person (S3) says <d>[Mandarin Chinese] 等等。</d>.";
+    expect(inspectDialogue(timeline, 15, makePlan([["S1", "S2"], ["S2"], ["S3"]])).findings).toEqual([]);
+    expect(inspectDialogue(timeline.replace("(S1,S2)", "(S1,S1)"), 15, makePlan([["S1", "S1"], ["S2"], ["S3"]])).findings
+      .some(x => x.includes("编号不得重复"))).toBe(true);
   });
 });

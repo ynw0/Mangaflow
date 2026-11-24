@@ -54,7 +54,7 @@ const shotFields = {
   templateConditions: templateConditions.pick({ subjectCount: true, anchors: true }).optional(),
   references: z.array(reference).max(24).describe("按实际槽位顺序传 JSON 对象数组，不是字符串"),
   voiceCast: z.array(z.strictObject({
-    speakerId: z.string().regex(/^S[1-9]\d*$/).describe("按定稿中人物在本片首次发声的顺序从 S1 编号，同一人沿用同一编号。首次发声时共同说话的人，按合同列出姓名的顺序编号"),
+    speakerId: z.string().regex(/^S[1-9]\d*$/).describe("每次独立生成视频时，按定稿中实际说话人首次发声的顺序从 S1 连续编号，不使用整部剧的角色编号。同一人在本视频内再次开口（包括切换镜头后）沿用原编号；首次发声时多人齐声说话，按合同列出的姓名顺序编号。未发声的人不分配 S 编号"),
     characterName: shortText,
     voiceIdentity: z.string().trim().min(1).max(800).optional().describe("填写已确认、需要在不同镜头中保持一致的音色、音区、共鸣或发音特点。本镜的停顿、重音和情绪根据当前场戏另行描述，保留原话、数字和单位"),
     sourceId: shortText.optional().describe("画内对白用 vs01，仅观众听到的旁白用 vs02，内心独白用 vs03，无实体网文系统用 vs04 至 vs07。现场说话人暂时处于画面之外，或交替进入画面时，可省略此项，逐句写实际声源与听觉范围"),
@@ -62,7 +62,7 @@ const shotFields = {
     foreignAccentId: shortText.optional(), dialectId: shortText.optional(), emotionId: shortText.optional(),
     deliveryId: shortText.optional(), paceId: shortText.optional(),
     speedMultiplier: z.number().min(0.7).max(1.8).optional().describe("有已确认的角色或本镜语速要求时才覆盖默认 1.3 倍，与 paceId 二选一"),
-  })).max(8).optional().describe("H3 视频同期配音：每个说话人独立指定声音模板 ID；有对白默认约1.3倍"),
+  })).max(8).optional().describe("H3 视频同期配音：只填写本次视频实际发声的角色，不填写仅出现在画面中的人物。编号从 S1 开始连续且不重复，声音模板按需指定；有对白默认约1.3倍"),
 };
 const creativeSelection = z.strictObject({
   narrativeId: shortText.optional(),
@@ -95,6 +95,13 @@ function validateShotInput(input: z.infer<typeof videoPromptToolInput>, ctx: z.R
   const issue = (path: string, message: string) =>
     ctx.addIssue({ code: "custom", path: [path], message });
   if (input.regenerate && input.reReview) issue("reReview", "复审现稿与从头重写只能选择一种");
+  const speakers = input.voiceCast ?? [];
+  const ids = new Set(speakers.map(role => role.speakerId));
+  if (ids.size !== speakers.length || speakers.some((_, index) => !ids.has(`S${index + 1}`))) {
+    const supplied = speakers.map(role => `${role.characterName}(${role.speakerId})`).join("、");
+    const expected = speakers.map((_, index) => `S${index + 1}`).join("、");
+    issue("voiceCast", `当前视频的说话人编号为 ${supplied}，必须使用 ${expected}，不得跳号或重复。请按定稿中的首次发声顺序重新分配编号，同步修正 story 中的说话人标记，保留原话、角色身份和声线；不要按数组顺序直接替换编号。`);
+  }
   if (input.node) {
     for (const name of ["modelId", "duration", "ratio", "sampling", "seed", "seedMode"] as const) {
       if (input[name] !== undefined) issue(name, "已有节点不允许重复传生成参数，请先在画布节点 setConfig 后读取 getPromptContext");

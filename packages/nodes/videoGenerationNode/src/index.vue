@@ -950,7 +950,7 @@ function getPromptContext() {
 
 nodeTools.register({
   name: "getPromptContext",
-  description: "读取视频提示词制作需要的实际工作流、模式、参数、按生成顺序排列的参考及写回版本。",
+  description: "读取编写视频提示词所需的实际工作流、生成模式、参数、按生成顺序排列的参考素材，以及写入提示词时需要使用的版本信息。",
   parameters: z.strictObject({}),
   async execute(_args, { signal }) {
     await loadModels();
@@ -961,7 +961,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "getConfig",
-  description: "读取视频节点配置、工作流能力、比例和适用模式。manualAccelerationLoras 是该画布节点持久保存的手动加速 LoRA 标记，候选必须来自已安装 loraChoices；标记不保证兼容。refreshComfyChoices=true 时从当前 ComfyUI 查询可选的 checkpointChoices 和 loraChoices，不开机。二采的 sampling 给出百万像素、放大倍率与一采/二采步数；h3Advanced 为高级设置能力和默认值，samplerChoices、schedulerChoices 是远端实报可用值。qcChoices 返回系统已启用模型；refreshQcChoices=true 时只读查询已安装权重，不开机。",
+  description: "读取视频节点的配置、工作流能力、画幅比例及适用的生成模式。manualAccelerationLoras 记录该节点长期保存的手动加速 LoRA 标记，候选文件必须来自已安装的 loraChoices；标记为加速 LoRA 并不代表一定兼容。refreshComfyChoices=true 时，向当前 ComfyUI 查询可用的 checkpointChoices 和 loraChoices，不启动主机。双阶段采样工作流的 sampling 返回百万像素、放大倍率及两个采样阶段的步数。h3Advanced 返回高级设置支持的功能和默认值，samplerChoices 和 schedulerChoices 是远端实际返回的可用选项。qcChoices 返回系统已启用的质检模型；refreshQcChoices=true 时只查询已经安装的模型权重，不启动主机。",
   parameters: z.strictObject({ refreshComfyChoices: z.boolean().optional(), refreshQcChoices: z.boolean().optional() }),
   async execute(args, { signal }) {
     signal?.throwIfAborted();
@@ -975,7 +975,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setConfig",
-  description: "修改视频节点配置。providerId 和 modelId 同时提供以选工作流。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，null 恢复工作流默认。loraName 为空字符串关闭加速 LoRA。manualAccelerationLoras 可设置手动标记的已安装加速 LoRA 文件名数组（最多32个）；先 getConfig(refreshComfyChoices=true) 获取 loraChoices，标记不代表 PDD/PTD/HyperFlow 等特殊方案可直接运行。h3Options 整体替换可选高级设置：loraStrength、extraLoras（有序数组，每项 name/strength，最多3个）、sampler、scheduler、videoShift、audioShift；null 恢复高级参数默认值。只使用实际发现的文件和采样选项，不擅自更换已选模型。qcOverride=null 继承系统默认；mode=off 关闭自动质检；mode=custom 使用指定质检策略，模型 ID 从 getConfig.qcChoices 选择。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
+  description: "修改视频节点配置。选择工作流时，必须同时提供 providerId 和 modelId。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，传入 null 时恢复工作流的默认值。loraName 为空字符串关闭加速 LoRA。manualAccelerationLoras 可设置手动标记的已安装加速 LoRA 文件名数组（最多32个）；先 getConfig(refreshComfyChoices=true) 获取 loraChoices，标记为加速 LoRA 不代表 PDD、PTD、HyperFlow 等特殊方案可以直接运行。h3Options 用于整体替换可选的高级设置，包括：loraStrength、extraLoras（有序数组，每项 name/strength，最多3个）、sampler、scheduler、videoShift、audioShift；null 恢复高级参数默认值。只使用实际发现的文件和采样选项，不擅自更换已选模型。qcOverride=null 时使用系统默认设置；mode=off 时关闭自动质检；mode=custom 时使用指定的质检策略，模型 ID 从 getConfig.qcChoices 中选择。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
   parameters: z.strictObject({
     providerId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),
@@ -1119,7 +1119,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setPrompt",
-  description: "写入视频模型实际收到的 prompt。按所选工作流的语言、格式和参考编号填写。使用 H3 时，正文段落按对应模式写英文，按定稿保留对白、歌词和画面文字的原文。promptZh 用于审阅简体中文对照，模型只接收 prompt。H3 的 reviewId 取自已通过的提示词审核，服务端按实际请求校验。本工具只写入提示词。",
+  description: "写入视频模型实际收到的 prompt。按所选工作流的语言、格式和参考编号填写。使用 H3 时，根据对应生成模式的格式编写英文正文，按照定稿保留对白、歌词及画面文字的原文。promptZh 提供简体中文对照，便于审阅；生成模型只接收 prompt。H3 的 reviewId 取自已通过的提示词审核，服务端按实际请求校验。本工具只写入提示词。",
   parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional(), reviewId: z.string().uuid().optional(), expectedRevision: z.string().optional() }),
   execute({ prompt: value, promptZh, reviewId, expectedRevision }) {
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");
@@ -1136,7 +1136,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "getPersistentGenerationStatus",
-  description: "查询此节点正在执行或最近已完成任务的成片及 videoQc。awaitingAgent 表示待当前主 Agent 用 getVideoQcFrames 看图并 submitVideoQc 提交逐项结论，不能视为验收完成。不启动生成或质检。",
+  description: "查询此节点正在执行或最近已完成任务的成片及 videoQc。awaitingAgent 表示当前主 Agent 还需要调用 getVideoQcFrames 查看实际画面，再通过 submitVideoQc 逐项提交验收结论，不能视为验收已经完成。不启动生成或质检。",
   parameters: z.strictObject({}),
   async execute() { return persistentGenerationStatus(); },
 });
@@ -1154,7 +1154,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "generateVideo",
-  description: "返回 requested 表示节点已发起或恢复本地请求。用 getPersistentGenerationStatus 查询相同 generationId；只有 phase 为 submitted/saved/completed 且有 promptId 才能说 ComfyUI 已接收。preparing/submitting 尚待确认，failed 读取 error。刷新后只恢复原任务，cancelPersistentGeneration 显式停止。",
+  description: "返回 requested 表示节点已经发起或恢复本地请求。使用 getPersistentGenerationStatus 查询相同的 generationId；只有 phase 为 submitted、saved 或 completed，且存在 promptId 时，才能确认 ComfyUI 已经接收任务。preparing 和 submitting 表示尚未确认接收，failed 表示任务失败，需要读取 error 中的具体错误。刷新后只恢复原任务，需要明确停止时使用 cancelPersistentGeneration。",
   parameters: z.strictObject({ qcModelCallAllowed: z.boolean().optional() }),
   execute(args, { signal }) {
     signal?.throwIfAborted();

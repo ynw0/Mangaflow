@@ -20,8 +20,8 @@ This Skill **organizes the prompt in the user input language and recommends Mini
 
 When the user provides any language, understand it as the following workflow requirements and express the final prompt in the dominant language of the user input:
 
-- 基于参考 prompt 创作一个全新的 15 秒视频生成 prompt，不要表面模仿原句。
-- 必须保留影像结构：实拍空间中出现平面的手绘发光动画；动画与真实手或真实物体接触；同一个存在连续变形并逃跑；相机总是慢半拍追赶。
+- 基于参考 prompt 创作一个全新的 15 秒视频生成 prompt，不要只在表面上模仿原有句子。
+- 必须保留影像结构：实拍空间中出现平面的手绘发光动画；动画与真实手或真实物体接触；同一个手绘实体连续变形并逃跑；相机总是慢半拍追赶。
 - 手绘动画质感必须像蜡笔、粉笔、彩色铅笔、粉彩、粗糙笔刷；线条轻微抖动，有涂抹不均、毛边和逐帧重画感。
 - 禁止 3DCG、毛绒玩具感、均匀矢量线、平滑霓虹、恐怖怪物、巨大眼睛、裂口、牙齿、威吓、扑咬、突然黑屏、跳吓。
 - 0-3 秒必须出现实拍手与手绘动画的清晰接触，例如缠住手指、落在掌心、被抓时逃跑、从指尖诞生。
@@ -30,7 +30,7 @@ When the user provides any language, understand it as the following workflow req
 - 全片在同一空间或相邻范围内连续展开，不用剪辑跳到另一个地点，像拍摄者真的边走边追。
 - 在 0-3、3-6、6-10、10-13、13-15 秒各区间交代同一事件如何推进或留下后果；静止观察与连续追随也可以占据一区间，不要求每段都添加独立恶作剧、突变或新奇事件。首段接触、持续变形、追逐与结尾空间级变化仍按本 Skill 的固定结构执行。
 - 拍摄者也必须参与：伸手、抓、追、打开门或盒子、接住、后退、被恶作剧等。
-- 调性是可爱、生活感、怀旧、温柔、略带切感，不是恐怖喜剧。
+- 调性是可爱、生活感、怀旧、温柔、略带亲切感，不是恐怖喜剧。
 - 13-15 秒仍需要让同一手绘实体影响更大的空间范围，例如线条沿墙、地板、窗户或通道延展成明确可见的空间级变化；保持轻盈、温柔的基调，笑点可在情境适合时出现，不强制同时加入感动和搞笑两种情绪。
 
 ## Step 2: Invent all creative content fresh
@@ -42,11 +42,11 @@ Choose new values for all of these:
 1. 实拍空间，但仍是生活化且可连续追踪的相邻范围；
 2. 手绘实体或初始形态；
 3. 中心色彩；
-4. 连续变形链路；
+4. 连续变形的过程；
 5. 与真实手或实物的接触方式；
 6. 在空间中的追逐路线；
 7. 拍摄者反应；
-8. 最后的空间级变形；情境确有自然的可爱笑点时再保留。
+8. 最后影响较大空间范围的变形；情境确有自然的可爱笑点时再保留。
 
 Pick one ordinary lived-in space that fits the brief (kitchen sink, balcony, hallway, desk, etc.). The list of sample rooms is not a rotation menu—invent from the user’s situation, do not cycle stock locations.
 

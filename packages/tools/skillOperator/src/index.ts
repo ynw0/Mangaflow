@@ -19,18 +19,18 @@ const plugin: ToolPlugin = {
     const requestSchema = z.object({
       action: z.enum(actions),
       name: z.string().trim().min(1).max(128).optional().describe("技能名称，read/create/update 必填；新技能使用小驼峰名称"),
-      scope: z.enum(["workspace", "global"]).optional().describe("workspace 为当前工作区 skill，global 为全局技能；新建默认 workspace，其他操作默认按同名技能优先级选择"),
-      path: z.string().min(1).max(4096).optional().describe("相对于该技能目录的文件路径，默认 SKILL.md；可指定 references 中的资料文件，不带章节锚点"),
+      scope: z.enum(["workspace", "global"]).optional().describe("workspace 表示当前工作区的技能，global 表示全局技能。新建技能时默认使用 workspace，其他操作默认按照同名技能的优先级选择"),
+      path: z.string().min(1).max(4096).optional().describe("相对于该技能目录的文件路径，默认 SKILL.md；可以指定 references 目录中的资料文件，但路径中不要包含章节锚点"),
       content: z.string().max(200000).optional().describe("create/update 必填：文件完整内容；SKILL.md 必须包含 name 和 description 的 YAML frontmatter"),
     }).strict();
     return [{
       name: "skillOperator",
       label: "Skill 操作器",
-      description: `统一管理技能。当前允许的操作：${actions.join("、")}。list 实时返回技能目录，可用 scope 查询被同名工作区技能覆盖的全局版本；read 读取正文或资料；create 新建技能或资料且不覆盖；update 用完整内容修改已有文件。除 list 外必填 name，写入还需 content。新建技能先创建 SKILL.md。`,
+      description: `统一管理技能。当前允许的操作：${actions.join("、")}。list 返回当前技能目录，可以通过 scope 查询被同名工作区技能覆盖的全局版本。read 读取技能正文或参考资料；create 新建技能或资料文件，不覆盖已有文件；update 使用完整内容修改已有文件。除 list 外，其他操作都必须填写 name，写入文件时还须填写 content。新建技能时先创建 SKILL.md。`,
       promptSnippet: "按需查询技能目录，读取并维护技能及其附带资料。",
       promptGuidelines: allowRead ? [
         "每次接到任务，先用 skillOperator(action=list) 检查技能名称和描述。任务匹配技能时，先用 action=read 读取 SKILL.md 再开始实质工作；disableModelInvocation=true 的技能仅在用户明确指定时读取使用。普通聊天或没有匹配项时不强行套用技能。",
-        "按当前阶段读取所需 references。相对链接以当前文档目录解析，再换算成相对于该技能根目录的 path，去掉章节锚点。跨技能引用先 list 确认目标名称及 scope，不能假定全局与工作区技能同级。",
+        "根据当前制作阶段读取 references 中需要的资料。先以当前文档所在目录为起点解析相对链接，再将其转换为相对于技能根目录的 path，并去掉章节锚点。引用其他技能时，先调用 list 确认目标名称和 scope，不要假定全局技能与工作区技能位于同一级目录。",
         "已在当前上下文完整读取且适用的技能可以复用。简短说明采用的技能，遵循其阶段和用户要求；只有目录或旧对话摘要不算读取正文，文件不可读时说明缺项，不假称已读取。",
       ] : ["Skill 操作器的正文读取权限已关闭；list 仅提供目录，不代表已经读取或采用技能。"],
       parameters: z.toJSONSchema(requestSchema, { io: "input", target: "draft-07" }),

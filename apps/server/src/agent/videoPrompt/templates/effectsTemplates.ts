@@ -12,13 +12,13 @@ export const effectsTemplates: VideoPromptTemplate[] = [
       sound: ["呼吸","静默"],
       effect: ["脉冲","能量汇聚","局部反光"],
     },
-    useWhen: "仅当剧本已有力量/异象出现设定，且观众要先看清力量从何处出现；无力量设定不召回。",
+    useWhen: "仅当剧本已有力量/异象出现设定，且观众要先看清力量从何处出现；没有相应的力量设定时，不使用此模板。",
     fragment: "用近景让观众认出力量从哪里出现、局部哪里先变。人物动作只按他能看到或感觉到的变化推进。",
     avoid: "开场全场同时发光，来源被遮住。",
     verify: "自检（不写入 H3 正文）：来源先出现，路径与人物反应随后可见。",
   },
   {
-    id: "awakeningBurst", title: "扩散靠环境反馈变得可读", minSeconds: 4, minSubjects: 1,
+    id: "awakeningBurst", title: "通过环境变化表现力量的扩散", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["觉醒","施法"],
       emotion: ["震撼","失控"],
@@ -29,13 +29,13 @@ export const effectsTemplates: VideoPromptTemplate[] = [
       effect: ["冲击波","碎片","烟尘"],
     },
     anchors: ["可见受力表面"],
-    useWhen: "仅当剧本已有力量范围/施法设定，力量范围是主要信息且已有可受力表面；无力量设定不召回。",
+    useWhen: "仅当剧本已有力量范围/施法设定，力量范围是主要信息且已有可受力表面；没有相应的力量设定时，不使用此模板。",
     fragment: "从已设定的发出位置开始，沿剧本给出的范围表现可见反馈。远处若也受到影响，让变化晚于近处出现。",
-    avoid: "曝光淹没发出点与波前。",
+    avoid: "过度曝光使力量发出的位置和扩散前缘无法辨认。",
     verify: "自检（不写入 H3 正文）：扩散具有可观察的近远顺序。",
   },
   {
-    id: "awakeningFace", title: "把觉醒拍成角色发现", minSeconds: 4, minSubjects: 1,
+    id: "awakeningFace", title: "通过角色的发现表现觉醒", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["觉醒","反应"],
       emotion: ["震惊","惊疑"],
@@ -45,13 +45,13 @@ export const effectsTemplates: VideoPromptTemplate[] = [
       sound: ["呼吸"],
       effect: ["局部反光","能量汇聚"],
     },
-    useWhen: "仅当剧本已有觉醒/力量发现设定，且角色对自己力量的反应比规模更重要；无力量设定不召回。",
+    useWhen: "仅当剧本已有觉醒/力量发现设定，且角色对自己力量的反应比规模更重要；没有相应的力量设定时，不使用此模板。",
     fragment: "让来源和人物处在同一视点里。按原场戏安排人物是先察觉身体变化还是先看见亮光，保留他接下来实际做的事。",
     avoid: "用强光盖掉脸，或让人物先反应后出现力量。",
     verify: "自检（不写入 H3 正文）：观众能否看懂人物是怎么察觉变化的，又因此做了什么？",
   },
   {
-    id: "environmentOmen", title: "让既有环境先告警", minSeconds: 4, minSubjects: 1,
+    id: "environmentOmen", title: "先通过已有环境表现危险的预兆", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["觉醒","危险逼近"],
       emotion: ["恐惧","惊疑"],
@@ -62,10 +62,10 @@ export const effectsTemplates: VideoPromptTemplate[] = [
       effect: ["脉冲","局部反光"],
       lighting: ["动态反光"],
     },
-    useWhen: "威胁有可信的环境响应物。",
+    useWhen: "环境中已有能够合理反映威胁出现的物件。",
     fragment: "让已有的物件先出现观众能辨认的变化。人物只回应自己能看见或听见的部分，来源按剧本保留或揭示。",
     avoid: "凭空加入没有批准的灯具、警报或生物。",
-    verify: "前兆先于来源与反应，并在已批准空间成立。",
+    verify: "前兆先出现，随后才揭示来源和人物反应，整个过程符合已批准的场景布局。",
   },
   {
     id: "beamPath", title: "定向能量束命中", minSeconds: 4, minSubjects: 1,
@@ -82,7 +82,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     useWhen: "发出点和落点可以从侧面同时辨认。",
     fragment: "从侧面保留虚构光束的起点和落点，用落点处的可见变化表现结果。光束消退后留下分镜约定的状态。",
     avoid: "沿传播轴正对镜头，起点和终点叠在一起。",
-    verify: "来源、传播方向、落点和收束各自可核验。",
+    verify: "能够分别确认光束的来源、传播方向、命中位置和消退过程。",
   },
   {
     id: "shieldCrack", title: "护盾受击与裂解", minSeconds: 4, minSubjects: 1,
@@ -100,7 +100,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     useWhen: "剧本明确有护盾及其受击结果。",
     fragment: "保留盾面边缘，从接触处表现已经设定的盾面变化。人物或物件是否也受影响，沿用原场戏。",
     avoid: "裂纹先出现、来袭物才撞到护盾。",
-    verify: "碰撞时点、裂纹起点和护盾末态顺序正确。",
+    verify: "碰撞发生的时刻、裂纹开始出现的位置以及护盾的最终状态符合原定顺序。",
   },
   {
     id: "arcConduction", title: "电弧沿结构传导", minSeconds: 3, minSubjects: 1,
@@ -134,7 +134,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     anchors: ["可见受力表面"],
     useWhen: "已有合理燃料和火源，风向能保持一致。",
     fragment: "让观众先看见原分镜设定的着火处，再看到相邻位置如何受到影响。火光与烟沿既有场景保持一致。",
-    avoid: "火焰来源换边或火光照到远端前景先于起火。",
+    avoid: "火焰的来源突然换到另一侧，或还没起火，远处的前景就已被火光照亮。",
     verify: "传播、光影和烟的方向一致。",
   },
   {
@@ -153,7 +153,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     useWhen: "需要通过环境反馈说明撞击力度。",
     fragment: "尘土从已发生撞击的地方升起，逐渐散开后让观众辨认碰撞结果。沙土、碎片和扬尘幅度由现场材质决定。",
     avoid: "用满屏烟遮住碰撞瞬间和最后位置。",
-    verify: "尘浪起点与落点一致，镜尾可辨。",
+    verify: "尘土扬起的位置与撞击落点一致，镜头结束时的状态清晰可辨。",
   },
   {
     id: "waterColumns", title: "水柱跟随实际入水点", minSeconds: 4,
@@ -172,7 +172,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     useWhen: "故事要求落水后有水面反馈。",
     fragment: "让可见的入水轨迹接到同一个水花起点。水花回落后保留水面变化，大小取决于原场戏的动作。",
     avoid: "水柱提前出现或从无关方位冒出。",
-    verify: "入水时点、水柱数量、位置和回落一致。",
+    verify: "入水时刻、水柱的数量、位置以及回落过程相互吻合。",
   },
   {
     id: "iceFront", title: "结冰边缘持续向外生长", minSeconds: 4,
@@ -187,7 +187,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
       lighting: ["动态反光"],
     },
     anchors: ["可见受力表面"],
-    useWhen: "霜冻传播路线沿现有表面成立。",
+    useWhen: "冰霜能够沿已有物体表面扩散。",
     fragment: "从首次结冰的位置拍清冰霜沿原有表面扩展。重点是前后变化能在同一处辨认，并保留最后实际结冰的范围。",
     avoid: "镜头中间突然替换整块场景材质。",
     verify: "接触点、结晶前缘、停止位置连续。",
@@ -211,7 +211,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     verify: "液体路径、受损起点与残留状态有证据。",
   },
   {
-    id: "warpEdges", title: "局部扭曲保留空间锚点", minSeconds: 4,
+    id: "warpEdges", title: "局部空间扭曲时保留原有参照物", minSeconds: 4,
     tags: {
       scene: ["觉醒","施法","揭示"],
       emotion: ["惊疑","恐惧"],
@@ -228,7 +228,7 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     verify: "能对照同一条线在变形前、过程中和结束时的位置。",
   },
   {
-    id: "particleDissolve", title: "把散落粒子留给镜尾", minSeconds: 3,
+    id: "particleDissolve", title: "在镜头结束时表现粒子逐渐消散", minSeconds: 3,
     tags: {
       scene: ["施法","战后余波"],
       emotion: ["释然","孤独"],
@@ -240,11 +240,11 @@ export const effectsTemplates: VideoPromptTemplate[] = [
     },
     useWhen: "主要事件结束，镜尾需要安定下来的环境。",
     fragment: "用原有效果的消退露出镜尾要交代的结果。镜头留在观众能对照变化前后的位置。",
-    avoid: "又加一个全屏闪光掩盖末态。",
+    avoid: "再次加入覆盖整个画面的闪光，遮住镜头结束时的实际状态。",
     verify: "衰减方向、出现先后和镜尾状态连续。",
   },
   {
-    id: "rainHighlight", title: "用湿面反光强化夜景接触", minSeconds: 4,
+    id: "rainHighlight", title: "用雨夜湿润表面的反光表现接触动作", minSeconds: 4,
     tags: {
       scene: ["场景建立","战斗"],
       emotion: ["紧张","压迫"],
@@ -257,8 +257,8 @@ export const effectsTemplates: VideoPromptTemplate[] = [
       setting: ["夜景","雨天","街道","桥面"],
     },
     anchors: ["可见光源"],
-    useWhen: "已有夜雨与已批准光源，镜头需要可读的接触点。",
-    fragment: "延续已有雨声和光源。接触仅改变落点附近原有的水和反光，重点留给实际碰到的地方。",
+    useWhen: "已有夜雨与已批准光源，镜头需要让观众清楚看见接触位置。",
+    fragment: "延续已有雨声和光源。接触仅改变落点附近原有的水和反光，重点表现实际发生接触的位置。",
     avoid: "让反光跨场景换颜色，或让雨声随着每次动作消失。",
     verify: "光源、反光位置和动作触发的局部变化一致。",
   },

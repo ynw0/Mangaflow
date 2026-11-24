@@ -37,7 +37,7 @@ export const appOperations: {
     parameters: z.strictObject({ name: pluginName, enabled: z.boolean() }), refresh: { type: "node", nameField: "name" },
   },
   {
-    name: "installNode", description: "通过 fileName/source 安装节点 UMD，或使用 url 下载；force 显式允许覆盖。下载和版本检查沿用现有安装接口。", method: "POST", path: "/api/nodes/install",
+    name: "installNode", description: "通过 fileName 和 source 安装节点 UMD 文件，或使用 url 下载；只有通过 force 明确允许时才覆盖已有内容。下载和版本检查沿用现有安装接口。", method: "POST", path: "/api/nodes/install",
     parameters: z.strictObject({ ...sourceFields, fileName: z.string().max(128).optional() }).refine(sourceRequired, "提供 url 或 fileName/source，不能同时提供 url 和 source"), refresh: { type: "node" },
   },
   {
@@ -52,11 +52,11 @@ export const appOperations: {
     parameters: z.strictObject({ name: toolNameSchema, enabled: z.boolean() }), refresh: { type: "tool", nameField: "name" },
   },
   {
-    name: "saveToolConfig", description: "保存指定工具的完整 config，按该工具的配置规则校验。不要回写脱敏占位符。", method: "PUT", path: "/api/tools/save",
+    name: "saveToolConfig", description: "保存指定工具的完整 config，按该工具的配置规则校验。不要将脱敏后的占位符写回配置。", method: "PUT", path: "/api/tools/save",
     parameters: z.strictObject({ name: toolNameSchema, config: z.record(z.string(), z.json()) }), refresh: { type: "tool", nameField: "name" },
   },
   {
-    name: "installTool", description: "通过 fileName/source 安装 .tool.js，或使用 url 下载；force 显式允许覆盖。", method: "POST", path: "/api/tools/install",
+    name: "installTool", description: "通过 fileName 和 source 安装 .tool.js 文件，或使用 url 下载；只有通过 force 明确允许时才覆盖已有内容。", method: "POST", path: "/api/tools/install",
     parameters: z.strictObject({ ...sourceFields, fileName: z.string().max(104).regex(/^[a-z][a-zA-Z0-9]*\.tool\.js$/).optional() }).refine(sourceRequired, "提供 url 或 fileName/source，不能同时提供 url 和 source"), refresh: { type: "tool" },
   },
   {
@@ -86,7 +86,7 @@ export const appOperations: {
     parameters: z.strictObject({ name: skillName, path: skillPath, target: skillPath }), refresh: { type: "skill", nameField: "name" },
   },
   {
-    name: "installSkill", description: "使用 fileName/base64 安装技能文件或压缩包，或使用 url 下载；force 显式允许覆盖。", method: "POST", path: "/api/skills/install",
+    name: "installSkill", description: "使用 fileName 和 base64 安装技能文件或压缩包，或使用 url 下载；只有通过 force 明确允许时才覆盖已有内容。", method: "POST", path: "/api/skills/install",
     parameters: z.strictObject({ fileName: z.string().max(128).optional(), base64: base64.min(1).optional(), url: z.url().max(4096).optional(), force: z.boolean().optional() })
       .refine(value => value.url ? value.base64 === undefined : value.fileName !== undefined && value.base64 !== undefined, "提供 url 或 fileName/base64，不能同时提供 url 和 base64"), refresh: { type: "skill" },
   },
@@ -95,10 +95,10 @@ export const appOperations: {
     parameters: z.strictObject({ name: skillName }), refresh: { type: "skill", nameField: "name" },
   },
   {
-    name: "listMediaProviders", description: "读取媒体供应商及预置 models、配置 revision；保存与删除时使用最新 revision。", method: "GET", path: "/api/providers/media/list", parameters: z.strictObject({}),
+    name: "listMediaProviders", description: "读取媒体供应商、预置的 models 和配置版本 revision。保存或删除时使用最新的 revision。", method: "GET", path: "/api/providers/media/list", parameters: z.strictObject({}),
   },
   {
-    name: "addMediaProvider", description: "从完整 TypeScript source 添加媒体供应商，沿用现有供应商结构检查。", method: "POST", path: "/api/providers/media/add",
+    name: "addMediaProvider", description: "使用完整的 TypeScript source 添加媒体供应商，按现有规则检查供应商代码的结构。", method: "POST", path: "/api/providers/media/add",
     parameters: z.strictObject({ source: z.string().min(1).max(2 * 1024 * 1024) }), refresh: { type: "provider" },
   },
   {

@@ -17,7 +17,7 @@ export const draftSchema = z.discriminatedUnion("status", [
 const submissionOptions = { io: "input", target: "draft-07" } as const;
 export const draftSubmissionParameters = z.toJSONSchema(z.strictObject({
   status: z.enum(["ok", "blocked"]), ...z.object(draftFields).partial().shape,
-  reason: blockedReason.optional().describe("仅在 status 为 blocked 时填写具体缺项或冲突"),
+  reason: blockedReason.optional().describe("仅在 status 为 blocked 时说明缺少哪些必要信息，或存在哪些冲突"),
 }), submissionOptions);
 
 const maxReviewFindings = 12;
@@ -29,10 +29,10 @@ export function createReviewSchema(requirementIds: string[]) {
     .refine(items => new Set(items.map(item => item.requirementId)).size === requirementIds.length, "审核证据须逐项覆盖且不得重复");
   return z.discriminatedUnion("status", [
     z.object({ status: z.literal("ok"), framingEvidence: z.string().trim().min(1).max(1500).optional()
-      .describe("仅用于说明合同指定的镜尾构图或画内证据"), coverage, findings: z.tuple([]) }),
+      .describe("仅用于说明合同指定的结束构图，或需要在画面中呈现的证据"), coverage, findings: z.tuple([]) }),
     z.object({ status: z.literal("rejected"), needsAdjacentShots: z.literal(true).optional(), findings: z.array(z.object({
       requirementId, location: z.string().trim().min(1).max(300), evidence,
-      fixTarget: z.string().trim().min(1).max(500).describe("说明需要恢复的剧情事实、声画关系或可读性，具体文案和拍法交由导演决定"),
+      fixTarget: z.string().trim().min(1).max(500).describe("说明需要恢复的剧情事实、声音与画面的关系，或需要清楚呈现的内容；具体文案和拍摄方法由导演决定"),
     })).min(1).max(maxReviewFindings).describe("完成整份稿件的核对后，汇总本轮确认的实质问题，同一原因合并填写") }),
   ]);
 }
@@ -59,12 +59,12 @@ export function getVideoPromptRequirements(shot: Prepared["shot"]) {
   return [
     ...getShotRequirements(shot),
     { id: "framing", text: "镜头数量及切点符合用户合同；cinematicPlan.shots（如有）与 [Shot N] 的时间和顺序一致，镜尾构图与同框要求相容。合同未指定的角度以主体和动作清楚、画面效果符合场戏为准" },
-    { id: "actionCausality", text: "动作起止、接触、反馈与声音时序在给定时长内可执行" },
-    { id: "dialogueTiming", text: "有对白时先按定稿核对说话人、原话和接话顺序，再查起声、收句、抢话、口型和声场。核对推动剧情、接话或下镜承接的台词是否有合适的发声安排，避免被音乐、音效或别人的声音盖住。时长不足时指出冲突，保留原话并交回分镜调整。无对白时说明依据。" },
-    { id: "references", text: "主体身份、素材用途与实际参考槽位一致，不臆测未提供的素材事实" },
-    { id: "bilingualConsistency", text: "先核对中英文的主体、属性、动作、时序、对白和镜尾事实，再单独连读 promptZh，检查物件、动作和声线说明是否通顺、具体。通过证据须摘录一处实际的中文叙述并说明如何保留原意。发现临时简称、生造缩略、电报体压缩、词语搭配不当或语义偏移时，引用原句并退回局部修订。已锁定的台词、专名和原样显示的文字按原文核对。" },
-    { id: "creativeIntent", text: `叙事目的：${shot.purpose}。视觉风格：${shot.style}。按播放顺序核对观众何时看懂本镜应交代的信息，以及后续才揭晓的内容是否留在正确时机。指出对应的声画和触发人物反应的事。结合分镜判断哪些细节帮助观众辨认人物、理解反应或看出变化。表演与定稿冲突、重复交代妨碍理解，或构图无法呈现关键信息时，指出具体位置和影响。照抄模板动作、无来由的表情，或现场可用普通词说清却自造缩写和术语，同样退回。` },
-    ...(speakers.length ? [{ id: "voiceCast", text: `声音身份与说话人逐项匹配：${speakers.map(role =>
+    { id: "actionCausality", text: "动作的开始、结束、接触及其产生的结果，以及声音出现的顺序，都能在给定时长内实现" },
+    { id: "dialogueTiming", text: "有对白时，先按定稿核对说话人、原话和接话顺序，再检查开口和说完的时间、抢话、口型以及声音在场景中的分布。核对推动剧情、回应前一句或为下一镜提供承接依据的台词是否有合适的发声安排，避免被音乐、音效或别人的声音盖住。时长不足时指出冲突，保留原话并交回分镜调整。无对白时说明依据。" },
+    { id: "references", text: "主体身份和素材用途应与实际参考槽位一致，不得猜测素材中没有提供的事实" },
+    { id: "bilingualConsistency", text: "先核对中英文是否准确描述同一主体、属性、动作、时间顺序、对白和镜头结束时的事实，再单独通读 promptZh，检查对物件、动作和声线的描述是否通顺、具体。通过证据须摘录一处实际的中文叙述并说明如何保留原意。发现临时创造的简称、生硬的缩略语、过度压缩的句子、词语搭配不当或原意发生变化时，引用原句并退回局部修订。已锁定的台词、专名和原样显示的文字按原文核对。" },
+    { id: "creativeIntent", text: `叙事目的：${shot.purpose}。视觉风格：${shot.style}。按播放顺序核对观众何时看懂本镜应交代的信息，以及后续才揭晓的内容是否留在正确时机。指出对应的画面或声音，以及是什么引起了人物的反应。结合分镜判断哪些细节帮助观众辨认人物、理解反应或看出变化。表演与定稿冲突、重复交代妨碍理解，或构图无法呈现关键信息时，指出具体位置和影响。照抄模板动作、无来由的表情，或现场可用普通词说清却自造缩写和术语，同样退回。` },
+    ...(speakers.length ? [{ id: "voiceCast", text: `逐项核对声线设定与实际说话人是否一致：${speakers.map(role =>
       `${role.characterName}(${role.speakerId})${role.sourceId ? `（声源模板 ${role.sourceId}）` : ""}`).join("、")}。按定稿逐句核对角色与原话，核对编号是否从 S1 按本片首次发声顺序分配。同一人再次开口沿用原编号。对照剧本核对谁在何处发声、谁听得见。声源模板与发声事实冲突时定位到本轮配置，保留原台词、情绪和已确认语速。` }] : []),
   ];
 }
@@ -117,7 +117,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     /\b(?:very\s+)?(?:first|last|initial|final)\s+(?:video\s+)?frame\s+(?:is|must\s+be|equals|matches)\s+(?:exactly|identical(?:ly)?(?:\s+to)?|pixel[- ]for[- ]pixel)\s*<Picture\s+\d+>/i.test(prompt)
     || /\b(?:pixel[- ]for[- ]pixel|bit[- ]for[- ]bit)\s+(?:identical|match|matching|reproduction)\b/i.test(prompt)
   )) {
-    findings.push("普通 Ref2VA 图片可按官方规范用 keyframe completion 描述帧关系，但不保证第一帧/末帧与参考图逐像素一致。删除硬匹配承诺；如需专用帧输入，请切换实际绑定首尾帧的工作流。");
+    findings.push("普通 Ref2VA 图片可按官方规范用 keyframe completion 描述帧关系，但不保证第一帧/末帧与参考图逐像素一致。删除关于参考图必然逐像素匹配的承诺；如需专用帧输入，请切换实际绑定首尾帧的工作流。");
   }
   if (format !== "h3Frames" && prefix) findings.push("正文须直接从本模式的第一个字段开始。");
   for (const [index, heading] of headings.entries()) {

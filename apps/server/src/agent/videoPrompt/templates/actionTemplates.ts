@@ -2,7 +2,7 @@ import type { VideoPromptTemplate } from "@/agent/videoPrompt/templates/schema";
 
 export const actionTemplates: VideoPromptTemplate[] = [
   {
-    id: "sidePursuit", title: "侧跟保持追赶距离", minSeconds: 4, minSubjects: 2,
+    id: "sidePursuit", title: "侧面跟拍表现追赶距离", minSeconds: 4, minSubjects: 2,
     tags: {
       scene: ["追逐","撤离"],
       emotion: ["焦急","紧张"],
@@ -13,12 +13,12 @@ export const actionTemplates: VideoPromptTemplate[] = [
       action: ["奔跑","转向"],
     },
     useWhen: "故事重点是两者距离缩短或拉开。",
-    fragment: "从侧面平行跟上既定路线，让地面或建筑参照显出两者距离的变化。快慢和是否停下按原追逐结果安排。",
+    fragment: "沿既定路线从侧面平行跟拍，借助地面或建筑物的参照，让观众看清两者距离的变化。快慢和是否停下按原追逐结果安排。",
     avoid: "为维持画面间距擅自改变角色速度或路线。",
-    verify: "步态连续，方向一致，间距变化可读。",
+    verify: "步态连贯，方向一致，两者的距离变化清晰可见。",
   },
   {
-    id: "cornerChase", title: "固定视点拍出拐点", minSeconds: 4, minSubjects: 2,
+    id: "cornerChase", title: "固定机位拍清转弯方向", minSeconds: 4, minSubjects: 2,
     tags: {
       scene: ["追逐","撤离"],
       emotion: ["紧张"],
@@ -29,7 +29,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
       action: ["奔跑","转向"],
     },
     useWhen: "去向比速度更重要，场景里已经交代岔路。",
-    fragment: "固定机位留住岔路。拍清领跑者实际转去的方向，以及追赶者看见后选择同一路线还是另有行动。",
+    fragment: "用固定机位将岔路保留在画面中。拍清领跑者实际转去的方向，以及追赶者看见后选择同一路线还是另有行动。",
     avoid: "在拐点切机位或换左右关系。",
     verify: "谁先经过岔路、两人各自去了哪里，都能从画面辨认。",
   },
@@ -63,7 +63,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
     },
     anchors: ["接触对象"],
     useWhen: "剧本要求观众看见武器如何与来袭物相遇。",
-    fragment: "在接触时同时保留来向、两件道具和交点，接着看清道具分开后的去向。",
+    fragment: "接触时让观众同时看清来袭方向、两件道具和接触位置，随后看清道具分开后各自的去向。",
     avoid: "同时环绕和拉近造成接触点出画。",
     verify: "能否辨认哪件道具先入画、接触在哪里、之后各自移向何处？",
   },
@@ -81,12 +81,12 @@ export const actionTemplates: VideoPromptTemplate[] = [
     },
     anchors: ["接触对象"],
     useWhen: "来袭动作已交代，当前镜头重点是受力结果。",
-    fragment: "接触后留住挡具和人物重心真实发生的变化，脚跟是否后滑由原分镜决定。撞击声跟着道具接触发生。",
-    avoid: "只有光效，挡具和身体位置毫无反馈。",
+    fragment: "拍清接触后格挡用的道具和人物重心实际发生的变化，脚跟是否向后滑动由原分镜决定。撞击声跟着道具接触发生。",
+    avoid: "只有光效，格挡用的道具和人物的身体位置都没有发生相应变化。",
     verify: "接触点、挡具偏转和脚跟位移连贯。",
   },
   {
-    id: "dodgeLine", title: "先给来袭线再闪身", minSeconds: 3, minSubjects: 1,
+    id: "dodgeLine", title: "先交代来袭方向，再表现闪避", minSeconds: 3, minSubjects: 1,
     tags: {
       scene: ["战斗","格挡"],
       emotion: ["紧张","决绝"],
@@ -98,7 +98,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
       effect: ["碎片"],
     },
     useWhen: "需要表现主动闪避以及来袭物落点。",
-    fragment: "保留分镜已建立的来向，使观众看清人物避开了什么。剧本要求交代后续落点时，把落点放在观众能辨认的位置。",
+    fragment: "保持分镜已经确定的来袭方向，使观众看清人物避开了什么。剧本要求交代后续落点时，把落点放在观众能辨认的位置。",
     avoid: "人物瞬移，或来袭物在空中改道追过去。",
     verify: "闪避方向、时点与来袭物的轨迹能同时看清。",
   },
@@ -114,13 +114,13 @@ export const actionTemplates: VideoPromptTemplate[] = [
       action: ["递交","持握","受力"],
     },
     anchors: ["接触对象"],
-    useWhen: "持物归属或是否抓住是本镜硬信息。",
-    fragment: "让物件靠近、手接住和镜尾持有这几个状态连续可见。缓冲的幅度取决于原道具的重量和来向。",
+    useWhen: "物件最终由谁持有，或者人物是否成功抓住物件，是本镜必须交代的信息。",
+    fragment: "连续拍清物件靠近、人物伸手接住，以及镜头结束时物件仍由人物持有的过程。接住物件时的缓冲幅度取决于该道具的重量和它移来的方向。",
     avoid: "手还没碰到物件，物件已经出现在掌心。",
-    verify: "物件路径、手指闭合和结束持物能一眼对应。",
+    verify: "物件的移动路径、手指合拢的动作以及最终持有物件的状态能够清楚对应。",
   },
   {
-    id: "passProp", title: "双人递交与释放", minSeconds: 3, minSubjects: 2,
+    id: "passProp", title: "两人交接物件", minSeconds: 3, minSubjects: 2,
     tags: {
       scene: ["交接","对话"],
       emotion: ["平静","犹豫"],
@@ -132,12 +132,12 @@ export const actionTemplates: VideoPromptTemplate[] = [
     },
     anchors: ["接触对象"],
     useWhen: "同一物件在两人之间转手。",
-    fragment: "让交接前后的持有人都可辨。普通交接中，接收者接稳后递出者才松手；迟疑、拒接、接空或掉落按剧本表现。",
-    avoid: "两边同时松手，或末尾重新切回递出方持物。",
-    verify: "观众能否看清交接成功与否、手里最后是谁的东西？",
+    fragment: "让观众看清物件在交接前后分别由谁持有。普通交接中，接收者接稳后递出者才松手；迟疑、拒接、接空或掉落按剧本表现。",
+    avoid: "双方同时松手，或镜头结束时物件又回到递出者手中。",
+    verify: "观众能否看清交接是否成功，以及物件最终在谁手里？",
   },
   {
-    id: "pullRescue", title: "抓住受力点再拉离", minSeconds: 4, minSubjects: 2,
+    id: "pullRescue", title: "抓稳后将人拉离危险处", minSeconds: 4, minSubjects: 2,
     tags: {
       scene: ["救援","撤离"],
       emotion: ["焦急","决绝"],
@@ -154,7 +154,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
     verify: "抓握点、两人的支撑脚和脱离位置都有证据。",
   },
   {
-    id: "fallLanding", title: "坠落与接地分量", minSeconds: 4, minSubjects: 1,
+    id: "fallLanding", title: "表现坠落及落地时的冲击", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["战斗","灾变","救援"],
       emotion: ["恐惧","紧张"],
@@ -167,12 +167,12 @@ export const actionTemplates: VideoPromptTemplate[] = [
     },
     anchors: ["可见受力表面"],
     useWhen: "落点可入画，坠落对下方有实际影响。",
-    fragment: "分别看清下落来向和接地的那一刻。接地造成的声音或形变从原有落点出现，碎屑仅在场地有相应材料时出现。",
-    avoid: "先响后落，落地时视点遮住受力点。",
+    fragment: "让观众看清物体下落的方向，以及接触地面的那一刻。接地造成的声音或形变从原有落点出现，碎屑仅在场地有相应材料时出现。",
+    avoid: "撞击声先于落地出现，或落地时摄影角度遮住了受力位置。",
     verify: "先看清接地，扬尘或变形紧随接触，声音与接触同步。",
   },
   {
-    id: "hingeFold", title: "把折叠写成真实转轴", minSeconds: 5, minSubjects: 1,
+    id: "hingeFold", title: "沿实际转轴折叠部件", minSeconds: 5, minSubjects: 1,
     tags: {
       scene: ["机械变形","装置启动"],
       emotion: ["震撼","紧张"],
@@ -184,13 +184,13 @@ export const actionTemplates: VideoPromptTemplate[] = [
       effect: ["形变"],
     },
     anchors: ["可变形零件"],
-    useWhen: "起始和末态能对应同一块面板及支点。",
+    useWhen: "初始状态和最终状态中的面板及支点能够一一对应。",
     fragment: "沿原有转轴拍清同一面板从哪一侧翻开，以及翻开后在哪里扣住，周围结构保持连续。",
     avoid: "省略转轴，让两块独立金属直接融合。",
     verify: "同一面板的起始边缘、旋转轴和锁止位置可追踪。",
   },
   {
-    id: "sliderExtension", title: "滑轨展开到确定止点", minSeconds: 4, minSubjects: 1,
+    id: "sliderExtension", title: "沿滑轨展开至确定的停止位置", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["机械变形","装置启动"],
       emotion: ["震撼","克制"],
@@ -205,10 +205,10 @@ export const actionTemplates: VideoPromptTemplate[] = [
     useWhen: "图像中已有滑轨、筒体或可伸缩部件。",
     fragment: "沿参考中能辨认的导轨追踪同一部件，保留它从套筒伸出到实际停止的位置。",
     avoid: "滑移中部件突然变长或起始位置换边。",
-    verify: "导轨连接处连续，末态止点可确认。",
+    verify: "导轨连接处在运动过程中保持连续，最终停止的位置可以确认。",
   },
   {
-    id: "wheelDeployment", title: "轮组从旧部件展开", minSeconds: 5, minSubjects: 1,
+    id: "wheelDeployment", title: "轮组从原有部件中展开", minSeconds: 5, minSubjects: 1,
     tags: {
       scene: ["机械变形"],
       emotion: ["震撼","兴奋"],
@@ -220,13 +220,13 @@ export const actionTemplates: VideoPromptTemplate[] = [
       effect: ["形变"],
     },
     anchors: ["可变形零件"],
-    useWhen: "参考确认原部件与轮组之间的来源关系。",
+    useWhen: "参考素材能够确认轮组来自哪个原有部件。",
     fragment: "拍清轮组怎样从原部件里露出、转到着地方向并接触地面，车体重量在着地后才移到轮上。",
     avoid: "车轮凭空补全或落地后主体仍悬浮。",
     verify: "轮组来源、数量、方向和地面接触均可确认。",
   },
   {
-    id: "anchorStateTransition", title: "固定首尾帧中间结构路径", minSeconds: 5, minSubjects: 1, minImages: 2,
+    id: "anchorStateTransition", title: "沿连续的结构变化连接首尾帧", minSeconds: 5, minSubjects: 1, minImages: 2,
     tags: {
       scene: ["机械变形","反转"],
       emotion: ["震撼"],
@@ -240,7 +240,7 @@ export const actionTemplates: VideoPromptTemplate[] = [
     formats: ["h3Frames"],
     useWhen: "首尾帧真实绑定、两图结构可一一对应，且中间变化有本镜故事原因（不能为变而变）。",
     fragment: "让实际首尾帧中的同一物件在镜头内连续变化。按分镜展示必要的部件变化，最后落到尾帧的姿态、位置和构图。每一步中间变化须能说清本镜故事原因。",
-    avoid: "把两幅静态外观当成两个主体或用跳变连接；勿在无剧情动机时硬塞结构变换。",
+    avoid: "把两幅静态外观当成两个主体或用跳变连接；不要在没有剧情依据时强行加入结构变化。",
     verify: "自检（不写入 H3 正文）：首尾帧位置成立，中间能追踪同一结构，且每步变化有本镜故事原因。",
   },
   {
@@ -259,6 +259,6 @@ export const actionTemplates: VideoPromptTemplate[] = [
     useWhen: "剧情包含可见装配或锻接，部件来源已批准。",
     fragment: "两件原有部件在接缝处贴合。分镜要求表现焊光时，把亮光留在接缝，仍能看清部件的位置和连接结果。",
     avoid: "把焊光扩到整个物件，盖掉部件拼合过程。",
-    verify: "接缝先接触，焊光位置和结合末态能核验。",
+    verify: "两个部件先在接缝处接触，随后能够核验焊光出现的位置和最终连接状态。",
   },
 ];

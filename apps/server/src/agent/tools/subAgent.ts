@@ -12,9 +12,9 @@ import { listTeams, getRemoteTeam } from "@/utils/teams";
 const parameters = z.strictObject({
   tasks: z.array(z.strictObject({
     name: z.string().trim().min(1).max(80).describe("本次任务名称"),
-    task: z.string().trim().min(1).max(24000).describe("完整任务、必要背景、相对路径、已获授权和预期交付；不继承主对话历史"),
+    task: z.string().trim().min(1).max(24000).describe("完整的任务要求、必要背景、相对路径、已经获得的授权和预期交付成果；子 Agent 不继承主对话历史"),
     team: teamNameSchema.optional().describe("已安装团队或远端 A2A 连接名；省略则创建临时子 Agent"),
-    role: z.enum(["story", "character", "scene", "prop"]).optional().describe("资源专职：编剧、角色、场景、道具；不指定使用通用子代理配置"),
+    role: z.enum(["story", "character", "scene", "prop"]).optional().describe("指定专业角色：编剧、角色设计、场景设计或道具设计；不指定时使用通用子 Agent 配置"),
     taskId: z.string().min(1).max(512).optional().describe("继续远端等待补充的 A2A task 时原样传回"),
     contextId: z.string().min(1).max(512).optional().describe("继续远端 A2A 会话时原样传回"),
   })).min(1),
@@ -28,12 +28,12 @@ export async function createSubAgentTool({ cwd, tools, canvas, runTask, primaryM
   const teams = (await listTeams()).filter(team => team.enabled && !team.loadError);
   const subAgentTool: ToolDefinition = {
     name: "subAgent", label: "子任务与团队",
-    description: `并行执行委派的独立任务。省略 team 创建可继续对话的子 Agent，继承宿主工具，包括提问、继续委派和 report 上报；指定 team 调用已安装团队或外部 A2A。宿主工具：${[...tools.map(tool => tool.name), "subAgent"].join("、")}。团队目录：${JSON.stringify(teams.map(({ name, description, kind }) => ({ name, description, kind })))}。本地团队按清单分工。任务数量、并发数、执行轮次和总时长不设固定上限，可由用户停止。`,
+    description: `并行执行委派的独立任务。省略 team 时创建可以继续对话的子 Agent，继承宿主工具，包括提问、继续委派任务和通过 report 汇报结果；指定 team 调用已安装团队或外部 A2A。宿主工具：${[...tools.map(tool => tool.name), "subAgent"].join("、")}。团队目录：${JSON.stringify(teams.map(({ name, description, kind }) => ({ name, description, kind })))}。本地团队按清单分工。任务数量、并发数、执行轮次和总时长不设固定上限，可由用户停止。`,
     promptSnippet: "按需使用 subAgent 委派独立工作，或指定已安装 team 调用专用团队。",
     promptGuidelines: [
       "简单任务直接完成；只委派相互独立的工作，提供必要背景和真实授权。并行任务不得修改同一文件或画布，依赖任务分次处理。",
-      "委派不扩大权限或消耗算力授权。远端团队会收到 task 文本，仅发送完成任务所需且获准分享的内容；不能访问本机工具或未发送的文件。",
-      "核验结果和 status；inputRequired 表示等待补充，应向用户确认后带原 taskId/contextId 继续该远端团队。错误、取消、达到限制均不等于完成，不自动重试可能已经产生副作用的任务。",
+      "委派任务不能扩大原有的操作权限或算力使用授权。远端团队会收到 task 文本，仅发送完成任务所需且获准分享的内容；不能访问本机工具或未发送的文件。",
+      "核对实际任务结果及 status。inputRequired 表示远端团队正在等待补充信息，应向用户确认后，携带原 taskId 和 contextId 继续任务。错误、取消、达到限制均不等于完成，不自动重试可能已经产生副作用的任务。",
       "合法调用示例：{\"tasks\":[{\"name\":\"      \",\"task\":\"      \"}]}。",
     ],
     parameters: z.toJSONSchema(parameters, { io: "input", target: "draft-07" }),

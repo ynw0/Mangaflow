@@ -15,12 +15,12 @@ const processSchema = z.strictObject({
     priority: z.number().optional(),
     stdoutLines: z.number().optional(),
     timeout: z.number().optional(),
-  }).optional().describe("原生 fluent 构造选项；不设置固定超时"),
+  }).optional().describe("fluent-ffmpeg 原生构造选项，不设置固定的执行超时"),
   steps: z.array(z.strictObject({
     method: z.enum(chainMethods),
     args: z.array(z.json()),
     undefinedArgs: z.array(z.number().int().nonnegative()).optional().describe("需要传 undefined 的参数位置，其他参数保持原值"),
-  })).default([]).describe("按 fluent-ffmpeg 顺序配置，方法及其别名沿用宿主；选项、滤镜和文件序列原样传递"),
+  })).default([]).describe("按照 fluent-ffmpeg 的调用顺序配置各个步骤，使用宿主支持的方法及其别名；选项、滤镜和文件序列均原样传递"),
   operation: z.strictObject({
     method: z.enum([...runMethods, ...queryMethods]),
     args: z.array(z.json()),
@@ -68,7 +68,7 @@ const plugin: ToolPlugin = {
     }, {
       name: "ffmpeg",
       label: "处理媒体",
-      description: "通过宿主 fluent-ffmpeg 处理工作区媒体。steps 原样传入链式方法及 args，支持全部宿主配置方法和别名、原始 inputOptions/outputOptions、复杂滤镜、多输入、多输出、文件序列及分片。operation 默认 run，也支持 save、screenshots、concat 和能力查询。不自动重命名输出、不限制执行时长；输出目录需已存在，文件覆盖遵循原生规则。",
+      description: "通过宿主 fluent-ffmpeg 处理工作区媒体。steps 中的链式调用方法和 args 均原样传递。支持宿主提供的全部配置方法及其别名、原始 inputOptions 和 outputOptions、复杂滤镜、多个输入或输出、文件序列及分片。operation 默认 run，也支持 save、screenshots、concat 和能力查询。不会自动重命名输出文件，也不限制执行时长。输出目录必须已经存在，是否覆盖文件遵循 fluent-ffmpeg 的原生规则。",
       promptSnippet: "使用 ffmpeg 处理本地媒体，ffprobe 查询媒体信息；按用户要求选择输出位置。",
       promptGuidelines: [
         '截帧示例：{"steps":[{"method":"input","args":["assets/input.mp4"]},{"method":"seekInput","args":[1]},{"method":"frames","args":[1]},{"method":"output","args":["assets/frame.png"]}]}。',

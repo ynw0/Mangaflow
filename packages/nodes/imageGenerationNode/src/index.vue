@@ -486,7 +486,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "generateImage",
-  description: "启动此节点的后台普通图片生成，使用普通生成提示词、模型、分辨率、比例和参考图片；局部重绘模式下须先退出；立即返回已开始，用 getGenerationStatus 查询完成结果，cancelGeneration 停止生成",
+  description: "使用当前普通生成提示词、模型、分辨率、画幅比例和参考图片，在后台启动此节点的普通图片生成。如果当前处于局部重绘模式，须先退出该模式。启动后立即返回已开始的状态，使用 getGenerationStatus 查询生成结果，使用 cancelGeneration 停止生成",
   parameters: z.strictObject({}),
   execute(_args, { signal }) {
     signal?.throwIfAborted();

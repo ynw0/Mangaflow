@@ -65,9 +65,9 @@ export async function createTeamRunner(options: SubAgentModel & {
         const allowed = (path: string) => roots.some(root => path === root || path.startsWith(`${root}/`));
         const resourceTool: ToolDefinition = {
           name: "teamResources", label: "团队资料",
-          description: "按需读取或维护当前成员获准的私有资料。list 返回路径，read 读取正文，write 新建或完整修改文本。内容只属于此团队，不会注册到全局技能。修改成员指令在下一团队任务生效；新增经验应真实、通用且避免写入项目私密内容。",
+          description: "按需读取或维护当前成员获准的私有资料。list 返回路径，read 读取正文，write 新建或完整修改文本。内容只属于此团队，不会注册到全局技能。修改后的成员指令在团队执行下一项任务时生效；新增经验应真实、通用且避免写入项目私密内容。",
           promptSnippet: "使用 teamResources 按需读取本成员的私有 Skill、知识与参考资料。",
-          promptGuidelines: [`本成员私有资源范围：${JSON.stringify(roots)}。首次处理任务先 list，按需 read 相关 SKILL.md 及 references，不能只看路径就声称使用技能。`],
+          promptGuidelines: [`本成员私有资源范围：${JSON.stringify(roots)}。首次处理任务时，先调用 list 查看资料，再根据需要调用 read 读取相关 SKILL.md 和 references 中的内容，不能只看路径就声称使用技能。`],
           parameters: z.toJSONSchema(resourceSchema), executionMode: "sequential",
           async execute(_id, params, resourceSignal) {
             resourceSignal?.throwIfAborted();
@@ -90,7 +90,7 @@ export async function createTeamRunner(options: SubAgentModel & {
         const selected = [...(memberTools.get(memberName) ?? []), resourceTool];
         if (member.delegates?.length) selected.push({
           name: "delegate", label: "团队委派",
-          description: `将独立任务交给获准成员。可用成员：${JSON.stringify(member.delegates.map(name => ({ name, description: manifest.members[name]!.description })))}。不得并行修改同一文件或画布，结果返回后由你核验汇总。`,
+          description: `将独立任务交给获准成员。可用成员：${JSON.stringify(member.delegates.map(name => ({ name, description: manifest.members[name]!.description })))}。不得并行修改同一文件或画布，收到结果后，由你负责核对并汇总。`,
           parameters: z.toJSONSchema(delegationSchema), executionMode: "sequential",
           async execute(_id, params, childSignal, onUpdate) {
             const { tasks } = delegationSchema.parse(params);

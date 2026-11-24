@@ -105,7 +105,7 @@ async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string
   };
   assertSelection();
   loader.file = await uploadInput(baseUrl, absoluteVideo, "toonflow", signal);
-  generate.prompt = "按系统要求质检这条成片，只输出 JSON。";
+  generate.prompt = "按照系统要求检查这段视频，只输出 JSON。";
   generate.system_prompt = prompt;
   if (!hearAudio) delete generate.audio;
   assertSelection();
@@ -368,21 +368,21 @@ function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "vi
   const domains = kind === "merged" ? "分别给出画面（video）和音轨（audio）的结论。"
     : kind === "video" ? "仅审核画面，domain 用 video。" : "仅审核音轨，domain 用 audio。";
   const lines = [
-    `你是 MangaFlow 成片质检员。根据${inputs}给出可观察证据。`,
-    "只输出一个 JSON 对象，顶层包含 checks 数组。每一项填写 domain、result 和 evidence。合同项带实际 requirementId，有时间证据时填写 time。",
-    "domain 只能填 video、audio、general 中的一个；result 只能填 pass、fail、unverified 中的一个，不能填带竖线的组合字符串。每条 evidence 简洁描述，最多 48 个汉字左右；不输出思考过程、Markdown 或额外解释。",
-    "fail 必须在 evidence 中指出具体可见或可听的错误及对应时间，不得只写未通过；可选用 problem 用不超过 16 字概括，unverified 要说明缺失的证据。不要为了额外字段延长 JSON；不填写 fixHint 也有效。根因分析、是否重生成及整改方案由主 Agent 依据 checks 和原合同单独制定。",
+    `你是 MangaFlow 成片质检员。请检查${inputs}，根据实际能够看到或听到的内容提供证据。`,
+    "只输出一个 JSON 对象，顶层包含 checks 数组。每一项填写 domain、result 和 evidence。合同验收项需要填写实际的 requirementId；能够核实出现时刻时填写 time。",
+    "domain 只能填 video、audio、general 中的一个；result 只能填 pass、fail、unverified 中的一个，不能填带竖线的组合字符串。每条 evidence 应简洁、具体，控制在约 48 个汉字以内；不输出思考过程、Markdown 或额外解释。",
+    "fail 必须在 evidence 中指出具体可见或可听的错误及对应时间，不得只写未通过；可以在 problem 中用不超过 16 个字概括问题，unverified 要说明缺失的证据。不要为了额外字段延长 JSON；不填写 fixHint 也有效。根因分析、是否需要重新生成及整改方案由主 Agent 依据 checks 和原合同单独制定。",
     domains,
-    "分别检查本轮域内的验收要点。可确认符合用 pass，能指出具体偏差用 fail，证据不足用 unverified。时间无法核实时省略 time。离散帧不能证明帧间没有错误；细微接触、短暂形变、禁止项如不能确定须标 unverified。",
-    "画面检查主体、场景、动作和连续性。对可辨认的对白段落，核对说话人口型和听者是否跟着开口。仅凭抽帧无法确认整句时标为 unverified。音轨检查对白、与画面对齐的音效和声景，以及音量遮盖。",
+    "分别检查本轮要求的画面或音频验收项。能够确认符合要求时填 pass，能够指出具体偏差时填 fail，证据不足时填 unverified。时间无法核实时省略 time。离散帧不能证明帧间没有错误；如果无法确认细微接触、短暂形变或禁止出现的情况，须标为 unverified。",
+    "画面检查主体、场景、动作和连续性。对可辨认的对白段落，核对说话人的口型，以及听者是否在不该说话时也跟着张嘴。如果仅凭抽取的画面无法确认整句台词的口型，标为 unverified。检查音轨中的对白、与画面同步的音效和环境声，以及是否有声音盖住其他需要听清的内容。",
     "有剧情合同的镜头，按实际播放顺序核对观众能获得的信息。若合同要求交代触发原因或决定的后果，指出它实际出现的时刻；提示词里写过、成片里看不见或听不清的部分按现有证据判定。有意留到后续揭晓的信息按合同保留。",
   ];
   if (checklist?.trim()) lines.push("本镜验收要点", checklist.trim());
   if (requirements.length) lines.push(
-    "以下是已批准镜头合同的强制验收清单。每个 id 必须各有且只有一条 checks，使用 requirementId 原样返回编号；技术性检查不填 requirementId。逐项检查原文中的全部事实，不得用笼统画面通过替代。",
-    "有 domain 的条目必须使用该域作答。对白计划秒数用于查找证据，实际起声、末字和收句以听到的音轨为准。",
-    "请先逐项按 id 完成检查，再选择性补充最多 3 条有证据的无编号技术异常。不能重复同一 id、同一事实或用一个失败描述批量套多个不同 id；同一条不得同时给 pass 与 fail。",
-    "pass 须提供可定位的 time 和证据。连续性项只核对明定的可见可听要求与实际入画或入声的部分。完全留在画外的延续状态可以通过，说明检查时刻和画幅；明确要求出现的事实缺失，或证据不足，仍分别使用 fail 或 unverified。禁止项按适用时段核对。",
+    "以下是已批准镜头合同的强制验收清单。每个 id 必须各有且只有一条 checks，使用 requirementId 原样返回编号；技术性检查不填 requirementId。逐项检查原文中的全部事实，不得用笼统的画面合格结论代替逐项检查。",
+    "指定 domain 的条目必须按该类别检查。对白计划中的时间用于定位证据，实际开口、最后一个字及说完的时间，以听到的音轨为准。",
+    "请先按 id 逐项完成检查，再根据实际证据补充最多 3 条未列入合同的技术问题。不能重复同一 id、同一事实或用一个失败描述批量套多个不同 id；同一条不得同时给 pass 与 fail。",
+    "pass 须提供可定位的 time 和证据。连续性要求只检查合同明确规定需要看到或听到的内容，以及实际出现在画面或音轨中的部分。完全留在画外的延续状态可以通过，说明检查时刻和画幅；明确要求出现的事实缺失，或证据不足，仍分别使用 fail 或 unverified。禁止项按适用时段核对。",
     JSON.stringify(requirements),
   );
   if (generation) {
@@ -440,7 +440,7 @@ export async function runProductionQc(input: {
         ]
         : [
           systemContract("video", input.checklist, "video", input.generation, input.requirements),
-          "本轮只审画面，不要因对白或音轨下结论。",
+          "本轮只检查画面，不对对白的声音或音轨质量作出结论。",
         ];
       if (hearAudio && !technical.hasAudio) lines.push("本片没有音轨。对白无法核验，标 unverified。");
       // 固定本次质检选定的运行位置，生成和质检各自选择 ComfyUI。

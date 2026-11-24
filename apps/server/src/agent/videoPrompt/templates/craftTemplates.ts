@@ -2,7 +2,7 @@ import type { VideoPromptTemplate } from "@/agent/videoPrompt/templates/schema";
 
 export const craftTemplates: VideoPromptTemplate[] = [
   {
-    id: "shoulderNegotiation", title: "肩后视点留住谈判双方", minSeconds: 4, minSubjects: 2,
+    id: "shoulderNegotiation", title: "从过肩机位表现谈判双方", minSeconds: 4, minSubjects: 2,
     tags: {
       scene: ["对话","谈判","质问"],
       emotion: ["克制","压迫"],
@@ -14,11 +14,11 @@ export const craftTemplates: VideoPromptTemplate[] = [
     },
     useWhen: "已有对话轴，近处肩膀可交代听者的位置，当前镜头重点是另一位人物。",
     fragment: "从听者同侧肩后看向眼前的人，保留说话人的嘴和双方视线。若近处人物也有必须看清口型的台词，选能拍到双方的角度。",
-    avoid: "肩部挡住嘴或切换到对侧导致眼线翻转。",
-    verify: "同侧眼线、说话者口型和空间关系可读。",
+    avoid: "肩部遮住说话人的嘴，或切换到对侧机位导致视线方向颠倒。",
+    verify: "双方的视线方向、说话人的口型以及人物之间的空间关系清楚可辨。",
   },
   {
-    id: "angerGrip", title: "压住怒意的手与呼吸", minSeconds: 4, minSubjects: 1,
+    id: "angerGrip", title: "用手部动作与呼吸表现克制的愤怒", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["质问","反应"],
       emotion: ["愤怒","克制"],
@@ -30,7 +30,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
       setting: ["室内","狭窄空间"],
     },
     useWhen: "人物正握着剧本已有的东西，手上的变化能让观众看出他压住了原本要做的事。",
-    fragment: "从人物正在做的事拍起，让刺激发生后手上那一点变化可见。呼吸声只在这场戏听得见、也确实有用时写。",
+    fragment: "从人物正在做的事拍起，让观众看清人物受到刺激后手部动作发生的细微变化。呼吸声只在这场戏听得见、也确实有用时写。",
     avoid: "添加未获确认的砸物、台词或抬手攻击。",
     verify: "观众能否看出人物听到或察觉了什么，手上的事为何随之改变？",
   },
@@ -66,7 +66,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     },
     anchors: ["入口"],
     useWhen: "人物沿一条连续通路进入已批准空间。",
-    fragment: "顺着人物实际走过的路线跟进入口，让观众辨认这是同一个空间，并看出人物走向哪里。",
+    fragment: "沿着人物实际行进的路线跟拍，经过入口，让观众辨认这是同一个空间，并看出人物走向哪里。",
     avoid: "跨过多个不相邻地点，或进门时布局重排。",
     verify: "入口和终点能沿同一条路线追踪。",
   },
@@ -84,12 +84,12 @@ export const craftTemplates: VideoPromptTemplate[] = [
     },
     anchors: ["可揭示物件"],
     useWhen: "手中物件的位置已锁定，面部反应要引出线索。",
-    fragment: "从人物脸上的视线带到他手里的物件。按原定时机向下摇，让观众能辨认影响人物判断的那处细节。",
-    avoid: "摇镜时手突然换持物或加入多余变焦。",
-    verify: "起始视线引导到正确持物，镜尾能辨认特征。",
+    fragment: "从人物的面部和视线方向引导镜头转向他手里的物件。按原定时机向下摇，让观众能辨认影响人物判断的那处细节。",
+    avoid: "镜头摇动时，人物手里拿着的物件突然变成另一件物品，或加入不必要的变焦。",
+    verify: "镜头开始时的视线能够引导观众看向正确的物件，镜头结束时能够辨认该物件的特征。",
   },
   {
-    id: "sizeRevealTilt", title: "低处锚点向上摇揭示尺度", minSeconds: 4, minSubjects: 1,
+    id: "sizeRevealTilt", title: "从低处向上摇镜头，交代主体的大小", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["登场","灾变"],
       emotion: ["震撼","恐惧"],
@@ -100,12 +100,12 @@ export const craftTemplates: VideoPromptTemplate[] = [
       sound: ["低频余震","金属声"],
     },
     useWhen: "主体尺度需要借可见地面或建筑参照体现。",
-    fragment: "从主体与地面或建筑相接的位置开始向上摇，让建筑、门洞或其他已有参照留在读得出大小的视野里。",
+    fragment: "从主体与地面或建筑相接的位置开始向上摇，将建筑、门洞或其他已有参照物保留在画面中，让观众能够判断主体的大小。",
     avoid: "连续摇过主体顶部却没有留下尺度参照。",
-    verify: "脚下、轮廓和参照始终可追溯，末态构图稳定。",
+    verify: "主体脚下的位置、轮廓和参照物始终能够辨认，镜头结束时构图保持稳定。",
   },
   {
-    id: "breakawayReveal", title: "拉开显示完整余波", minSeconds: 4, minSubjects: 1,
+    id: "breakawayReveal", title: "拉远镜头，展示事件造成的影响", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["战后余波","反转","场景建立"],
       emotion: ["孤独","哀伤"],
@@ -122,7 +122,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     verify: "原人物位置可追溯，逐步增加的是空间信息。",
   },
   {
-    id: "distantLure", title: "画外声在遮挡解除前建立方向", minSeconds: 4, minSubjects: 1,
+    id: "distantLure", title: "先用画外声交代方向，再揭示声源", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["危险逼近","调查"],
       emotion: ["恐惧","紧张"],
@@ -155,7 +155,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     verify: "谁看见了、谁只听见了、谁还不知道，应符合场面里各人的位置。",
   },
   {
-    id: "practicalLightChange", title: "实景光源切换仍保住人物轮廓", minSeconds: 4, minSubjects: 1,
+    id: "practicalLightChange", title: "实景灯光变化时保持人物轮廓清楚", minSeconds: 4, minSubjects: 1,
     tags: {
       scene: ["装置启动","危险逼近","反转"],
       emotion: ["紧张","希望"],
@@ -170,7 +170,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     useWhen: "已有光源变动是叙事信息。",
     fragment: "在剧本指定的动作发生时，让已有灯具改变亮度。让靠近它的表面先显出变化，保留其余原有灯光与人物位置。",
     avoid: "全场换色，导致看不出变化来自哪个灯。",
-    verify: "触发、灯位与反光变化能一一对应。",
+    verify: "触发灯光变化的动作、灯具的位置以及反光变化能够一一对应。",
   },
   {
     id: "controlledShock", title: "镜头推进只为让证据更清楚", minSeconds: 4, minSubjects: 1,
@@ -183,9 +183,9 @@ export const craftTemplates: VideoPromptTemplate[] = [
       lighting: ["自然侧光","局部亮区"],
       sound: ["呼吸","静默"],
     },
-    useWhen: "不改变机位方向就能从人物和物件同框推进到证据可读，同时保住剧情需要的动作。",
+    useWhen: "无需改变机位方向，就能从人物和物件同框的画面推进到可以看清证据的距离，同时保留剧情需要的动作。",
     fragment: "按原分镜逐渐靠近关键细节，保持它与人物的空间关系。观众在决定性变化发生时能看清证据，快慢取决于这一动作。",
-    avoid: "推动太快，在决定性动作前把物件挤出画面。",
+    avoid: "镜头推进过快，在关键动作发生前就让物件离开画面。",
     verify: "推进有明确起止，变小的视野仍保留主要证据。",
   },
   {
@@ -202,12 +202,12 @@ export const craftTemplates: VideoPromptTemplate[] = [
     },
     anchors: ["可见光源"],
     useWhen: "观众要知道离场方向，角色脸部细节无需在同一时刻辨认。",
-    fragment: "沿既定的撤离路线拍人物，经过已有逆光区时保留可辨认的轮廓。画缘留出人物实际跑出去的方向。",
+    fragment: "沿既定的撤离路线拍人物，经过已有逆光区时保留可辨认的轮廓。在画面边缘为人物实际跑出的方向留出空间。",
     avoid: "同一镜无缘无故换方向或加一条未设路线。",
     verify: "离场方向能直接接到下一镜的入画方向。",
   },
   {
-    id: "groundedActuation", title: "启动装置从明确接触触发", minSeconds: 3, minSubjects: 1,
+    id: "groundedActuation", title: "通过明确的接触动作启动装置", minSeconds: 3, minSubjects: 1,
     tags: {
       scene: ["装置启动","调查"],
       emotion: ["克制","兴奋"],
@@ -223,7 +223,7 @@ export const craftTemplates: VideoPromptTemplate[] = [
     anchors: ["接触对象"],
     useWhen: "机械启动有清楚的手部动作及真实反馈部件。",
     fragment: "让观众看见手确实触发了装置，以及哪个部件因此有了剧本规定的反馈。开关声、亮灯和装置动作按原设定出现。",
-    avoid: "开关尚未接触整台机器已经全亮。",
+    avoid: "人物的手尚未接触开关，整台机器就已经亮了起来。",
     verify: "观众能指出装置因何启动，以及看到或听到了什么反馈。",
   },
 ];

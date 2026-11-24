@@ -269,7 +269,7 @@ function getConfig() {
 
 nodeTools.register({
   name: "getConfig",
-  description: "读取此音频生成节点的配置、可选音频模型、语种、采样率、输出格式与输入数量限制，不含密钥；文本不限，图片与音频互斥且合计最多一个，具体模型能力由供应商校验",
+  description: "读取此音频生成节点的配置、可选音频模型、语种、采样率、输出格式与输入数量限制，不含密钥；文本数量不限，图片和音频不能同时输入，两类素材合计最多一个，具体模型能力由供应商校验",
   parameters: z.strictObject({}),
   async execute(_args, { signal }) {
     signal?.throwIfAborted();
@@ -319,7 +319,7 @@ nodeTools.register({
 });
 nodeTools.register({
   name: "generateAudio",
-  description: "使用当前提示词、模型、语种、采样率、格式和可选参考图片或音频启动后台生成；图片与音频互斥且合计最多一个，文本不限；立即返回已开始，用 getGenerationStatus 查询结果、cancelGeneration 停止",
+  description: "使用当前提示词、模型、语种、采样率、格式和可选参考图片或音频启动后台生成；图片和音频不能同时输入，两类素材合计最多一个，文本数量不限。启动后立即返回已开始的状态，使用 getGenerationStatus 查询结果，使用 cancelGeneration 停止生成",
   parameters: z.strictObject({}),
   execute(_args, { signal }) {
     signal?.throwIfAborted();

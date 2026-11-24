@@ -111,13 +111,13 @@ export const videoTemplateSearch = {
       case "searchCreative":
         return {
           matches: searchCreativeKnowledge({ library: input.library, query: input.query, tags: input.creativeTags, limit: input.limit }),
-          notice: "剧情与搞怪用于构思，只取机制与短骨架。热梗有喜剧空间时写入剧本，改写成人物原话后再锁定。片中事件和原话从定稿取。按角色看见、听见什么选择表演。画风和滤镜只描述观感。模板标题与示范句留在库里，勿整段粘进成片。",
+          notice: "剧情和搞怪模板用于构思，只参考其中的情节机制和简要框架。故事适合加入喜剧内容时，可以将热梗改写成符合人物身份的台词，确认后再锁定。片中的事件和台词以定稿为准。根据人物实际看到和听到的内容安排表演。画风和滤镜只用于描述视觉感受。模板标题和示范句仅供参考，不要整段照搬到成片提示词中。",
         };
       case "checkCreativeSelection":
         return checkCreativeSelection(input);
       case "search":
         return { templates: findVideoPromptTemplates(input.tags, input.conditions, input.limit),
-          guidance: "同分候选按编号排列。先用 useWhen 核对本镜的人物关系、空间和动作。适用时从 fragment 取本镜需要的拍法，再用实际人物、物件和动作写正文。verify 仅作自检清单，不写入 H3 正文。已有拍法足够清楚时直接沿用。" };
+          guidance: "得分相同的候选模板按编号排列。先根据 useWhen 核对本镜的人物关系、空间和动作。确认适用后，参考 fragment 中本镜需要的拍摄方法，结合实际人物、物件和动作编写正文。verify 仅用于自检，不写入 H3 正文。已有拍摄方法足够清楚时，直接沿用。" };
     }
   },
 };

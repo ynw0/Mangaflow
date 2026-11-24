@@ -273,7 +273,7 @@ export async function run(
     if (goal && !child) tools.push(createCompleteGoalTool(() => { goalDone = true; }));
     const canvasInstructions = canvasMediaRoutingInstructions(Boolean(canvas), directChatAllowed);
     const childInstructions = child
-      ? `## 子 Agent 职责\n你正在执行委派任务：${JSON.stringify({ name: child.name, task: child.task })}。遵守当前工作区规则与授权，用户可以进入此子会话补充要求。重要进展与最终结论使用 report 上报父 Agent。${goal ? "当前是目标模式的子任务：不要提问，按已有信息自己决定并做完。" : ""}`
+      ? `## 子 Agent 职责\n你正在执行委派任务：${JSON.stringify({ name: child.name, task: child.task })}。遵守当前工作区规则与授权，用户可以进入此子会话补充要求。通过 report 向父 Agent 汇报重要进展和最终结论。${goal ? "当前是目标模式的子任务：不要提问，按已有信息自己决定并做完。" : ""}`
       : "";
     const resources = await createAgentResources(cwd, tools, SettingsManager.inMemory({ compaction: compactionSettingsFor(runtime.getModel(providerId, modelId)?.contextWindow ?? 0) }), [childInstructions, canvasInstructions].filter(Boolean).join("\n\n"), goal && !child);
     const resendEntry = resendFrom ? history.getBranch().find((item) => item.id === resendFrom) : undefined;

@@ -110,7 +110,7 @@ export async function saveAgentImage(cwd: string, image: ImageContent, id: strin
   signal?.throwIfAborted();
   return {
     type: "text",
-    text: `[图片附件已保存；需要时可 read 原图：${sourcePath}]${cached.note ? `\n${cached.note}` : ""}`,
+    text: `[图片附件已保存；需要时可以调用 read 读取原图：${sourcePath}]${cached.note ? `\n${cached.note}` : ""}`,
     toonflowImage: { id, ...cached },
   };
 }

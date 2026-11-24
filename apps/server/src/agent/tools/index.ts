@@ -112,7 +112,7 @@ export function createAgentToolContext(cwd: string, config: Record<string, unkno
           ...operations,
           readFile: async path => readDocument(path, await operations.readFile(path)),
         } });
-        return { ...tool, description: `${tool.description}\nHTML、Markdown、JSON、XML、配置和代码文件读取原文；Office、OpenDocument、RTF、EPUB、CSV、PDF 在本地解析为 Markdown。offset/limit 对应读取后的行。扫描 PDF 需要先做 OCR。` };
+        return { ...tool, description: `${tool.description}\nHTML、Markdown、JSON、XML、配置文件和代码文件按原文读取；Office、OpenDocument、RTF、EPUB、CSV 和 PDF 文件在本地解析为 Markdown。offset 和 limit 对应解析后的文本行。扫描 PDF 需要先做 OCR。` };
       },
       detectSupportedImageMimeTypeFromFile: path => files.detectImageMimeType(path, true),
     },

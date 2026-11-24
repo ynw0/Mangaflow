@@ -56,10 +56,10 @@ const searchFields = {
     memeId: z.string().trim().min(1).max(40).optional(),
   }).describe("checkCreativeSelection 必填：所选模板 ID"),
   medium: z.enum(["image", "video"]).describe("checkCreativeSelection 可选：制作媒介"),
-  tone: z.enum(creativeTones).describe("checkCreativeSelection 可选：镜头基调"),
+  tone: z.enum(creativeTones).describe("checkCreativeSelection 可选：镜头的情绪基调"),
   durationSeconds: z.number().positive().max(300).describe("checkCreativeSelection 可选：镜头时长（秒）"),
   singleShot: z.boolean().describe("checkCreativeSelection 可选：已确认全程连续拍摄时填 true"),
-  storyDomains: z.array(z.string().trim().min(1).max(24)).max(8).describe("checkCreativeSelection 可选：已确认题材域"),
+  storyDomains: z.array(z.string().trim().min(1).max(24)).max(8).describe("checkCreativeSelection 可选：已经确认的题材范围"),
 };
 
 const searchParameters = z.discriminatedUnion("action", [

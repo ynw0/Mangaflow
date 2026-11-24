@@ -29,10 +29,10 @@ export function createReviewSchema(requirementIds: string[]) {
     .refine(items => new Set(items.map(item => item.requirementId)).size === requirementIds.length, "审核证据须逐项覆盖且不得重复");
   return z.discriminatedUnion("status", [
     z.object({ status: z.literal("ok"), framingEvidence: z.string().trim().min(1).max(1500).optional()
-      .describe("仅用于说明合同指定的镜尾构图或画内证据"), coverage, findings: z.tuple([]) }),
+      .describe("仅用于说明合同指定的结束构图，或需要在画面中呈现的证据"), coverage, findings: z.tuple([]) }),
     z.object({ status: z.literal("rejected"), needsAdjacentShots: z.literal(true).optional(), findings: z.array(z.object({
       requirementId, location: z.string().trim().min(1).max(300), evidence,
-      fixTarget: z.string().trim().min(1).max(500).describe("说明需要恢复的剧情事实、声画关系或可读性，具体文案和拍法交由导演决定"),
+      fixTarget: z.string().trim().min(1).max(500).describe("说明需要恢复的剧情事实、声音与画面的关系，或需要清楚呈现的内容；具体文案和拍摄方法由导演决定"),
     })).min(1).max(maxReviewFindings).describe("完成整份稿件的核对后，汇总本轮确认的实质问题，同一原因合并填写") }),
   ]);
 }
@@ -117,7 +117,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     /\b(?:very\s+)?(?:first|last|initial|final)\s+(?:video\s+)?frame\s+(?:is|must\s+be|equals|matches)\s+(?:exactly|identical(?:ly)?(?:\s+to)?|pixel[- ]for[- ]pixel)\s*<Picture\s+\d+>/i.test(prompt)
     || /\b(?:pixel[- ]for[- ]pixel|bit[- ]for[- ]bit)\s+(?:identical|match|matching|reproduction)\b/i.test(prompt)
   )) {
-    findings.push("普通 Ref2VA 图片可按官方规范用 keyframe completion 描述帧关系，但不保证第一帧/末帧与参考图逐像素一致。删除硬匹配承诺；如需专用帧输入，请切换实际绑定首尾帧的工作流。");
+    findings.push("普通 Ref2VA 图片可按官方规范用 keyframe completion 描述帧关系，但不保证第一帧/末帧与参考图逐像素一致。删除关于参考图必然逐像素匹配的承诺；如需专用帧输入，请切换实际绑定首尾帧的工作流。");
   }
   if (format !== "h3Frames" && prefix) findings.push("正文须直接从本模式的第一个字段开始。");
   for (const [index, heading] of headings.entries()) {

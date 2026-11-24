@@ -8,11 +8,11 @@
 
 ## draftVideoPrompt 工具参数
 
-内置 Agent 直接调用会话工具 `draftVideoPrompt`，外部 MCP 调用 `videoPrompt` 的 `prepare`、`inspect`、`submit`。画布 `nodeTools` 用于读取节点配置、参考和写回已审稿。`searchVideoPromptTemplates` 负责检索创作参考。镜头合同字段按[工具调用规则](creativeKnowledge.md#与-draftvideoprompt-的直接衔接)填写，数组使用 JSON 数组，时长使用数字。已有节点核对 `node:getConfig`，有变化才调用 `node:setConfig`，随后读取 `node:getPromptContext`。
+内置 Agent 直接调用会话工具 `draftVideoPrompt`，外部 MCP 调用 `videoPrompt` 的 `prepare`、`inspect`、`submit`。画布 `nodeTools` 用于读取节点配置、参考和保存已通过审核的提示词。`searchVideoPromptTemplates` 负责检索创作参考。镜头合同字段按[工具调用规则](creativeKnowledge.md#与-draftvideoprompt-的直接衔接)填写，数组使用 JSON 数组，时长使用数字。已有节点核对 `node:getConfig`，有变化才调用 `node:setConfig`，随后读取 `node:getPromptContext`。
 
-本镜回应先前的一句话或事件时，回读相关分镜。把场次或镜号、说话人、原句或关键动作填入 `adjacentShots`，可以摘录更早的铺垫。已交代过的原因供导演核对承接，本镜接着拍回应和后果。
+本镜回应先前的一句话或事件时，重新读取相关分镜。把场次或镜号、说话人、原句或关键动作填入 `adjacentShots`，可以摘录更早的铺垫。已交代过的原因供导演核对承接，本镜接着拍回应和后果。
 
-派发前按 [分镜的定稿核对规则](story-planner.md#决策规则) 回读正式剧本和本镜合同。将本镜需要模型发声的原话按实际开口顺序填入 `lockedDialogue`，每个 `<d>` 对应一段原文。无需生成台词时填空数组。直接复用的录音、相邻镜头中的引语、屏幕文字和表演指示按各自的用途记录。
+派发前按 [分镜的定稿核对规则](story-planner.md#决策规则) 重新读取正式剧本和本镜合同。将本镜需要模型发声的原话按实际开口顺序填入 `lockedDialogue`，每个 `<d>` 对应一段原文。无需生成台词时填空数组。直接复用的录音、相邻镜头中的引语、屏幕文字和表演指示按各自的用途记录。
 
 `continuityIn` 和 `continuityOut` 记录开场及结束时的实际状态。镜尾仍在进行的动作按当时的位置和进度结束，把下一镜的到达、接触或完成留在下一镜。必须让观众在镜尾看到或听到的事实写在 `mustHave`。`ending.visible` 按机位记录必要的可见事实。若指定构图与必需事实冲突，指出具体冲突并回分镜确认。
 
@@ -41,7 +41,7 @@
 
 ## 大型机构变形镜头：先判断时长能否容纳全部动作
 
-机构变形若有多个相互依赖的动作，按真实时长安排，给观众看清关键动作和末态的时间。
+机构变形若有多个相互依赖的动作，按真实时长安排，留出时间，让观众看清关键动作和最终状态。
 
 - 复杂变形可以按实际的动作依赖拆成多个连续镜头。拆镜须在上游分镜确认，保留已批准的剧情要求。现有时长无法容纳时，返回 `blocked` 并指出需要拆开的动作。
 
@@ -60,11 +60,11 @@
 3. 只写当前镜头必要的光、声、表演和摄影变化；稳定环境、画风、机位、背景声只交代一次，别在逐段描述中重复。
 4. `summary` 只用一句说明任务和本镜事件；`retention_analysis` 简洁、准确地说明每个引用主体的保留关系，以及必须保持一致的关键事实；无需重复全文外形。
 5. 无关的形容词、说明书式解释、多个候选拍法、QC 检查项、案例文字与 `cinematicPlan` 绝不进入最终模型 prompt。
-6. **简洁不能删掉**：已批准的身份关键特征、参考绑定、剧本硬要求、明确对白、必要的声源及口型要求、时长、运动因果与末态。删减以“不损失可执行和可检验性”为边界。简洁不等于造词或临时简称：日常叫法用完整自然说法；`promptZh` 与英文正文同一组事实，通顺具体，验收细则见 [video-prompt-review.md](video-prompt-review.md)。
+6. **简洁不能删掉**：已批准的身份关键特征、参考绑定、剧本硬要求、明确对白、必要的声源及口型要求、时长、运动的因果关系与最终状态。删减以“不损失可执行和可检验性”为边界。简洁不等于造词或临时简称：日常叫法用完整自然说法；`promptZh` 与英文正文同一组事实，通顺具体，验收细则见 [video-prompt-review.md](video-prompt-review.md)。
 
 提交前按播放顺序连读英文正文和中文对照。核对谁在听谁、角色为何接话或改变动作、观众能否从声画看懂变化。人物可以边做事边听和说，也可以没有特意做出的反应。删去重复描述，保留能认出人物、对象和因果的线索。`promptZh` 自然表达同一组事实，保留台词、画面文字和专有名词的原文。工具规定的段名和引用标记照常用，描述动作和表演用通用词语。发现定稿对白疑似有错，指出原文位置，请编剧核对。
 
-## 成片格式真源
+## 成片提示词的格式依据
 按目标节点的真实工作流及引用模式写作。新建镜头从用户指定或当前 production.video 取工作流，再核对实际能力。
 
 - Ref2VA 普通参考模式按 [ref-en.txt](../../h3-prompt-writing/references/ref-en.txt)，依次输出 subject_definitions、summary、retention_analysis、detailed_description、overall_soundscape、non_diegetic_music。
@@ -103,7 +103,7 @@
 
 ### 镜头结构：按合同选择单镜或剪辑
 - 一个 H3 视频节点可以对应单一连续镜头，也可按用户允许的剪辑任务包含多个 [Shot N]。单镜使用 [Shot 1]；多镜使用 [Shot 2] At MM:SS.mmm 等递增切点，每一镜建立自己的机位、主体关系及动作和声画承接。
-- 新多镜导演稿在 `cinematicPlan.shots` 逐镜写 `id`、`startSeconds`、`endSeconds`、`camera` 和 `action`，有必要时写 `continuityIn`、`continuityOut`。镜号从 1 递增，从 0 秒连续覆盖完整片段，切点与 H3 正文一致。单镜可省略 `shots` 或填空数组。全局 `openingFrame`、`camera`、`ending` 用于全片开场与镜尾，`beats`、`dialogue` 使用整段视频的绝对秒数。
+- 新的多镜头导演稿在 `cinematicPlan.shots` 逐镜写 `id`、`startSeconds`、`endSeconds`、`camera` 和 `action`，有必要时写 `continuityIn`、`continuityOut`。镜号从 1 递增，从 0 秒连续覆盖完整片段，切点与 H3 正文一致。单镜可省略 `shots` 或填空数组。全局 `openingFrame`、`camera`、`ending` 用于全片开场与镜尾，`beats`、`dialogue` 使用整段视频的绝对秒数。
 - **不再一律禁止**切镜、反打、闪回、蒙太奇、跨场景或时间跳跃；这些可以是合法导演手法，必须有剧本依据且在用户允许的片段范围和时长内可执行。用户明确要求“15秒单镜头”“镜头连续不切”等时，绝不能擅自切镜、缩水或删改剧情。
 - 对每一个内部镜头合理安排主要运镜和特效的复杂程度；可以反打或切到不同机位，但不要无目的堆摄影词。镜子、倒影和旋转跟拍均非强制动作。禁止堆「真实、流畅、超真实、没有闪烁」等空词。
 - 顶视允许略微倾斜为斜俯，保持从上方观察的关系及画内方向。
@@ -150,6 +150,6 @@
 
 内置导演经 `submitResult` 提交 `{ status: "ok", cinematicPlan, prompt, promptZh }`，三者的事实应一致。缺关键输入、槽位冲突或现有时长无法容纳完整剧情时，提交 `{ status: "blocked", reason: "具体缺项或冲突" }`。
 
-- 内置 `draftVideoPrompt` 完成预检与独立审核。提示词合同一致时，调整权重、LoRA、采样、种子或 GPU 主机可沿用已有审核号。已有节点请求写回且返回 `written: true` 时，正文和 `reviewId` 已在目标视频节点。需要查看全文时回读节点。获得 `reviewId` 但尚未写回时，返回 `generationRequest`、`promptZh` 和 `cinematicPlan`。有 `writeError` 时处理实际的写回障碍，确认节点状态后再推进。预检或审核退回按工具返回的 `nextAction` 处理。
+- 内置 `draftVideoPrompt` 完成预检与独立审核。提示词合同一致时，调整权重、LoRA、采样、种子或 GPU 主机可沿用已有审核号。已有节点请求写回且返回 `written: true` 时，正文和 `reviewId` 已在目标视频节点。需要查看全文时，重新读取节点中的提示词。获得 `reviewId` 但尚未写回时，返回 `generationRequest`、`promptZh` 和 `cinematicPlan`。出现 `writeError` 时，处理实际导致提示词无法写入节点的问题，确认节点状态后再推进。预检或审核退回按工具返回的 `nextAction` 处理。
 - 外部 MCP 将同样字段组成 `draft`，随 `preparationId` 送 `videoPrompt` 的 `inspect`。预检通过后按[审核提交与交接](video-prompt-review.md#提交与交接)办理。
 - 生成与成片质检按当前运行模式及已授权范围执行。质检的状态和档位从真实任务与设置读取，详见 [common.md](common.md)。

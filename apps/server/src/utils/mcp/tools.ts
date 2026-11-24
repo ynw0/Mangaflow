@@ -63,10 +63,10 @@ function wrapTool(name: string, description: string, schema: object, execute: (a
   // 插件 JSON Schema 的根引用在包裹后仍指向原来的参数对象。
   const argsSchema = JSON.parse(JSON.stringify(schema).replace(/"\$ref":"#(?=\/|")/g, '"$ref":"#/properties/args'));
   return {
-    name, description: description + (background ? " 此调用启动后台任务，必须提供顶层 taskId(UUID)。立即返回任务状态；用 getMcpTask 查询，同一任务重连沿用原 taskId，禁止因等待超时换 ID 重提。" : ""),
+    name, description: description + (background ? " 此调用启动后台任务，必须提供顶层 taskId(UUID)。立即返回任务状态；用 getMcpTask 查询，重新连接并查询同一任务时，沿用原 taskId，不得因为等待超时而更换 ID 并重新提交任务。" : ""),
     inputSchema: { type: "object", properties: { target: z.toJSONSchema(targetSchema), args: argsSchema,
       ...(background ? { taskId: { type: "string", format: "uuid" } } : {}),
-      ...(mayRunQc ? { modelCallConfirmed: { type: "boolean", description: "已明确告知用户本次会调用设置中的专用 QC 模型并获授权时填 true。主 Agent 抽帧模式不需要。" } } : {}) }, required: background ? ["args", "taskId"] : ["args"], additionalProperties: false },
+      ...(mayRunQc ? { modelCallConfirmed: { type: "boolean", description: "已明确告知用户本次会调用设置中的专用 QC 模型，并获得授权时填写 true。由主 Agent 检查视频抽帧的模式不需要填写。" } } : {}) }, required: background ? ["args", "taskId"] : ["args"], additionalProperties: false },
     async execute(input, signal) {
       const { args, target = {}, taskId, modelCallConfirmed } = requestSchema.parse(input);
       const generatesVideo = name === "generateVideo" || name === "nodeTools" && args.name === "node:generateVideo";
@@ -113,8 +113,8 @@ const uiDescriptions: Record<keyof typeof uiSchemas, string> = {
   getDocument: "读取当前文档内容和选择状态。writeDocument 必须携带本次读取的 text 作为 expectedText。",
   openDocument: "打开工作区中的文档文件(path)，或画布中的文本节点(canvasPath、nodeId，可选handleId)。",
   writeDocument: "通过文档编辑器保存当前文档；expectedText 必须匹配当前内容，防止覆盖用户新输入。",
-  getSettings: "读取页面当前设置，访问凭证脱敏。",
-  updateSettings: "合并保存指定顶层设置项，同时更新页面。MCP 权限、项目列表和生成额度在应用内维护。嵌套设置应先读取再合并。",
+  getSettings: "读取页面当前设置，访问凭证经过脱敏处理。",
+  updateSettings: "合并保存指定顶层设置项，同时更新页面。MCP 权限、项目列表和生成额度在应用内维护。对于嵌套设置，应先读取现有内容，再合并修改。",
 };
 
 export function redactSecrets(value: unknown): unknown {

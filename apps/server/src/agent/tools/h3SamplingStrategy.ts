@@ -27,7 +27,7 @@ export const h3SamplingStrategyInput = z.strictObject({
   samplerPreference: z.string().regex(/^[a-zA-Z0-9_.-]{1,128}$/).optional().describe("若有官方或实际已验证的采样器配置，请传入；未确认时不要猜测"),
   schedulerChoices: z.array(z.string().min(1).max(128)).max(100),
   maxExtraLoras: z.number().int().min(0).max(3).optional().default(3),
-  compatibilityConfirmed: z.boolean().default(false).describe("仅在已有成功的同主模型+LoRA+工作流试片或可靠配置证据时设为 true；不能根据文件名推测"),
+  compatibilityConfirmed: z.boolean().default(false).describe("只有使用相同主模型、LoRA 和工作流成功生成过试片，或具备可靠的配置证据时，才设为 true；不能根据文件名推测"),
   qualitySteps: z.number().int().min(25).max(40).optional().describe("仅质量档自定义总步数，最多 40；不影响预设按钮"),
 });
 export type H3SamplingStrategyInput = z.infer<typeof h3SamplingStrategyInput>;
@@ -51,7 +51,7 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
       : input.phase === "normal" ? "balanced82" : input.phase === "motion" ? "balanced84" : "quality"
     : input.intent;
   const blocked = (reason: string): H3SamplingDecision => ({ status: "blocked", preset: desired, reason });
-  if (!input.isRef2vaWorkflow) return blocked("该模型不属于已支持的 H3 Ref2VA 双采工作流，不自动选档。");
+  if (!input.isRef2vaWorkflow) return blocked("该模型不属于已支持的 H3 Ref2VA 双采工作流，不自动选择采样档位。");
   if (input.checkpointKind === "unknown") return blocked("主模型类型尚未确认，不能根据文件名推断是否融合 Turbo。");
   if (desired === "fused8" && input.checkpointKind !== "fused") return blocked("当前并非已验证的融合 Turbo 主模型。");
   if (desired !== "fused8" && input.checkpointKind === "fused") return blocked("已融合 Turbo 的主模型只允许选择融合档位，不能叠加普通加速 LoRA。");
@@ -61,7 +61,7 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
   const extras = (input.extraLoras ?? []).filter(item => !acceleration(item.name));
   const primaryOrdinary = input.selectedLora && !acceleration(input.selectedLora) ? input.selectedLora : "";
   if (primaryOrdinary && !extras.some(item => normalize(item.name) === normalize(primaryOrdinary))) {
-    if (extras.length >= input.maxExtraLoras) return blocked("普通主槽 LoRA 无法迁入附加槽：附加列表已满。请先手动调整，防止风格丢失。");
+    if (extras.length >= input.maxExtraLoras) return blocked("主 LoRA 槽位中的普通 LoRA 无法移入附加槽位，因为附加列表已满。请先手动调整，避免丢失原有风格。");
     extras.unshift({ name: primaryOrdinary, strength: input.primaryStrength ?? 1 });
   }
   const chooseSampler = (names: readonly string[]) => names.find(name => input.samplerChoices.includes(name));
@@ -83,7 +83,7 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
     secondPassSteps = totalSteps - firstPassSteps;
     if (!sampler) return blocked("当前工作流没有 res_multistep 或 euler，不能给出质量档预设。");
   } else if (desired === "fused8") {
-    if (!input.compatibilityConfirmed) return blocked("融合 Turbo 8 步需要同主模型与工作流的兼容性验证记录。");
+    if (!input.compatibilityConfirmed) return blocked("使用融合 Turbo 的 8 步方案前，必须有相同主模型与工作流的兼容性验证记录。");
     sampler = chooseSampler(["euler"]);
     totalSteps = 8; firstPassSteps = 6; secondPassSteps = 2;
   } else {
@@ -103,7 +103,7 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
     }
     if (!input.compatibilityConfirmed && targetSteps === 8) {
       status = "experimental";
-      warning = "尚未核验主模型、LoRA 与二采调度兼容性，只能做明确授权的试验，不能当作正式质量承诺。";
+      warning = "尚未核实主模型、LoRA 与第二阶段采样调度方式是否兼容，只能做明确授权的试验，不能当作正式质量承诺。";
     }
     if (!input.compatibilityConfirmed && targetSteps === 4) {
       status = "experimental";
@@ -141,7 +141,7 @@ export function createH3SamplingStrategyTool(): ToolDefinition {
   return {
     name: "suggestH3Sampling", label: "H3 智能选档（只读）",
     description: "根据已读取的视频节点 getConfig 和镜头合同，建议 4 步快速试镜、6+2 低成本试镜、无加速 8+2/8+4、25～40 步质量或融合 Turbo 档；只返回供 node:setConfig 使用的参数，不提交生成、不自动变更画布。启用 h3SamplingStrategy Skill 才可使用。",
-    promptSnippet: "视频节点在自动或目标制作模式下，若启用了 h3SamplingStrategy，先读 SKILL.md，再用 suggestH3Sampling 评估，再按结果调用节点 setConfig；非兼容模型不要猜文件名。",
+    promptSnippet: "视频节点在自动或目标制作模式下，若启用了 h3SamplingStrategy，先读取 SKILL.md，再调用 suggestH3Sampling 评估，随后根据返回结果调用节点的 setConfig。模型不兼容时，不要猜测文件名。",
     parameters: z.toJSONSchema(h3SamplingStrategyInput, { io: "input", target: "draft-07" }),
     executionMode: "sequential",
     async execute(_id, raw, signal) {

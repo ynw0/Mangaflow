@@ -49,7 +49,7 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
       voiceCast: prepared.voiceContext.roles.length ? prepared.voiceContext : undefined,
       speechPolicy: getVideoSpeechPolicy(prepared.audioEnabled),
       expectedRevision: prepared.revision, reviewRequirements: getVideoPromptRequirements(prepared.shot),
-      nextAction: "按本次返回的 format 写中英文稿。h3Text 用三段，h3Ref2va 用六段，h3Frames 在三段前写首尾帧对齐。英文正文的台词用 <d>[Language] …</d>，方括号内写语言的英文全称，照录原话和标点。按确认的分镜记录切点、镜尾和起声顺序。用 inspect 预检，warnings 供审核参考。审核后用同一 preparationId 调 submit 登记。" };
+      nextAction: "按照本次返回的 format 编写英文提示词及中文对照。h3Text 用三段，h3Ref2va 用六段，h3Frames 在三段前写首尾帧对齐。英文正文的台词用 <d>[Language] …</d>，方括号内写语言的英文全称，照录原话和标点。按照已确认的分镜，记录切换镜头的时刻、镜头结束时的状态以及对白开口的顺序。用 inspect 预检，warnings 供审核参考。审核完成后，使用同一个 preparationId 调用 submit，登记审核结果。" };
   }
   const path = join(root, `${input.preparationId}.json`);
   const release = lockWorkspaceFiles([path]);
@@ -65,7 +65,7 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
     if (findings.length) return { status: "rejected", findings, warnings };
     const review = createReviewSchema(getVideoPromptRequirements(current.shot).map(item => item.id)).parse(input.review);
     if (review.status === "rejected" && review.needsAdjacentShots) {
-      return { status: "blocked", findings: review.findings, warnings, nextAction: "回读关联场次或镜头，补齐本镜所回应的原话或事件到 input.adjacentShots，重新 prepare 后提交审核。" };
+      return { status: "blocked", findings: review.findings, warnings, nextAction: "重新读取相关场次或镜头，将本镜所回应的原话或事件补充到 input.adjacentShots，再调用 prepare 并提交审核。" };
     }
     if (review.status !== "ok") return { status: "rejected", findings: review.findings, warnings };
     if (saved.approved) {

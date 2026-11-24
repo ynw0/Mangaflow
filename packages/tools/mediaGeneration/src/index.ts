@@ -15,7 +15,7 @@ const plugin: ToolPlugin = {
     const permissions = configSchema.parse(config);
     const generationTools = ([
       { name: "generateImage", mediaType: "image", enabled: permissions.allowImage, label: "生成图片", parameters: imageGenerationSchema, description: "根据提示词和可选的工作区参考图生成图片。" },
-      { name: "generateVideo", mediaType: "video", enabled: permissions.allowVideo, label: "生成视频", parameters: videoGenerationSchema, description: "根据提示词和可选的工作区图片、视频、音频、首尾帧生成视频。H3 必须使用服务端审核通过后返回的 generationRequest 和 reviewId：内置 Agent 用 draftVideoPrompt，外部 Agent 用 videoPrompt 的 prepare/inspect/submit。提示词、参考槽位与内容、时长、画幅、音轨和提示词格式一致时沿用原 reviewId。模型权重、LoRA、采样、种子、分辨率与生成主机变化按当前工作流的能力与算力授权校验。仅兼容 H3 二采支持 h3Options；必须使用当前主机实报选项，不擅自增加或替换 LoRA。固定与固定上次随机须传具体 seed；随机模式传 seedMode=random。按模型能力设置生成模式、时长、分辨率和音频。用户没指定采样时不要传 megapixels、upscale、firstPassSteps、secondPassSteps，二采默认百万像素 0.2、放大 2、一采 8 步、二采 4 步。" },
+      { name: "generateVideo", mediaType: "video", enabled: permissions.allowVideo, label: "生成视频", parameters: videoGenerationSchema, description: "根据提示词和可选的工作区图片、视频、音频、首尾帧生成视频。使用 H3 时，必须使用服务端审核通过后返回的 generationRequest 和 reviewId。内置 Agent 调用 draftVideoPrompt，外部 Agent 使用 videoPrompt 的 prepare、inspect 和 submit 操作。提示词、参考槽位与内容、时长、画幅、音轨和提示词格式一致时沿用原 reviewId。如果模型权重、LoRA、采样参数、种子、分辨率或生成主机发生变化，需要根据当前工作流的能力和已获得的算力使用授权进行校验。只有兼容的 H3 双阶段采样工作流支持 h3Options。必须使用当前主机实际返回的可用选项，不得擅自增加或替换 LoRA。使用固定种子或固定上一次随机生成的种子时，必须传入具体的 seed；随机模式传入 seedMode=random。按模型能力设置生成模式、时长、分辨率和音频。用户没指定采样时不要传 megapixels、upscale、firstPassSteps、secondPassSteps，双阶段采样工作流默认使用 0.2 百万像素、2 倍放大，第一阶段采样 8 步，第二阶段采样 4 步。" },
       { name: "generateAudio", mediaType: "audio", enabled: permissions.allowAudio, label: "生成音频", parameters: audioGenerationSchema, description: "根据文本或提示词和可选的工作区参考图片和音频生成音频。按模型能力设置音色、语速、音量、语种、采样率和格式。" },
     ] as const).filter(operation => operation.enabled);
     const listTool: ToolDefinition = {
@@ -33,7 +33,7 @@ const plugin: ToolPlugin = {
     const qcTool: ToolDefinition = {
       name: "qcVideo",
       label: "成片质检",
-      description: "按设置发起成片验收。主 Agent 抽帧模式会返回 awaitingAgent，随后必须调用 getVideoQcFrames 看图并用 submitVideoQc 提交逐项结论。专用 QC 模式返回模型结论；组合模式还需主 Agent 看帧。checklist 为额外验收要点，不替代已审合同。",
+      description: "按设置发起成片验收。主 Agent 抽帧模式会返回 awaitingAgent，随后必须调用 getVideoQcFrames 查看实际画面，再用 submitVideoQc 逐项提交验收结论。专用 QC 模式返回质检模型的结论；组合模式还需要主 Agent 查看抽取的画面。checklist 用于补充验收要求，不能代替已经审核的合同。",
       promptSnippet: "成片验收遵守设置里的方式、范围和触发条件；awaitingAgent 表示尚未验收完成。",
       parameters: z.toJSONSchema(qcVideoSchema, { io: "input", target: "draft-07" }),
       executionMode: "sequential",
@@ -46,7 +46,7 @@ const plugin: ToolPlugin = {
     const qcStatusTool: ToolDefinition = {
       name: "getVideoQcStatus",
       label: "查询成片质检状态",
-      description: "按成片路径读取持久化 QC。completed 时 issues 明确列出错误、缺失证据、时间与验收要求，qcRevision 用于绑定整改方案。若 rejected/unverified，主 Agent 必须先制定整改方案，再调用 saveVideoQcRectificationPlan 保存；工具本身不启动生成。",
+      description: "根据成片路径读取已经保存的质检记录。当状态为 completed 时，issues 会列出具体错误、缺少的证据、相关时间及验收要求，qcRevision 用于关联整改方案与对应的质检版本。如果结果为 rejected 或 unverified，主 Agent 必须先制定整改方案，再调用 saveVideoQcRectificationPlan 保存；此工具本身不会启动生成。",
       parameters: z.toJSONSchema(videoQcStatusSchema, { io: "input", target: "draft-07" }),
       async execute(_id, params, signal) {
         signal?.throwIfAborted();
@@ -57,19 +57,19 @@ const plugin: ToolPlugin = {
     };
     const framesTool: ToolDefinition = {
       name: "getVideoQcFrames", label: "主 Agent 读取质检画面",
-      description: "读取 awaitingAgent 成片的真实画面帧、时间戳、证据版本与强制验收项。必须实际看图后提交结论；静态帧无法证明的动作或声音标未验证。此操作不启动模型或生成视频。",
+      description: "读取处于 awaitingAgent 状态的成片的实际画面、时间戳、证据版本及必须检查的验收项。必须查看实际画面后才能提交结论；仅凭静态画面无法确认的动作或声音，应标为未验证。此操作不启动模型或生成视频。",
       parameters: z.toJSONSchema(videoQcStatusSchema, { io: "input", target: "draft-07" }),
       async execute(_id, params, signal) {
         signal?.throwIfAborted();
         const { videoPath } = videoQcStatusSchema.parse(params);
         const { evidence, images } = await media.getAgentVideoQcEvidence(videoPath);
-        return { details: evidence, content: [{ type: "text" as const, text: JSON.stringify({ ...evidence, nextAction: "看完实际图片，按 requirementId 逐项用 submitVideoQc 提交；不能把路径当成已看图证据。" }) },
+        return { details: evidence, content: [{ type: "text" as const, text: JSON.stringify({ ...evidence, nextAction: "查看实际图片后，根据 requirementId 使用 submitVideoQc 逐项提交结论；不能仅凭文件路径声称已经看过画面。" }) },
           ...images.flatMap((image, index) => [{ type: "text" as const, text: `第 ${index + 1} 帧，${evidence.frames[index]!.time.toFixed(3)} 秒` }, { type: "image" as const, ...image }])] };
       },
     };
     const submitTool: ToolDefinition = {
       name: "submitVideoQc", label: "提交主 Agent 质检结论",
-      description: "看过 getVideoQcFrames 返回的实际图片后，携带相同 revision 提交逐项画面结论。不得提交总通过来代替验收项；缺项或证据不足会保持未验证。没有听辨音轨时不得声称音频通过。",
+      description: "看过 getVideoQcFrames 返回的实际图片后，携带相同 revision 提交逐项画面结论。不得用整体通过的结论代替逐项验收；遗漏的验收项或证据不足的项目仍为未验证。没有实际听过音轨时，不得声称音频通过验收。",
       parameters: z.toJSONSchema(agentVideoQcSubmissionSchema, { io: "input", target: "draft-07" }),
       executionMode: "sequential",
       async execute(_id, params, signal) {
@@ -81,8 +81,8 @@ const plugin: ToolPlugin = {
     const planTool: ToolDefinition = {
       name: "saveVideoQcRectificationPlan",
       label: "主 Agent 保存成片整改方案",
-      description: "读取 getVideoQcStatus 的 issues 与 qcRevision 后，对每条失败/未验证问题确定根因假设、应调整的素材/提示词/工作流/采样/镜头及可核验验收标准。必须覆盖所有 issueIds。优先改变导致相同失败的参考或控制手段，不得只反复堆叠提示词。未确认的根因必须标记为假设。此工具只持久化整改计划，不授权或启动新生成。",
-      promptSnippet: "QC 未通过先整理具体问题并提交结构化整改方案；同类失败反复出现时更改策略而非重复改写提示词，保存方案不等于允许重生。",
+      description: "读取 getVideoQcStatus 的 issues 与 qcRevision 后，针对每项未通过或尚未验证的问题，提出可能的根本原因，说明需要调整的素材、提示词、工作流、采样参数或镜头，以及能够实际核验的验收标准。必须覆盖所有 issueIds。优先改变导致相同失败的参考或控制手段，不得只反复堆叠提示词。未确认的根因必须标记为假设。此工具只保存整改计划，不会授予重新生成的权限，也不会启动新的生成任务。",
+      promptSnippet: "质检未通过时，先整理具体问题并提交结构化整改方案。如果同类问题反复出现，应调整解决策略，而不是反复改写提示词。保存方案不代表已经获得重新生成的授权。",
       parameters: z.toJSONSchema(qcRectificationPlanSchema, { io: "input", target: "draft-07" }),
       executionMode: "sequential",
       async execute(_id, params, signal) {

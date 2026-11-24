@@ -112,7 +112,7 @@ export function createDirectorDraft(scene: SceneDocument, plan?: DirectorPlan, p
 
   const tools: NodeAiTool[] = [{
     name: "readDocument",
-    description: "读取本轮独立草稿的 scene / plan；objectId 选择场景物体或方案轨道，joint 选择人偶关节轨道，path 为相对字段路径。history 只读且必须提供 planId。schema 可用 path ['scene'] / ['plan'] 读取 JSON Schema。按需读取，避免反复读取完整文档。",
+    description: "读取本轮单独维护的 scene 或 plan 草稿。使用 objectId 选择场景物体或方案中的轨道，使用 joint 选择人偶关节轨道，path 为字段的相对路径。history 只读且必须提供 planId。schema 可用 path ['scene'] / ['plan'] 读取 JSON Schema。按需读取，避免反复读取完整文档。",
     parameters: z.toJSONSchema(readSchema),
     execute(args, signal) {
       signal?.throwIfAborted();
@@ -131,7 +131,7 @@ export function createDirectorDraft(scene: SceneDocument, plan?: DirectorPlan, p
     },
   }, {
     name: "editDocument",
-    description: "原子批量修改本轮 scene / plan 草稿，不修改历史和磁盘。objectId / joint 按稳定 ID 选择现有物体/轨道，path 为相对路径。add 添加新字段或插入数组，数组下标 '-' 表示追加；replace / remove 必须命中已有路径。添加物体用 scene 的 ['objectList','-']，添加轨道用 plan 的 ['tracks','-']。任何非法操作整批撤销。返回 valid=false 时只保存了未完成草稿，必须依据 issues 补齐，直到 valid=true。",
+    description: "以原子操作批量修改本轮 scene 或 plan 草稿，不修改历史记录，也不写入磁盘。使用 objectId 或 joint 按稳定 ID 选择现有物体或轨道，path 为相对路径。add 添加新字段或插入数组，数组下标 '-' 表示追加；replace 和 remove 必须指向已经存在的路径。添加物体用 scene 的 ['objectList','-']，添加轨道用 plan 的 ['tracks','-']。只要批次中有一项非法操作，就撤销整个批次。返回 valid=false 时，表示目前只保存了未完成的草稿，必须根据 issues 中的问题继续修正，直到 valid=true。",
     parameters: z.toJSONSchema(editSchema),
     execute(args, signal) {
       signal?.throwIfAborted();

@@ -16,6 +16,18 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     expect(text).toContain("9:16");
   });
 
+  test("H3 局部修改直接写入，独立审核和语速倍数不强制", async () => {
+    const workflow = await skill("workflow/SKILL.md");
+    const director = await skill("workflow/references/video-director.md");
+    const voice = await skill("workflow/references/creativeKnowledge.md");
+    const review = await skill("workflow/references/video-prompt-review.md");
+    expect(workflow).toContain("局部修改只改用户指定内容");
+    expect(workflow).toContain("不强制独立审核或审核号");
+    expect(director).toContain("review=true");
+    expect(voice).toContain("未指定时不自动补入倍数");
+    expect(review).toContain("未指定语速倍数时不得因缺少倍数而退回");
+  });
+
   test("场次知识允许有条件的多镜剪辑，不丢失单镜约束", async () => {
     const text = await skill("workflow/references/creativeKnowledge.md");
     expect(text).toContain("多个 `[Shot N]`");

@@ -943,7 +943,7 @@ function getPromptContext() {
   // 仅比较会影响原稿、参考和声音的字段。采样调整允许与提示词审核并行。
   const revision = JSON.stringify([selectedModel.value?.promptFormat, input.prompt, data.value.promptZh,
     input.duration, input.ratio, input.mode, input.generateAudio, images, videos, audios, firstFrame, lastFrame]);
-  // 随机种子留到实际生成时取值，固定上次随机必须交付具体值供审核绑定。
+  // 随机种子留到实际生成时取值，固定上次随机必须交付具体种子值。
   const seed = config.supportsSeed && config.seedMode !== "random" ? resolveSeed() : undefined;
   return { config, images, videos, audios, firstFrame, lastFrame, revision, promptZh: data.value.promptZh, request: { ...input, seed } };
 }
@@ -1119,7 +1119,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setPrompt",
-  description: "写入视频模型实际收到的 prompt。按所选工作流的语言、格式和参考编号填写。使用 H3 时，根据对应生成模式的格式编写英文正文，按照定稿保留对白、歌词及画面文字的原文。promptZh 提供简体中文对照，便于审阅；生成模型只接收 prompt。H3 的 reviewId 取自已通过的提示词审核，服务端按实际请求校验。本工具只写入提示词。",
+  description: "写入视频模型实际收到的 prompt。按所选工作流的语言、格式和参考编号填写。使用 H3 时，根据对应生成模式的格式编写英文正文，按照定稿保留对白、歌词及画面文字的原文。promptZh 提供简体中文对照，便于审阅；生成模型只接收 prompt。reviewId 为可选审核记录，未主动审核时省略；不要求审核号即可生成。局部修改仅替换指定内容。本工具只写入提示词。",
   parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional(), reviewId: z.string().uuid().optional(), expectedRevision: z.string().optional() }),
   execute({ prompt: value, promptZh, reviewId, expectedRevision }) {
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");

@@ -6,7 +6,6 @@ import { downloadOutput, probeComfy, readNodeChoices, submitWorkflow, uploadInpu
 import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
 import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
-import { captureVideoReview, requireVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
 import { findH3Checkpoint, isH3CheckpointName, validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
 import { applyH3Options, effectiveH3Options } from "@/utils/production/h3Advanced";
 import { checkMediaBudget, reserveMediaBudget } from "@/utils/media/budget";
@@ -213,7 +212,7 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
     if (binding.kind !== "value" && field && Array.isArray(inputs?.[field])) {
       fail(`绑定 ${binding.source} 的目标 ${binding.target} 是连线，不能写入文件名`);
     }
-    // 先组装本地实际请求，审核通过之前不上传素材或连接 GPU 主机。
+    // 先组装并校验本地实际请求，再上传素材和连接 GPU 主机。
     writePath(workflow, binding.target, value);
   }
   const advanced = context.h3_options as H3Options | undefined;
@@ -344,10 +343,8 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   }
   const prepared = await prepareComfyWorkflow(options);
   const { entry, workflow, context, host, lockedLoraNodes } = prepared;
-  // 自动化先验审再启动主机；人工仍使用同一工作流和额度校验。
-  const snapshot = mediaType === "video" && entry.bindings.promptFormat && !options.manual
-    ? await captureVideoReview(directory, prepared, signal) : undefined;
-  if (snapshot) await requireVideoReview(request.reviewId, snapshot);
+  // 提示词审核为可选的创作辅助；不因缺少或过期的审核编号阻止生成。
+  // 自动与人工生成仍共用工作流、素材、模型及算力额度校验。
   const boundDuration = prepared.inputs.find(input => input.source === "duration")?.value;
   const duration = typeof boundDuration === "number" ? boundDuration : context.duration;
   const generationId = mediaType === "video" ? request.generationId : undefined;
@@ -382,9 +379,7 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     if (binding.kind === "value") continue;
     const path = readPath(workflow, binding.target);
     if (typeof path !== "string" || !path) continue;
-    const expected = snapshot?.references.find(item => item.source === binding.source);
-    const bytes = expected ? await verifyReviewFile(path, expected, signal) : undefined;
-    const uploaded = await uploadInput(baseUrl, path, `${uploadDirectory}/${index}`, signal, bytes);
+    const uploaded = await uploadInput(baseUrl, path, `${uploadDirectory}/${index}`, signal);
     writePath(workflow, binding.target, uploaded);
   }
   const submission: Omit<TrackedVideoExecution, "promptId"> = {

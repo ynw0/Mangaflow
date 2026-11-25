@@ -119,3 +119,21 @@ describe("每段独立视频的说话人编号", () => {
     expect(videoPromptParameters.safeParse(input).success).toBe(true);
   });
 });
+
+
+test("独立审核按需开启，省略 review 时不要求审核", () => {
+  const input = { ...validBase(), duration: 15, ratio: "16:9" };
+  expect(videoPromptParameters.parse(input).review).toBeUndefined();
+  expect(videoPromptParameters.parse({ ...input, review: false }).review).toBe(false);
+  expect(videoPromptParameters.parse({ ...input, review: true }).review).toBe(true);
+});
+
+
+test("语音角色未指定语速时不注入固定倍数", () => {
+  const input = { ...validBase(), duration: 15, ratio: "16:9", voiceCast: [{ speakerId: "S1", characterName: "播报员", timbreId: "vt01" }] };
+  expect(videoPromptParameters.parse(input).voiceCast?.[0]?.speedMultiplier).toBeUndefined();
+  for (const rate of [1.0, 1.1]) {
+    const parsed = videoPromptParameters.parse({ ...input, voiceCast: [{ ...input.voiceCast[0], speedMultiplier: rate }] });
+    expect(parsed.voiceCast?.[0]?.speedMultiplier).toBe(rate);
+  }
+});

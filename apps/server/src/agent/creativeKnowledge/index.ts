@@ -178,7 +178,7 @@ export function listCreativeKnowledgeCategories() {
         caveat: "scene 是多镜叙事模板，只有在用户允许切镜且时长足够时，才能编成一个 H3 视频片段；如果合同要求一镜到底，需要拆分这类模板的叙事结构，或改用适合单镜头的模板。特定题材的适用范围见 domains。"},
       { id: "voices", title: "H3 同期角色声音提示词模板", count: voiceTemplates.length,
         tags: categoryTags(voiceTemplates), groups: voiceCategories,
-        caveat: "H3 同期合成声音；有对白时默认约正常语速的1.3倍。机械感或合成音色只用于系统、广播或机器角色。口音和年龄感只是生成指导，不保证方言准确或声纹一致。"},
+        caveat: "H3 同期合成声音；语速按场戏需要描述，可明确使用倍数，未指定时不自动设置倍数。机械感或合成音色只用于系统、广播或机器角色。口音和年龄感只是生成指导，不保证方言准确或声纹一致。"},
     ],
   };
 }

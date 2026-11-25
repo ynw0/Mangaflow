@@ -8,7 +8,7 @@ import { validateFields } from "@/lib/middleware";
 import { leakedSettingsFields, redactSettings, restoreSettingsSecrets } from "@/lib/secrets";
 import { error, success } from "@/lib/responseFormat";
 import { maxSystemPromptLength } from "@/agent/runtime/prompt";
-import { agentProfilesSchema } from "@/agent/runtime/profiles";
+import { agentProfilesInputSchema } from "@/agent/runtime/profiles";
 import { t } from "@/lib/i18n";
 import { mediaBudgetSchema } from "@/utils/media/budget";
 
@@ -20,7 +20,7 @@ export default router.put("/", validateFields({ settings: z.record(z.string(), z
   desktopUpdateCustomUrl: z.string().max(2048).refine(value => !value || u.desktop.isValidUpdateUrl(value),
     "自定义更新源必须是不含账号、查询参数或锚点的 HTTP(S) 地址").optional(),
   mcp: u.mcpOauth.mcpSettingsSchema.optional(),
-  agentProfiles: agentProfilesSchema.optional(),
+  agentProfiles: agentProfilesInputSchema.optional(),
   mediaBudget: mediaBudgetSchema.optional(),
   production: z.object({ qcMethod: z.enum(["agentFrames", "model", "agentFramesAndModel"]).optional(), qcLevel: z.enum(["video","videoAudio","none"]).optional(), qcTrigger: z.enum(["auto","manual"]).optional(), gemmaQcHost: z.enum(["local","autodl"]).optional(), videoQcModelId: z.string().max(550).optional(), audioQcModelId: z.string().max(550).optional(), enabledGemmaQcModels: z.record(z.string().regex(/^[a-f0-9]{64}$/), z.array(z.string().min(1).max(512).regex(/^[^\x00-\x1f]+$/)).max(500)).optional() }).passthrough().optional(),
 })).refine(value => value.desktopUpdateSource !== "custom" || !!value.desktopUpdateCustomUrl, {

@@ -17,8 +17,22 @@ export const agentProfilesSchema = z.strictObject(
   },
 );
 
+const removedAgentProfileRoles = ["videoDirector", "videoReviewer"] as const;
+
+function dropRemovedAgentProfiles(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  if (!removedAgentProfileRoles.some(role => Object.hasOwn(record, role))) return value;
+  const next = { ...record };
+  for (const role of removedAgentProfileRoles) delete next[role];
+  return next;
+}
+
+// 保存入口先丢掉已下线职责，再按当前角色严格校验；其它未知键仍然失败。
+export const agentProfilesInputSchema = z.preprocess(dropRemovedAgentProfiles, agentProfilesSchema);
+
 function readProfiles() {
-  return agentProfilesSchema.parse(conf.get("settings", {}).agentProfiles ?? {});
+  return agentProfilesInputSchema.parse(conf.get("settings", {}).agentProfiles ?? {});
 }
 
 function applyProfile(base: AgentModelSelection, role: AgentProfileRole, profile: z.infer<typeof profileSchema> | undefined) {

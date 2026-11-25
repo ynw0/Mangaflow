@@ -6,7 +6,6 @@ import { downloadOutput, probeComfy, readNodeChoices, submitWorkflow, uploadInpu
 import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
 import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
-import { captureVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
 import { findH3Checkpoint, isH3CheckpointName, validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
 import { applyH3Options, effectiveH3Options } from "@/utils/production/h3Advanced";
 import { checkMediaBudget, reserveMediaBudget } from "@/utils/media/budget";
@@ -214,7 +213,6 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
     if (binding.kind !== "value" && field && Array.isArray(inputs?.[field])) {
       fail(`绑定 ${binding.source} 的目标 ${binding.target} 是连线，不能写入文件名`);
     }
-    // 先组装本地实际请求，审核通过之前不上传素材或连接 GPU 主机。
     writePath(workflow, binding.target, value);
   }
   const advanced = context.h3_options as H3Options | undefined;
@@ -285,7 +283,7 @@ export async function prepareComfyWorkflow(options: {
     prompt: request.prompt,
     image_prompt: request.prompt,
     negative_prompt: "",
-    // 随机模式的具体值在生成时确定，审核绑定模式；固定与上次随机绑定具体值。
+    // 随机模式在提交时才取具体种子；固定与上次随机使用已有值。
     seed: request.seed ?? crypto.getRandomValues(new Uint32Array(1))[0],
     duration: request.duration,
     aspect_ratio: videoAspect[ratio],
@@ -311,14 +309,7 @@ export async function prepareComfyWorkflow(options: {
   const seedMode = request.seedMode ?? (request.seed === undefined ? "random" : "fixed");
   if (bound.has("seed") && seedMode !== "random" && request.seed === undefined) fail("固定种子模式需要提供具体种子");
   const { workflow, lockedLoraNodes } = await renderWorkflow(entry, context);
-  const reviewWorkflow = structuredClone(workflow);
-  for (const binding of entry.bindings.bindings) {
-    if (seedMode === "random" && binding.source === "seed") writePath(reviewWorkflow, binding.target, "randomSeed");
-    // 正文独立比较，工作流快照保留绑定关系以便审核后填入最终稿。
-    if (binding.source === "prompt" || binding.source === "image_prompt") writePath(reviewWorkflow, binding.target, "approvedPrompt");
-  }
-  const inputs = entry.bindings.bindings.map(binding => ({ ...binding, value: readPath(reviewWorkflow, binding.target) }));
-  return { entry, workflow, reviewWorkflow, inputs, context, host, seedMode, lockedLoraNodes };
+  return { entry, workflow, context, host, seedMode, lockedLoraNodes };
 }
 
 export type PreparedComfyWorkflow = Awaited<ReturnType<typeof prepareComfyWorkflow>>;
@@ -345,16 +336,12 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   }
   const prepared = await prepareComfyWorkflow(options);
   const { entry, workflow, context, host, lockedLoraNodes } = prepared;
-  // 只校验已明确锁定的同期台词，不要求旧稿或人工试验补造镜头合同、导演规划或审核记录。
+  // 只校验已明确锁定的同期台词。
   if (mediaType === "video" && entry.bindings.promptFormat && request.qcContract?.lockedDialogue !== undefined && !options.manual) {
     const findings = inspectLockedDialogue(context.prompt, request.qcContract.lockedDialogue, context.generate_audio);
     if (findings.length) fail(`当前提示词与已确认台词不一致：${findings.join("；")}。请在原稿对应位置修改，或先更新已确认的剧本。`, 409);
   }
-  // 保留参考素材快照与上传时的完整性校验；审核记录不再是生成前置条件。
-  const snapshot = mediaType === "video" && entry.bindings.promptFormat && !options.manual
-    ? await captureVideoReview(directory, prepared, signal) : undefined;
-  const boundDuration = prepared.inputs.find(input => input.source === "duration")?.value;
-  const duration = typeof boundDuration === "number" ? boundDuration : context.duration;
+  const duration = typeof context.duration === "number" ? context.duration : undefined;
   const generationId = mediaType === "video" ? request.generationId : undefined;
   await checkMediaBudget(directory, mediaType, duration, signal, generationId);
   signal?.throwIfAborted();
@@ -387,9 +374,7 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
     if (binding.kind === "value") continue;
     const path = readPath(workflow, binding.target);
     if (typeof path !== "string" || !path) continue;
-    const expected = snapshot?.references.find(item => item.source === binding.source);
-    const bytes = expected ? await verifyReviewFile(path, expected, signal) : undefined;
-    const uploaded = await uploadInput(baseUrl, path, `${uploadDirectory}/${index}`, signal, bytes);
+    const uploaded = await uploadInput(baseUrl, path, `${uploadDirectory}/${index}`, signal);
     writePath(workflow, binding.target, uploaded);
   }
   const submission: Omit<TrackedVideoExecution, "promptId"> = {

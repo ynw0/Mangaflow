@@ -7,7 +7,6 @@ import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { h3AdvancedCapability, applyH3Options } from "./h3Advanced";
 import { parseWorkflowBindings } from "./bindings";
 import { prepareComfyWorkflow } from "./run";
-import { captureVideoReview, videoPromptReviewScope } from "./videoReviews";
 const root=resolve(import.meta.dirname,"../../../../../workflows/video");
 const names=["h3_ref2va_dual"];
 const read=async (name:string) => ({
@@ -127,7 +126,7 @@ describe("H3 双采高级参数",()=>{
     expect(h3AdvancedCapability(graph,bindings)).toBeUndefined();
     expect(()=>applyH3Options(graph,bindings,{sampler:"euler"})).toThrow("不支持");
   });
-  test("关闭主 LoRA 并附加时仍接到原模型，采样调整沿用提示词审核",async()=>{
+  test("关闭主 LoRA 并附加时仍接到原模型，采样调整不改提示词与参考",async()=>{
     const dir=await realpath(await mkdtemp(join(tmpdir(),"manga-h3-advanced-")));
     try {
       await writeFile(join(dir,"ref.png"),new Uint8Array([137,80,78,71,13,10,26,10]));
@@ -148,9 +147,13 @@ describe("H3 双采高级参数",()=>{
       expect(output["148"].inputs.value).toBe(2);
       expect(output["7"].inputs.sigmas).toEqual(["117",0]);
       expect(output["113"].inputs.sigmas).toEqual(["117",1]);
-      const a=videoPromptReviewScope(await captureVideoReview(dir,old));
-      const b=videoPromptReviewScope(await captureVideoReview(dir,advanced));
-      expect(a).toEqual(b);
+      expect({
+        prompt: old.context.prompt, duration: old.context.duration, params: old.context.params,
+        refs: old.context.refs, media: old.context.media, generate_audio: old.context.generate_audio,
+      }).toEqual({
+        prompt: advanced.context.prompt, duration: advanced.context.duration, params: advanced.context.params,
+        refs: advanced.context.refs, media: advanced.context.media, generate_audio: advanced.context.generate_audio,
+      });
     }finally{await rm(dir,{recursive:true,force:true});}
   });
 });

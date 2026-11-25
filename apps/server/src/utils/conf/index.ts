@@ -56,6 +56,16 @@ export function removeLegacySettings(settings: Record<string, unknown>) {
       changed = true;
     }
   }
+  const profiles = settings.agentProfiles;
+  if (profiles && typeof profiles === "object" && !Array.isArray(profiles)) {
+    // 导演/审核编排已下线，不能再当有效职责；启动时删掉以免设置保存被 strictObject 整单拒绝。
+    for (const key of ["videoDirector", "videoReviewer"]) {
+      if (Object.hasOwn(profiles, key)) {
+        Reflect.deleteProperty(profiles, key);
+        changed = true;
+      }
+    }
+  }
   return changed;
 }
 

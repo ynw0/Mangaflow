@@ -10,7 +10,7 @@ export const resumeParameters = z.strictObject({ draftId: z.uuid().optional(), s
   .refine(value => Boolean(value.draftId) !== Boolean(value.shotId) && (!value.discard || !!value.draftId), "查询传 shotId；续审或丢弃传 draftId");
 const pendingSchema = z.object({
   input: savedVideoPromptParameters, draftKey: z.string().optional(), revision: z.string().optional(),
-  draft: z.object({ prompt: z.string(), promptZh: z.string(), cinematicPlan: draftCinematicPlanSchema }),
+  draft: z.object({ prompt: z.string(), promptZh: z.string(), cinematicPlan: draftCinematicPlanSchema.optional() }),
   findings: z.array(z.string()),
   needsAdjacentShots: z.literal(true).optional(),
 });

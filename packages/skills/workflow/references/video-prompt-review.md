@@ -5,7 +5,7 @@
 
 ## 输入
 - `shotId`、`reviewRequirements`、实际工作流时长与参考槽位、语音策略和可用的相邻镜头信息。内置审核收到的剧情、连续性和硬要求集中在 `reviewRequirements`。
-- `draft` 中的 `cinematicPlan`、英文 `prompt` 和简体中文 `promptZh`。外部 MCP 从 `videoPrompt` 的准备结果取得这些审核依据中的合同、工作流和验收项，再审核当前导演稿。
+- 实际英文 `prompt` 和简体中文 `promptZh`；如已有 `cinematicPlan`，也可用于核对时间关系。外部 MCP 从 `videoPrompt` 的准备结果取得这些审核依据中的合同、工作流和验收项，再审核当前导演稿。
 
 ## 格式检查
 外部 Agent 跨 Skill 阅读时，先用 `skillOperator` 的 `list` 查明目标 Skill 和 `scope`，再用 `read` 传目标 `name`、`scope` 和目标 Skill 内的 `path`。例如 H3 全参考格式用 `name: "h3-prompt-writing"`、`path: "references/ref-en.txt"`。
@@ -21,7 +21,7 @@
 - 当前模式要求的各段标题与叙述均为英文，另附简体中文 `promptZh`。英文正文的 `<d>` 块采用 `<d>[Language] …</d>`，以方括号内的英文语言全称开头，随后照录对白或歌词及其标点。画面可见文字保留原文。
 - 逐段按定稿核对对白及标点。音频转写的标点整理规则只用于未锁定的内容。
 - 在 `bilingualConsistency` 核对中英文事实一致后，再单独通读 `promptZh`。逐句看物件、动作和声线说明是否通顺。即使意思能猜出来，直接照搬资料中生硬的词组、搭配不当或省略改变了原意，都应引用原句退回局部修订。台词、画面上实际显示的文字、专有名称和规定的标记应照录，定稿台词疑似有误时由编剧核对。
-- 提示词与时间轴须符合准备结果中的 `workflow.duration`。Ref2VA 用 `detailed_description`，纯文本和首尾帧用 `integrated_multimodal_description`。首镜标 `[Shot 1]`，Ref2VA 可在它之前说明全局风格。允许切镜时后续 `[Shot N] At MM:SS.mmm` 按时序展开。用户明确要求单镜时只用一个 `[Shot 1]`。对白计划在 `cinematicPlan.dialogue` 逐句核对。
+- 提示词与时间轴须符合准备结果中的 `workflow.duration`。Ref2VA 用 `detailed_description`，纯文本和首尾帧用 `integrated_multimodal_description`。首镜标 `[Shot 1]`，Ref2VA 可在它之前说明全局风格。允许切镜时后续 `[Shot N] At MM:SS.mmm` 按时序展开。用户明确要求单镜时只用一个 `[Shot 1]`。已有 `cinematicPlan.dialogue` 时逐句核对；没有独立时间规划时直接对照正文和分镜检查。
 - `summary` 的任务类型按实际模式与 [video-director.md](video-director.md) 确定，Ref2VA 默认 `[reference generation]`。
 
 ### 镜头结构与槽位

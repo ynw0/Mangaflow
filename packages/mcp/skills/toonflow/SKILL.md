@@ -54,15 +54,15 @@ description: 通过 MangaFlow MCP 操作工作区、实时画布、节点、文�
 
 ## 生成媒体
 
-- H3 同期角色声音由 `searchVideoPromptTemplates` 的 `action=searchCreative,library=voices` 检索，不调用独立配音模型。按真实镜头说话人 `S1`、`S2` 在 `videoPrompt.prepare` 的 `input.voiceCast` 数组分别填写角色名、稳定声线及模板 ID（音色、情绪、性格、年龄感、外国人说中文感、地方口音、语速、发声方式）。`prepare` 返回解析后的 `voiceCast`、`speechPolicy`；有对白且开启生成音轨时默认语速约1.3倍，角色指定值可覆盖。不要改写原文台词或假造 `<Audio N>`，口音是近似生成指导，不能承诺精确复现。
-- H3 提示词由当前 Agent 依 workflow 和实际 H3 模式编写。用 `videoPrompt` 的 `prepare` 读取实际合同，写出 `draft` 后用 `inspect` 预检，再按 `reviewRequirements` 审核。以同一 `preparationId` 用 `submit` 提交稿件与真实证据。审核通过提交 `status=ok`、逐项 `coverage` 和空的 `findings`。合同明确指定镜尾构图时，可提供 `framingEvidence`。字数估算的提示留到成片听验。
-- 只有 submit 返回 `status=ok` 后才使用服务端签发的 `reviewId` 与 `generationRequest`。写回已有节点时通过该节点真实 schema 提交完整提示词、审核编号和返回的 `expectedRevision`，不要直接改 JSON。素材、合同、节点配置或稿件变化后重新 prepare/inspect/submit；不自行编造审核编号或仅提交文字“通过”。
-- 按已确认的分镜决定 `[Shot N]` 切点。按起声顺序填写 `cinematicPlan.dialogue`，台词按定稿保留文字和标点。确有前置动作才用 `afterBeat`。抢话按合同保留各自的原话和声源，审核关键信息能否听清。无对白填空数组。
+- H3 同期声音按剧本与人物表演编写；需要声音参考时可用 `searchVideoPromptTemplates` 的 `searchCreative` / `voices` 检索，模板 ID 均为可选。实际说话人按首次发声顺序从 S1 编号；`videoPrompt.prepare` 可返回声音参考。语速未指定时可以省略，明确要求倍数时在说话描述中表达，不写全局默认语速段落。保留台词原文，不虚构音频参考。
+- H3 提示词由当前 Agent 按 workflow 和实际 H3 模式直接编写。已有节点先读 `node:getConfig`、按需配置，再读 `node:getPromptContext`。`videoPrompt.prepare` 可辅助读取真实参考和制作依据。用 `node:setPrompt` 保存正文、中文对照和已确认的 `qcContract`（剧情及原话供成片验收），随后回读节点，用 `videoPrompt` 的 `inspectNode` 检查实际正文并自行复核。发现问题只修改对应内容。
+- 普通保存、检查与生成不需要 `reviewId`；明确需要独立审核时才使用 `prepare/inspect/submit`。局部修改使用当前正文和 `expectedRevision`，不重写其余内容；复制语速对比版本时固定其他变量。无实质问题保留原稿，不直接修改画布 JSON。
+- 按已确认的分镜决定 `[Shot N]` 切点、动作和对白顺序；只有确有必要时使用导演规划数据，不强制为每个视频另填 `cinematicPlan`。台词按定稿保留文字及标点，核对每句实际可用时间。生成正文不写宿主流程、工具、审核、授权或质检说明。
 - 从模型列表和节点工具 schema 获取可用模型、比例、分辨率、时长和声音选项，不自行猜测供应商参数。
 - 生成前展示可审阅的对象、数量、完整提示词、真实参考、所选模型、规格和执行次数，并核对用户对该具体批次的算力授权；有可靠报价才报金额，否则说明消耗未知。批准后按范围配置并生成，不反复确认同一批次；改动或额外重试超出原授权时重新确认。返回“已开始”只代表任务已启动，不能宣布图片或视频已生成。
 - 直接调用 `generateImage/generateVideo/generateAudio/qcVideo/runAgent` 时，首次提交前生成并记住顶层 `taskId`（UUID，与 target/args 同层）。调用立即返回后台状态，用 `getMcpTask` 的 `args.taskId` 查询；`succeeded` 后检查 result 中的真实结果。重连重复提交必须沿用原 taskId 和参数；同一 ID 不重新执行。ComfyUI 视频省略 generationId 时复用 taskId。任务结果存盘，宿主重启后的未完成任务标为 interrupted；先核对原 generationId 和远端状态，不盲目新建付费请求。`cancelMcpTask` 只请求停止，不能保证供应商撤销任务或费用。
 - 使用节点生成时，调用节点提供的 `node:getGenerationStatus` 确认完成、输出路径或错误；需要停止时调用 `node:cancelGeneration`，参数以节点返回的 schema 为准。其他节点未暴露这些能力时，如实报告已开始和当前可见结果，不反复触发生成充当查询。
-- 成片审核优先由当前 Agent 按已审合同看图验收：getAppState 的 modelExecution 显示当前 QC 设置；主 Agent 抽帧方式下发起 qcVideo 后，用 getVideoQcStatus 查询，awaitingAgent 时调用 getVideoQcFrames 读取真实图片与证据版本，再用 submitVideoQc 逐项提交。静态帧无法证明的动作或声音如实标未验证。设置为专用或组合 QC 时会额外调用配置的模型，须明确取得用户授权并传顶层 modelCallConfirmed=true；自动 QC 的视频生成同样遵守，不自动改用户的质检设置。
+- 成片审核优先由当前 Agent 按已确认的镜头合同和实际成片验收：getAppState 的 modelExecution 显示当前 QC 设置；主 Agent 抽帧方式下发起 qcVideo 后，用 getVideoQcStatus 查询，awaitingAgent 时调用 getVideoQcFrames 读取真实图片与证据版本，再用 submitVideoQc 逐项提交。静态帧无法证明的动作或声音如实标未验证。设置为专用或组合 QC 时会额外调用配置的模型，须明确取得用户授权并传顶层 modelCallConfirmed=true；自动 QC 的视频生成同样遵守，不自动改用户的质检设置。
 - 失败时先读取错误并修正原因。网络超时不能证明任务未提交；重试前先确认当前状态，避免重复生成导致额外消耗算力。
 
 ## 文件与文档

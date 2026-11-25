@@ -14,7 +14,7 @@ import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 const fields = {
   input: videoPromptParameters,
   preparationId: z.uuid(),
-  draft: draftSchema.options[0],
+  draft: draftSchema.options[0].partial({ cinematicPlan: true }),
   review: z.record(z.string(), z.json()),
 };
 const videoPromptSchema = z.discriminatedUnion("action", [
@@ -54,7 +54,7 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
       creativeTemplates: prepared.creativeContext,
       voiceCast: prepared.voiceContext.roles.length ? prepared.voiceContext : undefined,
       speechPolicy: getVideoSpeechPolicy(prepared.audioEnabled),
-      expectedRevision: prepared.revision, reviewRequirements: getVideoPromptRequirements(prepared.shot),
+      expectedRevision: prepared.revision, qcContract: prepared.generationRequest.qcContract, reviewRequirements: getVideoPromptRequirements(prepared.shot),
       nextAction: "按 format 编写英文正文和中文对照，保留对白原文。先使用 node:setPrompt 保存现稿（可带已确认的 qcContract），再用 inspectNode 对实际节点检查。inspect 仍支持检查未写入的旧式导演稿；submit 仅用于明确需要保存独立审核记录的场合。保存、检查节点或生成无需审核编号。" };
   }
   const path = join(root, `${input.preparationId}.json`);

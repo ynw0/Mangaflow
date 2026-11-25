@@ -294,8 +294,8 @@ export async function generateMedia(
           runComfyWorkflow({ directory, mediaType, request: tracked, signal: jobSignal, resume, manual,
             onTargetResolved: targetResolved, onSubmitting: submitting, onSubmitted: submitted }),
         save: (files, id, jobSignal) => writeTrackedVideos(directory, outputDirectory, id, files, jobSignal),
-        record: (files, { target: _target, ...execution }, manual, policy) => recordVideoOutputs(
-          directory, files, manual ? { ...tracked, reviewId: undefined } : tracked, execution, policy),
+        record: (files, { target: _target, ...execution }, _manual, policy) => recordVideoOutputs(
+          directory, files, tracked, execution, policy),
       });
     }
     const { files, execution } = await runComfyWorkflow({ directory, mediaType, request, signal });

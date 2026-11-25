@@ -77,6 +77,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     expect(explicit.roles[0]?.paceCue).toContain("1.0x");
     expect(explicit.roles[1]?.paceCue).toContain("1.1x");
     expect(explicit.roles[2]?.speedMultiplier).toBe(1.3);
+    expect(voiceTemplates.find(item => item.id === "vr01")?.tags).not.toContain("默认");
     expect(cast.roles[1]?.speedMultiplier).toBe(0.9);
     expect(cast.roles[1]?.promptCue).toContain("Northeastern");
     expect(cast.roles[0]?.promptCue).toMatch(/^主角 \(S1\): /);

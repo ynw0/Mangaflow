@@ -25,6 +25,18 @@ export function getShotRequirements(shot: z.infer<typeof shotSchema>): QcRequire
   ];
 }
 
+// 历史节点未迁移合同前，审核记录只用于读取原剧情；正文变化不能沿用旧审核结论或时间定位。
+export function legacyQcContext(root: string, request: MediaGenerationRequest,
+  review: Pick<Awaited<ReturnType<typeof readApprovedVideoReview>>, "snapshot" | "audit"> | undefined) {
+  if (!review || request.providerId !== "comfyui"
+    || review.snapshot.directory !== (process.platform === "win32" ? root.toLowerCase() : root)) return undefined;
+  const shot = shotSchema.safeParse(review.audit.shot);
+  if (!shot.success) return undefined;
+  const plan = cinematicPlanSchema.safeParse(review.audit.cinematicPlan);
+  return { shot: shot.data, dialoguePlan: plan.success && review.snapshot.prompt === request.prompt
+    && (request.duration === undefined || review.snapshot.parameters.duration === request.duration) ? plan.data.dialogue : undefined };
+}
+
 export async function readQcRequirements(directory: string, request?: MediaGenerationRequest): Promise<QcRequirement[]> {
   if (!request) return [];
   // 新节点直接保存已确认的镜头合同，无需独立审核或额外记录编号。
@@ -33,14 +45,9 @@ export async function readQcRequirements(directory: string, request?: MediaGener
   if (!shot && request.reviewId) {
     const review = await readApprovedVideoReview(request.reviewId).catch(() => undefined);
     const root = await realpath(directory);
-    if (review && request.providerId === "comfyui"
-      && review.snapshot.directory === (process.platform === "win32" ? root.toLowerCase() : root)
-      && review.snapshot.prompt === request.prompt) {
-      const oldShot = shotSchema.safeParse(review.audit.shot);
-      if (oldShot.success) shot = oldShot.data;
-      const plan = cinematicPlanSchema.safeParse(review.audit.cinematicPlan);
-      if (plan.success) dialoguePlan = plan.data.dialogue;
-    }
+    const legacy = legacyQcContext(root, request, review);
+    shot = legacy?.shot;
+    dialoguePlan = legacy?.dialoguePlan;
   }
   // 无合同或旧审核已失效时，以实际生成正文为验收依据，不冒充已确认的剧情。
   const promptLines = readDialogueBlocks(request.prompt).map(block => block[1]!.replace(/^\s*\[[^\]]+\]\s*/, "").trim());

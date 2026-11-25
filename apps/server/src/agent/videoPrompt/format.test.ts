@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { inspectCurrentVideoPrompt, inspectDraft, requiresContinuousTake } from "./format";
 import { getVideoSpeechPolicy, inspectDialogue } from "./dialogue";
-import { readQcRequirements } from "@/utils/production/qcRequirements";
+import { legacyQcContext, readQcRequirements } from "@/utils/production/qcRequirements";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { cinematicShotSchema, draftCinematicPlanSchema } from "@/utils/production/videoPlan";
 import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
@@ -212,4 +212,27 @@ test("无审核编号的生成请求可保存剧情验收依据并保护锁定�
   const fallback = await readQcRequirements(".", { ...request, qcContract: undefined });
   expect(fallback.find(x => x.id === "prompt.visual")?.text).toContain("A woman holds a pin.");
   expect(fallback.find(x => x.id === "dialogue.0")?.source).toBe("prompt.dialogue[0]");
+});
+
+
+test("历史审核记录只提供原剧情，局部修改后不沿用旧时间定位或跨工作区数据", () => {
+  const originalPrompt = "(S1) asks <d>[Mandarin Chinese] 你用的还是原来那根销子？</d>";
+  const request = videoGenerationSchema.parse({ providerId: "comfyui", modelId: "h3", duration: 15, prompt: originalPrompt });
+  const review = {
+    snapshot: { directory: "/workspace", modelId: "h3", host: "local", prompt: originalPrompt, seedMode: "random",
+      parameters: { duration: 15 }, references: [], workflow: "{}" },
+    audit: {
+      shot: { story: "女主询问销子", mustHave: ["销子保持原来的形状"], mustNotHave: [], continuityIn: "", continuityOut: "",
+        lockedDialogue: ["你用的还是原来那根销子？"] },
+      cinematicPlan: { ...cinematicPlan, dialogue: [{ speakerIds: ["S1"], startSeconds: 1, endSeconds: 5, pauseSeconds: 0 }] },
+    },
+  };
+  const exact = legacyQcContext("/workspace", request, review);
+  expect(exact?.dialoguePlan?.[0]?.startSeconds).toBe(1);
+  const changed = legacyQcContext("/workspace", { ...request, prompt: originalPrompt.replace("asks", "asks at 1.1x normal conversational speed") }, review);
+  expect(changed?.shot.lockedDialogue).toEqual(["你用的还是原来那根销子？"]);
+  expect(changed?.shot.mustHave).toEqual(["销子保持原来的形状"]);
+  expect(changed?.dialoguePlan).toBeUndefined();
+  expect(legacyQcContext("/another-workspace", request, review)).toBeUndefined();
+  expect(legacyQcContext("/workspace", { ...request, duration: 10 }, review)?.dialoguePlan).toBeUndefined();
 });

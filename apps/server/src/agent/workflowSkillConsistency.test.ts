@@ -177,3 +177,16 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     expect(handCn).toContain("13-15 秒仍需要");
   });
 });
+
+
+test("外部 MCP 与内置流程均不恢复强制审核和默认语速", async () => {
+  const external = await Bun.file(new URL("../../../../packages/mcp/skills/toonflow/SKILL.md", import.meta.url)).text();
+  const handshake = await Bun.file(new URL("../../../../packages/mcp/src/index.ts", import.meta.url)).text();
+  const sampling = await Bun.file(new URL("../../../../packages/skills/h3SamplingStrategy/SKILL.md", import.meta.url)).text();
+  expect(external).toContain("inspectNode");
+  expect(external).not.toContain("只有 submit 返回");
+  expect(external).not.toContain("默认语速约1.3倍");
+  expect(handshake).toContain("videoPrompt.inspectNode");
+  expect(handshake).not.toContain("默认约1.3倍");
+  expect(sampling).not.toContain("仍需提示词审核");
+});

@@ -73,7 +73,7 @@ const roles = [
   { id: "prop", title: "道具 Agent", icon: "道", description: "道具外形、材质与状态" },
   { id: "team", title: "本地团队 Agent", icon: "团", description: "本地 Team 的成员协作任务" },
   { id: "videoDirector", title: "视频导演", icon: "导", description: "H3 提示词编写及必要返修" },
-  { id: "videoReviewer", title: "提示词审核", icon: "审", description: "独立核对剧情、镜头及参考一致性" },
+  { id: "videoReviewer", title: "独立提示词审核（可选）", icon: "审", description: "仅在明确选用独立审核时调用，普通画布复核不调用此模型" },
   { id: "comfyDiagnosis", title: "ComfyUI 故障分析", icon: "诊", description: "读取任务错误与原实例证据，分析根因" },
 ] as const;
 type Role = (typeof roles)[number]["id"];

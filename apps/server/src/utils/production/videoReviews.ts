@@ -167,16 +167,6 @@ export async function saveVideoReview(snapshot: VideoReviewSnapshot, audit: Reco
   return reviewId;
 }
 
-export async function requireVideoReview(reviewId: string | undefined, snapshot: VideoReviewSnapshot) {
-  if (!reviewId) fail("此 H3 请求尚无服务端审核记录，请先完成提示词审核", 409);
-  const record = await readApprovedVideoReview(reviewId);
-  requireSameVideoReview(record.snapshot, snapshot);
-  // 新提交的对白须经过逐句时序审核；成片读取和已提交任务恢复不经过此入口。
-  if (/<\/?d\b/i.test(snapshot.prompt) && !draftCinematicPlanSchema.safeParse(record.audit.cinematicPlan).success) {
-    fail("该审核记录缺少逐句对白时序，请重新审核后再提交生成", 409);
-  }
-}
-
 export async function readApprovedVideoReview(reviewId: string) {
   const text = await readFile(reviewPath(reviewId), "utf8").catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") fail("服务端找不到此审核记录，请重新审核", 409);
@@ -193,9 +183,9 @@ export async function readApprovedVideoReview(reviewId: string) {
 export async function verifyReviewFile(path: string, expected: ReviewFile, signal?: AbortSignal) {
   const { bytes, digest, size } = await readReviewFile(path, signal).catch(() => {
     signal?.throwIfAborted();
-    fail(`审核已过期：参考素材 ${expected.source} 无法读取，请修复后重新审核`, 409);
+    fail(`参考素材 ${expected.source} 无法读取，请修复后重新生成`, 409);
   });
-  if (digest !== expected.digest || size !== expected.size) fail(`审核已过期：参考素材 ${expected.source} 的文件内容已变化，请重新审核`, 409);
+  if (digest !== expected.digest || size !== expected.size) fail(`参考素材 ${expected.source} 的文件内容在准备生成后已变化，请确认当前素材后重新生成`, 409);
   // 校验与上传使用同一份字节，避免文件在两次读取之间被替换。
   return bytes;
 }

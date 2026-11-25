@@ -53,7 +53,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
   const initial: ToolDefinition = {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "可选专职导演写稿：根据确认的镜头合同与实际素材编写 H3 中英文提示词。已有节点传 node，node.write=true 可直接保存后检查。现稿默认复用；局部修改直接使用 node:setPrompt。只有明确要求重写整份提示词才传 regenerate=true。新稿独立审核仅在 independentReview=true 时启用；reReview 用于显式复审历史已审稿。不启动生成。",
+    description: "可选专职导演写稿：根据确认的镜头合同与实际素材编写 H3 中英文提示词。已有节点传 node，node.write=true 可直接保存后检查。现稿默认复用；局部修改直接使用 node:setPrompt。只有明确要求重写整份提示词才传 regenerate=true。仅在 independentReview=true 或 reReview=true 时调用独立审核模型；有画布现稿时直接审核该稿，不重新编写。不启动生成。",
     promptSnippet: "主 Agent 可按导演及 H3 Skill 直接编写并保存视频提示词；复杂镜头可选 draftVideoPrompt。局部修改读取画布现稿后原位修改，使用 inspectCanvasVideoPrompt 检查实际正文。",
     parameters: { type: "object", ...videoPromptToolSchema },
     prepareArguments(raw) {
@@ -175,7 +175,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
     };
     const finish = (result: Record<string, unknown>) => {
       const advisory = preflightWarnings.length ? { warnings: preflightWarnings } : {};
-      const reviewScope = result.reviewId ? { reviewScope: "审核编号只适用于本工作区。稿件移到其他工作区后，须在目标工作区重新审核。" } : {};
+      const reviewScope = result.reviewId ? { reviewScope: "独立审核记录仅适用于本次稿件及工作区，不是生成条件。" } : {};
       const details = { ...result, reviewer: result.reviewId ? reviewerSource : undefined, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, creativeSelection: creativeContext, attempts,
         ...advisory, ...reviewScope, modelCalls, elapsedMs: Math.round(performance.now() - startedAt) };
       // 节点已写回时，主 Agent 只接收审核状态与定位信息，完整稿仍保存在节点和工具详情中。
@@ -208,17 +208,25 @@ export function createVideoPromptTools(options: SubAgentModel & {
       }
       return { written, writeError };
     }
-    let lastDraft: { prompt: string; promptZh: string; cinematicPlan: DraftCinematicPlan } | undefined = resumed?.saved.draft;
-    if (!resumed && !input.regenerate && !input.reReview && prepared.nodeDraft?.prompt.trim()) {
+    let lastDraft: { prompt: string; promptZh: string; cinematicPlan?: DraftCinematicPlan } | undefined = resumed?.saved.draft;
+    const existingNodeDraft = !input.regenerate && prepared.nodeDraft?.prompt.trim() ? prepared.nodeDraft : undefined;
+    // 现稿是唯一正文来源；可选独立审核也不能借机重新起稿或要求补造规划。
+    const reviewCurrent = Boolean(existingNodeDraft && independentReview);
+    if (!resumed && existingNodeDraft) {
       const checked = inspectCurrentVideoPrompt(prepared);
       preflightWarnings = checked.warnings;
-      // 即使合同有变化也不擅自重写现稿；将具体问题交给主 Agent 对照原稿处理。
-      return finish({ ...checked, written: true, reused: true, node: input.node,
-        generationRequest: videoGenerationSchema.parse({ ...prepared.generationRequest, prompt: prepared.nodeDraft.prompt }),
-        promptZh: prepared.nodeDraft.promptZh,
-        ...(independentReview ? { note: "当前节点已有正文，请直接独立复核现稿；如有历史审核记录可使用 reReview。此处不会重新写稿。" } : {}) });
+      if (checked.findings.length || !independentReview) {
+        const write = !checked.findings.length
+          ? await writePrompt({ prompt: existingNodeDraft.prompt, promptZh: existingNodeDraft.promptZh ?? "" })
+          : { written: false, writeError: undefined };
+        return finish({ ...checked, ...write, status: write.writeError ? "writeFailed" : checked.status,
+          reused: true, node: input.node,
+          generationRequest: videoGenerationSchema.parse({ ...prepared.generationRequest, prompt: existingNodeDraft.prompt }),
+          promptZh: existingNodeDraft.promptZh });
+      }
+      lastDraft = { prompt: existingNodeDraft.prompt, promptZh: existingNodeDraft.promptZh ?? "" };
     }
-    if (!resumed && !input.regenerate && independentReview) {
+    if (!resumed && !existingNodeDraft && !input.regenerate && independentReview) {
       const existing = await findReusableVideoReview(draftKey, prepared.snapshot, prepared.nodeDraft, prepared.shot);
       const preflight = existing && inspectDraft(existing, prepared);
       if (input.reReview) {
@@ -297,6 +305,10 @@ export function createVideoPromptTools(options: SubAgentModel & {
     const previousReviewFindings = resumed?.saved.findings.filter(finding =>
       reviewRequirements.some(({ id }) => finding.startsWith(`[${id}] `))) ?? [];
     let findings = [...(currentPreflight?.findings ?? []), ...previousReviewFindings];
+    if (reviewCurrent && findings.length) {
+      return finish({ status: "needsRevision", findings, written: false, node: input.node,
+        nextAction: "在画布现稿上修改具体问题后重新检查，不重新编写整份提示词" });
+    }
     const maxRounds = resumed && findings.length ? 1 : 2;
     const nextAction = { tool: resume.name, args: { draftId } };
     // 只自动修一次程序预检。内容退回时保留稿件，按已知问题续审。
@@ -413,7 +425,8 @@ export function createVideoPromptTools(options: SubAgentModel & {
     }
     if (!lastDraft) throw new Error("缺少导演稿");
     await savePendingDraft(pendingPath, { input, draftKey, revision: prepared.revision, draft: lastDraft, findings });
-    return finish({ status: "rejected", findings, draftId, written: false, nextAction });
+    return finish({ status: "rejected", findings, draftId, written: false,
+      nextAction: reviewCurrent ? "按审核意见原位修改画布现稿，然后重新发起所需的独立审核" : nextAction });
   }
   return [initial, inspect, resume];
 }

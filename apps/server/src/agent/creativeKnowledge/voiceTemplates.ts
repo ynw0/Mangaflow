@@ -77,7 +77,7 @@ const rows: Record<VoiceCategory, VoiceRow[]> = {
     ["vp11", "朴实务实", "咬字松弛，重音落在眼下要谈的事上", "relaxed articulation with stress on what matters in the exchange", "务实,朴实,口语"],
   ],
   pace: [
-    ["vr01", "自然偏快（1.3倍）", "比普通对话略快，换气自然", h3SpeechCue13, "默认,1.3倍,自然", 1.3],
+    ["vr01", "自然偏快（1.3倍）", "比普通对话略快，换气自然", h3SpeechCue13, "自然偏快,1.3倍,自然", 1.3],
     ["vr02", "轻快", "说话轻快，节奏紧凑，停顿自然", "lively quick cadence with natural breath gaps", "轻快,欢快,节奏", 1.15],
     ["vr03", "紧急情况下的快速讲话", "明显加速但不含混", "urgently fast yet intelligible delivery", "急促,紧张,快语", 1.5],
     ["vr04", "沉稳慢速", "慢一点、停顿有分量", "deliberate measured cadence and weighted pauses", "慢速,沉稳,权威", 0.9],

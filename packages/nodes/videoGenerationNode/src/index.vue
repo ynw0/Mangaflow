@@ -230,7 +230,8 @@ const editorText = computed({
     if (data.value.prompt === value) return;
     data.value.prompt = value;
     data.value.promptZh = "";
-    data.value.reviewId = undefined;
+    // 旧节点尚未保存剧情验收依据时，保留历史记录索引供 QC 读取原合同，而非代表新稿通过审核。
+    if (data.value.qcContract) data.value.reviewId = undefined;
   },
 });
 data.value.model ??= "";
@@ -1132,7 +1133,7 @@ nodeTools.register({
     const changed = data.value.prompt !== value;
     data.value.prompt = value;
     data.value.promptZh = promptZh ?? (changed ? "" : data.value.promptZh);
-    data.value.reviewId = reviewId ?? (changed ? undefined : data.value.reviewId);
+    data.value.reviewId = reviewId ?? ((qcContract !== undefined || (changed && data.value.qcContract)) ? undefined : data.value.reviewId);
     if (qcContract !== undefined) data.value.qcContract = qcContract ?? undefined;
     data.value.promptModel = value.split("\n").map((text) => [{ type: "Write", text }]);
     return { prompt: value, promptZh: data.value.promptZh, reviewId: data.value.reviewId };

@@ -54,7 +54,7 @@ description: 通过 MangaFlow MCP 操作工作区、实时画布、节点、文�
 
 ## 生成媒体
 
-- H3 同期声音按剧本与人物表演编写；需要声音参考时可用 `searchVideoPromptTemplates` 的 `searchCreative` / `voices` 检索，模板 ID 均为可选。实际说话人按首次发声顺序从 S1 编号。语速未指定时可以省略，明确要求倍数时在说话描述中表达，不写全局默认语速段落。保留台词原文，不虚构音频参考。写提示词时 `overall_soundscape` 无持续声源就写 `N/A`，不要堆底噪、房间氛围、空调、风机、衣料摩擦。
+- H3 同期声音按剧本与人物表演编写；需要声音参考时可用 `searchVideoPromptTemplates` 的 `searchCreative` / `voices` 检索，模板 ID 均为可选。实际说话人按首次发声顺序从 S1 编号。语速未指定时可以省略，明确要求倍数时在说话描述中表达，不写全局默认语速段落。保留台词原文，不虚构音频参考。写提示词时 `overall_soundscape` 无持续声源就写 `N/A`。
 - H3 提示词由当前 Agent 按 workflow 和实际 H3 模式直接编写。已有节点先读 `node:getConfig`、按需配置，再读 `node:getPromptContext`。用 `node:setPrompt` 保存正文、中文对照和已确认的 `qcContract`（剧情及原话供成片验收），随后回读节点，用 `videoPrompt` 的 `inspectNode` 检查实际正文（`input` 只需目标 `node`，节点未保存合同可另传原合同）并自行复核。发现问题只修改对应内容。
 - 保存、检查与生成不签发审核编号。局部修改使用 `node:setPrompt` 的 `edits`，并把 `getPromptContext` 返回的 64 位 `revision` 原样传入 `expectedRevision`，不手抄正文、不重写其余内容；语速等单变量对比以同一原稿为基础，固定参考及其他生成参数，支持时使用相同固定种子。无实质问题保留原稿，不直接修改画布 JSON。
 - 按已确认的分镜决定 `[Shot N]` 切点、动作和对白顺序。台词按定稿保留文字及标点，核对每句实际可用时间。生成正文不写宿主流程、工具、审核、授权或质检说明。

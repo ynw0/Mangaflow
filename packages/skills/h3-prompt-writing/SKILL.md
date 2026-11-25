@@ -34,6 +34,7 @@ Use the format labels, reference bindings, and timestamps for the selected mode.
 
 - Write rewrite sections in English; preserve dialogue, lyrics, and visible scene text in their original language.
 - Give each shot the context and changes needed to understand its part of the scene. Describe continuing conditions once.
+- Default `overall_soundscape` to `N/A`. When writing the prompt, do not invent room tone, fans, fridges, HVAC, cloth rustle, insect beds, or "quiet ambience". Write a continuing source only when the shot actually requires it. Put one-off impacts on the timeline only if the action must be heard.
 - Avoid plot summaries, unresolved reference labels, and timing that does not match the requested duration.
 ## Tips for Better Results
 - Always match the total duration of the description to the requested video length (4–15 seconds).

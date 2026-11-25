@@ -8,7 +8,7 @@
 
 ## 画布写稿
 
-主 Agent 按本文件及对应 H3 规则写稿，通过 `node:setPrompt` 保存英文正文、中文对照和已确认的 `qcContract`。不要委派独立导演或审核模型。局部修改用 `node:setPrompt` 的 `edits` 按唯一原文替换，传当前 `expectedRevision`，不重新起稿。对比语速等单一变量时，从同一原稿建立各版本，只替换指定文字及对应中文，保持参考、时长、画幅、采样和种子等其他设置一致（支持固定种子时）。拍法检索使用 `searchVideoPromptTemplates`。已有节点先 `node:getConfig`，有变化才 `node:setConfig`，再读取 `node:getPromptContext`。
+主 Agent 按本文件及对应 H3 规则写稿，通过 `node:setPrompt` 保存英文正文、中文对照和已确认的 `qcContract`。不要委派独立导演或审核模型。局部修改用 `node:setPrompt` 的 `edits` 按唯一原文替换，把 `getPromptContext` 返回的 64 位 `revision` 原样传入 `expectedRevision`，不手抄正文、不重新起稿。第一稿一次写全格式字段。对比语速等单一变量时，从同一原稿建立各版本，只替换指定文字及对应中文，保持参考、时长、画幅、采样和种子等其他设置一致（支持固定种子时）。拍法检索使用 `searchVideoPromptTemplates`。已有节点先 `node:getConfig`，有变化才 `node:setConfig`，再读取 `node:getPromptContext`。
 
 本镜回应先前的一句话或事件时，重新读取相关分镜。已经交代过的起因供写稿核对前后剧情是否衔接，本镜继续表现人物的回应以及事件造成的后果。
 
@@ -127,7 +127,7 @@
 - 按 [成片正面写法](common.md#成片正面改写通用) 把 `mustNotHave` 落实到实际声画。H3 输出合同仅使用 `prompt` 和 `promptZh` 交接正文。
 
 ### 声画与实际参考
-- `overall_soundscape` 写持续的环境声。瞬间声、对白和警报放在实际模式的镜头时间轴上。
+- `overall_soundscape` 只写这场戏必须一直听见的声源。没有则写 `N/A`。写提示词时不要为了「显得真实」堆底噪、房间氛围、空调、风机、冰箱、衣料摩擦、虫鸣。剧本没要求的摩擦声、风机声一律不写。脚步、碰撞等瞬间声只在动作确实发出、观众必须听见时写进时间轴，不要写进整体声景。
 - `non_diegetic_music` 只写观众听到、角色听不到的配乐；无则 `N/A`。
 - 按已挂接视频或音频参考的实际用途选一个官方关系词，每个标签在 `retention_analysis` 独占一行。确定关系所需的用途缺失时，说明该项缺失。
 - 有视频或音频槽位时，按实际编号写 `<Video N>` 或 `<Audio N>`；关系词与官方四档一致。`fully_copy` / `partially_copy` 规则以 `ref-en.txt` 为准。

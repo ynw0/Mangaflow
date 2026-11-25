@@ -38,6 +38,16 @@ export function requiresContinuousTake(shot: { story: string; mustHave: string[]
   return false;
 }
 
+const fillerSoundscape = /底噪|环境底|room[\s-]?tone|white[\s-]?noise|\bhiss\b|whoosh|HVAC|\bfridge\b|air[\s-]?condition|fabric rustle|rustling (?:bedding|cloth|fabric)|衣料(?:轻响|摩擦|微动)|压缩机|(?<!油烟)风机|空调|quiet (?:morning |afternoon |indoor )?(?:apartment )?ambience|(?:indoor|apartment) ambient/i;
+
+function inspectSoundscape(body: string, promptZh: string) {
+  const zh = /【声景】\s*([\s\S]*?)(?=【|$)/.exec(promptZh)?.[1] ?? "";
+  if (fillerSoundscape.test(body) || /底噪|环境底|衣料(?:轻响|摩擦|微动)|压缩机|(?<!油烟)风机|空调/.test(zh)) {
+    return ["overall_soundscape 不要用底噪、房间氛围、空调、风机、冰箱、衣料摩擦去填静音。无剧本指定的持续声源时写 N/A；瞬间声写进时间轴。"];
+  }
+  return [] as string[];
+}
+
 const refSections = ["subject_definitions", "summary", "retention_analysis", "detailed_description", "overall_soundscape", "non_diegetic_music"];
 const baseSections = ["integrated_multimodal_description", "overall_soundscape", "non_diegetic_music"];
 
@@ -65,6 +75,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string }, prepar
   for (const [index, heading] of headings.entries()) {
     const body = prompt.slice(heading.index + heading[0].length, headings[index + 1]?.index).trim();
     if (!body) findings.push(`字段 ${heading[1]} 缺少内容。`);
+    else if (heading[1] === "overall_soundscape") findings.push(...inspectSoundscape(body, promptZh));
   }
   const start = headings[format === "h3Ref2va" ? 3 : 0]!;
   const timeline = prompt.slice(start.index + start[0].length, headings.at(-2)!.index);

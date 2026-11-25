@@ -124,7 +124,7 @@ Place any banner, sign, label, subtitle, or neon text that is actually visible o
 
 ### 4.6 overall_soundscape
 
-Describe the continuing ambient sound. Put dialogue, singing, source music, and sounds tied to a specific action or moment in the multimodal description. Use `N/A` when there is no continuing ambience.
+Use `N/A` when there is no continuing source the audience must hear for the whole clip. Do not invent room tone, fans, fridges, HVAC, insect beds, or cloth rustle to make a quiet interior feel "real". Put dialogue, singing, source music, and sounds tied to a specific action or moment in the multimodal description. Write a continuing source only when it is actually in the shot.
 
 ### 4.7 non_diegetic_music
 

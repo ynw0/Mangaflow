@@ -18,7 +18,7 @@ A complete rewrite output consists of six sections in the following order:
 | `summary` | Summarizes the task type, target video, and main reference relationships |
 | `retention_analysis` | Describes how referenced content is preserved, transferred, or reused |
 | `detailed_description` | Describes visuals, actions, shots, sound, and dialogue in playback order |
-| `overall_soundscape` | Describes continuing background ambience |
+| `overall_soundscape` | Continuing source if the shot has one; otherwise `N/A`. Do not invent room tone |
 | `non_diegetic_music` | Describes background music audible only to the audience |
 
 ## 2. Reference Labels and Definitions (`subject_definitions`)
@@ -262,7 +262,7 @@ Assign `(Sx)` once according to the order of actual vocal events in the target v
 
 The definitions of these two sound categories follow the Video Prompt Writing Guide (T2VA / I2VA / FL2VA / L2VA).
 
-`overall_soundscape` describes the continuing ambience. Use `N/A` when there is none. Dialogue, singing, and sound events synchronized to a specific moment remain in `detailed_description`.
+`overall_soundscape` is `N/A` unless a continuing source is actually in the shot. Do not fill quiet interiors with room tone, hiss, fans, fridges, HVAC, or cloth rustle. Dialogue, singing, and sound events synchronized to a specific moment remain in `detailed_description`.
 
 `non_diegetic_music` describes any score that only the audience hears. Give the relevant instrumentation, pace, and changes in level. Use `N/A` when there is no score.
 

@@ -14,7 +14,7 @@ const prompt = (body: string) => [
   "detailed_description:",
   body,
   "overall_soundscape:",
-  "Indoor ambient room tone across the whole clip.",
+  "N/A",
   "non_diegetic_music:",
   "N/A",
 ].join("\n");

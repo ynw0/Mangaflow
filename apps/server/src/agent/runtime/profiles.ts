@@ -3,7 +3,7 @@ import conf from "@/utils/conf";
 import { getConfiguredModel } from "@/utils/ai";
 
 // 各专业子任务使用统一职责名；无显式配置时沿用当前主 Agent 或通用子任务模型。
-export const agentProfileRoles = ["subAgent", "story", "character", "scene", "prop", "team", "videoDirector", "videoReviewer", "comfyDiagnosis"] as const;
+export const agentProfileRoles = ["subAgent", "story", "character", "scene", "prop", "team", "comfyDiagnosis"] as const;
 export type AgentProfileRole = (typeof agentProfileRoles)[number];
 export type AgentModelSelection = { providerId: string; modelId: string; thinkingLevel: string };
 const supportedLevels = ["off", "none", "on", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] as const;
@@ -11,7 +11,11 @@ const profileSchema = z.strictObject({
   modelKey: z.string().max(1024).optional(),
   thinkingLevel: z.enum(["inherit", ...supportedLevels]).optional(),
 });
-export const agentProfilesSchema = z.partialRecord(z.enum(agentProfileRoles), profileSchema);
+export const agentProfilesSchema = z.strictObject(
+  Object.fromEntries(agentProfileRoles.map(role => [role, profileSchema.optional()])) as {
+    [K in AgentProfileRole]: z.ZodOptional<typeof profileSchema>;
+  },
+);
 
 function readProfiles() {
   return agentProfilesSchema.parse(conf.get("settings", {}).agentProfiles ?? {});
@@ -42,15 +46,11 @@ function applyProfile(base: AgentModelSelection, role: AgentProfileRole, profile
 
 export function resolveAgentProfile(role: AgentProfileRole, main: AgentModelSelection): AgentModelSelection {
   const profiles = readProfiles();
-  const general = role !== "subAgent" && role !== "videoDirector" && role !== "videoReviewer" && role !== "comfyDiagnosis"
+  const general = role !== "subAgent" && role !== "comfyDiagnosis"
     ? applyProfile(main, "subAgent", profiles.subAgent)
     : { ...main, configured: false };
   const base = { providerId: general.providerId, modelId: general.modelId, thinkingLevel: general.thinkingLevel };
   const selected = applyProfile(base, role, profiles[role]);
   if (selected.configured) return { providerId: selected.providerId, modelId: selected.modelId, thinkingLevel: selected.thinkingLevel };
-  // 不应把支持 xhigh 但不支持 high 的模型强制降到 high（会触发 400）。
-  const levels = getConfiguredModel(base.providerId, base.modelId).model.thinkingLevels ?? [];
-  if (role === "videoDirector" && base.thinkingLevel === "xhigh" && levels.includes("high")) return { ...base, thinkingLevel: "high" };
-  if (role === "videoReviewer" && ["high", "xhigh"].includes(base.thinkingLevel) && levels.includes("medium")) return { ...base, thinkingLevel: "medium" };
   return base;
 }

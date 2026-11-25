@@ -234,14 +234,9 @@ export async function run(
       if (tools.some(tool => tool.name === diagnosis.name)) throw new Error("ComfyUI 故障分析工具名称冲突");
       tools.push(diagnosis);
     }
-    const skillOperator = tools.find(tool => tool.name === "skillOperator");
-    if (!child && skillOperator) {
-      if (tools.some(tool => ["draftVideoPrompt", "inspectCanvasVideoPrompt", "resumeVideoPrompt"].includes(tool.name))) throw new Error("工具名称 draftVideoPrompt 已被内置视频提示词工具占用");
-      tools.push(...createVideoPromptTools({
-        cwd, canvas, skillOperator, parentFile: file, send, modelRuntime: runtime, model: runtime.getModel(providerId, modelId),
-        thinkingLevel: toSdkThinkingLevel(thinkingLevel),
-        primaryModel: { providerId, modelId, thinkingLevel },
-      }));
+    if (!child) {
+      if (tools.some(tool => tool.name === "inspectCanvasVideoPrompt")) throw new Error("工具名称 inspectCanvasVideoPrompt 已被占用");
+      tools.push(...createVideoPromptTools({ canvas }));
     }
     if (isMemoryEnabled()) {
       const memoryTool = createMemoryTool();

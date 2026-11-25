@@ -168,7 +168,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
   }
   tools.push(wrapTool(videoTemplateSearch.name, videoTemplateSearch.description, videoTemplateSearch.parameters,
     async (args, _target, signal) => videoTemplateSearch.execute(args, signal)));
-  tools.push(wrapTool("videoPrompt", "H3 提示词辅助工具：prepare 读取真实配置与素材及可选创作参考；inspectNode 只需 input.node，检查画布实际正文及已保存合同，旧节点可传原合同；inspect 检查旧式导演稿；submit 仅用于可选独立审核记录。普通制作先通过 node:setPrompt 写入现稿，再检查、局部修订。无需审核编号，不调用语言模型、不生成媒体。",
+  tools.push(wrapTool("videoPrompt", "只读检查画布当前 H3 提示词。action 仅 inspectNode；input 只需 node（canvasId、nodeId），节点未保存合同时可另传原合同字段。先用 node:setPrompt 写入现稿再检查。不调用语言模型、不签发审核编号、不生成媒体。",
     videoPromptToolSchema, async (args, target, signal) => {
       const { directory, connection } = await resolveTarget(target);
       const canvas: CanvasContext | undefined = connection ? { id: connection.state.canvasId ?? "mcp", tools: connection.state.tools,

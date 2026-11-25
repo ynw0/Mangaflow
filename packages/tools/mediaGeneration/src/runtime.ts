@@ -66,7 +66,6 @@ export const imageGenerationSchema = z.strictObject({
 });
 export const videoGenerationSchema = z.strictObject({
   ...sharedFields,
-  reviewId: z.uuid().optional(),
   qcContract: videoQcContractSchema.optional().describe("已确认的剧情及台词，仅供成片质检，与生成提示词独立"),
   generationId: z.uuid().optional().describe("单次视频生成的固定任务 ID；用于重连与防止重复提交"),
   seedMode: z.enum(["fixed", "random", "last"]).optional(),

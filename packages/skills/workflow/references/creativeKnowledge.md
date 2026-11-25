@@ -22,21 +22,15 @@
 - 用 `listCreativeTags` 查看创作分类，按实际需要选择 `library`。`searchCreative` 按标签查找时只填一个 `creativeTags`，按标题或名称查找时用 `query`。
 - 组合条目需要核对时，用 `checkCreativeSelection` 检查已选 ID，按实际媒介、基调和时长填写参数；只有明确提供 `storyDomains` 时才检查所选模板的适用题材是否相符，不从正文自动推断。
 
-## 与 draftVideoPrompt 的直接衔接
+## 检索结果如何进入成片
 
-检索工具的 `searchCreative` 返回带稳定 `id` 的条目。内置 Agent 在 `draftVideoPrompt.creativeSelection` 传模板 ID，外部 Agent 在 `videoPrompt` 的 `prepare` 中传 `input.creativeSelection`。镜头基调按已确认合同填写 `tone`。两条路径使用同一份制作摘要。叙事和喜剧条目的具体事件在构思分镜时使用，热梗原话如需入片也在定稿阶段确认。编写成片提示词时，事件、切点和原话均以已确认的分镜为准。
+检索工具的 `searchCreative` 返回带稳定 `id` 的条目。叙事和喜剧条目的具体事件在构思分镜时使用，热梗原话如需入片也在定稿阶段确认。编写成片提示词时，事件、切点和原话均以已确认的分镜为准。有具体拍摄问题时使用 `searchVideoPromptTemplates` 的 `search`；已有拍法时可省略。
 
-内置导演的拍法候选来自 `draftVideoPrompt.templateTags`。有具体拍摄问题时传一个标签，已有拍法时可省略。仅传 `intent` 会选择适用的导演资料。外部 Agent 需要拍法时使用 `searchVideoPromptTemplates` 的 `search`。
+- 从确认的分镜读取剧情、连续性及必需和禁止项。`qcContract.lockedDialogue` 按正式剧本填本镜需要模型发出的原话。
+- 已有节点先用 `node:getConfig` 核对配置，仅在需要时用 `node:setConfig` 更新，随后读取 `node:getPromptContext`，用 `node:setPrompt` 写入正文。
+- 外部 MCP 同样先保存，再用 `videoPrompt` 的 `inspectNode` 检查实际正文。
 
-- 从确认的分镜填写顶层 `shotId`、`story`、`purpose`、`style`、`intent`、连续性及必需和禁止项。`lockedDialogue` 按正式剧本填本镜需要模型发出的原话。`references` 按实际槽位顺序填写文件、类型、用途和描述。
-- 新镜头填写 `duration` 和 `ratio`。已有节点先用 `node:getConfig` 核对配置，仅在需要时用 `node:setConfig` 更新，随后读取 `node:getPromptContext`。画布与节点 ID 填入 `node`，确认允许写回时填 `node.write: true`。
-
-- 已有节点时省略顶层 `canvasId`、`modelId`、`duration`、`ratio`、`sampling`、`seed` 和 `seedMode`。
-- 首次 `draftVideoPrompt` 调用未通过入参校验时，按报错修正当前调用。缺 `shotId` 时补原合同编号，多传顶层 `canvasId` 时移除它并保留 `node.canvasId`。此阶段没有该次调用生成的待审稿。
-- 普通写稿或局部修改直接使用画布现稿。只有明确要求重新创作整份提示词时传 `regenerate: true`。显式独立审核失败或中断时，仍可按 `draftId` 和 `nextAction` 恢复旧审核任务；不把此流程用于日常修改。
-- 外部 MCP 按需用 `prepare` 获取合同及真实配置；先用 `node:setPrompt` 保存，随后 `videoPrompt` 的 `inspectNode` 检查实际正文。`inspect` / `submit` 仅用于保留的旧式独立审核流程。
-
-**宿主兼容要求**：`mustHave`、`mustNotHave`、`references` 必须是 JSON 数组，`templateTags`、`sampling`、`creativeSelection` 为 JSON 对象，`duration` 为数字；不得发送成 `"[]"`、`"{}"` 或 `"10"`。工具现在对外暴露单一对象 Schema，分支互斥由服务器在解析时验证。参数校验失败属于工具调用失败，**不意味着视频已生成，也不应自动重试消耗算力**。
+参数校验失败属于工具调用失败，**不意味着视频已生成，也不应自动重试消耗算力**。
 
 创作检索可用 `library: "all"` 跨分类查询，`limit` 最多 10 条。标题与别名优先匹配。同义词归入同一条目。未命中时可收窄关键词，或沿用分镜的原有拍法。
 
@@ -48,7 +42,7 @@
 4. **表演与画风**：表情条目提供可选的脸部细节和强度。取用前先判断人物此刻在做什么、因何反应。夸张或机械化的表演适用于剧本确有喜剧、卡通或机械动作的地方。画风和滤镜只提供视觉参考，景别、机位和剪辑由已确认的分镜决定。保留人物五官、衣着和道具结构。
 5. **喜剧节拍**：剧情有喜剧空间时，可适当把热梗或抽象创意写入剧本。借语气、空耳结构、反差或动作机制，**改写成该人物当场会说的话**；先让观众看到引出笑点的事件，再让人物开口。不要把 `phrase` 的原句生硬地套在不同人物身上。如果严肃镜头不适合幽默表达，不要为了加入热梗而打断剧情的发展。
 6. **组合检查**：在决定组合后调用 `checkCreativeSelection`。返回 `invalid` 时不得用错误 ID；返回 `review` 时先处理时长/题材/画风冲突；`ok` 也不等于镜头质量通过。
-7. **提示词编写与审核**：把所选模板各抽出**最少必要的可见事实**，经现有 `cinematicPromptCraft`、`h3-prompt-writing` 完成最终生成文本，再基于画布正文复核。画布使用已有节点 `nodeTools` 设置提示词、参考与执行；不修改画布 JSON，不绕过画布直接生成媒体。
+7. **提示词编写与检查**：把所选模板各抽出**最少必要的可见事实**，经现有 `cinematicPromptCraft`、`h3-prompt-writing` 完成最终生成文本，写入画布后复核。画布使用已有节点 `nodeTools` 设置提示词、参考与执行；不修改画布 JSON，不绕过画布直接生成媒体。
 
 模板取用后，按 [成片审核](video-prompt-review.md) 核对本镜实际的声画、时长和参考。涉及故障或修复时沿用分镜已交代的部件、动作和结果，拍法模板只帮助观众看清这些事实。
 
@@ -64,7 +58,7 @@
 
 - **由 H3 视频生成工作流同时生成声音**，不额外接入独立 TTS 或声音克隆模型。使用已有视频节点，开启 `generateAudio=true`。
 - 统一调用 `searchVideoPromptTemplates` 的 `searchCreative(library:"voices")` 检索：音色 `timbre`、情绪 `emotion`、性格 `personality`、语速 `pace`、年龄感 `age`、外国人说中文感 `foreignAccent`、普通话地方口音 `dialect` 和发声方式 `delivery`。优先少量相关模板，避免为一位角色堆叠长串矛盾的形容词。
-- `draftVideoPrompt.voiceCast` 按本镜真实说话人填写 `speakerId`、`characterName` 和已确认的声线。按发声方式选择可选的 `sourceId`：画内说话用 `vs01`；旁白用 `vs02`，角色内心独白用 `vs03`，无实体的网文系统用 `vs04` 至 `vs07`。这几类都在说话人编号后写 `says in an off-screen voiceover`，并在该段 `</d>` 后立即说明对应画面人物嘴唇保持闭合；无人入画时写明空镜。音色、情绪和语速按本场另行选择。本片说话人按实际首次发声顺序从 `S1` 起编号。
+- 按本镜真实说话人在正文标明 `(S1)` 等编号，并写入已确认的声线。按发声方式选择可选的声源：画内说话用 `vs01`；旁白用 `vs02`，角色内心独白用 `vs03`，无实体的网文系统用 `vs04` 至 `vs07`。这几类都在说话人编号后写 `says in an off-screen voiceover`，并在该段 `</d>` 后立即说明对应画面人物嘴唇保持闭合；无人入画时写明空镜。音色、情绪和语速按本场另行选择。本片说话人按实际首次发声顺序从 `S1` 起编号。需要程序核对时，可把说话人配置传给 `inspectCanvasVideoPrompt`。
 - 语速按实际场戏安排，未指定时可以不写。明确要求语速时，可直接写在说话动作中，也可选 `paceId` 或 `speedMultiplier`（二选一）；不默认采用 1.3 倍。
 - “外国人说中文感”和“带地方口音的普通话”只描述**原中文台词的发音习惯**，不能改写台词、编造发音错别字或冒称精确复现方言。两类口音不能同时应用于一个说话人。方言原文要由剧本提供，不能擅自把普通话改成方言。
 - `<Audio N>` 仅引用实际绑定的音频文件；声音模板绝不伪造音频引用。静默镜头不强制速度，未讲话角色保持闭嘴。生成视频后，通过成片质检实际听辨 H3 的发声效果；无法确认时标记为未验证。

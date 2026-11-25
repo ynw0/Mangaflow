@@ -1,113 +1,43 @@
 import { describe, expect, test } from "bun:test";
-import { inspectCanvasPromptParameters, inspectCanvasPromptToolSchema, videoPromptParameters, videoPromptToolSchema } from "./input";
+import { inspectCanvasPromptParameters, inspectCanvasPromptToolSchema } from "./input";
 
-const base = {
-  shotId: "S01",
-  story: "主角在车间用仪器检查旧车的机械接点。",
-  lockedDialogue: [],
-  purpose: "确认机械零件的启动状态",
-  style: "实拍写实，车间维修顶灯",
-  continuityIn: "人物站在旧车左前侧",
-  continuityOut: "人物继续停留在车侧",
-  mustHave: ["主角使用工具接触车辆", "机械零件在画面内保持可追踪"],
-  mustNotHave: ["人物突然消失"],
-  intent: "mechanical",
-  references: [],
-} as const;
+describe("inspectCanvasVideoPrompt 参数", () => {
+  const node = { canvasId: "canvas1", nodeId: "video1" };
 
-const validBase = () => ({ ...base, mustHave: [...base.mustHave], mustNotHave: [...base.mustNotHave], references: [] });
-
-describe("draftVideoPrompt：根 JSON Schema 类型化兼容", () => {
-  test("暴露单根 object，不包含任何顶层 anyOf/oneOf，数组和数字有稳定类型", () => {
-    const schema = videoPromptToolSchema as Record<string, unknown>;
-    expect(schema.type).toBe("object");
-    expect(schema.anyOf).toBeUndefined();
-    expect(schema.oneOf).toBeUndefined();
-    const properties = schema.properties as Record<string, Record<string, unknown>>;
-    expect(properties.mustHave.type).toBe("array");
-    expect(properties.mustNotHave.type).toBe("array");
-    expect(properties.references.type).toBe("array");
-    expect(properties.templateTags.type).toBe("object");
-    expect(properties.node.type).toBe("object");
-    expect(properties.duration.type).toBe("integer");
-    expect(properties.sampling.type).toBe("object");
-    expect(properties.creativeSelection.type).toBe("object");
-    expect(properties.voiceCast.type).toBe("array");
-    expect(schema.required).toEqual(expect.arrayContaining(["shotId", "mustHave", "mustNotHave", "references", "intent"]));
+  test("只需要目标节点，可选合同字段；拒绝未知导演编排字段", () => {
+    expect(inspectCanvasPromptParameters.parse({ node })).toEqual({ node });
+    expect(inspectCanvasPromptParameters.parse({
+      node, story: "主角检查机械接点。", mustHave: ["工具接触车辆"], mustNotHave: ["人物突然消失"],
+      lockedDialogue: [],
+    })).toMatchObject({ node, lockedDialogue: [] });
+    expect(() => inspectCanvasPromptParameters.parse({})).toThrow();
+    expect(() => inspectCanvasPromptParameters.parse({ node, shotId: "S01" })).toThrow();
+    expect(() => inspectCanvasPromptParameters.parse({ node, regenerate: true })).toThrow();
+    expect(inspectCanvasPromptToolSchema.required).toEqual(["node"]);
   });
 
-  test("H3 声音选择按说话人传原生数组，不接受字符串化参数或无效编号", () => {
-    const input = {...validBase(),duration:10,ratio:"9:16",voiceCast:[{speakerId:"S1",characterName:"主角",timbreId:"vt01"}]};
-    expect(videoPromptParameters.parse(input).voiceCast).toHaveLength(1);
-    expect(() => videoPromptParameters.parse({...input,voiceCast:JSON.stringify(input.voiceCast)})).toThrow();
-    expect(() => videoPromptParameters.parse({...input,voiceCast:[{speakerId:"S0",characterName:"主角"}]})).toThrow();
-  });
-
-  test("新镜头使用真实类型的数组、数字和可选检索模板 ID 能通过", () => {
-    const input = {
-      ...validBase(), duration: 10, ratio: "9:16", seedMode: "random",
-      creativeSelection: { narrativeId: "n01", expressionId: "e02", styleId: "s01" },
-    };
-    expect(videoPromptParameters.parse(input)).toMatchObject(input);
-  });
-
-  test("已有节点只传 node/合同，禁止重复发送模型、时长、采样、种子", () => {
-    const input = { ...validBase(), node: { canvasId: "canvas1", nodeId: "video1", write: true } };
-    expect(videoPromptParameters.parse(input)).toMatchObject(input);
-    for (const additional of [
-      { modelId: "workflow" }, { duration: 10 }, { ratio: "9:16" },
-      { sampling: { firstPassSteps: 8 } }, { seed: 123 }, { seedMode: "fixed" },
-    ]) {
-      expect(() => videoPromptParameters.parse({ ...input, ...additional })).toThrow();
-    }
-  });
-
-  test("新镜头 duration/ratio 必填，固定种子和 last 种子校验完整", () => {
-    expect(() => videoPromptParameters.parse({ ...validBase(), ratio: "9:16" })).toThrow();
-    expect(() => videoPromptParameters.parse({ ...validBase(), duration: 10 })).toThrow();
-    expect(() => videoPromptParameters.parse({ ...validBase(), duration: 10, ratio: "9:16", seedMode: "fixed" })).toThrow();
-    expect(() => videoPromptParameters.parse({ ...validBase(), duration: 10, ratio: "9:16", seed: 123 })).toThrow();
-    expect(videoPromptParameters.parse({ ...validBase(), duration: 10, ratio: "9:16", seedMode: "fixed", seed: 123 }).seed).toBe(123);
-    expect(videoPromptParameters.parse({ ...validBase(), duration: 10, ratio: "9:16", seedMode: "last", seed: 123 }).seed).toBe(123);
-  });
-
-  test("日志里被字符串化的数组、对象和 duration 明确拒绝，防止误提交", () => {
-    const input = { ...validBase(), duration: 10, ratio: "9:16" };
-    expect(() => videoPromptParameters.parse({ ...input, mustHave: JSON.stringify(input.mustHave) })).toThrow();
-    expect(() => videoPromptParameters.parse({ ...input, mustNotHave: "[]" })).toThrow();
-    expect(() => videoPromptParameters.parse({ ...input, references: "[]" })).toThrow();
-    expect(() => videoPromptParameters.parse({ ...input, duration: "10" })).toThrow();
-    expect(() => videoPromptParameters.parse({ ...input, sampling: "{}" })).toThrow();
-    expect(() => videoPromptParameters.parse({ ...input, templateTags: "{}" })).toThrow();
-    expect(() => videoPromptParameters.parse({ ...input, creativeSelection: "{\"styleId\":\"s01\"}" })).toThrow();
+  test("声音选择按说话人传原生数组，拒绝字符串化参数或无效编号", () => {
+    const voiceCast = [{ speakerId: "S1", characterName: "主角" }];
+    expect(inspectCanvasPromptParameters.parse({ node, voiceCast }).voiceCast).toHaveLength(1);
+    expect(() => inspectCanvasPromptParameters.parse({ node, voiceCast: JSON.stringify(voiceCast) })).toThrow();
+    expect(() => inspectCanvasPromptParameters.parse({ node, voiceCast: [{ speakerId: "S0", characterName: "主角" }] })).toThrow();
   });
 });
-
-test("新镜头高级采样接受原生对象，已有节点仍禁止重复传配置",()=>{
-  const sampling={h3Options:{sampler:"res_multistep",scheduler:"simple",extraLoras:[{name:"combat.safetensors",strength:.9}],videoShift:12,audioShift:3}};
-  expect(videoPromptParameters.parse({...validBase(),duration:5,ratio:"16:9",sampling}).sampling).toEqual(sampling);
-  expect(()=>videoPromptParameters.parse({...validBase(),node:{canvasId:"c",nodeId:"n"},sampling})).toThrow();
-  expect(()=>videoPromptParameters.parse({...validBase(),duration:5,ratio:"16:9",sampling:{h3Options:{extraLoras:"[]"}}})).toThrow();
-});
-
 
 describe("每段独立视频的说话人编号", () => {
-  const input = {
-    ...validBase(), duration: 15, ratio: "16:9",
-    lockedDialogue: ["注意。", "三号闸不对。", "哪里不对？"],
-  };
+  const node = { canvasId: "c", nodeId: "n" };
   const voiceCast = [
-    { speakerId: "S2", characterName: "谭小满", timbreId: "vt07" },
-    { speakerId: "S3", characterName: "郑楷", timbreId: "vt12" },
-    { speakerId: "S1", characterName: "播报员", timbreId: "vt23" },
+    { speakerId: "S2", characterName: "谭小满" },
+    { speakerId: "S3", characterName: "郑楷" },
+    { speakerId: "S1", characterName: "播报员" },
   ];
-  test("允许按任意数组顺序传入连续编号，不交换原有角色声音", () => {
-    expect(videoPromptParameters.parse({ ...input, voiceCast }).voiceCast).toEqual(voiceCast);
+  test("允许按任意数组顺序传入连续编号", () => {
+    expect(inspectCanvasPromptParameters.parse({ node, voiceCast }).voiceCast).toEqual(voiceCast);
   });
   test("拒绝整部剧的 S7/S4/S3 编号及重复编号，并提示重新分配", () => {
     for (const ids of [["S4", "S3", "S7"], ["S1", "S1", "S3"], ["S1", "S3", "S4"]]) {
-      const result = videoPromptParameters.safeParse({
-        ...input, voiceCast: voiceCast.map((role, index) => ({ ...role, speakerId: ids[index] })),
+      const result = inspectCanvasPromptParameters.safeParse({
+        node, voiceCast: voiceCast.map((role, index) => ({ ...role, speakerId: ids[index] })),
       });
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -116,15 +46,6 @@ describe("每段独立视频的说话人编号", () => {
     }
   });
   test("没有指定声音模板时仍允许省略 voiceCast", () => {
-    expect(videoPromptParameters.safeParse(input).success).toBe(true);
+    expect(inspectCanvasPromptParameters.safeParse({ node }).success).toBe(true);
   });
-});
-
-
-test("画布只读检查只需要目标节点，兼容旧合同参数，不强制导演输入", () => {
-  const node = { canvasId: "canvas1", nodeId: "video1" };
-  expect(inspectCanvasPromptParameters.parse({ node })).toEqual({ node });
-  expect(inspectCanvasPromptParameters.parse({ ...validBase(), node })).toMatchObject({ node, lockedDialogue: [] });
-  expect(() => inspectCanvasPromptParameters.parse({})).toThrow();
-  expect(inspectCanvasPromptToolSchema.required).toEqual(["node"]);
 });

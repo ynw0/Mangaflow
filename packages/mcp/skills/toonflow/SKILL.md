@@ -54,10 +54,10 @@ description: 通过 MangaFlow MCP 操作工作区、实时画布、节点、文�
 
 ## 生成媒体
 
-- H3 同期声音按剧本与人物表演编写；需要声音参考时可用 `searchVideoPromptTemplates` 的 `searchCreative` / `voices` 检索，模板 ID 均为可选。实际说话人按首次发声顺序从 S1 编号；`videoPrompt.prepare` 可返回声音参考。语速未指定时可以省略，明确要求倍数时在说话描述中表达，不写全局默认语速段落。保留台词原文，不虚构音频参考。
-- H3 提示词由当前 Agent 按 workflow 和实际 H3 模式直接编写。已有节点先读 `node:getConfig`、按需配置，再读 `node:getPromptContext`。`videoPrompt.prepare` 可辅助读取真实参考和制作依据。用 `node:setPrompt` 保存正文、中文对照和已确认的 `qcContract`（剧情及原话供成片验收），随后回读节点，用 `videoPrompt` 的 `inspectNode` 检查实际正文（`input` 只需目标 `node`，旧节点可另传原合同）并自行复核。发现问题只修改对应内容。
-- 普通保存、检查与生成不需要 `reviewId`；明确需要独立审核时才使用 `prepare/inspect/submit`。局部修改使用 `node:setPrompt` 的 `edits` 和当前 `expectedRevision`，不重写其余内容；语速等单变量对比以同一原稿为基础，固定参考及其他生成参数，支持时使用相同固定种子。无实质问题保留原稿，不直接修改画布 JSON。
-- 按已确认的分镜决定 `[Shot N]` 切点、动作和对白顺序；只有确有必要时使用导演规划数据，不强制为每个视频另填 `cinematicPlan`。台词按定稿保留文字及标点，核对每句实际可用时间。生成正文不写宿主流程、工具、审核、授权或质检说明。
+- H3 同期声音按剧本与人物表演编写；需要声音参考时可用 `searchVideoPromptTemplates` 的 `searchCreative` / `voices` 检索，模板 ID 均为可选。实际说话人按首次发声顺序从 S1 编号。语速未指定时可以省略，明确要求倍数时在说话描述中表达，不写全局默认语速段落。保留台词原文，不虚构音频参考。
+- H3 提示词由当前 Agent 按 workflow 和实际 H3 模式直接编写。已有节点先读 `node:getConfig`、按需配置，再读 `node:getPromptContext`。用 `node:setPrompt` 保存正文、中文对照和已确认的 `qcContract`（剧情及原话供成片验收），随后回读节点，用 `videoPrompt` 的 `inspectNode` 检查实际正文（`input` 只需目标 `node`，节点未保存合同可另传原合同）并自行复核。发现问题只修改对应内容。
+- 保存、检查与生成不签发审核编号。局部修改使用 `node:setPrompt` 的 `edits` 和当前 `expectedRevision`，不重写其余内容；语速等单变量对比以同一原稿为基础，固定参考及其他生成参数，支持时使用相同固定种子。无实质问题保留原稿，不直接修改画布 JSON。
+- 按已确认的分镜决定 `[Shot N]` 切点、动作和对白顺序。台词按定稿保留文字及标点，核对每句实际可用时间。生成正文不写宿主流程、工具、审核、授权或质检说明。
 - 从模型列表和节点工具 schema 获取可用模型、比例、分辨率、时长和声音选项，不自行猜测供应商参数。
 - 生成前展示可审阅的对象、数量、完整提示词、真实参考、所选模型、规格和执行次数，并核对用户对该具体批次的算力授权；有可靠报价才报金额，否则说明消耗未知。批准后按范围配置并生成，不反复确认同一批次；改动或额外重试超出原授权时重新确认。返回“已开始”只代表任务已启动，不能宣布图片或视频已生成。
 - 直接调用 `generateImage/generateVideo/generateAudio/qcVideo/runAgent` 时，首次提交前生成并记住顶层 `taskId`（UUID，与 target/args 同层）。调用立即返回后台状态，用 `getMcpTask` 的 `args.taskId` 查询；`succeeded` 后检查 result 中的真实结果。重连重复提交必须沿用原 taskId 和参数；同一 ID 不重新执行。ComfyUI 视频省略 generationId 时复用 taskId。任务结果存盘，宿主重启后的未完成任务标为 interrupted；先核对原 generationId 和远端状态，不盲目新建付费请求。`cancelMcpTask` 只请求停止，不能保证供应商撤销任务或费用。
@@ -88,4 +88,4 @@ description: 通过 MangaFlow MCP 操作工作区、实时画布、节点、文�
 
 - 视频节点 `node:getConfig` 返回 `qcOverride`、`qcDefaults`、`qcChoices`；`refreshQcChoices:true` 只读刷新当前 ComfyUI 已安装的 Gemma 权重，不开机。通过 `node:setConfig` 的 `qcOverride:null` 继承，`{mode:"off"}` 关闭自动质检，`{mode:"custom",qcMethod,qcLevel,qcTrigger,videoQcModelId,audioQcModelId}` 按实际选项配置。Gemma 使用返回的完整模型 ID（qc/gemma4:文件名），不猜精度、不选择禁用模型；视听使用同一个 Gemma。用户未要求修改 QC 时不要修改。实际节点策略可能不同于全局；有额外专用 QC 调用时必须遵守顶层 modelCallConfirmed 授权。成片手动 qcVideo 默认沿用已记录策略，用户明确要求换模型时传 qcOverride；null 表示当前系统设置。禁止把调用参数 qcModelCallAllowed 当作授权。
 
-- H3 高级设置仅在节点 getConfig.models[].h3Advanced 声明支持时可用。refreshComfyChoices:true 读取实际 samplerChoices/schedulerChoices 与已安装模型；setConfig 的 h3Options 为完整可选对象（loraStrength、extraLoras:[{name,strength}] 最多3、有序、sampler、scheduler、videoShift、audioShift），null 恢复高级默认。loraName="" 关闭主 LoRA，附加项需单独清除。禁止猜文件、切换主模型或给 Turbo 自动叠加蒸馏 LoRA。修改高级设置后按既有审核合同流程执行；同一 generationId 不得改参数。
+- H3 高级设置仅在节点 getConfig.models[].h3Advanced 声明支持时可用。refreshComfyChoices:true 读取实际 samplerChoices/schedulerChoices 与已安装模型；setConfig 的 h3Options 为完整可选对象（loraStrength、extraLoras:[{name,strength}] 最多3、有序、sampler、scheduler、videoShift、audioShift），null 恢复高级默认。loraName="" 关闭主 LoRA，附加项需单独清除。禁止猜文件、切换主模型或给 Turbo 自动叠加蒸馏 LoRA。修改高级设置后保留已确认的镜头合同；同一 generationId 不得改参数。

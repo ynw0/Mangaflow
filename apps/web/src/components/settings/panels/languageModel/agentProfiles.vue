@@ -56,7 +56,7 @@
         </div>
       </div>
     </section>
-    <p class="footerTip">提示：普通委派与编剧、角色、场景、道具资源 Agent 使用各自配置；本地团队使用团队配置；视频导演与审核员分别使用独立配置。云端 A2A 团队由远端自行管理模型。</p>
+    <p class="footerTip">提示：普通委派与编剧、角色、场景、道具资源 Agent 使用各自配置；本地团队使用团队配置。云端 A2A 团队由远端自行管理模型。</p>
   </div>
 </template>
 
@@ -72,8 +72,6 @@ const roles = [
   { id: "scene", title: "场景 Agent", icon: "景", description: "场景设计、布局及光影" },
   { id: "prop", title: "道具 Agent", icon: "道", description: "道具外形、材质与状态" },
   { id: "team", title: "本地团队 Agent", icon: "团", description: "本地 Team 的成员协作任务" },
-  { id: "videoDirector", title: "视频导演", icon: "导", description: "H3 提示词编写及必要返修" },
-  { id: "videoReviewer", title: "独立提示词审核（可选）", icon: "审", description: "仅在明确选用独立审核时调用，普通画布复核不调用此模型" },
   { id: "comfyDiagnosis", title: "ComfyUI 故障分析", icon: "诊", description: "读取任务错误与原实例证据，分析根因" },
 ] as const;
 type Role = (typeof roles)[number]["id"];
@@ -143,7 +141,7 @@ function changeThinking(role: Role, level: string) {
 .profileCard { display: flex; flex-direction: column; min-width: 0; gap: 14px; padding: 16px; border: 1px solid var(--el-border-color-light); border-radius: 14px; background: var(--el-bg-color-overlay); }
 .roleTitle { display: flex; align-items: center; gap: 10px; min-height: 38px;
   .roleIcon { display: flex; flex: 0 0 35px; align-items: center; justify-content: center; height: 35px; border-radius: 10px; background: var(--el-fill-color); color: var(--el-text-color-primary); font-weight: 650; font-size: 13px;
-    &.videoDirector, &.videoReviewer { background: var(--el-color-primary-light-9); color: var(--el-color-primary); }
+    &.comfyDiagnosis { background: var(--el-color-primary-light-9); color: var(--el-color-primary); }
   }
   strong { font-size: 13px; }
   p { margin: 3px 0 0; color: var(--el-text-color-secondary); font-size: 11px; line-height: 1.45; }

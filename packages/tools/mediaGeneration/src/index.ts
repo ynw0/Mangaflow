@@ -15,7 +15,7 @@ const plugin: ToolPlugin = {
     const permissions = configSchema.parse(config);
     const generationTools = ([
       { name: "generateImage", mediaType: "image", enabled: permissions.allowImage, label: "生成图片", parameters: imageGenerationSchema, description: "根据提示词和可选的工作区参考图生成图片。" },
-      { name: "generateVideo", mediaType: "video", enabled: permissions.allowVideo, label: "生成视频", parameters: videoGenerationSchema, description: "根据提示词和可选的工作区图片、视频、音频、首尾帧生成视频。使用 H3 时按实际模式提供提示词及真实参考，优先使用画布视频节点。审核编号不是生成条件；可传已确认的 qcContract 供成片质检。如果模型权重、LoRA、采样参数、种子、分辨率或生成主机发生变化，需要根据当前工作流的能力和已获得的算力使用授权进行校验。只有兼容的 H3 双阶段采样工作流支持 h3Options。必须使用当前主机实际返回的可用选项，不得擅自增加或替换 LoRA。使用固定种子或固定上一次随机生成的种子时，必须传入具体的 seed；随机模式传入 seedMode=random。按模型能力设置生成模式、时长、分辨率和音频。用户没指定采样时不要传 megapixels、upscale、firstPassSteps、secondPassSteps，双阶段采样工作流默认使用 0.2 百万像素、2 倍放大，第一阶段采样 8 步，第二阶段采样 4 步。" },
+      { name: "generateVideo", mediaType: "video", enabled: permissions.allowVideo, label: "生成视频", parameters: videoGenerationSchema, description: "根据提示词和可选的工作区图片、视频、音频、首尾帧生成视频。使用 H3 时按实际模式提供提示词及真实参考，优先使用画布视频节点。可传已确认的 qcContract 供成片质检。如果模型权重、LoRA、采样参数、种子、分辨率或生成主机发生变化，需要根据当前工作流的能力和已获得的算力使用授权进行校验。只有兼容的 H3 双阶段采样工作流支持 h3Options。必须使用当前主机实际返回的可用选项，不得擅自增加或替换 LoRA。使用固定种子或固定上一次随机生成的种子时，必须传入具体的 seed；随机模式传入 seedMode=random。按模型能力设置生成模式、时长、分辨率和音频。用户没指定采样时不要传 megapixels、upscale、firstPassSteps、secondPassSteps，双阶段采样工作流默认使用 0.2 百万像素、2 倍放大，第一阶段采样 8 步，第二阶段采样 4 步。" },
       { name: "generateAudio", mediaType: "audio", enabled: permissions.allowAudio, label: "生成音频", parameters: audioGenerationSchema, description: "根据文本或提示词和可选的工作区参考图片和音频生成音频。按模型能力设置音色、语速、音量、语种、采样率和格式。" },
     ] as const).filter(operation => operation.enabled);
     const listTool: ToolDefinition = {

@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
-import { createReadStream, mkdir, readFile, realpath, stat, writeAtomic } from "@toonflow/file";
-import { dirname, join } from "node:path";
-import conf from "@/utils/conf";
+import { createReadStream, readFile, realpath, stat } from "@toonflow/file";
 import { fail } from "@/utils/production/config";
 import type { PreparedComfyWorkflow } from "@/utils/production/run";
-import { draftCinematicPlanSchema } from "@/utils/production/videoPlan";
 import { videoAudioInputs } from "@/utils/production/h3Workflow";
 import type { WorkflowBindings } from "@/utils/production/bindings";
 
@@ -26,7 +23,7 @@ function serialize(value: unknown) {
     ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
 }
 
-// 审核绑定提示词表达的事实，以及影响这些事实的输入。采样与部署由生成入口校验。
+// 生成前核对提示词与参考文件内容；采样与部署由生成入口校验。
 export function videoPromptReviewScope(snapshot: VideoReviewSnapshot) {
   const { bindings, workflow } = JSON.parse(snapshot.workflow) as {
     bindings: WorkflowBindings;
@@ -98,86 +95,8 @@ export async function captureVideoReview(directory: string, prepared: PreparedCo
     seedMode: prepared.seedMode,
     parameters,
     references,
-    // 最终绑定结果包含省略参数保留的工作流默认值；键顺序不影响审核。
     workflow: serialize({ bindings: prepared.entry.bindings, workflow: prepared.reviewWorkflow }),
   };
-}
-
-export function videoReviewChanges(approved: VideoReviewSnapshot, current: VideoReviewSnapshot) {
-  const before = videoPromptReviewScope(approved);
-  const after = videoPromptReviewScope(current);
-  return ([
-    ["directory", "工作区"], ["prompt", "英文提示词"], ["format", "提示词格式"],
-    ["duration", "时长"], ["aspect", "画幅"], ["audio", "音轨"],
-    ["references", "参考槽位、顺序或文件内容"],
-  ] as const).filter(([key]) => serialize(before[key]) !== serialize(after[key])).map(([, label]) => label);
-}
-
-export function requireSameVideoReview(approved: VideoReviewSnapshot, current: VideoReviewSnapshot) {
-  const changed = videoReviewChanges(approved, current);
-  if (changed.length) fail(`审核已过期：${changed.join("、")}已变化，请按变化重新审核`, 409);
-}
-
-function cachePath(key: string) {
-  if (!/^[a-f0-9]{64}$/.test(key)) fail("视频提示词缓存编号无效", 400);
-  return join(dirname(conf.path), "videoReviews", "cache", key + ".json");
-}
-
-/** 先查节点已经采用的审核号，再查同合同的缓存。两者共用实际提示词边界。 */
-export async function findReusableVideoReview(key: string, snapshot: VideoReviewSnapshot,
-  existing: { reviewId?: string; prompt: string; promptZh?: string } | undefined, shot: unknown) {
-  const text = await readFile(cachePath(key), "utf8").catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") return undefined;
-    throw error;
-  });
-  const cachedId = text ? (JSON.parse(text) as { reviewId: string }).reviewId : undefined;
-  for (const reviewId of new Set([existing?.reviewId, cachedId])) {
-    if (!reviewId) continue;
-    const record = await readApprovedVideoReview(reviewId).catch((error: { status?: number }) => {
-      if (error.status === 409) return undefined;
-      throw error;
-    });
-    if (!record || serialize(record.audit.shot) !== serialize(shot)) continue;
-    const prompt = record.snapshot.prompt;
-    const promptZh = record.audit.promptZh;
-    if (!prompt || typeof promptZh !== "string" || !promptZh.trim()) continue;
-    if (existing?.reviewId === reviewId && (existing.prompt !== prompt || (existing.promptZh !== undefined && existing.promptZh !== promptZh))) continue;
-    if (videoReviewChanges(record.snapshot, { ...snapshot, prompt }).length) continue;
-    const cinematicPlan = draftCinematicPlanSchema.safeParse(record.audit.cinematicPlan);
-    if (cinematicPlan.success) return { reviewId, prompt, promptZh, cinematicPlan: cinematicPlan.data, review: record.audit.review };
-  }
-}
-
-function reviewPath(reviewId: string) {
-  if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(reviewId)) fail("审核编号无效，请重新审核", 409);
-  return join(dirname(conf.path), "videoReviews", `${reviewId}.json`);
-}
-
-export async function saveVideoReview(snapshot: VideoReviewSnapshot, audit: Record<string, unknown>, cacheKey?: string) {
-  const reviewId = crypto.randomUUID();
-  const path = reviewPath(reviewId);
-  await mkdir(dirname(path), { recursive: true });
-  // 编号仅为服务端记录索引；审核成功的宿主链路是唯一写入入口。
-  await writeAtomic(path, JSON.stringify({ status: "approved", createdAt: new Date().toISOString(), snapshot, audit }), { exclusive: true, mode: 0o600 });
-  if (cacheKey) {
-    const target = cachePath(cacheKey);
-    await mkdir(dirname(target), { recursive: true });
-    await writeAtomic(target, JSON.stringify({ reviewId }), { mode: 0o600 });
-  }
-  return reviewId;
-}
-
-export async function readApprovedVideoReview(reviewId: string) {
-  const text = await readFile(reviewPath(reviewId), "utf8").catch((error: NodeJS.ErrnoException) => {
-    if (error.code === "ENOENT") fail("服务端找不到此审核记录，请重新审核", 409);
-    throw error;
-  });
-  const record = JSON.parse(text) as { status: string; snapshot: VideoReviewSnapshot; audit: Record<string, unknown> };
-  if (record.status !== "approved" || !record.snapshot) fail("服务端审核记录未通过，请重新审核", 409);
-  // 早期首尾帧工作流没有时长绑定。既有审核以记录中已审的生成时长补全。
-  const request = record.audit.request as { duration?: number } | undefined;
-  record.snapshot.parameters.duration ??= request?.duration;
-  return record;
 }
 
 export async function verifyReviewFile(path: string, expected: ReviewFile, signal?: AbortSignal) {

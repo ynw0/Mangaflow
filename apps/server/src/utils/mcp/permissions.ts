@@ -4,7 +4,7 @@ type Permission = keyof PublicMcpPermissions;
 
 const coreRules: Record<string, Permission> = {
   openProject: "workspaceWrite", switchPanel: "workspaceWrite", openDocument: "workspaceWrite",
-  getDocument: "workspaceRead", writeDocument: "workspaceWrite", videoPrompt: "workspaceWrite",
+  getDocument: "workspaceRead", writeDocument: "workspaceWrite", videoPrompt: "workspaceRead",
   getSettings: "appManagement", updateSettings: "appManagement",
   listAppOperations: "appManagement", appOperation: "appManagement", runAgent: "agentExecution",
 };

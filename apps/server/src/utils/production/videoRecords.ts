@@ -283,7 +283,6 @@ export async function getVideoQcStatus(directory: string, videoPath: string): Pr
   const generation = record?.generation;
   const parameters = generation ? {
     providerId: generation.request.providerId, modelId: generation.request.modelId,
-    reviewId: generation.request.reviewId,
     duration: generation.request.duration, ratio: generation.request.ratio, execution: generation.execution,
   } : undefined;
   const policyInfo = { sourceVideoPath: record?.sourceVideoPath, qcPolicy: task?.policy ?? record?.qcPolicy, requestedQcPolicy: record?.requestedQcPolicy };

@@ -10,7 +10,7 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     const text = await skill("workflow/SKILL.md");
     expect(text).not.toContain("一个视频节点只放一个连续摄影镜头");
     expect(text).not.toContain("成片 16:9。");
-    expect(text).toContain("cinematicPlan.shots");
+    expect(text).toContain("不另加 `shotMode`");
     expect(text).toContain("[Shot N]");
     expect(text).toContain("一镜到底");
     expect(text).toContain("9:16");
@@ -52,7 +52,7 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     const director = await skill("workflow/references/video-director.md");
     const review = await skill("workflow/references/video-prompt-review.md");
     const voice = await skill("workflow/references/creativeKnowledge.md");
-    expect(workflow).toContain("先保存到画布");
+    expect(workflow).toContain("保存到画布");
     expect(workflow).not.toContain("独立审核通过后交付");
     expect(director).toContain("不需要全局语速段落");
     expect(director).toContain("不代表需要重写整稿");

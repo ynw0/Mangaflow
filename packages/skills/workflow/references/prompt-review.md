@@ -1,6 +1,6 @@
 # 提示词审核（文生图 / 文生视频）
 
-独立审核员只审核已经编写完成的合同，不改写 prompt、不改 lock、不改 Picture 槽位、不生成、不宣布批准。文生图提示词审核员与文生视频提示词审核员不得混合承担两种审核任务。
+原画独立审核员只审核已经编写完成的合同，不改写 prompt、不改 lock、不改 Picture 槽位、不生成、不宣布批准。文生图提示词审核员不得承担视频提示词编写。
 
 ## 文生图（character / scene / prop-prompt-review）
 
@@ -25,4 +25,4 @@
 
 ## 文生视频（video-prompt-review）
 
-主 Agent 依据 [video-prompt-review.md](video-prompt-review.md) 直接复核画布现稿，发现问题原位修订。明确选用独立审核时才按[提交与交接](video-prompt-review.md#提交与交接)办理。
+主 Agent 依据 [video-prompt-review.md](video-prompt-review.md) 直接复核画布现稿，用程序检查核对格式与对白，发现问题原位修订。

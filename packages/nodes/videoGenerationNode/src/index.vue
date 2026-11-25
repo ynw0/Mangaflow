@@ -216,7 +216,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; qcContract?: NodeVideoRequest["qcContract"]; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; manualAccelerationLoras?: string[]; checkpointEvidence?: { model: string; name: string; kind: "standard" | "fused" }; checkpointName?: string; h3Options?: NodeVideoRequest["h3Options"]; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
+const data = computed(() => node.data as { prompt: string; promptZh: string; qcContract?: NodeVideoRequest["qcContract"]; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; manualAccelerationLoras?: string[]; checkpointEvidence?: { model: string; name: string; kind: "standard" | "fused" }; checkpointName?: string; h3Options?: NodeVideoRequest["h3Options"]; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -231,8 +231,6 @@ const editorText = computed({
     if (data.value.prompt === value) return;
     data.value.prompt = value;
     data.value.promptZh = "";
-    // 旧节点尚未保存剧情验收依据时，保留历史记录索引供 QC 读取原合同，而非代表新稿通过审核。
-    if (data.value.qcContract) data.value.reviewId = undefined;
   },
 });
 data.value.model ??= "";
@@ -489,7 +487,6 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     providerId: choice.providerId,
     modelId: choice.modelId,
     prompt: generationPrompt.value,
-    reviewId: data.value.reviewId,
     ...(data.value.qcContract ? { qcContract: data.value.qcContract } : {}),
     seedMode: choice.supportsSeed ? data.value.seedMode : undefined,
     mode: selectedMode.value,
@@ -1124,13 +1121,13 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setPrompt",
-  description: "保存视频提示词。首次写稿或明确整稿重写传 prompt 和可选 promptZh；局部修改、语速等单变量对比优先传 edits（field、唯一原文 before、替换后 after）及 expectedRevision，不传整稿。程序只替换指定原文，其余字节、参考、参数及剧情合同不变；英文改动影响中文时同步替换 promptZh。无需审核编号。完整写稿可附已确认的 qcContract，明确传 null 才清除。只保存，不生成。",
-  parameters: z.strictObject({ prompt: z.string().optional(), promptZh: z.string().optional(), reviewId: z.string().uuid().optional(), qcContract: videoQcContractSchema.nullable().optional(), expectedRevision: z.string().optional(),
+  description: "保存视频提示词。首次写稿或明确整稿重写传 prompt 和可选 promptZh；局部修改、语速等单变量对比优先传 edits（field、唯一原文 before、替换后 after）及 expectedRevision，不传整稿。程序只替换指定原文，其余字节、参考、参数及剧情合同不变；英文改动影响中文时同步替换 promptZh。完整写稿可附已确认的 qcContract，明确传 null 才清除。只保存，不生成。",
+  parameters: z.strictObject({ prompt: z.string().optional(), promptZh: z.string().optional(), qcContract: videoQcContractSchema.nullable().optional(), expectedRevision: z.string().optional(),
     edits: z.array(z.strictObject({ field: z.enum(["prompt", "promptZh"]), before: z.string().min(1), after: z.string() })).min(1).max(64).optional() }),
-  execute({ prompt: value, promptZh, reviewId, qcContract, expectedRevision, edits }) {
+  execute({ prompt: value, promptZh, qcContract, expectedRevision, edits }) {
     if ((value === undefined) === (edits === undefined)) throw new Error("完整提示词 prompt 和局部替换 edits 必须且只能选择一种");
-    if (edits && (!expectedRevision || promptZh !== undefined || reviewId !== undefined || qcContract !== undefined)) {
-      throw new Error("局部替换须传 expectedRevision，不同时传整稿、中文全文、审核编号或剧情合同");
+    if (edits && (!expectedRevision || promptZh !== undefined || qcContract !== undefined)) {
+      throw new Error("局部替换须传 expectedRevision，不同时传整稿、中文全文或剧情合同");
     }
     if (value !== undefined && data.value.prompt.trim() && value !== data.value.prompt && !expectedRevision) {
       throw new Error("修改已有提示词须先读取 getPromptContext 并传 expectedRevision；局部修改使用 edits");
@@ -1145,10 +1142,9 @@ nodeTools.register({
     const changed = original.prompt !== nextPrompt;
     data.value.prompt = nextPrompt;
     data.value.promptZh = patched?.promptZh ?? promptZh ?? (changed ? "" : original.promptZh);
-    data.value.reviewId = reviewId ?? ((qcContract !== undefined || (changed && data.value.qcContract)) ? undefined : data.value.reviewId);
     if (qcContract !== undefined) data.value.qcContract = qcContract ?? undefined;
     if (changed || !edits) data.value.promptModel = nextPrompt.split("\n").map((text) => [{ type: "Write", text }]);
-    return { prompt: nextPrompt, promptZh: data.value.promptZh, reviewId: data.value.reviewId,
+    return { prompt: nextPrompt, promptZh: data.value.promptZh,
       ...(edits && changed && original.promptZh && !edits.some(edit => edit.field === "promptZh")
         ? { warning: "英文已局部修改，中文对照原样保留；若语义受影响，请同步局部修改中文。" } : {}) };
   },

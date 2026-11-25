@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { canvasMediaRoutingInstructions, explicitlyRequestsChatGeneration, routeAgentMediaTools } from "./canvasMediaRouting";
 
-const all = ["getCanvas", "addNode", "getNodeTools", "nodeTools", "connectNodes", "listMediaModels", "generateImage", "generateVideo", "generateAudio", "qcVideo", "draftVideoPrompt"].map(name => ({ name }));
+const all = ["getCanvas", "addNode", "getNodeTools", "nodeTools", "connectNodes", "listMediaModels", "generateImage", "generateVideo", "generateAudio", "qcVideo", "inspectCanvasVideoPrompt"].map(name => ({ name }));
 
 describe("画布优先的生产媒体工具路由", () => {
-  const expectedCanvasTools = ["getCanvas", "addNode", "getNodeTools", "nodeTools", "connectNodes", "listMediaModels", "qcVideo", "draftVideoPrompt"];
+  const expectedCanvasTools = ["getCanvas", "addNode", "getNodeTools", "nodeTools", "connectNodes", "listMediaModels", "qcVideo", "inspectCanvasVideoPrompt"];
 
   test.each(["继续", "继续生成", "制作角色场景道具参考图", "出图并将结果落在画布", "生成一段15s视频", "请在画布连线后生成"])(
     "普通生产消息 %s 不可绕过画布调用聊天生成",

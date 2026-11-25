@@ -19,11 +19,11 @@ metadata:
 
 只有用户明确要求排除旧剧情重新创作，或用户纠正后同一项已作废内容又被写回来时，才启用从零起稿的独立编剧会话；新写场戏定稿前按需委派专业对白精修属于局部改稿，不属于重新起稿。交给编剧本轮要求、明确需要保留的事实和选定的原文；只修改局部内容时，还要提供当前稿件中需要修改的片段。从混写剧情和设定的文档中只提取保留项。清理旧成果的范围另行确定。确需确认方向时，询问题材、基调或保留范围，避免把已作废的开场列进选项。
 
-references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前画布的文本节点。原画仍按原画审核规则执行。视频提示词由主 Agent 直接写入视频节点，复核现稿后用 `node:setPrompt` 的 `edits` 精确局部修改；不强制独立审核或重写。
+references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前画布的文本节点。原画仍按原画审核规则执行。视频提示词由主 Agent 直接写入视频节点，复核现稿后用 `node:setPrompt` 的 `edits` 精确局部修改；不委派独立导演或审核模型。
 
 公共规则读 [common.md](references/common.md)。小说改编定调读 [adaptationStrategy.md](references/adaptationStrategy.md)（遵循适用的创作原则，不机械套用外部资料中的固定数值）。原创或重写剧情先按 [episodeScript.md](references/episodeScript.md) 写完整场戏、复核剧情，按需精修对白并核对前后差异，再做分镜。分场情绪与注意事项读 [directorPlan.md](references/directorPlan.md)。审核分流及原画通用审核顺序见 [prompt-review.md](references/prompt-review.md)。关于如何在画布上记录制作合同，阅读 [canvas-use.md](references/canvas-use.md)。每阶段按当前运行模式和已有授权推进。普通/半自动确认规则见 canvas-use「逐步确认关卡」。开始某一阶段前，只读该阶段的参考。跨 Skill 用 `skillOperator` 先 `list`，再以目标 `name`、实际 `scope` 和目标 Skill 内的 `path` 调用 `read`。例如读取 H3 全参考格式时，用 `name: "h3-prompt-writing"`、`path: "references/ref-en.txt"`。
 
-MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画布读写继续使用。一个 H3 视频节点可以按已确认剧情合同包含一个连续摄影镜头，或多个以 `[Shot N]` 明确切点的内部镜头；反打、蒙太奇、闪回等剪辑手法在用户允许且时长可执行时可以使用。用户明确要求一镜到底时只允许 `[Shot 1]`，不能私自切镜、删减剧情。使用导演工具且确有复杂时间安排时，可在 `cinematicPlan.shots` 记录起止时间、机位与动作，与正文切点一致；直接编写画布正文不需要另外提交规划数据，不另加 `shotMode`。
+MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画布读写继续使用。一个 H3 视频节点可以按已确认剧情合同包含一个连续摄影镜头，或多个以 `[Shot N]` 明确切点的内部镜头；反打、蒙太奇、闪回等剪辑手法在用户允许且时长可执行时可以使用。用户明确要求一镜到底时只允许 `[Shot 1]`，不能私自切镜、删减剧情。切点、动作和对白时间写进英文正文，不另加 `shotMode`，也不另交一份规划对象。
 
 | 阶段 | 先读 | 完成后 |
 | --- | --- | --- |
@@ -36,19 +36,19 @@ MangaFlow 的剧本场次、资产复用、阶段确认、角色三视图和画�
 | 场景原画 | [scene-art.md](references/scene-art.md) 然后 [scene-prompt-review.md](references/scene-prompt-review.md) | 要换机位或反复出现时做四方向拼版；只做氛围或转场时做无人空镜 |
 | 道具原画 | [prop-art.md](references/prop-art.md) 然后 [prop-prompt-review.md](references/prop-prompt-review.md) | 审核通过的产品图 |
 | 单集导演规划（可选） | [directorPlan.md](references/directorPlan.md) | 分集画布上的分场情绪与注意事项 |
-| 成片提示词 | 核对视频节点配置及实际参考，读取 [导演规则](references/video-director.md)、适用的 [导演 Skill](../cinematicPromptCraft/SKILL.md) 和 [H3 规则](../h3-prompt-writing/SKILL.md)。复杂镜头可选 `draftVideoPrompt`。 | 先保存到画布，再按 [视频复核标准](references/video-prompt-review.md) 核对当前正文，发现问题原位修改。其他模型按实际格式写作。独立审核按需使用，不是生成条件。 |
+| 成片提示词 | 核对视频节点配置及实际参考，读取 [导演规则](references/video-director.md)、适用的 [导演 Skill](../cinematicPromptCraft/SKILL.md) 和 [H3 规则](../h3-prompt-writing/SKILL.md)，由主 Agent 直接写稿。 | 先用 `node:setPrompt` 保存到画布（已确认剧情写入 `qcContract`），再用 `inspectCanvasVideoPrompt` 检查现稿，按 [视频复核标准](references/video-prompt-review.md) 核对，发现问题原位修改。其他模型按实际格式写作。 |
 
 ### 创作知识库（按阶段取用，严禁堆砌）
 
 按当前创作目标，从 [创作知识库说明](references/creativeKnowledge.md) 精准检索，而不是每镜套用全库。统一入口仍为 `searchVideoPromptTemplates`：原 `listTags/search` 保留导演镜头模板；`listCreativeTags/searchCreative` 支持 `narrative` 剧情节拍、`memes` 热梗、`absurd` 喜剧、`expressions` 颜艺和 `styles` 画风/滤镜。每镜只选择与已批准剧情、人物和参考图相容的少量条目；导演阶段存在更精确的原有拍法模板时优先用它。已选条目可用 `checkCreativeSelection` 检查多镜场次是否在当前时长可执行、是否违背用户的单镜头合同，以及是否在严肃剧情中强行加入热梗、是否让写实角色的表情过度夸张，以及滤镜 ID 是否有误。
 
-分镜规划阶段可用 `scope:scene` 条目构思多镜片段，从现有剧情定下切点和动作。写成片时按确认的分镜选用拍法和表演参考，调用字段见 [提示词工具调用](references/creativeKnowledge.md#与-draftvideoprompt-的直接衔接)。
+分镜规划阶段可用 `scope:scene` 条目构思多镜片段，从现有剧情定下切点和动作。写成片时按确认的分镜选用拍法和表演参考，检索入口见 [创作知识库](references/creativeKnowledge.md#检索)。
 
 ### 原画案例参考（不替换生产合同）
 
 角色、场景或道具原画首次设计，或失败重试需要澄清构图、尺度、材质、必须保持一致的身份特征时，可以按 asset_type / t2i / edit 从 [imagePromptCases.md](references/imagePromptCases.md) 阅读 1–2 条。其 I01–I04 仅是原创且未生成验证的案例，依当前 [character-art.md](references/character-art.md)、[scene-art.md](references/scene-art.md)、[prop-art.md](references/prop-art.md) 及审核合同重新撰写；不得让案例内容替换已批准的车辆、人物和场景。无需额外调用模型来“润色案例”。
 
-官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing + cinematicPromptCraft 导演知识 → video-director → 画布正文复核 → Comfy H3 Ref2VA）。
+官方风格 skill（已安装，按需选用，不进入默认漫剧成片流水线）：`minimalist-product-ad-generator`、`3d-animation-short-generator`、`papercraft-stop-motion-explainer`、`brand-promo-video-generator`、`music-video-subtitle-generator`、`co-op-game-intro-generator`、`paper-collage-explainer-generator`、`handdrawn-live-video-generator`。仅当用户明确要该风格（产品广告 / 3D 动画短片 / 纸艺定格 / 品牌宣传 / MV 字幕 / 联机开场 / 剪纸拼贴 / 手绘实拍等）时，再用 skillOperator list+read 加载对应风格 skill；不要默认替代上方「成片」路径（h3-prompt-writing + cinematicPromptCraft 导演知识 → 主 Agent 写画布正文 → inspectCanvasVideoPrompt → Comfy H3 Ref2VA）。
 
 画布出图时先通过图片生成节点的 `node:getConfig` 查询可用模型与当前配置，并由 `node:setConfig` 配置；可用 `listMediaModels` 交叉核实已启用项，但不得因此跳过画布生成节点。先按用户指定、配置的出图后端、是否有底图及参考图数量筛选，再读候选的 `usage`，按草稿速度、细节、底图保留需求选择。设置中的文生图和编辑工作流是对应任务的默认选项。Qwen-Image-2.1 Turbo 适合快速探索，标准版适合细节任务，具体以目录和验收结果为准。有底图的任务按 [图像编辑与变体](references/common.md#图像编辑与变体) 编写提示词并验收。项目经验只补充本项目的设定与已验证的事实。编写、原画审核与生成均使用同一个工作流。出视频按 `production.video` 和用户确认的节点配置。`comfyui` 走相应的本机或 AutoDL 工作流，`videoModel` 使用设置中已选的云端模型。提示词结构与实际模型匹配。角色设定图 `2048x768`，场景四方向拼版 `1024x1024`，无人空镜 `1344x768`，道具按物体高宽在 `768x1024`、`1024x1024`、`1344x768` 里选。成片画幅遵从用户确认的镜头合同、项目生产配置与实际视频节点的比例设置；统一 H3 Ref2VA 工作流支持按能力选择 16:9、9:16 等比例，16:9 只是未指定时的默认值，不是强制规格。模型/工作流不支持所选比例或节点设置冲突时须先校验并处理，不能仅通过修改提示词，在没有说明的情况下覆盖实际配置。
 

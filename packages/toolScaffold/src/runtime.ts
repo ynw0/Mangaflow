@@ -154,8 +154,6 @@ export interface MediaGenerationRequest {
   duration?: number;
   /** ComfyUI 工作流种子；云视频可忽略 */
   seed?: number;
-  /** 可选的历史或独立审核记录索引，不是生成凭据。 */
-  reviewId?: string;
   /** 已确认的剧情验收依据，仅供成片质检，不发送给生成模型。 */
   qcContract?: VideoQcContract;
   /** 同一次 ComfyUI 视频任务的唯一 ID。重连必须沿用原始参数与 ID。 */
@@ -303,7 +301,7 @@ export type VideoQcReport = VideoQcState & {
   agentResult?: QcVideoResult;
   qcRevision?: string;
   rectificationPlan?: VideoQcRectificationPlan;
-  generation?: { providerId: string; modelId: string; reviewId?: string; duration?: number; ratio?: string; execution?: VideoExecution };
+  generation?: { providerId: string; modelId: string; duration?: number; ratio?: string; execution?: VideoExecution };
 };
 
 export type VideoQcActionResult = QcVideoResult | Extract<VideoQcState, { status: "awaitingAgent" }>;

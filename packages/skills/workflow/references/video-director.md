@@ -8,7 +8,7 @@
 
 ## draftVideoPrompt 工具参数
 
-内置 Agent 直接调用会话工具 `draftVideoPrompt`，外部 MCP 调用 `videoPrompt` 的 `prepare`、`inspect`、`submit`。画布 `nodeTools` 用于读取节点配置、参考和保存已通过审核的提示词。`searchVideoPromptTemplates` 负责检索创作参考。镜头合同字段按[工具调用规则](creativeKnowledge.md#与-draftvideoprompt-的直接衔接)填写，数组使用 JSON 数组，时长使用数字。已有节点核对 `node:getConfig`，有变化才调用 `node:setConfig`，随后读取 `node:getPromptContext`。
+需要专业导演协助时，内置 Agent 可调用会话工具 `draftVideoPrompt`；独立审核仅在 `review=true` 或复审已审核稿时启动。外部 MCP 可按需调用 `videoPrompt` 的 `prepare`、`inspect`、`submit`。简单镜头、用户指定原稿、局部修改及对照试验直接使用画布 `nodeTools` 读取节点配置和参考，按实际模式编写或修改指定内容并保存，不需要独立审核号。`searchVideoPromptTemplates` 负责检索创作参考。镜头合同字段按[工具调用规则](creativeKnowledge.md#与-draftvideoprompt-的直接衔接)填写，数组使用 JSON 数组，时长使用数字。已有节点核对 `node:getConfig`，有变化才调用 `node:setConfig`，随后读取 `node:getPromptContext`。
 
 本镜回应先前的一句话或事件时，重新读取相关分镜。把场次或镜号、说话人、原句或关键动作填入 `adjacentShots`，可以摘录更早的铺垫。已经交代过的起因供导演核对前后剧情是否衔接，本镜继续表现人物的回应以及事件造成的后果。
 
@@ -18,7 +18,7 @@
 
 ### H3 同期角色声音规则
 
-视频与对白由 H3 同一次生成。根据 `speechPolicy` 统一说明整段视频的默认语速；如果 `voiceCast` 为某个角色指定了不同的语速，则另行说明。角色的声音以已确认的声线和所选模板为据，用自然的措辞保留相应的音色、口音和表达方式。定稿台词照录。编制镜头合同时，在 `story` 交代每句由谁说。每次独立生成视频都按实际首次发声顺序从 S1 连续编号，不沿用整部剧的角色编号。同一视频内即使切换镜头，同一个说话人仍沿用原编号；未发声的人物不分配 S 编号。跨视频保持角色身份和声线一致，而不是保持编号一致。导演按合同中的角色名和正确编号写对白；合同编号与定稿冲突时，退回调用方修正，不得调换台词或声线。口型按实际发声和可见范围安排。音频引用来自真实素材。静默镜头省略语速指令。详见 [声音模板规则](creativeKnowledge.md#h3-同期角色声音提示词模板)。
+视频与对白由 H3 同一次生成。根据场戏、用户要求、对白长度和可用时间决定语速表达。无需明确倍数时可自然描述语速或省略；需要精确表达用户指定的倍数时，可统一写 `Everyone speaks at about 1.1 times their usual conversational pace, with clear words and natural pauses.`，也可在角色对白前写 `speaks at about 1.0 times their usual conversational pace`。示例中的数值不是默认值或最佳区间。整段一致时不逐人重复；`voiceCast` 指定的个别角色语速另行说明。角色的声音以已确认的声线和所选模板为据，用自然的措辞保留相应的音色、口音和表达方式。定稿台词照录。编制镜头合同时，在 `story` 交代每句由谁说。每次独立生成视频都按实际首次发声顺序从 S1 连续编号，不沿用整部剧的角色编号。同一视频内即使切换镜头，同一个说话人仍沿用原编号；未发声的人物不分配 S 编号。跨视频保持角色身份和声线一致，而不是保持编号一致。导演按合同中的角色名和正确编号写对白；合同编号与定稿冲突时，退回调用方修正，不得调换台词或声线。口型按实际发声和可见范围安排。音频引用来自真实素材。静默镜头省略语速指令。详见 [声音模板规则](creativeKnowledge.md#h3-同期角色声音提示词模板)。
 
 ### 模板使用边界
 
@@ -99,7 +99,7 @@
 
 ### cinematicPlan 根据实际需要协调的动作、对白和镜头变化确定详细程度
 - 镜头只有一个动作或状态变化时，一条 `beats` 和实际的开场、机位与结尾即可。接话和动作照常发生时，节拍可省略 `performance`。单镜可省略 `shots`。即使只有一句对白，也写入 `dialogue`。无对白填空数组。固定机位沿用分镜设定。
-- 当多镜切换、明确先做后说、多人台词同步、多级机械变化、复杂接触或状态传递产生验收依赖时，在 `beats`、`dialogue` 和 `shots` 中充分记录对应事实，不为压缩长度删剧情。所有镜头仍走程序预检与独立审核。
+- 当多镜切换、明确先做后说、多人台词同步、多级机械变化、复杂接触或状态传递产生验收依赖时，在 `beats`、`dialogue` 和 `shots` 中充分记录对应事实，不为压缩长度删剧情。使用专业导演工具时保留程序预检，独立审核按需开启。
 
 ### 镜头结构：按合同选择单镜或剪辑
 - 一个 H3 视频节点可以对应单一连续镜头，也可按用户允许的剪辑任务包含多个 [Shot N]。单镜使用 [Shot 1]；多镜使用 [Shot 2] At MM:SS.mmm 等递增切点，每一镜建立自己的机位、主体关系及动作和声画承接。
@@ -150,6 +150,6 @@
 
 内置导演经 `submitResult` 提交 `{ status: "ok", cinematicPlan, prompt, promptZh }`，三者的事实应一致。缺关键输入、槽位冲突或现有时长无法容纳完整剧情时，提交 `{ status: "blocked", reason: "具体缺项或冲突" }`。
 
-- 内置 `draftVideoPrompt` 完成预检与独立审核。提示词合同一致时，调整权重、LoRA、采样、种子或 GPU 主机可沿用已有审核号。已有节点请求写回且返回 `written: true` 时，正文和 `reviewId` 已在目标视频节点。需要查看全文时，重新读取节点中的提示词。获得 `reviewId` 但尚未写回时，返回 `generationRequest`、`promptZh` 和 `cinematicPlan`。出现 `writeError` 时，处理实际导致提示词无法写入节点的问题，确认节点状态后再推进。预检或审核退回按工具返回的 `nextAction` 处理。
+- 内置 `draftVideoPrompt` 完成程序预检即可交付；仅主动要求独立审核且通过时返回 `reviewId`。已有节点请求写回且返回 `written: true` 时，正文已在目标视频节点；需要查看全文时重新读取节点。未写回时使用 `generationRequest`、`promptZh` 和 `cinematicPlan`。局部修改使用原稿，只改指定内容，不重新委派导演。已有审核记录仅对应当时的正文和审核范围，不要求重新审核才能生成。出现 `writeError` 时处理写入问题并核对节点状态；使用导演工具遇到预检或主动审核退回时按 `nextAction` 接续。
 - 外部 MCP 将同样字段组成 `draft`，随 `preparationId` 送 `videoPrompt` 的 `inspect`。预检通过后按[审核提交与交接](video-prompt-review.md#提交与交接)办理。
 - 生成与成片质检按当前运行模式及已授权范围执行。质检的状态和档位从真实任务与设置读取，详见 [common.md](common.md)。

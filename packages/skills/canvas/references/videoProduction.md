@@ -123,7 +123,7 @@ H3 提示词开头用 `<Subject N>` / `<Picture N>` 定义主体、场景、道�
 
 ### H3 高级采样（兼容二采）
 
-getConfig.models[].h3Advanced 声明支持及原工作流默认值；getConfig({refreshComfyChoices:true}) 返回当前 ComfyUI 的模型、LoRA、samplerChoices、schedulerChoices，不开机。setConfig 可整体替换 h3Options（loraStrength、extraLoras: [{name,strength}] 最多3项按顺序加载、sampler、scheduler、videoShift、audioShift）；null 恢复高级默认。loraName="" 仅关闭主 LoRA；要关闭全部也清除 extraLoras。用户未要求不得更改。实验预设只用于用户明确选择；不自动叠加 Turbo 和加速 LoRA。仅改变这些高级采样参数时，按实际工作流校验后沿用原提示词审核号。替换实际参考、改变提示词格式、正文、时长、画幅或音轨时重新审核。
+getConfig.models[].h3Advanced 声明支持及原工作流默认值；getConfig({refreshComfyChoices:true}) 返回当前 ComfyUI 的模型、LoRA、samplerChoices、schedulerChoices，不开机。setConfig 可整体替换 h3Options（loraStrength、extraLoras: [{name,strength}] 最多3项按顺序加载、sampler、scheduler、videoShift、audioShift）；null 恢复高级默认。loraName="" 仅关闭主 LoRA；要关闭全部也清除 extraLoras。用户未要求不得更改。实验预设只用于用户明确选择；不自动叠加 Turbo 和加速 LoRA。仅改变这些高级采样参数时，按实际工作流校验后沿用原提示词审核号。替换实际参考、改变提示词格式、正文、时长、画幅或音轨时核对实际工作流；旧审核不再代表新稿，是否重新审核按需决定，不作为生成前提。
 
 
 ## 成片归档与废片清理

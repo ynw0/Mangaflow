@@ -33,8 +33,8 @@
 
 - 已有节点时省略顶层 `canvasId`、`modelId`、`duration`、`ratio`、`sampling`、`seed` 和 `seedMode`。
 - 首次 `draftVideoPrompt` 调用未通过入参校验时，按报错修正当前调用。缺 `shotId` 时补原合同编号，多传顶层 `canvasId` 时移除它并保留 `node.canvasId`。此阶段没有该次调用生成的待审稿。
-- 返回 `reviewFailed` 且包含 `draftId` 时，按 `nextAction` 调用 `resumeVideoPrompt` 重审原稿。返回 `rejected` 且包含 `draftId` 时，按 `nextAction` 使用原合同和整改意见针对已经指出的问题修改。剧本或分镜版本改变后用更新后的合同重新提交。中断后遗失编号，可在原会话用 `resumeVideoPrompt({shotId})` 查询，同一镜头有多份稿时选对应的 `draftId`。用户要求修改本镜的提示词、拍法或表演时，传 `regenerate: true`，按当前合同写新稿。仅修改生成参数时复用已经通过审核的稿件。
-- 外部 MCP 调用 `videoPrompt`。将上述合同放进 `args.input`，并在 `args.action` 传 `prepare`。随后用返回的 `preparationId` 和当前导演稿执行 `inspect`，以审核结果和同一份稿执行 `submit`。审核结构、写回与交接见[视频审核规则](video-prompt-review.md#提交与交接)。
+- 返回 `reviewFailed` 且包含 `draftId` 时，按 `nextAction` 调用 `resumeVideoPrompt` 重审原稿。返回 `rejected` 且包含 `draftId` 时，按 `nextAction` 使用原合同和整改意见针对已经指出的问题修改。剧本或分镜版本改变后用更新后的合同重新提交。中断后遗失编号，可在原会话用 `resumeVideoPrompt({shotId})` 查询，同一镜头有多份稿时选对应的 `draftId`。仅需要重新编写整份提示词时传 `regenerate: true`；独立审核按需传 `review: true`。局部修改和对照试验直接复制、修改原稿中的指定内容，不重新编写其他部分。仅修改生成参数时复用现有提示词。
+- 外部 MCP 调用 `videoPrompt`。将上述合同放进 `args.input`，并在 `args.action` 传 `prepare`。随后可用返回的 `preparationId` 和当前导演稿执行 `inspect`。需要记录独立审核结果时，才将审核结果和同一份稿提交 `submit`。无需审核时直接在视频节点写入提示词；不要求审核号。审核结构、写回与交接见[视频审核规则](video-prompt-review.md#提交与交接)。
 
 **宿主兼容要求**：`mustHave`、`mustNotHave`、`references` 必须是 JSON 数组，`templateTags`、`sampling`、`creativeSelection` 为 JSON 对象，`duration` 为数字；不得发送成 `"[]"`、`"{}"` 或 `"10"`。工具现在对外暴露单一对象 Schema，分支互斥由服务器在解析时验证。参数校验失败属于工具调用失败，**不意味着视频已生成，也不应自动重试消耗算力**。
 
@@ -48,7 +48,7 @@
 4. **表演与画风**：表情条目提供可选的脸部细节和强度。取用前先判断人物此刻在做什么、因何反应。夸张或机械化的表演适用于剧本确有喜剧、卡通或机械动作的地方。画风和滤镜只提供视觉参考，景别、机位和剪辑由已确认的分镜决定。保留人物五官、衣着和道具结构。
 5. **喜剧节拍**：剧情有喜剧空间时，可适当把热梗或抽象创意写入剧本。借语气、空耳结构、反差或动作机制，**改写成该人物当场会说的话**；先让观众看到引出笑点的事件，再让人物开口。不要把 `phrase` 的原句生硬地套在不同人物身上。如果严肃镜头不适合幽默表达，不要为了加入热梗而打断剧情的发展。
 6. **组合检查**：在决定组合后调用 `checkCreativeSelection`。返回 `invalid` 时不得用错误 ID；返回 `review` 时先处理时长/题材/画风冲突；`ok` 也不等于镜头质量通过。
-7. **提示词编写与审核**：把所选模板各抽出**最少必要的可见事实**，经现有 `cinematicPromptCraft`、`h3-prompt-writing` 和独立提示词审核完成最终生成文本。画布使用已有节点 `nodeTools` 设置提示词、参考与执行；不修改画布 JSON，不绕过画布直接生成媒体。
+7. **提示词编写与审核**：把所选模板各抽出**最少必要的可见事实**，参考现有 `cinematicPromptCraft` 和 `h3-prompt-writing` 编写生成文本；独立提示词审核按需使用。画布使用已有节点 `nodeTools` 设置提示词、参考与执行；不修改画布 JSON，不绕过画布直接生成媒体。
 
 模板取用后，按 [成片审核](video-prompt-review.md) 核对本镜实际的声画、时长和参考。涉及故障或修复时沿用分镜已交代的部件、动作和结果，拍法模板只帮助观众看清这些事实。
 
@@ -64,7 +64,7 @@
 
 - **由 H3 视频生成工作流同时生成声音**，不额外接入独立 TTS 或声音克隆模型。使用已有视频节点，开启 `generateAudio=true`。
 - 统一调用 `searchVideoPromptTemplates` 的 `searchCreative(library:"voices")` 检索：音色 `timbre`、情绪 `emotion`、性格 `personality`、语速 `pace`、年龄感 `age`、外国人说中文感 `foreignAccent`、普通话地方口音 `dialect` 和发声方式 `delivery`。优先少量相关模板，避免为一位角色堆叠长串矛盾的形容词。
-- `draftVideoPrompt.voiceCast` 按本镜真实说话人填写 `speakerId`、`characterName` 和已确认的声线。按发声方式选择可选的 `sourceId`：画内说话用 `vs01`；旁白用 `vs02`，角色内心独白用 `vs03`，无实体的网文系统用 `vs04` 至 `vs07`。这几类都在说话人编号后写 `says in an off-screen voiceover`，并在该段 `</d>` 后立即说明对应画面人物嘴唇保持闭合；无人入画时写明空镜。音色、情绪和语速按本场另行选择。本片说话人按本次 `voiceCast` 的顺序从 `S1` 起编号。
-- 有对白且启用音轨时按 `speechPolicy` 使用约正常交谈语速 1.3 倍的默认值。特殊角色或场戏可传 `paceId` 或 `speedMultiplier`（二选一）。写清吐字、停顿和重音，实际语速与台词完整性在成片核对。
+- `draftVideoPrompt.voiceCast` 按本镜真实说话人填写 `speakerId`、`characterName` 和已确认的声线。按发声方式选择可选的 `sourceId`：画内说话用 `vs01`；旁白用 `vs02`，角色内心独白用 `vs03`，无实体的网文系统用 `vs04` 至 `vs07`。这几类都在说话人编号后写 `says in an off-screen voiceover`，并在该段 `</d>` 后立即说明对应画面人物嘴唇保持闭合；无人入画时写明空镜。音色、情绪和语速按本场另行选择。本次视频按实际首次发声顺序从 `S1` 连续编号，内部切镜不重置。
+- 有对白且启用音轨时按场戏需要选择语速。可用自然措辞描述，也可明确写 `speaks at about 1.0 times their usual conversational pace`、`speaks at about 1.1 times their usual conversational pace` 等倍数。数值仅为写法示例，不设统一默认值。角色需要指定语速时可传 `paceId` 或 `speedMultiplier`（二选一）；未指定时不自动补入倍数。实际语速与台词完整性在成片核对。
 - “外国人说中文感”和“带地方口音的普通话”只描述**原中文台词的发音习惯**，不能改写台词、编造发音错别字或冒称精确复现方言。两类口音不能同时应用于一个说话人。方言原文要由剧本提供，不能擅自把普通话改成方言。
 - `<Audio N>` 仅引用实际绑定的音频文件；声音模板绝不伪造音频引用。静默镜头不强制速度，未讲话角色保持闭嘴。生成视频后，通过成片质检实际听辨 H3 的发声效果；无法确认时标记为未验证。

@@ -179,6 +179,7 @@ export async function readCanvasPromptForInspection(input: z.infer<typeof inspec
   };
   return { format, setup: { duration: current.config.duration, references: [...labels(images.length, "Picture"), ...labels(videos.length, "Video"), ...labels(audios.length, "Audio")] },
     shot, audioEnabled: current.request.generateAudio !== false && workflow.hasVideoAudio === true,
+    contextWarnings: saved || videoQcContractSchema.safeParse(input).success ? [] : ["节点没有保存完整的已确认镜头合同；本次只检查现稿格式、参考及已知约束，不代表剧情全部核验通过。"],
     nodeDraft: { prompt: current.request.prompt, promptZh: current.promptZh }, revision: current.revision };
 }
 
@@ -282,7 +283,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   const numbered = (items: typeof approved, name: string) => items.map((item, index) => ({ ...item, label: `<${name} ${index + 1}>` }));
   return {
     shot, format, revision: current?.revision,
-    nodeDraft: current && { reviewId: current.request.reviewId, prompt: current.request.prompt, rawPrompt: current.rawPrompt, promptZh: current.promptZh, qcContract: current.request.qcContract },
+    nodeDraft: current && { reviewId: current.request.reviewId, prompt: current.request.prompt, rawPrompt: current.rawPrompt, promptZh: current.promptZh, qcContract: current.request.qcContract, request: current.request },
     templateTags, templateConditions, creativeContext, voiceContext, audioEnabled, generationRequest, snapshot,
     setup: {
       modelId: workflow.id, duration: seconds, ratio: aspect, mode: current?.config.mode ?? format,

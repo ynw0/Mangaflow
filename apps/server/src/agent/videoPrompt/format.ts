@@ -12,6 +12,7 @@ export type PromptInspectionContext = {
   audioEnabled?: boolean;
   nodeDraft?: { prompt: string; promptZh?: string };
   revision?: string;
+  contextWarnings?: string[];
 };
 
 const draftFields = {
@@ -244,5 +245,5 @@ export function inspectCurrentVideoPrompt(prepared: PromptInspectionContext) {
   if (!prepared.nodeDraft) throw new Error("请指定实际视频节点");
   const { prompt, promptZh } = prepared.nodeDraft;
   const { findings, warnings } = inspectDraft({ prompt, promptZh: promptZh ?? "" }, prepared);
-  return { status: findings.length ? "needsRevision" : "ok", findings, warnings, revision: prepared.revision };
+  return { status: findings.length ? "needsRevision" : "ok", findings, warnings: [...(prepared.contextWarnings ?? []), ...warnings], revision: prepared.revision };
 }

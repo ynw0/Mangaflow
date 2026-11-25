@@ -1,5 +1,6 @@
 import { parseFrontmatter, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import { z } from "zod";
 import { addUsage, emptyUsage, type SubAgentModel } from "@/agent/runtime/subAgent";
@@ -212,6 +213,10 @@ export function createVideoPromptTools(options: SubAgentModel & {
     // 现稿是唯一正文来源；可选独立审核也不能借机重新起稿或要求补造规划。
     const reviewCurrent = Boolean(existingNodeDraft && independentReview);
     if (!resumed && existingNodeDraft) {
+      if (existingNodeDraft.qcContract && !isDeepStrictEqual(existingNodeDraft.qcContract, prepared.generationRequest.qcContract)) {
+        return finish({ status: "needsRevision", written: false, reused: true, node: input.node,
+          findings: ["本次输入与节点已保存的剧情合同不同。请先核对上游定稿；未确认的合同变化不能覆盖现稿。"] });
+      }
       const checked = inspectCurrentVideoPrompt(prepared);
       preflightWarnings = checked.warnings;
       if (checked.findings.length || !independentReview) {
@@ -221,7 +226,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
           : { written: false, writeError: undefined };
         return finish({ ...checked, ...write, status: write.writeError ? "writeFailed" : checked.status,
           reused: true, node: input.node,
-          generationRequest: videoGenerationSchema.parse({ ...prepared.generationRequest, prompt: existingNodeDraft.prompt }),
+          generationRequest: videoGenerationSchema.parse({ ...(write.written ? prepared.generationRequest : existingNodeDraft.request), prompt: existingNodeDraft.prompt }),
           promptZh: existingNodeDraft.promptZh,
           nextAction: "复用当前节点；若合同或配置确有变化，先核对上游定稿并在原节点修改。" });
       }

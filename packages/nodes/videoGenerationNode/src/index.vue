@@ -183,6 +183,7 @@
 </template>
 
 <script setup lang="ts">
+import { applyPromptEdits } from "./promptEdits";
 import { computed, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
 import { ElButton, ElCard, ElSelect, ElOption, ElOptionGroup, ElLoading, ElDropdown, ElDropdownMenu, ElDropdownItem, ElMessageBox } from "element-plus";
 import { IconCameraAi, IconSparkles, IconArrowUp, IconPlayerStop, IconTransfer, IconMusic, IconLayersSubtract, IconScissors, IconPhotoScan, IconPlayerSkipBack, IconPlayerSkipForward } from "@tabler/icons-vue";
@@ -1123,20 +1124,30 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setPrompt",
-  description: "直接写入视频提示词。H3 按实际模式编写英文正文，保留对白原文；promptZh 为中文对照。修改现稿先读取 getPromptContext，并传 expectedRevision，避免覆盖用户的新修改。无需审核编号。qcContract 可保存已确认的剧情和台词供成片验收；局部修改未传时保留已有合同，明确传 null 才清除。此工具只保存，不生成。",
-  parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional(), reviewId: z.string().uuid().optional(), qcContract: videoQcContractSchema.nullable().optional(), expectedRevision: z.string().optional() }),
-  execute({ prompt: value, promptZh, reviewId, qcContract, expectedRevision }) {
+  description: "保存视频提示词。首次写稿或明确整稿重写传 prompt 和可选 promptZh；局部修改、语速等单变量对比优先传 edits（field、唯一原文 before、替换后 after）及 expectedRevision，不传整稿。程序只替换指定原文，其余字节、参考、参数及剧情合同不变；英文改动影响中文时同步替换 promptZh。无需审核编号。完整写稿可附已确认的 qcContract，明确传 null 才清除。只保存，不生成。",
+  parameters: z.strictObject({ prompt: z.string().optional(), promptZh: z.string().optional(), reviewId: z.string().uuid().optional(), qcContract: videoQcContractSchema.nullable().optional(), expectedRevision: z.string().optional(),
+    edits: z.array(z.strictObject({ field: z.enum(["prompt", "promptZh"]), before: z.string().min(1), after: z.string() })).min(1).max(64).optional() }),
+  execute({ prompt: value, promptZh, reviewId, qcContract, expectedRevision, edits }) {
+    if ((value === undefined) === (edits === undefined)) throw new Error("完整提示词 prompt 和局部替换 edits 必须且只能选择一种");
+    if (edits && (!expectedRevision || promptZh !== undefined || reviewId !== undefined || qcContract !== undefined)) {
+      throw new Error("局部替换须传 expectedRevision，不同时传整稿、中文全文、审核编号或剧情合同");
+    }
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");
     if (generating.value || (expectedRevision !== undefined && getPromptContext().revision !== expectedRevision)) {
       throw new Error("视频节点正在生成或已变化，请先读取当前节点，不要覆盖新内容");
     }
-    const changed = data.value.prompt !== value;
-    data.value.prompt = value;
-    data.value.promptZh = promptZh ?? (changed ? "" : data.value.promptZh);
+    const original = { prompt: data.value.prompt, promptZh: data.value.promptZh };
+    const patched = edits ? applyPromptEdits(original, edits) : undefined;
+    const nextPrompt = patched?.prompt ?? value!;
+    const changed = original.prompt !== nextPrompt;
+    data.value.prompt = nextPrompt;
+    data.value.promptZh = patched?.promptZh ?? promptZh ?? (changed ? "" : original.promptZh);
     data.value.reviewId = reviewId ?? ((qcContract !== undefined || (changed && data.value.qcContract)) ? undefined : data.value.reviewId);
     if (qcContract !== undefined) data.value.qcContract = qcContract ?? undefined;
-    data.value.promptModel = value.split("\n").map((text) => [{ type: "Write", text }]);
-    return { prompt: value, promptZh: data.value.promptZh, reviewId: data.value.reviewId };
+    if (changed || !edits) data.value.promptModel = nextPrompt.split("\n").map((text) => [{ type: "Write", text }]);
+    return { prompt: nextPrompt, promptZh: data.value.promptZh, reviewId: data.value.reviewId,
+      ...(edits && changed && original.promptZh && !edits.some(edit => edit.field === "promptZh")
+        ? { warning: "英文已局部修改，中文对照原样保留；若语义受影响，请同步局部修改中文。" } : {}) };
   },
 });
 

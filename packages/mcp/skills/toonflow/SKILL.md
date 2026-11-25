@@ -56,7 +56,7 @@ description: 通过 MangaFlow MCP 操作工作区、实时画布、节点、文�
 
 - H3 同期声音按剧本与人物表演编写；需要声音参考时可用 `searchVideoPromptTemplates` 的 `searchCreative` / `voices` 检索，模板 ID 均为可选。实际说话人按首次发声顺序从 S1 编号；`videoPrompt.prepare` 可返回声音参考。语速未指定时可以省略，明确要求倍数时在说话描述中表达，不写全局默认语速段落。保留台词原文，不虚构音频参考。
 - H3 提示词由当前 Agent 按 workflow 和实际 H3 模式直接编写。已有节点先读 `node:getConfig`、按需配置，再读 `node:getPromptContext`。`videoPrompt.prepare` 可辅助读取真实参考和制作依据。用 `node:setPrompt` 保存正文、中文对照和已确认的 `qcContract`（剧情及原话供成片验收），随后回读节点，用 `videoPrompt` 的 `inspectNode` 检查实际正文并自行复核。发现问题只修改对应内容。
-- 普通保存、检查与生成不需要 `reviewId`；明确需要独立审核时才使用 `prepare/inspect/submit`。局部修改使用当前正文和 `expectedRevision`，不重写其余内容；复制语速对比版本时固定其他变量。无实质问题保留原稿，不直接修改画布 JSON。
+- 普通保存、检查与生成不需要 `reviewId`；明确需要独立审核时才使用 `prepare/inspect/submit`。局部修改使用 `node:setPrompt` 的 `edits` 和当前 `expectedRevision`，不重写其余内容；语速等单变量对比以同一原稿为基础，固定参考及其他生成参数，支持时使用相同固定种子。无实质问题保留原稿，不直接修改画布 JSON。
 - 按已确认的分镜决定 `[Shot N]` 切点、动作和对白顺序；只有确有必要时使用导演规划数据，不强制为每个视频另填 `cinematicPlan`。台词按定稿保留文字及标点，核对每句实际可用时间。生成正文不写宿主流程、工具、审核、授权或质检说明。
 - 从模型列表和节点工具 schema 获取可用模型、比例、分辨率、时长和声音选项，不自行猜测供应商参数。
 - 生成前展示可审阅的对象、数量、完整提示词、真实参考、所选模型、规格和执行次数，并核对用户对该具体批次的算力授权；有可靠报价才报金额，否则说明消耗未知。批准后按范围配置并生成，不反复确认同一批次；改动或额外重试超出原授权时重新确认。返回“已开始”只代表任务已启动，不能宣布图片或视频已生成。

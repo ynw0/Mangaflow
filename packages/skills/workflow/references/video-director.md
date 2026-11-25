@@ -8,7 +8,7 @@
 
 ## draftVideoPrompt 工具参数
 
-主 Agent 可直接按本文件及对应 H3 规则写稿，通过 `node:setPrompt` 保存英文正文和中文对照。复杂镜头可选 `draftVideoPrompt`；外部 MCP 可用 `videoPrompt` 的 `prepare` 获取参考及真实配置，写入后用 `inspectNode` 检查现稿。模板检索按需使用。已有节点先 `node:getConfig`，有变化才 `node:setConfig`，再读取 `node:getPromptContext`。
+主 Agent 可直接按本文件及对应 H3 规则写稿，通过 `node:setPrompt` 保存英文正文和中文对照。复杂镜头可选 `draftVideoPrompt`；外部 MCP 可用 `videoPrompt` 的 `prepare` 获取参考及真实配置，写入后用 `inspectNode` 检查现稿。局部修改用 `node:setPrompt` 的 `edits` 按唯一原文替换，传当前 `expectedRevision`，不重新起稿。对比语速等单一变量时，从同一原稿建立各版本，只替换指定文字及对应中文，保持参考、时长、画幅、采样和种子等其他设置一致（支持固定种子时）。模板检索按需使用。已有节点先 `node:getConfig`，有变化才 `node:setConfig`，再读取 `node:getPromptContext`。
 
 本镜回应先前的一句话或事件时，重新读取相关分镜。把场次或镜号、说话人、原句或关键动作填入 `adjacentShots`，可以摘录更早的铺垫。已经交代过的起因供导演核对前后剧情是否衔接，本镜继续表现人物的回应以及事件造成的后果。
 

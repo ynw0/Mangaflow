@@ -19,7 +19,7 @@ metadata:
 
 只有用户明确要求排除旧剧情重新创作，或用户纠正后同一项已作废内容又被写回来时，才启用从零起稿的独立编剧会话；新写场戏定稿前按需委派专业对白精修属于局部改稿，不属于重新起稿。交给编剧本轮要求、明确需要保留的事实和选定的原文；只修改局部内容时，还要提供当前稿件中需要修改的片段。从混写剧情和设定的文档中只提取保留项。清理旧成果的范围另行确定。确需确认方向时，询问题材、基调或保留范围，避免把已作废的开场列进选项。
 
-references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前画布的文本节点。原画仍按原画审核规则执行。视频提示词可由主 Agent 直接写入视频节点，复核现稿后原位修订；不强制独立审核或重写。
+references 里写的 sidecar、POST 和 SQLite 不要调用。合同写进当前画布的文本节点。原画仍按原画审核规则执行。视频提示词由主 Agent 直接写入视频节点，复核现稿后用 `node:setPrompt` 的 `edits` 精确局部修改；不强制独立审核或重写。
 
 公共规则读 [common.md](references/common.md)。小说改编定调读 [adaptationStrategy.md](references/adaptationStrategy.md)（遵循适用的创作原则，不机械套用外部资料中的固定数值）。原创或重写剧情先按 [episodeScript.md](references/episodeScript.md) 写完整场戏、复核剧情，按需精修对白并核对前后差异，再做分镜。分场情绪与注意事项读 [directorPlan.md](references/directorPlan.md)。审核分流及原画通用审核顺序见 [prompt-review.md](references/prompt-review.md)。关于如何在画布上记录制作合同，阅读 [canvas-use.md](references/canvas-use.md)。每阶段按当前运行模式和已有授权推进。普通/半自动确认规则见 canvas-use「逐步确认关卡」。开始某一阶段前，只读该阶段的参考。跨 Skill 用 `skillOperator` 先 `list`，再以目标 `name`、实际 `scope` 和目标 Skill 内的 `path` 调用 `read`。例如读取 H3 全参考格式时，用 `name: "h3-prompt-writing"`、`path: "references/ref-en.txt"`。
 

@@ -53,8 +53,8 @@ export function createVideoPromptTools(options: SubAgentModel & {
   const initial: ToolDefinition = {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "可选专职导演写稿：根据确认的镜头合同与实际素材编写 H3 中英文提示词。已有节点传 node，node.write=true 可直接保存后检查。现稿默认复用；局部修改直接使用 node:setPrompt。只有明确要求重写整份提示词才传 regenerate=true。仅在 independentReview=true 或 reReview=true 时调用独立审核模型；有画布现稿时直接审核该稿，不重新编写。不启动生成。",
-    promptSnippet: "主 Agent 可按导演及 H3 Skill 直接编写并保存视频提示词；复杂镜头可选 draftVideoPrompt。局部修改读取画布现稿后原位修改，使用 inspectCanvasVideoPrompt 检查实际正文。",
+    description: "可选专职导演写稿：根据确认的镜头合同与实际素材编写 H3 中英文提示词。已有节点传 node，node.write=true 可直接保存后检查。现稿默认复用；局部修改、单变量对比不得委派重新写稿，使用 node:setPrompt 的 edits 精确替换。只有明确要求重写整份提示词才传 regenerate=true。仅在 independentReview=true 或 reReview=true 时调用独立审核模型；有画布现稿时直接审核该稿，不重新编写。不启动生成。",
+    promptSnippet: "主 Agent 可按导演及 H3 Skill 直接编写并保存视频提示词；复杂镜头可选 draftVideoPrompt。局部修改使用 node:setPrompt 的 edits，不调用导演写稿；按需要用 inspectCanvasVideoPrompt 检查实际正文。",
     parameters: { type: "object", ...videoPromptToolSchema },
     prepareArguments(raw) {
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("draftVideoPrompt 需要单个镜头合同对象");

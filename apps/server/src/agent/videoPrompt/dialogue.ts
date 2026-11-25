@@ -47,7 +47,7 @@ export function inspectLockedDialogue(timeline: string, lockedDialogue?: readonl
 }
 
 export function inspectDialogue(timeline: string, lockedDialogue?: readonly string[], audioEnabled?: boolean,
-  voiceCast?: readonly { speakerId: string; characterName?: string; sourceId?: string }[]) {
+  voiceCast?: readonly { speakerId: string; characterName?: string; sourceId?: string }[], ref2va = false) {
   const findings: string[] = [];
   const warnings: string[] = [];
   const allBlocks = readDialogueBlocks(timeline);
@@ -90,10 +90,14 @@ export function inspectDialogue(timeline: string, lockedDialogue?: readonly stri
       }
       // 现场人物在镜外说话也可能标有 off-screen，须和叙事画外音区分。
       if (speakerIds.some(id => voiceoverSources.has(sources.get(id)?.sourceId ?? "")) || /\bvoice[- ]?over\b/.test(delivery)) {
+        // 只看紧挨本句说话人编号的主体引用，前面的画面动作可以正常引用同一角色。
+        if (ref2va && /<Subject [1-9]\d*>\s*$/.test(preceding.slice(0, speakerMatch.index))) {
+          findings.push(`${label}把画面主体直接标成了画外音的发声者。请分开写主体的可见动作和实际声源，由角色的内心声音、旁白或系统声沿用本句编号和原话。`);
+        }
         if (!originalDelivery.includes(voiceoverPhrase)) findings.push(`${label}须在说话人编号后使用固定短语 ${voiceoverPhrase}。`);
         // 只读本段结束后的第一句，不能借用下一句台词或下一镜的闭口说明。
         const after = timeline.slice(previousBlockEnd, allBlocks[index + 1]?.index);
-        const firstSentence = after.trimStart().replace(/^[.!?。！？]["'”’]?\s*/, "").split(/[.!?。！？\n\[<]/, 1)[0] ?? "";
+        const firstSentence = after.trimStart().replace(/^[.!?。！？]["'”’]?\s*/, "").split(/[.!?。！？\n\[]|<(?!Subject [1-9]\d*>)/, 1)[0] ?? "";
         const closed = /\b(?:lips?|mouths?)\b[^;:.!?]*?\b(?:closed|shut|sealed)\b/i.test(firstSentence);
         const emptyFrame = /\bno\s+(?:one|people|persons?|characters?|faces?)\b[^;:.!?]*?\b(?:visible|on[- ]screen|in (?:the )?(?:frame|shot)|appears?)\b/i.test(firstSentence);
         if (!closed && !emptyFrame) findings.push(`${label}的 </d> 后须立即说明对应画面人物在发声时嘴唇保持闭合；空镜写明无人入画。`);

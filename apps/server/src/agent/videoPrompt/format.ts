@@ -125,7 +125,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string }, prepar
     if (subjects.some(id => !retention.includes(`<Subject ${id}>`))) findings.push("retention_analysis 必须覆盖每个已定义 Subject。");
   }
   if ((prompt.match(/<\/?d\b[^>]*>/gi)?.length ?? 0) !== (timeline.match(/<\/?d\b[^>]*>/gi)?.length ?? 0)) findings.push("对白只能出现在镜头时间轴中。");
-  const dialogue = inspectDialogue(timeline, prepared.shot.lockedDialogue, prepared.audioEnabled, prepared.shot.voiceCast);
+  const dialogue = inspectDialogue(timeline, prepared.shot.lockedDialogue, prepared.audioEnabled, prepared.shot.voiceCast, format === "h3Ref2va");
   findings.push(...dialogue.findings);
   if (!/\p{Script=Han}/u.test(promptZh)) findings.push("提供与英文事实一致的简体中文对照。");
   // 跳过对白和引号原文，保留正文行号供定向返修。

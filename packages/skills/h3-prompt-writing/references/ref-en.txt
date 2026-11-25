@@ -248,7 +248,7 @@ When editing or continuing an original video, cite `<Video N>` naturally where i
 
 ### 5.4 Speakers, Audio Sources, and Dialogue
 
-The speaker-ID and `<d>` formats follow the base guide. When a referenced subject speaks, use `<Subject N> (Sx)`. If the same subject speaks outside the frame, keep both identifiers and describe where the voice comes from and who hears it. For a voice without a defined subject, identify the source and use its stable `(Sx)`.
+The speaker-ID and `<d>` formats follow the base guide. For speech physically produced by a referenced subject, use `<Subject N> (Sx)`, including live speech from outside the frame. For inner speech, describe the visible subject’s action separately, then name the character’s inner voice as the source before `(Sx)`. Keep the character’s established voice and speaker ID. For narration or a disembodied system, name that source before its ID. Immediately after the dialogue, describe the corresponding visible subject’s closed mouth. For a voice without a defined subject, identify the source and use its stable `(Sx)`.
 
 For a cue in directly reused music or a complete soundtrack, identify the actual `<Audio N>` and where the cue falls in that audio. In MangaFlow, `<d>` marks a line or lyric the target video must perform. A cue in existing audio needs neither an added speaker nor a new `<d>` block.
 

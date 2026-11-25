@@ -11,7 +11,7 @@ export type VoiceTemplate = {
   speedMultiplier?: number;
 };
 type VoiceRow = [id: string, title: string, descriptionZh: string, englishCue: string, tags: string, speedMultiplier?: number];
-export const defaultH3SpeechCue = "speaks at about 1.3 times their usual conversational pace, with clear words and pauses where they make sense in the exchange";
+const h3SpeechCue13 = "speaks at about 1.3 times their usual conversational pace, with clear words and pauses where they make sense in the exchange";
 
 const rows: Record<VoiceCategory, VoiceRow[]> = {
   timbre: [
@@ -77,7 +77,7 @@ const rows: Record<VoiceCategory, VoiceRow[]> = {
     ["vp11", "朴实务实", "咬字松弛，重音落在眼下要谈的事上", "relaxed articulation with stress on what matters in the exchange", "务实,朴实,口语"],
   ],
   pace: [
-    ["vr01", "默认自然偏快", "比普通对话略快，换气自然", defaultH3SpeechCue, "默认,1.3倍,自然", 1.3],
+    ["vr01", "自然偏快（1.3倍）", "比普通对话略快，换气自然", h3SpeechCue13, "默认,1.3倍,自然", 1.3],
     ["vr02", "轻快", "说话轻快，节奏紧凑，停顿自然", "lively quick cadence with natural breath gaps", "轻快,欢快,节奏", 1.15],
     ["vr03", "紧急情况下的快速讲话", "明显加速但不含混", "urgently fast yet intelligible delivery", "急促,紧张,快语", 1.5],
     ["vr04", "沉稳慢速", "慢一点、停顿有分量", "deliberate measured cadence and weighted pauses", "慢速,沉稳,权威", 0.9],
@@ -151,7 +151,6 @@ export const voiceTemplates: VoiceTemplate[] = voiceCategories.flatMap(category 
     id, title, category, descriptionZh, englishCue, tags: tags.split(","),
     ...(speedMultiplier === undefined ? {} : { speedMultiplier }),
   })));
-export const DEFAULT_H3_SPEECH_RATE = 1.3;
 export type VoiceCastRole = {
   speakerId: string;
   characterName: string;
@@ -198,24 +197,24 @@ export function compileVoiceCast(cast: readonly VoiceCastRole[]) {
       || /系统|机械|广播|机器|AI|机器人|电子/.test(`${role.characterName} ${voiceIdentity ?? ""}`);
     if (machineVoice && !machineRole) warnings.push(`${role.speakerId} 选用了机械/合成音色；仅适用于系统、广播或机器角色。`);
     const pace = selected.find(item => item.category === "pace");
-    const speedMultiplier = role.speedMultiplier ?? pace?.speedMultiplier ?? DEFAULT_H3_SPEECH_RATE;
+    const speedMultiplier = role.speedMultiplier ?? pace?.speedMultiplier;
     const identityCues = selected.filter(item => ["timbre", "age", "personality", "foreignAccent", "dialect"].includes(item.category)).map(item => item.englishCue);
     const performanceCues = selected.filter(item => ["emotion", "delivery"].includes(item.category)).map(item => item.englishCue);
-    const paceCue = speedMultiplier === DEFAULT_H3_SPEECH_RATE
-      ? defaultH3SpeechCue
-      : [pace?.englishCue, `speaks at about ${speedMultiplier} times normal conversational pace with clear articulation`].filter(Boolean).join("; ");
+    const paceCue = role.speedMultiplier !== undefined
+      ? `speaks at ${Number.isInteger(role.speedMultiplier) ? role.speedMultiplier.toFixed(1) : role.speedMultiplier}x normal conversational speed with clear articulation`
+      : pace?.englishCue;
     const cues = [source?.englishCue, voiceIdentity, ...identityCues, ...performanceCues, paceCue].filter(Boolean);
     return {
       speakerId: role.speakerId, characterName: role.characterName,
       ...(voiceIdentity ? { voiceIdentity } : {}),
       ...(source ? { source: { id: source.id, title: source.title, cue: source.englishCue } } : {}),
-      templateIds: selected.map(item => item.id), speedMultiplier, identityCues, performanceCues,
+      templateIds: selected.map(item => item.id), speedMultiplier, paceCue, identityCues, performanceCues,
       promptCue: `${role.characterName} (${role.speakerId}): ${cues.join("; ")}.`
     };
   });
   return {
     status: errors.length ? "invalid" as const : warnings.length ? "review" as const : "ok" as const,
-    errors, warnings, defaultSpeedMultiplier: DEFAULT_H3_SPEECH_RATE, roles,
+    errors, warnings, roles,
     guidance: "不同镜头应沿用角色已经确定的声线。只为本次交谈选择合适的语气和语速，根据人物想表达的意思安排停顿和重音。台词、接话顺序、说话人以及谁能听见，均以定稿为准。口音只改变原有台词的发音方式，不改变台词内容。音频引用必须使用实际素材。",
   };
 }

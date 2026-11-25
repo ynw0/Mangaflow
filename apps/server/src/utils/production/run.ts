@@ -6,7 +6,7 @@ import { downloadOutput, probeComfy, readNodeChoices, submitWorkflow, uploadInpu
 import { fail, isWorkflowEnabled, readProduction } from "@/utils/production/config";
 import { findWorkflow, imageReferenceRange, type WorkflowEntry } from "@/utils/production/catalog";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
-import { captureVideoReview, requireVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
+import { captureVideoReview, verifyReviewFile } from "@/utils/production/videoReviews";
 import { findH3Checkpoint, isH3CheckpointName, validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
 import { applyH3Options, effectiveH3Options } from "@/utils/production/h3Advanced";
 import { checkMediaBudget, reserveMediaBudget } from "@/utils/media/budget";
@@ -344,10 +344,9 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   }
   const prepared = await prepareComfyWorkflow(options);
   const { entry, workflow, context, host, lockedLoraNodes } = prepared;
-  // 自动化先验审再启动主机；人工仍使用同一工作流和额度校验。
+  // 保留参考素材快照与上传时的完整性校验；审核记录不再是生成前置条件。
   const snapshot = mediaType === "video" && entry.bindings.promptFormat && !options.manual
     ? await captureVideoReview(directory, prepared, signal) : undefined;
-  if (snapshot) await requireVideoReview(request.reviewId, snapshot);
   const boundDuration = prepared.inputs.find(input => input.source === "duration")?.value;
   const duration = typeof boundDuration === "number" ? boundDuration : context.duration;
   const generationId = mediaType === "video" ? request.generationId : undefined;

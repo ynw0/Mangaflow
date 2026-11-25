@@ -1,6 +1,6 @@
 import { realpath } from "@toonflow/file";
 import { z } from "zod";
-import type { MediaGenerationRequest, QcRequirement } from "@toonflow/tools-scaffold/runtime";
+import { videoQcContractSchema, type MediaGenerationRequest, type QcRequirement } from "@toonflow/tools-scaffold/runtime";
 import { readApprovedVideoReview } from "@/utils/production/videoReviews";
 import { cinematicPlanSchema } from "@/utils/production/videoPlan";
 import { readDialogueBlocks } from "@/agent/videoPrompt/dialogue";
@@ -26,31 +26,37 @@ export function getShotRequirements(shot: z.infer<typeof shotSchema>): QcRequire
 }
 
 export async function readQcRequirements(directory: string, request?: MediaGenerationRequest): Promise<QcRequirement[]> {
-  if (!request?.reviewId) return [];
-  const review = await readApprovedVideoReview(request.reviewId);
-  const root = await realpath(directory);
-  if (request.providerId !== "comfyui" || review.snapshot.directory !== (process.platform === "win32" ? root.toLowerCase() : root)
-    || review.snapshot.prompt !== request.prompt) {
-    throw new Error("成片生成记录与审核合同不一致，无法进行剧情验收");
+  if (!request) return [];
+  // 新节点直接保存已确认的镜头合同，无需独立审核或额外记录编号。
+  let shot: z.infer<typeof shotSchema> | undefined = request.qcContract && videoQcContractSchema.parse(request.qcContract);
+  let dialoguePlan: z.infer<typeof cinematicPlanSchema>["dialogue"] | undefined;
+  if (!shot && request.reviewId) {
+    const review = await readApprovedVideoReview(request.reviewId).catch(() => undefined);
+    const root = await realpath(directory);
+    if (review && request.providerId === "comfyui"
+      && review.snapshot.directory === (process.platform === "win32" ? root.toLowerCase() : root)
+      && review.snapshot.prompt === request.prompt) {
+      const oldShot = shotSchema.safeParse(review.audit.shot);
+      if (oldShot.success) shot = oldShot.data;
+      const plan = cinematicPlanSchema.safeParse(review.audit.cinematicPlan);
+      if (plan.success) dialoguePlan = plan.data.dialogue;
+    }
   }
-  const shot = shotSchema.parse(review.audit.shot);
-  const plan = review.audit.cinematicPlan === undefined ? undefined : cinematicPlanSchema.parse(review.audit.cinematicPlan);
-  // 台词从已锁定合同取得，早期审核记录以当时审核的对白为准。计划秒数仅供定位。
-  const dialoguePlan = plan?.dialogue;
-  const lines = shot.lockedDialogue ?? (dialoguePlan ? readDialogueBlocks(review.snapshot.prompt).map(block => block[1]!) : []);
-  if (dialoguePlan && dialoguePlan.length !== lines.length) {
-    throw new Error("已经审核的对白计划与台词段数不一致，无法核对成片");
-  }
+  // 无合同或旧审核已失效时，以实际生成正文为验收依据，不冒充已确认的剧情。
+  const promptLines = readDialogueBlocks(request.prompt).map(block => block[1]!.replace(/^\s*\[[^\]]+\]\s*/, "").trim());
+  const lines = shot?.lockedDialogue ?? (request.generateAudio === false ? [] : promptLines);
+  if (dialoguePlan?.length !== lines.length) dialoguePlan = undefined;
   const dialogue = lines.map((text, index): QcRequirement => {
     const timing = dialoguePlan?.[index];
     const cue = timing ? `说话人 ${timing.speakerIds.join("、")}，可在 ${timing.startSeconds}–${timing.endSeconds} 秒附近查找。` : "";
     return {
       id: `dialogue.${index}`,
-      source: shot.lockedDialogue ? `lockedDialogue[${index}]` : `prompt.dialogue[${index}]`,
+      source: shot?.lockedDialogue ? `lockedDialogue[${index}]` : `prompt.dialogue[${index}]`,
       domain: "audio",
       text: `核对说话人、原话及其完整性。原台词：${text}。${cue}`,
     };
   });
   // 用户确认的表演、运镜和镜尾约束已在镜头合同中，导演计划不再额外生成验收项。
-  return [...getShotRequirements(shot), ...dialogue];
+  const visual: QcRequirement[] = shot ? getShotRequirements(shot) : request.prompt.trim() ? [{ id: "prompt.visual", source: "prompt", domain: "video", text: "仅核对以下实际生成提示词中的可见事实、动作、构图与连续性：\n" + request.prompt }] : [];
+  return [...visual, ...dialogue];
 }

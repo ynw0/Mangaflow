@@ -99,12 +99,12 @@ export function getPromptOutline(format: Prepared["format"]) {
   return sections.map(section => section + ":").join("\n");
 }
 
-export function inspectDraft(draft: { prompt: string; promptZh: string; cinematicPlan: DraftCinematicPlan }, prepared: Prepared) {
+export function inspectDraft(draft: { prompt: string; promptZh: string; cinematicPlan?: DraftCinematicPlan }, prepared: Prepared) {
   const { prompt, promptZh } = draft;
   const { format, setup } = prepared;
   const expected = format === "h3Ref2va" ? refSections : baseSections;
   const headings = [...prompt.matchAll(/^[\t ]*(subject_definitions|summary|retention_analysis|detailed_description|integrated_multimodal_description|overall_soundscape|non_diegetic_music)[\t ]*:/gm)];
-  const findings: string[] = inspectVideoPlan(draft.cinematicPlan, setup.duration);
+  const findings: string[] = draft.cinematicPlan ? inspectVideoPlan(draft.cinematicPlan, setup.duration) : [];
   if (headings.length !== expected.length || headings.some((heading, index) => heading[1] !== expected[index])) {
     findings.push(`按实际模式完整输出这些字段：${expected.join("、")}。`);
     return { findings, warnings: [] };
@@ -169,7 +169,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
       findings.push("用户明确要求单镜到底，但正文包含多个镜头；需保持一个 [Shot 1]。");
     // Historical reviewed drafts may have no shots plan. New planned shots must agree with
     // the actual [Shot N] markers, cut times and the whole-clip time axis.
-    const plannedShots = draft.cinematicPlan.shots;
+    const plannedShots = draft.cinematicPlan?.shots;
     if (plannedShots?.length) {
       if (plannedShots.length !== shotMarkers.length) {
         findings.push(`cinematicPlan.shots 规划 ${plannedShots.length} 镜，提示词实际 ${shotMarkers.length} 个 [Shot N]，数量不一致。`);
@@ -227,5 +227,14 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
     // 用词提示由审核员结合合同判断，避免词串命中触发整稿自动返修。
     dialogue.warnings.push(`英文正文第 ${line} 行含「${match[0]}」。${correction}`);
   }
+  if (!draft.cinematicPlan && /<d>/.test(timeline)) dialogue.warnings.push("未提供导演时间规划；请根据正文核对每句开口、说完及停顿，实际完整性在成片听辨。无需补造规划。");
   return { findings, warnings: dialogue.warnings };
+}
+
+/** 检查节点当前正文，不调用模型，也不依赖历史审核或临时导演稿。 */
+export function inspectCurrentVideoPrompt(prepared: Prepared) {
+  if (!prepared.nodeDraft) throw new Error("请指定实际视频节点");
+  const { prompt, promptZh } = prepared.nodeDraft;
+  const { findings, warnings } = inspectDraft({ prompt, promptZh: promptZh ?? "" }, prepared);
+  return { status: findings.length ? "needsRevision" : "ok", findings, warnings, revision: prepared.revision };
 }

@@ -1,4 +1,3 @@
-import { DEFAULT_H3_SPEECH_RATE, defaultH3SpeechCue } from "@/agent/creativeKnowledge/voiceTemplates";
 import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
 
 export const endingReserveSeconds = 0.2;
@@ -9,15 +8,14 @@ const voiceoverSources = new Set(["vs02", "vs03", "vs04", "vs05", "vs06", "vs07"
 export function getVideoSpeechPolicy(audioEnabled: boolean) {
   return {
     audioEnabled,
-    defaultSpeechRateMultiplier: DEFAULT_H3_SPEECH_RATE,
-    defaultSpeechCue: defaultH3SpeechCue,
+    paceGuidance: "语速按人物、情绪及台词时长安排。未指定时可省略；明确要求倍数时，可在说话动作中写 at 1.1x normal conversational speed 等。倍数是自然语言引导，不保证精确执行。",
     endingReserveSeconds,
     voiceover: {
       phrase: voiceoverPhrase,
       identity: "所有 H3 模式中，画外音、旁白、角色内心独白和无实体的网文系统对白在 (Sx) 后使用 phrase 原文。每段 </d> 后紧接一句，说明对应画面人物在这段发声期间嘴唇保持闭合。空镜写明无人入画。现场人物在构图外正常开口时写实际方向和听者。内心独白与同一角色的现场对白共用声线及编号。",
       timing: "由模型生成的画外发声纳入 cinematicPlan.dialogue。现场对白可以被同场人物听见，听觉范围按剧本写。只给观众听的旁白与独白不改变画中人的反应。角色的口型按实际发声和可见范围写。提示音写作音效，实际参考音频才使用 <Audio N>。",
     },
-    note: "有同期对白时，在时间轴中统一说明整段视频的默认语速。角色另有指定语速时单独说明。保留剧本原话，并记录开口、说完、停顿的时间及必须先完成的动作。endingReserveSeconds 是镜头结束前预留时间的参考值，具体安排应符合这场戏的需要。抢话时保留各自的 <d> 和原话，关键内容仍需听清。按字数估算的时长仅用于提示风险，实际说话效果以成片为准。",
+    note: "有同期对白时按实际表演需要在对白标签外描述语速；未指定不必写，不另设全局语速段落。保留剧本原话，并记录开口、说完、停顿的时间及必须先完成的动作。endingReserveSeconds 是镜头结束前预留时间的参考值，具体安排应符合这场戏的需要。抢话时保留各自的 <d> 和原话，关键内容仍需听清。按字数估算的时长仅用于提示风险，实际说话效果以成片为准。",
   };
 }
 
@@ -25,12 +23,12 @@ export function readDialogueBlocks(timeline: string) {
   return [...timeline.matchAll(/<d>((?:(?!<\/?d>)[\s\S])*?)<\/d>/g)];
 }
 
-export function inspectDialogue(timeline: string, duration: number, plan: DraftCinematicPlan, lockedDialogue?: readonly string[], audioEnabled?: boolean,
+export function inspectDialogue(timeline: string, duration: number, plan: DraftCinematicPlan | undefined, lockedDialogue?: readonly string[], audioEnabled?: boolean,
   voiceCast?: readonly { speakerId: string; characterName?: string; sourceId?: string }[]) {
   const findings: string[] = [];
   const warnings: string[] = [];
   const allBlocks = readDialogueBlocks(timeline);
-  if (audioEnabled === false && (allBlocks.length || plan.dialogue.length)) {
+  if (audioEnabled === false && (allBlocks.length || plan?.dialogue.length)) {
     findings.push("同期音轨已关闭，稿件却安排了发声。请核对音轨与制作合同；已批准的台词须保留。");
   }
   // 只按本镜锁定原话逐句核对，邻镜引用与画面文字不参与。
@@ -41,7 +39,7 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
     || (timeline.match(/<\/?d\b[^>]*>/gi)?.length ?? 0) !== allBlocks.length * 2) {
     findings.push("对白 <d> 标签须成对闭合且不能嵌套。");
   }
-  if (allBlocks.length !== plan.dialogue.length) {
+  if (plan && allBlocks.length !== plan.dialogue.length) {
     findings.push(`正文有 ${allBlocks.length} 段 <d>，cinematicPlan.dialogue 有 ${plan.dialogue.length} 项，请按出现顺序逐句对应。`);
   }
   let previousBlockEnd = 0;
@@ -100,8 +98,8 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
       }
     }
 
-    const line = plan.dialogue[index];
-    if (!line) continue;
+    const line = plan?.dialogue[index];
+    if (!line || !plan) continue;
     if (speakerIds.length && speakerIds.join(",") !== line.speakerIds.join(",")) {
       findings.push(`${label}正文说话人为 (${speakerIds.join(",")})，规划为 (${line.speakerIds.join(",")})，请核对角色。`);
     }
@@ -123,7 +121,7 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
         findings.push(`${label}须等节拍 ${line.afterBeat}（${beat.action}）在 ${beat.endSeconds} 秒完成，规划却在 ${line.startSeconds} 秒开口。`);
       }
     }
-    // ACT: 字速是保守估算。句内停顿按导演计划单独计入，1.3 倍是表演指令。
+    // ACT: 字速是保守估算。句内停顿按导演计划单独计入，实际语速由表演和成片决定。
     const text = language?.[2] ?? "";
     const speechSeconds = (text.match(/\p{Script=Han}/gu)?.length ?? 0) / 4
       + (text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length ?? 0) / 3;

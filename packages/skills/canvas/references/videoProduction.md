@@ -119,11 +119,11 @@ H3 提示词开头用 `<Subject N>` / `<Picture N>` 定义主体、场景、道�
 
 ### 成片质检设置
 
-视频节点 getConfig 返回 qcOverride、qcDefaults、qcChoices；refreshQcChoices=true 只读刷新，不启动 GPU。setConfig 中 qcOverride=null 继承系统，{mode:"off"} 关闭自动 QC，{mode:"custom",qcMethod,qcLevel,qcTrigger,videoQcModelId,audioQcModelId} 自定义。只用用户已启用的实际模型 ID；Gemma 视听选择同一完整文件标识。用户未要求时不更改。当现有提示词、格式、实际参考、时长、画幅及音轨一致时，调整权重、LoRA、采样、种子、分辨率、生成主机或质检策略可保留原审核号。新增费用或超出次数仍按本次方案确认。手动质检默认采用该成片记录的策略，明确重新验收可传 qcOverride，不重复调用、不得跳过验收。
+视频节点 getConfig 返回 qcOverride、qcDefaults、qcChoices；refreshQcChoices=true 只读刷新，不启动 GPU。setConfig 中 qcOverride=null 继承系统，{mode:"off"} 关闭自动 QC，{mode:"custom",qcMethod,qcLevel,qcTrigger,videoQcModelId,audioQcModelId} 自定义。只用用户已启用的实际模型 ID；Gemma 视听选择同一完整文件标识。用户未要求时不更改。当现有提示词、格式、实际参考、时长、画幅及音轨一致时，调整权重、LoRA、采样、种子、分辨率、生成主机或质检策略可保留原提示词正文。新增费用或超出次数仍按本次方案确认。手动质检默认采用该成片记录的策略，明确重新验收可传 qcOverride，不重复调用、不得跳过验收。
 
 ### H3 高级采样（兼容二采）
 
-getConfig.models[].h3Advanced 声明支持及原工作流默认值；getConfig({refreshComfyChoices:true}) 返回当前 ComfyUI 的模型、LoRA、samplerChoices、schedulerChoices，不开机。setConfig 可整体替换 h3Options（loraStrength、extraLoras: [{name,strength}] 最多3项按顺序加载、sampler、scheduler、videoShift、audioShift）；null 恢复高级默认。loraName="" 仅关闭主 LoRA；要关闭全部也清除 extraLoras。用户未要求不得更改。实验预设只用于用户明确选择；不自动叠加 Turbo 和加速 LoRA。仅改变这些高级采样参数时，按实际工作流校验后沿用原提示词审核号。替换实际参考、改变提示词格式、正文、时长、画幅或音轨时重新审核。
+getConfig.models[].h3Advanced 声明支持及原工作流默认值；getConfig({refreshComfyChoices:true}) 返回当前 ComfyUI 的模型、LoRA、samplerChoices、schedulerChoices，不开机。setConfig 可整体替换 h3Options（loraStrength、extraLoras: [{name,strength}] 最多3项按顺序加载、sampler、scheduler、videoShift、audioShift）；null 恢复高级默认。loraName="" 仅关闭主 LoRA；要关闭全部也清除 extraLoras。用户未要求不得更改。实验预设只用于用户明确选择；不自动叠加 Turbo 和加速 LoRA。仅改变高级采样参数时保留原提示词。实际参考、格式、时长、画幅或音轨变化时，核对现稿是否仍适用，只修改受影响内容。
 
 
 ## 成片归档与废片清理

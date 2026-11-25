@@ -47,6 +47,19 @@ describe("MangaFlow 视频制作 Skill 合同一致性", () => {
     expect(episode).toContain("已有定稿仅需拆镜时不启动该步骤");
   });
 
+  test("视频普通路径先保存画布现稿，不再强制审核或固定语速", async () => {
+    const workflow = await skill("workflow/SKILL.md");
+    const director = await skill("workflow/references/video-director.md");
+    const review = await skill("workflow/references/video-prompt-review.md");
+    const voice = await skill("workflow/references/creativeKnowledge.md");
+    expect(workflow).toContain("先保存到画布");
+    expect(workflow).not.toContain("独立审核通过后交付");
+    expect(director).toContain("不需要全局语速段落");
+    expect(director).toContain("不代表需要重写整稿");
+    expect(review).not.toContain("覆盖整段的默认语速说明");
+    expect(voice).not.toContain("1.3 倍的默认值");
+  });
+
   test("画布指导的缺省比例与统一视频工作流的配置一致", async () => {
     const text = await skill("canvas/references/videoProduction.md");
     expect(text).toContain("默认 `16:9`");

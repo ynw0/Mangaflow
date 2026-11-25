@@ -6,7 +6,7 @@ import { absurdPrompts } from "./absurdPrompts";
 import { expressionTemplates } from "./expressionTemplates";
 import { visualStyles } from "./visualStyles";
 import { narrativeTemplates } from "./narrativeTemplates";
-import { voiceTemplates, voiceCategories, compileVoiceCast, DEFAULT_H3_SPEECH_RATE } from "./voiceTemplates";
+import { voiceTemplates, voiceCategories, compileVoiceCast } from "./voiceTemplates";
 
 const signal = new AbortController().signal;
 
@@ -48,7 +48,7 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     }
   });
 
-  test("声音提示词111条覆盖9维度，分角色独立选择，默认1.3倍并检查口音冲突", () => {
+  test("声音提示词111条覆盖9维度，分角色独立选择，未指定语速不补默认值并检查口音冲突", () => {
     expect(voiceTemplates).toHaveLength(111);
     expect(searchCreativeKnowledge({ library: "voices", query: "细窄冷亮", tags: [], limit: 3 })[0]?.id).toBe("vt11");
     expect(searchCreativeKnowledge({ library: "voices", query: "清冷明亮、共鸣集中的中高音", tags: [], limit: 3 })[0]?.id).toBe("vt11");
@@ -65,13 +65,18 @@ describe("创作知识库：热梗、搞怪、表情与画风", () => {
     expect(searchCreativeKnowledge({ library: "narrative", query: "下一集悬念锚点", tags: [], limit: 3 })[0]?.id).toBe("n22");
     for (const category of voiceCategories) expect(voiceTemplates.filter(t => t.category === category).length).toBeGreaterThanOrEqual(6);
     expect(new Set(voiceTemplates.map(t => t.id)).size).toBe(voiceTemplates.length);
-    expect(DEFAULT_H3_SPEECH_RATE).toBe(1.3);
     expect(searchCreativeKnowledge({library:"voices",query:"外国人说中文",tags:[],limit:10}).length).toBeGreaterThan(0);
     expect(searchCreativeKnowledge({library:"voices",query:"四川",tags:[],limit:5})[0]?.title).toContain("四川");
     const cast = compileVoiceCast([{speakerId:"S1",characterName:"主角",timbreId:"vt01",personalityId:"vp01"},
       {speakerId:"S2",characterName:"债主",timbreId:"vt03",dialectId:"vd01",emotionId:"ve07",paceId:"vr04"}]);
     expect(cast.status).toBe("ok");
-    expect(cast.roles[0]?.speedMultiplier).toBe(1.3);
+    expect(cast.roles[0]?.speedMultiplier).toBeUndefined();
+    expect(cast.roles[0]?.paceCue).toBeUndefined();
+    expect(cast.roles[0]?.promptCue).not.toContain("1.3");
+    const explicit = compileVoiceCast([{speakerId:"S1",characterName:"主角",speedMultiplier:1.0},{speakerId:"S2",characterName:"配角",speedMultiplier:1.1},{speakerId:"S3",characterName:"旁人",paceId:"vr01"}]);
+    expect(explicit.roles[0]?.paceCue).toContain("1.0x");
+    expect(explicit.roles[1]?.paceCue).toContain("1.1x");
+    expect(explicit.roles[2]?.speedMultiplier).toBe(1.3);
     expect(cast.roles[1]?.speedMultiplier).toBe(0.9);
     expect(cast.roles[1]?.promptCue).toContain("Northeastern");
     expect(cast.roles[0]?.promptCue).toMatch(/^主角 \(S1\): /);

@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
 import { prepareVideoPrompt, videoPromptParameters, type VideoPromptInput } from "@/agent/videoPrompt/input";
-import { createReviewSchema, draftSchema, getVideoPromptRequirements, inspectDraft } from "@/agent/videoPrompt/format";
+import { createReviewSchema, draftSchema, getVideoPromptRequirements, inspectCurrentVideoPrompt, inspectDraft } from "@/agent/videoPrompt/format";
 import { getVideoSpeechPolicy } from "@/agent/videoPrompt/dialogue";
 import { requireSameVideoReview, saveVideoReview } from "@/utils/production/videoReviews";
 import { lockWorkspaceFiles } from "@/utils/workspace/files";
@@ -19,6 +19,7 @@ const fields = {
 };
 const videoPromptSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("prepare"), input: fields.input }),
+  z.strictObject({ action: z.literal("inspectNode"), input: fields.input }),
   z.strictObject({ action: z.literal("inspect"), preparationId: fields.preparationId, draft: fields.draft }),
   z.strictObject({ action: z.literal("submit"), preparationId: fields.preparationId, draft: fields.draft, review: fields.review }),
 ]);
@@ -37,6 +38,11 @@ type Preparation = {
 // 准备快照只保存在服务端，外部 Agent 不能自行声明素材版本或签发审核编号。
 export async function externalVideoPrompt(directory: string, args: unknown, canvas?: CanvasContext, signal?: AbortSignal) {
   const input = videoPromptSchema.parse(args);
+  if (input.action === "inspectNode") {
+    if (!input.input.node) throw new Error("请指定实际视频节点");
+    const prepared = await prepareVideoPrompt(directory, input.input, canvas, signal);
+    return inspectCurrentVideoPrompt(prepared);
+  }
   const root = join(dirname(conf.path), "mcpVideoPrompts");
   if (input.action === "prepare") {
     const prepared = await prepareVideoPrompt(directory, input.input, canvas, signal);
@@ -49,7 +55,7 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
       voiceCast: prepared.voiceContext.roles.length ? prepared.voiceContext : undefined,
       speechPolicy: getVideoSpeechPolicy(prepared.audioEnabled),
       expectedRevision: prepared.revision, reviewRequirements: getVideoPromptRequirements(prepared.shot),
-      nextAction: "按照本次返回的 format 编写英文提示词及中文对照。h3Text 用三段，h3Ref2va 用六段，h3Frames 在三段前写首尾帧对齐。英文正文的台词用 <d>[Language] …</d>，方括号内写语言的英文全称，照录原话和标点。按照已确认的分镜，记录切换镜头的时刻、镜头结束时的状态以及对白开口的顺序。用 inspect 预检，warnings 供审核参考。审核完成后，使用同一个 preparationId 调用 submit，登记审核结果。" };
+      nextAction: "按 format 编写英文正文和中文对照，保留对白原文。先使用 node:setPrompt 保存现稿（可带已确认的 qcContract），再用 inspectNode 对实际节点检查。inspect 仍支持检查未写入的旧式导演稿；submit 仅用于明确需要保存独立审核记录的场合。保存、检查节点或生成无需审核编号。" };
   }
   const path = join(root, `${input.preparationId}.json`);
   const release = lockWorkspaceFiles([path]);

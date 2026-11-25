@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { inspectDraft, requiresContinuousTake } from "./format";
-import { inspectDialogue } from "./dialogue";
+import { inspectCurrentVideoPrompt, inspectDraft, requiresContinuousTake } from "./format";
+import { getVideoSpeechPolicy, inspectDialogue } from "./dialogue";
+import { readQcRequirements } from "@/utils/production/qcRequirements";
+import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { cinematicShotSchema, draftCinematicPlanSchema } from "@/utils/production/videoPlan";
 import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
 
@@ -183,4 +185,31 @@ describe("对白编号按整段视频首次发声顺序校验", () => {
     expect(inspectDialogue(timeline.replace("(S1,S2)", "(S1,S1)"), 15, makePlan([["S1", "S1"], ["S2"], ["S3"]])).findings
       .some(x => x.includes("编号不得重复"))).toBe(true);
   });
+});
+
+
+test("画布正文无导演计划或默认语速时仍可检查并保护对白及单镜要求", () => {
+  const body = "[Shot 1] The woman (S1) asks <d>[Mandarin Chinese] 你用的还是原来那根销子？</d>.";
+  const original = { prompt: prompt(body), promptZh: "女主询问原来那根销子。" };
+  const prepared = { format: "h3Ref2va", setup: { duration: 15, references: [] }, shot: { story: "一镜到底", mustHave: [], mustNotHave: [], lockedDialogue: ["你用的还是原来那根销子？"] }, nodeDraft: original, revision: "node-revision" } as unknown as Parameters<typeof inspectDraft>[1];
+  expect(inspectCurrentVideoPrompt(prepared).status).toBe("ok");
+  expect(inspectDraft(original, prepared).findings).toEqual([]);
+  expect(inspectDraft({ ...original, prompt: original.prompt.replace("原来那根销子", "旧销") }, prepared).findings.some(x => x.includes("锁定原话"))).toBe(true);
+  expect(inspectDraft({ ...original, prompt: prompt(body + "\n[Shot 2] At 00:05.000, the camera cuts.") }, prepared).findings.some(x => x.includes("单镜到底"))).toBe(true);
+  expect(getVideoSpeechPolicy(true)).not.toHaveProperty("defaultSpeechRateMultiplier");
+  expect(getVideoSpeechPolicy(true)).not.toHaveProperty("defaultSpeechCue");
+});
+
+test("无审核编号的生成请求可保存剧情验收依据并保护锁定台词", async () => {
+  const request = videoGenerationSchema.parse({
+    providerId: "comfyui", modelId: "h3", duration: 15, prompt: "A woman holds a pin. (S1) asks <d>[Mandarin Chinese] 你用的还是原来那根销子？</d>",
+    qcContract: { story: "女主询问销子", mustHave: ["销子保持原来的形状"], mustNotHave: ["擅自改动台词"], continuityIn: "", continuityOut: "", lockedDialogue: ["你用的还是原来那根销子？"] },
+  });
+  expect(request.reviewId).toBeUndefined();
+  const requirements = await readQcRequirements(".", request);
+  expect(requirements.find(x => x.id === "mustHave.0")?.text).toContain("销子保持原来的形状");
+  expect(requirements.find(x => x.id === "dialogue.0")?.text).toContain("你用的还是原来那根销子？");
+  const fallback = await readQcRequirements(".", { ...request, qcContract: undefined });
+  expect(fallback.find(x => x.id === "prompt.visual")?.text).toContain("A woman holds a pin.");
+  expect(fallback.find(x => x.id === "dialogue.0")?.source).toBe("prompt.dialogue[0]");
 });

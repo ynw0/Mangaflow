@@ -379,7 +379,7 @@ function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "vi
   ];
   if (checklist?.trim()) lines.push("本镜验收要点", checklist.trim());
   if (requirements.length) lines.push(
-    "以下是已批准镜头合同的强制验收清单。每个 id 必须各有且只有一条 checks，使用 requirementId 原样返回编号；技术性检查不填 requirementId。逐项检查原文中的全部事实，不得用笼统的画面合格结论代替逐项检查。",
+    "以下是本次成片验收清单，来源为已确认的镜头合同或实际生成提示词。每个 id 必须各有且只有一条 checks，使用 requirementId 原样返回编号；技术性检查不填 requirementId。逐项检查原文中的全部事实，不得用笼统的画面合格结论代替逐项检查。",
     "指定 domain 的条目必须按该类别检查。对白计划中的时间用于定位证据，实际开口、最后一个字及说完的时间，以听到的音轨为准。",
     "请先按 id 逐项完成检查，再根据实际证据补充最多 3 条未列入合同的技术问题。不能重复同一 id、同一事实或用一个失败描述批量套多个不同 id；同一条不得同时给 pass 与 fail。",
     "pass 须提供可定位的 time 和证据。连续性要求只检查合同明确规定需要看到或听到的内容，以及实际出现在画面或音轨中的部分。完全留在画外的延续状态可以通过，说明检查时刻和画幅；明确要求出现的事实缺失，或证据不足，仍分别使用 fail 或 unverified。禁止项按适用时段核对。",

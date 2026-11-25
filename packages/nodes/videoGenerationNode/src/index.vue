@@ -186,7 +186,7 @@
 import { computed, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
 import { ElButton, ElCard, ElSelect, ElOption, ElOptionGroup, ElLoading, ElDropdown, ElDropdownMenu, ElDropdownItem, ElMessageBox } from "element-plus";
 import { IconCameraAi, IconSparkles, IconArrowUp, IconPlayerStop, IconTransfer, IconMusic, IconLayersSubtract, IconScissors, IconPhotoScan, IconPlayerSkipBack, IconPlayerSkipForward } from "@tabler/icons-vue";
-import { nodeSkeleton, nodeTools, useNode, z, h3OptionsSchema, type NodeMediaModel, type NodeVideoRequest, type NodeHandle } from "@toonflow/nodes-scaffold/runtime";
+import { nodeSkeleton, nodeTools, useNode, z, h3OptionsSchema, videoQcContractSchema, type NodeMediaModel, type NodeVideoRequest, type NodeHandle } from "@toonflow/nodes-scaffold/runtime";
 import { groupNodeModels } from "@toonflow/node-shared/groupNodeModels";
 import { showNodeError } from "@toonflow/node-shared/showNodeError";
 import { useNodeGeneration } from "@toonflow/node-shared/useNodeGeneration";
@@ -215,7 +215,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; manualAccelerationLoras?: string[]; checkpointEvidence?: { model: string; name: string; kind: "standard" | "fused" }; checkpointName?: string; h3Options?: NodeVideoRequest["h3Options"]; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
+const data = computed(() => node.data as { prompt: string; promptZh: string; reviewId?: string; qcContract?: NodeVideoRequest["qcContract"]; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; manualAccelerationLoras?: string[]; checkpointEvidence?: { model: string; name: string; kind: "standard" | "fused" }; checkpointName?: string; h3Options?: NodeVideoRequest["h3Options"]; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -230,6 +230,7 @@ const editorText = computed({
     if (data.value.prompt === value) return;
     data.value.prompt = value;
     data.value.promptZh = "";
+    data.value.reviewId = undefined;
   },
 });
 data.value.model ??= "";
@@ -487,6 +488,7 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     modelId: choice.modelId,
     prompt: generationPrompt.value,
     reviewId: data.value.reviewId,
+    ...(data.value.qcContract ? { qcContract: data.value.qcContract } : {}),
     seedMode: choice.supportsSeed ? data.value.seedMode : undefined,
     mode: selectedMode.value,
     duration: data.value.duration,
@@ -942,7 +944,8 @@ function getPromptContext() {
   const { images, videos, audios, firstFrame, lastFrame } = input;
   // 仅比较会影响原稿、参考和声音的字段。采样调整允许与提示词审核并行。
   const revision = JSON.stringify([selectedModel.value?.promptFormat, input.prompt, data.value.promptZh,
-    input.duration, input.ratio, input.mode, input.generateAudio, images, videos, audios, firstFrame, lastFrame]);
+    input.duration, input.ratio, input.mode, input.generateAudio, images, videos, audios, firstFrame, lastFrame,
+    ...(input.qcContract ? [input.qcContract] : [])]);
   // 随机种子留到实际生成时取值，固定上次随机必须交付具体值供审核绑定。
   const seed = config.supportsSeed && config.seedMode !== "random" ? resolveSeed() : undefined;
   return { config, images, videos, audios, firstFrame, lastFrame, revision, promptZh: data.value.promptZh, request: { ...input, seed } };
@@ -1119,16 +1122,18 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setPrompt",
-  description: "写入视频模型实际收到的 prompt。按所选工作流的语言、格式和参考编号填写。使用 H3 时，根据对应生成模式的格式编写英文正文，按照定稿保留对白、歌词及画面文字的原文。promptZh 提供简体中文对照，便于审阅；生成模型只接收 prompt。H3 的 reviewId 取自已通过的提示词审核，服务端按实际请求校验。本工具只写入提示词。",
-  parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional(), reviewId: z.string().uuid().optional(), expectedRevision: z.string().optional() }),
-  execute({ prompt: value, promptZh, reviewId, expectedRevision }) {
+  description: "直接写入视频提示词。H3 按实际模式编写英文正文，保留对白原文；promptZh 为中文对照。修改现稿先读取 getPromptContext，并传 expectedRevision，避免覆盖用户的新修改。无需审核编号。qcContract 可保存已确认的剧情和台词供成片验收；局部修改未传时保留已有合同，明确传 null 才清除。此工具只保存，不生成。",
+  parameters: z.strictObject({ prompt: z.string(), promptZh: z.string().optional(), reviewId: z.string().uuid().optional(), qcContract: videoQcContractSchema.nullable().optional(), expectedRevision: z.string().optional() }),
+  execute({ prompt: value, promptZh, reviewId, qcContract, expectedRevision }) {
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");
-    if (expectedRevision !== undefined && (generating.value || getPromptContext().revision !== expectedRevision)) {
-      throw new Error("视频节点在审稿期间已变化，请重新制作提示词");
+    if (generating.value || (expectedRevision !== undefined && getPromptContext().revision !== expectedRevision)) {
+      throw new Error("视频节点正在生成或已变化，请先读取当前节点，不要覆盖新内容");
     }
+    const changed = data.value.prompt !== value;
     data.value.prompt = value;
-    data.value.promptZh = promptZh ?? "";
-    data.value.reviewId = reviewId;
+    data.value.promptZh = promptZh ?? (changed ? "" : data.value.promptZh);
+    data.value.reviewId = reviewId ?? (changed ? undefined : data.value.reviewId);
+    if (qcContract !== undefined) data.value.qcContract = qcContract ?? undefined;
     data.value.promptModel = value.split("\n").map((text) => [{ type: "Write", text }]);
     return { prompt: value, promptZh: data.value.promptZh, reviewId: data.value.reviewId };
   },

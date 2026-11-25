@@ -154,8 +154,10 @@ export interface MediaGenerationRequest {
   duration?: number;
   /** ComfyUI 工作流种子；云视频可忽略 */
   seed?: number;
-  /** H3 服务端审核记录索引，不能代替服务端校验 */
+  /** 可选的历史或独立审核记录索引，不是生成凭据。 */
   reviewId?: string;
+  /** 已确认的剧情验收依据，仅供成片质检，不发送给生成模型。 */
+  qcContract?: VideoQcContract;
   /** 同一次 ComfyUI 视频任务的唯一 ID。重连必须沿用原始参数与 ID。 */
   generationId?: string;
   /** 固定上次随机使用 seed 中的具体值 */
@@ -242,6 +244,16 @@ export type VideoQcRectificationPlan = {
   /** 计划本身并不授权或执行新的视频生成。 */
   needsRegeneration: boolean;
 };
+
+export const videoQcContractSchema = z.object({
+  story: z.string().trim().min(1).max(6000),
+  mustHave: z.array(z.string().trim().min(1).max(500)).max(32),
+  mustNotHave: z.array(z.string().trim().min(1).max(500)).max(32),
+  continuityIn: z.string().trim().max(3000),
+  continuityOut: z.string().trim().max(3000),
+  lockedDialogue: z.array(z.string().max(6000)).max(256).optional(),
+});
+export type VideoQcContract = z.infer<typeof videoQcContractSchema>;
 
 export type QcRequirement = { id: string; source: string; text: string; domain?: "video" | "audio" };
 

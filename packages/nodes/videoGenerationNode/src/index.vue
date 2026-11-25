@@ -945,12 +945,12 @@ function getPromptContext() {
   const config = getConfig().config;
   const { images, videos, audios, firstFrame, lastFrame } = input;
   // 仅比较会影响原稿、参考和声音的字段。采样调整允许与提示词审核并行。
-  const revision = JSON.stringify([selectedModel.value?.promptFormat, input.prompt, data.value.promptZh,
+  const revision = JSON.stringify([selectedModel.value?.promptFormat, data.value.prompt, data.value.promptZh,
     input.duration, input.ratio, input.mode, input.generateAudio, images, videos, audios, firstFrame, lastFrame,
     ...(input.qcContract ? [input.qcContract] : [])]);
   // 随机种子留到实际生成时取值，固定上次随机必须交付具体值供审核绑定。
   const seed = config.supportsSeed && config.seedMode !== "random" ? resolveSeed() : undefined;
-  return { config, images, videos, audios, firstFrame, lastFrame, revision, promptZh: data.value.promptZh, request: { ...input, seed } };
+  return { config, images, videos, audios, firstFrame, lastFrame, revision, rawPrompt: data.value.prompt, promptZh: data.value.promptZh, request: { ...input, seed } };
 }
 
 nodeTools.register({
@@ -1131,6 +1131,9 @@ nodeTools.register({
     if ((value === undefined) === (edits === undefined)) throw new Error("完整提示词 prompt 和局部替换 edits 必须且只能选择一种");
     if (edits && (!expectedRevision || promptZh !== undefined || reviewId !== undefined || qcContract !== undefined)) {
       throw new Error("局部替换须传 expectedRevision，不同时传整稿、中文全文、审核编号或剧情合同");
+    }
+    if (value !== undefined && data.value.prompt.trim() && value !== data.value.prompt && !expectedRevision) {
+      throw new Error("修改已有提示词须先读取 getPromptContext 并传 expectedRevision；局部修改使用 edits");
     }
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");
     if (generating.value || (expectedRevision !== undefined && getPromptContext().revision !== expectedRevision)) {

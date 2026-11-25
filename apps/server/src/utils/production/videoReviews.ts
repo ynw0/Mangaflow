@@ -80,7 +80,7 @@ export async function captureVideoReview(directory: string, prepared: PreparedCo
     signal?.throwIfAborted();
     const { size, digest } = await digestReviewFile(input.value, signal).catch(error => {
       signal?.throwIfAborted();
-      fail(`参考素材 ${input.source} 无法核对：${error instanceof Error ? error.message : String(error)}，请修复后重新审核`, 409);
+      fail(`参考素材 ${input.source} 无法核对：${error instanceof Error ? error.message : String(error)}，请修复参考素材后重试`, 409);
     });
     references.push({ source: input.source, path: input.value, size, digest });
   }

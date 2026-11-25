@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { videoPromptParameters, videoPromptToolSchema } from "./input";
+import { inspectCanvasPromptParameters, inspectCanvasPromptToolSchema, videoPromptParameters, videoPromptToolSchema } from "./input";
 
 const base = {
   shotId: "S01",
@@ -118,4 +118,13 @@ describe("每段独立视频的说话人编号", () => {
   test("没有指定声音模板时仍允许省略 voiceCast", () => {
     expect(videoPromptParameters.safeParse(input).success).toBe(true);
   });
+});
+
+
+test("画布只读检查只需要目标节点，兼容旧合同参数，不强制导演输入", () => {
+  const node = { canvasId: "canvas1", nodeId: "video1" };
+  expect(inspectCanvasPromptParameters.parse({ node })).toEqual({ node });
+  expect(inspectCanvasPromptParameters.parse({ ...validBase(), node })).toMatchObject({ node, lockedDialogue: [] });
+  expect(() => inspectCanvasPromptParameters.parse({})).toThrow();
+  expect(inspectCanvasPromptToolSchema.required).toEqual(["node"]);
 });

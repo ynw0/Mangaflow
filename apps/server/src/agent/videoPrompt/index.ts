@@ -4,7 +4,7 @@ import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import { z } from "zod";
 import { addUsage, emptyUsage, type SubAgentModel } from "@/agent/runtime/subAgent";
 import type { AgentEvent } from "@/agent/runtime/types";
-import { prepareVideoPrompt, videoPromptParameters, videoPromptToolSchema } from "@/agent/videoPrompt/input";
+import { inspectCanvasPromptParameters, inspectCanvasPromptToolSchema, readCanvasPromptForInspection, prepareVideoPrompt, videoPromptParameters, videoPromptToolSchema } from "@/agent/videoPrompt/input";
 import { createReviewSchema, createReviewSubmission, draftSchema, draftSubmissionParameters, getPromptOutline, getVideoPromptRequirements, inspectCurrentVideoPrompt, inspectDraft, type VideoPromptReview } from "@/agent/videoPrompt/format";
 import { runStructuredSpecialist } from "@/agent/runtime/structuredSpecialist";
 import { findVideoPromptTemplates } from "@/agent/videoPrompt/templates";
@@ -70,13 +70,12 @@ export function createVideoPromptTools(options: SubAgentModel & {
   };
   const inspect: ToolDefinition = {
     name: "inspectCanvasVideoPrompt", label: "检查画布视频提示词",
-    description: "按实际配置、参考和已确认镜头合同检查画布当前 H3 提示词。不调用模型、不写节点、不生成、不签发审核编号。参数与 draftVideoPrompt 的合同一致，必须指定 node；无需导演时间规划。",
-    parameters: { type: "object", ...videoPromptToolSchema },
+    description: "只读检查画布当前 H3 提示词与实际配置、参考编号及已保存的确认合同。只需 node（canvasId、nodeId），旧节点可另传原合同。无需重新准备工作流、计算素材哈希、调用模型或导演时间规划，不修改节点。",
+    parameters: { type: "object", ...inspectCanvasPromptToolSchema },
     executionMode: "sequential",
     async execute(_id, params, signal) {
-      const input = videoPromptParameters.parse(params);
-      if (!input.node) throw new Error("请指定实际视频节点");
-      const prepared = await prepareVideoPrompt(cwd, input, canvas, signal);
+      const input = inspectCanvasPromptParameters.parse(params);
+      const prepared = await readCanvasPromptForInspection(input, canvas, signal);
       const result = inspectCurrentVideoPrompt(prepared);
       return { details: result, content: [{ type: "text", text: JSON.stringify(result) }] };
     },
@@ -216,13 +215,15 @@ export function createVideoPromptTools(options: SubAgentModel & {
       const checked = inspectCurrentVideoPrompt(prepared);
       preflightWarnings = checked.warnings;
       if (checked.findings.length || !independentReview) {
-        const write = !checked.findings.length
-          ? await writePrompt({ prompt: existingNodeDraft.prompt, promptZh: existingNodeDraft.promptZh ?? "" })
+        // 复用现稿不触发全文写回，更不能替换已有的剧情合同或清理首尾空白。
+        const write = !checked.findings.length && !existingNodeDraft.qcContract && !existingNodeDraft.reviewId
+          ? await writePrompt({ prompt: existingNodeDraft.rawPrompt ?? existingNodeDraft.prompt, promptZh: existingNodeDraft.promptZh ?? "" })
           : { written: false, writeError: undefined };
         return finish({ ...checked, ...write, status: write.writeError ? "writeFailed" : checked.status,
           reused: true, node: input.node,
           generationRequest: videoGenerationSchema.parse({ ...prepared.generationRequest, prompt: existingNodeDraft.prompt }),
-          promptZh: existingNodeDraft.promptZh });
+          promptZh: existingNodeDraft.promptZh,
+          nextAction: "复用当前节点；若合同或配置确有变化，先核对上游定稿并在原节点修改。" });
       }
       lastDraft = { prompt: existingNodeDraft.prompt, promptZh: existingNodeDraft.promptZh ?? "" };
     }
@@ -321,7 +322,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
           commonRules = videoCommonRules(common);
         }
         const draft = await specialist(draftSchema, draftSubmissionParameters, repair ? "导演返修" : "导演写作", [
-          "依据实际镜头合同、已加载的导演规则与 H3 模式写稿，调用 submitResult 提交完整结果。时间使用整段视频内的秒数。正文只写模型需要生成的声画，不写宿主流程、权限、审核记录、工具名称或质检指令。",
+          "依据实际镜头合同、已加载的导演规则与 H3 模式写稿，调用 submitResult 提交完整结果。仅在确需额外协调复杂动作或对白时附 cinematicPlan；省略时直接以正文表达必要时间关系。时间使用整段视频内的秒数。正文只写模型需要生成的声画，不写宿主流程、权限、审核记录、工具名称或质检指令。",
           ...(repair ? ["用 findings 的位置和证据定位问题。具体修法按当前镜头合同和已加载的写作规则取舍。保留仍有作用的画面和声音信息，使英文正文、中文对照和导演计划保持一致。"] : []),
           `英文正文段名：\n${getPromptOutline(prepared.format)}`,
           // 拍法候选只在首稿提供，导演先判断条件，再用实际分镜撰写正文。

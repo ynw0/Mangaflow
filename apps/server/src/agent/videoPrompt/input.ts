@@ -3,7 +3,7 @@ import { z } from "zod";
 import { h3OptionsSchema, videoQcContractSchema, type CanvasContext, type MediaGenerationRequest } from "@toonflow/tools-scaffold/runtime";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { checkCreativeSelection, creativeTones } from "@/agent/creativeKnowledge";
-import { requiresContinuousTake } from "@/agent/videoPrompt/format";
+import { requiresContinuousTake, type PromptInspectionContext } from "@/agent/videoPrompt/format";
 import { compileVoiceCast, type VoiceCastRole } from "@/agent/creativeKnowledge/voiceTemplates";
 import { templateConditions, templateTagSchema } from "@/agent/videoPrompt/templates/schema";
 import { findWorkflow, imageReferenceRange, toMediaModel } from "@/utils/production/catalog";
@@ -92,6 +92,9 @@ const videoPromptToolInput = z.strictObject({
 // JSON Schema 用于宿主工具调用（无顶层 anyOf/oneOf）；业务分支在 Zod 运行时进行严格校验。
 const newShotInput = videoPromptToolInput.required({ lockedDialogue: true });
 export const videoPromptToolSchema = z.toJSONSchema(newShotInput, { io: "input", target: "draft-07" });
+// 只读检查不需要重新提交完整导演合同。兼容旧调用中的其他字段。
+export const inspectCanvasPromptParameters = videoPromptToolInput.partial().required({ node: true });
+export const inspectCanvasPromptToolSchema = z.toJSONSchema(inspectCanvasPromptParameters, { io: "input", target: "draft-07" });
 function validateShotInput(input: z.infer<typeof videoPromptToolInput>, ctx: z.RefinementCtx) {
   const issue = (path: string, message: string) =>
     ctx.addIssue({ code: "custom", path: [path], message });
@@ -136,6 +139,7 @@ const nodeContext = z.object({
     supportsSeed: z.boolean().optional(),
   }),
   revision: z.string(),
+  rawPrompt: z.string().optional(),
   promptZh: z.string().optional(),
   request: videoGenerationSchema.extend({ prompt: z.string() }),
   images: z.array(material).optional(),
@@ -147,6 +151,36 @@ const nodeContext = z.object({
 
 export type VideoPromptInput = z.infer<typeof savedVideoPromptParameters>;
 export type VideoPromptFormat = "h3Ref2va" | "h3Frames" | "h3Text";
+
+/** 现稿检查只使用当前画布数据和工作流元数据，不生成快照、不读取媒体文件或运行模型。 */
+export async function readCanvasPromptForInspection(input: z.infer<typeof inspectCanvasPromptParameters>, canvas?: CanvasContext, signal?: AbortSignal): Promise<PromptInspectionContext> {
+  if (!canvas) throw new Error("请先打开目标视频节点所在的画布");
+  const current = nodeContext.parse(await canvas.call({
+    name: "nodeTools", args: { canvasId: input.node.canvasId, nodeId: input.node.nodeId, name: "node:getPromptContext", args: {} },
+  }, signal));
+  if (current.config.providerId !== "comfyui") throw new Error("当前模型没有 H3 提示词规则");
+  const workflow = await findWorkflow(current.config.modelId);
+  if (workflow.kind !== "video" || !workflow.bindings.promptFormat || !isWorkflowEnabled(workflow.id)) {
+    throw new Error("当前工作流未启用或没有 H3 提示词规则");
+  }
+  const images = workflow.bindings.promptFormat === "h3Frames" ? [current.firstFrame, current.lastFrame].filter(Boolean) : current.images ?? [];
+  const videos = current.videos ?? [];
+  const audios = current.audios ?? [];
+  const format: VideoPromptFormat = workflow.bindings.promptFormat === "h3Frames" ? "h3Frames" : images.length || videos.length || audios.length ? "h3Ref2va" : "h3Text";
+  const labels = (count: number, kind: string) => Array.from({ length: count }, (_, i) => ({ label: `<${kind} ${i + 1}>` }));
+  const saved = current.request.qcContract;
+  // 节点已保存的确认合同优先；旧节点允许调用方提供原合同，缺失时不补造锁词或剧情要求。
+  const shot = {
+    story: saved?.story ?? input.story ?? "",
+    mustHave: saved?.mustHave ?? input.mustHave ?? [],
+    mustNotHave: saved?.mustNotHave ?? input.mustNotHave ?? [],
+    lockedDialogue: saved?.lockedDialogue ?? input.lockedDialogue,
+    voiceCast: input.voiceCast,
+  };
+  return { format, setup: { duration: current.config.duration, references: [...labels(images.length, "Picture"), ...labels(videos.length, "Video"), ...labels(audios.length, "Audio")] },
+    shot, audioEnabled: current.request.generateAudio !== false && workflow.hasVideoAudio === true,
+    nodeDraft: { prompt: current.request.prompt, promptZh: current.promptZh }, revision: current.revision };
+}
 
 export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, canvas?: CanvasContext, signal?: AbortSignal) {
   const { node, modelId, duration, ratio, references, sampling: requestedSampling, seed, seedMode, templateTags, templateConditions, creativeSelection: selectedCreative, regenerate: _regenerate, reReview: _reReview, independentReview: _independentReview, ...shot } = input;
@@ -248,7 +282,7 @@ export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, c
   const numbered = (items: typeof approved, name: string) => items.map((item, index) => ({ ...item, label: `<${name} ${index + 1}>` }));
   return {
     shot, format, revision: current?.revision,
-    nodeDraft: current && { reviewId: current.request.reviewId, prompt: current.request.prompt, promptZh: current.promptZh },
+    nodeDraft: current && { reviewId: current.request.reviewId, prompt: current.request.prompt, rawPrompt: current.rawPrompt, promptZh: current.promptZh, qcContract: current.request.qcContract },
     templateTags, templateConditions, creativeContext, voiceContext, audioEnabled, generationRequest, snapshot,
     setup: {
       modelId: workflow.id, duration: seconds, ratio: aspect, mode: current?.config.mode ?? format,

@@ -5,9 +5,17 @@ import { draftCinematicPlanSchema, inspectVideoPlan, type DraftCinematicPlan } f
 import { getShotRequirements } from "@/utils/production/qcRequirements";
 
 type Prepared = Awaited<ReturnType<typeof prepareVideoPrompt>>;
+export type PromptInspectionContext = {
+  format: Prepared["format"];
+  setup: { duration: number; references: { label: string }[] };
+  shot: Pick<Prepared["shot"], "story" | "mustHave" | "mustNotHave" | "lockedDialogue" | "voiceCast">;
+  audioEnabled?: boolean;
+  nodeDraft?: { prompt: string; promptZh?: string };
+  revision?: string;
+};
 
 const draftFields = {
-  cinematicPlan: draftCinematicPlanSchema, prompt: z.string().trim().min(1), promptZh: z.string().trim().min(1),
+  cinematicPlan: draftCinematicPlanSchema.optional(), prompt: z.string().trim().min(1), promptZh: z.string().trim().min(1),
 };
 const blockedReason = z.string().trim().min(1);
 export const draftSchema = z.discriminatedUnion("status", [
@@ -99,7 +107,7 @@ export function getPromptOutline(format: Prepared["format"]) {
   return sections.map(section => section + ":").join("\n");
 }
 
-export function inspectDraft(draft: { prompt: string; promptZh: string; cinematicPlan?: DraftCinematicPlan }, prepared: Prepared) {
+export function inspectDraft(draft: { prompt: string; promptZh: string; cinematicPlan?: DraftCinematicPlan }, prepared: PromptInspectionContext) {
   const { prompt, promptZh } = draft;
   const { format, setup } = prepared;
   const expected = format === "h3Ref2va" ? refSections : baseSections;
@@ -232,7 +240,7 @@ export function inspectDraft(draft: { prompt: string; promptZh: string; cinemati
 }
 
 /** 检查节点当前正文，不调用模型，也不依赖历史审核或临时导演稿。 */
-export function inspectCurrentVideoPrompt(prepared: Prepared) {
+export function inspectCurrentVideoPrompt(prepared: PromptInspectionContext) {
   if (!prepared.nodeDraft) throw new Error("请指定实际视频节点");
   const { prompt, promptZh } = prepared.nodeDraft;
   const { findings, warnings } = inspectDraft({ prompt, promptZh: promptZh ?? "" }, prepared);

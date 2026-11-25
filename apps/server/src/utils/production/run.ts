@@ -10,6 +10,7 @@ import { captureVideoReview, verifyReviewFile } from "@/utils/production/videoRe
 import { findH3Checkpoint, isH3CheckpointName, validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
 import { applyH3Options, effectiveH3Options } from "@/utils/production/h3Advanced";
 import { checkMediaBudget, reserveMediaBudget } from "@/utils/media/budget";
+import { inspectLockedDialogue } from "@/agent/videoPrompt/dialogue";
 
 type MediaRef = { path: string; mimeType?: string };
 
@@ -344,6 +345,11 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   }
   const prepared = await prepareComfyWorkflow(options);
   const { entry, workflow, context, host, lockedLoraNodes } = prepared;
+  // 只校验已明确锁定的同期台词，不要求旧稿或人工试验补造镜头合同、导演规划或审核记录。
+  if (mediaType === "video" && entry.bindings.promptFormat && request.qcContract?.lockedDialogue !== undefined && !options.manual) {
+    const findings = inspectLockedDialogue(context.prompt, request.qcContract.lockedDialogue, context.generate_audio);
+    if (findings.length) fail(`当前提示词与已确认台词不一致：${findings.join("；")}。请在原稿对应位置修改，或先更新已确认的剧本。`, 409);
+  }
   // 保留参考素材快照与上传时的完整性校验；审核记录不再是生成前置条件。
   const snapshot = mediaType === "video" && entry.bindings.promptFormat && !options.manual
     ? await captureVideoReview(directory, prepared, signal) : undefined;

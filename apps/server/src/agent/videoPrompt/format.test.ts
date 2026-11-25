@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { inspectCurrentVideoPrompt, inspectDraft, requiresContinuousTake } from "./format";
-import { getVideoSpeechPolicy, inspectDialogue } from "./dialogue";
+import { draftSchema, inspectCurrentVideoPrompt, inspectDraft, requiresContinuousTake } from "./format";
+import { getVideoSpeechPolicy, inspectDialogue, inspectLockedDialogue } from "./dialogue";
 import { legacyQcContext, readQcRequirements } from "@/utils/production/qcRequirements";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
 import { cinematicShotSchema, draftCinematicPlanSchema } from "@/utils/production/videoPlan";
@@ -235,4 +235,23 @@ test("历史审核记录只提供原剧情，局部修改后不沿用旧时间�
   expect(changed?.dialoguePlan).toBeUndefined();
   expect(legacyQcContext("/another-workspace", request, review)).toBeUndefined();
   expect(legacyQcContext("/workspace", { ...request, duration: 10 }, review)?.dialoguePlan).toBeUndefined();
+});
+
+
+test("默认导演稿不再强制额外规划，历史规划仍可解析", () => {
+  const draft = { status: "ok" as const, prompt: "Simple prompt", promptZh: "简单镜头" };
+  expect(draftSchema.parse(draft)).toEqual(draft);
+  expect(draftSchema.parse({ ...draft, cinematicPlan })).toMatchObject({ cinematicPlan });
+});
+
+test("生成前只校验明确锁定的对白，语速变化不影响原话", () => {
+  const line = "你用的还是原来那根销子？";
+  const text = "(S1) asks at 1.0x speed <d>[Mandarin Chinese] " + line + "</d>.";
+  expect(inspectLockedDialogue(text, [line], true)).toEqual([]);
+  expect(inspectLockedDialogue(text.replace("1.0x", "1.1x"), [line], true)).toEqual([]);
+  expect(inspectLockedDialogue(text.replace("原来那根销子", "旧销"), [line], true)).not.toEqual([]);
+  expect(inspectLockedDialogue(text, [line], false)).not.toEqual([]);
+  expect(inspectLockedDialogue(text.replace("</d>", ""), [line], true)).not.toEqual([]);
+  expect(inspectLockedDialogue("A silent room.", [], true)).toEqual([]);
+  expect(inspectLockedDialogue(text, [], true)).not.toEqual([]);
 });

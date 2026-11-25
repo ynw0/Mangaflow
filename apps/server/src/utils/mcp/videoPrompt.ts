@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import type { CanvasContext } from "@toonflow/tools-scaffold/runtime";
 import conf from "@/utils/conf";
-import { prepareVideoPrompt, videoPromptParameters, type VideoPromptInput } from "@/agent/videoPrompt/input";
+import { prepareVideoPrompt, videoPromptParameters, inspectCanvasPromptParameters, readCanvasPromptForInspection, type VideoPromptInput } from "@/agent/videoPrompt/input";
 import { createReviewSchema, draftSchema, getVideoPromptRequirements, inspectCurrentVideoPrompt, inspectDraft } from "@/agent/videoPrompt/format";
 import { getVideoSpeechPolicy } from "@/agent/videoPrompt/dialogue";
 import { requireSameVideoReview, saveVideoReview } from "@/utils/production/videoReviews";
@@ -19,12 +19,13 @@ const fields = {
 };
 const videoPromptSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("prepare"), input: fields.input }),
-  z.strictObject({ action: z.literal("inspectNode"), input: fields.input }),
+  z.strictObject({ action: z.literal("inspectNode"), input: inspectCanvasPromptParameters }),
   z.strictObject({ action: z.literal("inspect"), preparationId: fields.preparationId, draft: fields.draft }),
   z.strictObject({ action: z.literal("submit"), preparationId: fields.preparationId, draft: fields.draft, review: fields.review }),
 ]);
 // 外部宿主直接读取 args 的字段；服务端执行时仍按操作校验参数组合。
 export const videoPromptToolSchema = z.toJSONSchema(z.strictObject(fields).partial().extend({
+  input: inspectCanvasPromptParameters.partial().optional(),
   action: z.enum(videoPromptSchema.options.map(option => option.shape.action.value)),
 }), { io: "input" });
 
@@ -39,8 +40,7 @@ type Preparation = {
 export async function externalVideoPrompt(directory: string, args: unknown, canvas?: CanvasContext, signal?: AbortSignal) {
   const input = videoPromptSchema.parse(args);
   if (input.action === "inspectNode") {
-    if (!input.input.node) throw new Error("请指定实际视频节点");
-    const prepared = await prepareVideoPrompt(directory, input.input, canvas, signal);
+    const prepared = await readCanvasPromptForInspection(input.input, canvas, signal);
     return inspectCurrentVideoPrompt(prepared);
   }
   const root = join(dirname(conf.path), "mcpVideoPrompts");

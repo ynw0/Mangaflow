@@ -90,5 +90,5 @@
 核验接话或回扣所需的分镜或场次依据缺失时，在退回结果中另填 `needsAdjacentShots: true`，并指出需要重新读取的场次或镜头。调用方补齐合同后，重新委派审核任务。依据齐全时，针对稿件中实际存在的问题进行修改。
 
 - 内置 Agent 的独立审核使用 `submitResult({ result: { ... } })` 提交上述审核结论。`result` 只使用 `ok` 或 `rejected` 分支对应的字段。上游的 `shotId` 用于核对合同，审核结果无镜号字段。审核员提交后由服务端处理。已有节点请求 `node.write: true` 时，成功结果中的 `written: true` 表示英文稿、中文对照和 `reviewId` 已写入目标视频节点。
-- 外部 MCP 在 `videoPrompt` 的 `args.action: "submit"` 中同时传 `preparationId`、`draft` 和 `review`。上述审核结论字段直接放在 `review` 对象内。服务端返回 `reviewId`、`generationRequest` 和 `written: false`。已有节点需要写回时，调用 `node:setPrompt`，使用 `generationRequest.prompt`、原稿的 `promptZh`、`reviewId` 和服务端返回的 `expectedRevision`。将提示词写入节点后，重新读取视频节点中的内容进行核对。
+- 外部 MCP 在 `videoPrompt` 的 `args.action: "submit"` 中传 `preparationId`、`draft`；主动开展审核时，再将上述审核结论放进 `review` 对象。服务端返回 `generationRequest` 和 `written: false`，仅真实审核通过时附带 `reviewId`。已有节点需要写回时，调用 `node:setPrompt`，使用 `generationRequest.prompt`、原稿的 `promptZh` 和服务端返回的 `expectedRevision`；有真实审核记录时才传 `reviewId`。写入后重新读取视频节点内容进行核对。
 - 生成前按当前运行模式及已获授权范围推进。主动开展提示词审核时，真实通过记录使用 `reviewId`；没有审核号也能生成。成片质检结论另查生成任务的实际结果。

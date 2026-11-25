@@ -168,7 +168,7 @@ export async function getMcpTools(): Promise<McpTool[]> {
   }
   tools.push(wrapTool(videoTemplateSearch.name, videoTemplateSearch.description, videoTemplateSearch.parameters,
     async (args, _target, signal) => videoTemplateSearch.execute(args, signal)));
-  tools.push(wrapTool("videoPrompt", "外部 Agent 直接完成 H3 提示词：prepare 获取合同、真实配置、素材版本及验收要求；可在 input.creativeSelection 传 searchVideoPromptTemplates 返回的创作模板 ID，声音模板从 voices 分类检索后按说话人写入 input.voiceCast，网文系统声、旁白及独白用 sourceId，prepare 返回声音编译建议和画外音规则；inspect 程序预检；submit 提交当前外部 Agent 的逐项审核证据并取得 reviewId/generationRequest。三个操作均不调用语言模型、不生成媒体、不写节点。仍需按 workflow 读取导演和 H3 技能；生成前另核对用户算力授权。",
+  tools.push(wrapTool("videoPrompt", "外部 Agent 直接完成 H3 提示词：prepare 获取合同、真实配置、素材版本及验收要求；可在 input.creativeSelection 传 searchVideoPromptTemplates 返回的创作模板 ID，声音模板从 voices 分类检索后按说话人写入 input.voiceCast，网文系统声、旁白及独白用 sourceId，prepare 返回声音编译建议和画外音规则；inspect 程序预检；submit 可不传 review，直接取得 generationRequest；仅主动审核时提交真实逐项审核证据并取得 reviewId。三个操作均不调用语言模型、不生成媒体、不写节点；全部按需使用，简单任务或局部修改可直接使用视频节点。生成前另核对用户算力授权。",
     videoPromptToolSchema, async (args, target, signal) => {
       const { directory, connection } = await resolveTarget(target);
       const canvas: CanvasContext | undefined = connection ? { id: connection.state.canvasId ?? "mcp", tools: connection.state.tools,

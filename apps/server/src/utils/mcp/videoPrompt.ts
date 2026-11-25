@@ -20,7 +20,7 @@ const fields = {
 const videoPromptSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("prepare"), input: fields.input }),
   z.strictObject({ action: z.literal("inspect"), preparationId: fields.preparationId, draft: fields.draft }),
-  z.strictObject({ action: z.literal("submit"), preparationId: fields.preparationId, draft: fields.draft, review: fields.review }),
+  z.strictObject({ action: z.literal("submit"), preparationId: fields.preparationId, draft: fields.draft, review: fields.review.optional() }),
 ]);
 // 外部宿主直接读取 args 的字段；服务端执行时仍按操作校验参数组合。
 export const videoPromptToolSchema = z.toJSONSchema(z.strictObject(fields).partial().extend({
@@ -49,7 +49,7 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
       voiceCast: prepared.voiceContext.roles.length ? prepared.voiceContext : undefined,
       speechPolicy: getVideoSpeechPolicy(prepared.audioEnabled),
       expectedRevision: prepared.revision, reviewRequirements: getVideoPromptRequirements(prepared.shot),
-      nextAction: "按照本次返回的 format 编写英文提示词及中文对照。h3Text 用三段，h3Ref2va 用六段，h3Frames 在三段前写首尾帧对齐。英文正文的台词用 <d>[Language] …</d>，方括号内写语言的英文全称，照录原话和标点。按照已确认的分镜，记录切换镜头的时刻、镜头结束时的状态以及对白开口的顺序。用 inspect 预检，warnings 供审核参考。审核完成后，使用同一个 preparationId 调用 submit，登记审核结果。" };
+      nextAction: "按照本次返回的 format 编写英文提示词及中文对照。h3Text 用三段，h3Ref2va 用六段，h3Frames 在三段前写首尾帧对齐。英文正文的台词用 <d>[Language] …</d>，方括号内写语言的英文全称，照录原话和标点。按照已确认的分镜，记录切换镜头的时刻、镜头结束时的状态以及对白开口的顺序。用 inspect 预检，warnings 供参考。使用同一个 preparationId 调用 submit 可取得生成请求；review 为可选字段，只有实际审核通过时才登记审核结果并返回 reviewId。也可直接写入视频节点，不要求审核号。" };
   }
   const path = join(root, `${input.preparationId}.json`);
   const release = lockWorkspaceFiles([path]);
@@ -63,6 +63,10 @@ export async function externalVideoPrompt(directory: string, args: unknown, canv
     const { findings, warnings } = inspectDraft(input.draft, current);
     if (input.action === "inspect") return { status: findings.length ? "rejected" : "ok", findings, warnings };
     if (findings.length) return { status: "rejected", findings, warnings };
+    if (input.review === undefined) {
+      const generationRequest = videoGenerationSchema.parse({ ...current.generationRequest, prompt: input.draft.prompt, reviewId: undefined });
+      return { status: "ok", generationRequest, node: saved.input.node, expectedRevision: current.revision, written: false, warnings };
+    }
     const review = createReviewSchema(getVideoPromptRequirements(current.shot).map(item => item.id)).parse(input.review);
     if (review.status === "rejected" && review.needsAdjacentShots) {
       return { status: "blocked", findings: review.findings, warnings, nextAction: "重新读取相关场次或镜头，将本镜所回应的原话或事件补充到 input.adjacentShots，再调用 prepare 并提交审核。" };

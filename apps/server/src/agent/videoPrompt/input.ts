@@ -48,8 +48,9 @@ const shotFields = {
   intent: z.enum(["dialogue", "action", "effects", "mechanical", "reveal", "environment"]),
   tone: z.enum(creativeTones).optional().describe("镜头合同中已确认的基调，用于核对所选创作模板"),
   adjacentShots: z.string().trim().max(6000).optional().describe("本镜回应先前台词或事件时，摘录已确认的相关场次或镜号、说话人和原句或动作，可引用更早的铺垫。仅供核对承接"),
-  regenerate: z.boolean().optional().describe("用户要求修改目标镜头的提示词、拍法或表演时传 true，从已确认的镜头合同重写。仅调整生成参数时，复用已经通过审核的提示词"),
-  reReview: z.boolean().optional().describe("用户明确要求用当前审核员复审已通过的现稿时传 true，与 regenerate 互斥"),
+  regenerate: z.boolean().optional().describe("仅在需要从合同重新编写整份提示词时传 true；修改已有提示词的局部内容直接在节点中修改，不重写其他内容"),
+  review: z.boolean().optional().describe("仅在需要独立提示词审核时传 true；省略或 false 时只编写和程序预检，不启动独立审核。生成视频不要求审核编号"),
+  reReview: z.boolean().optional().describe("需要用当前审核员复审已审核的原稿时传 true，与 regenerate 互斥"),
   templateTags: templateTagSchema.optional().describe("有具体拍摄问题时填一个维度和一个标签，用于检索拍法"),
   templateConditions: templateConditions.pick({ subjectCount: true, anchors: true }).optional(),
   references: z.array(reference).max(24).describe("按实际槽位顺序传 JSON 对象数组，不是字符串"),
@@ -61,8 +62,8 @@ const shotFields = {
     timbreId: shortText.optional(), ageId: shortText.optional(), personalityId: shortText.optional(),
     foreignAccentId: shortText.optional(), dialectId: shortText.optional(), emotionId: shortText.optional(),
     deliveryId: shortText.optional(), paceId: shortText.optional(),
-    speedMultiplier: z.number().min(0.7).max(1.8).optional().describe("有已确认的角色或本镜语速要求时才覆盖默认 1.3 倍，与 paceId 二选一"),
-  })).max(8).optional().describe("H3 视频同期配音：只填写本次视频实际发声的角色，不填写仅出现在画面中的人物。编号从 S1 开始连续且不重复，声音模板按需指定；有对白默认约1.3倍"),
+    speedMultiplier: z.number().min(0.7).max(1.8).optional().describe("仅在角色或场戏确需明确语速倍数时填写，例如 1.0、1.1 或 1.3；与 paceId 二选一。未指定时不自动补入倍数"),
+  })).max(8).optional().describe("H3 视频同期配音：只填写本次视频实际发声的角色，不填写仅出现在画面中的人物。编号从 S1 开始连续且不重复，声音模板按需指定；语速倍数不是必填项"),
 };
 const creativeSelection = z.strictObject({
   narrativeId: shortText.optional(),
@@ -148,7 +149,7 @@ export type VideoPromptInput = z.infer<typeof savedVideoPromptParameters>;
 export type VideoPromptFormat = "h3Ref2va" | "h3Frames" | "h3Text";
 
 export async function prepareVideoPrompt(cwd: string, input: VideoPromptInput, canvas?: CanvasContext, signal?: AbortSignal) {
-  const { node, modelId, duration, ratio, references, sampling: requestedSampling, seed, seedMode, templateTags, templateConditions, creativeSelection: selectedCreative, regenerate: _regenerate, reReview: _reReview, ...shot } = input;
+  const { node, modelId, duration, ratio, references, sampling: requestedSampling, seed, seedMode, templateTags, templateConditions, creativeSelection: selectedCreative, regenerate: _regenerate, review: _review, reReview: _reReview, ...shot } = input;
   const production = readProduction();
   if (node && !canvas) throw new Error("请先打开目标视频节点所在的画布");
   const current = node && canvas ? nodeContext.parse(await canvas.call({

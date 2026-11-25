@@ -119,3 +119,11 @@ describe("每段独立视频的说话人编号", () => {
     expect(videoPromptParameters.safeParse(input).success).toBe(true);
   });
 });
+
+
+test("独立审核按需开启，省略 review 时不要求审核", () => {
+  const input = { ...validBase(), duration: 15, ratio: "16:9" };
+  expect(videoPromptParameters.parse(input).review).toBeUndefined();
+  expect(videoPromptParameters.parse({ ...input, review: false }).review).toBe(false);
+  expect(videoPromptParameters.parse({ ...input, review: true }).review).toBe(true);
+});

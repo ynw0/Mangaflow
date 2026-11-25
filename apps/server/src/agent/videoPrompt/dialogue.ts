@@ -1,4 +1,4 @@
-import { DEFAULT_H3_SPEECH_RATE, defaultH3SpeechCue } from "@/agent/creativeKnowledge/voiceTemplates";
+import { speechRateCue } from "@/agent/creativeKnowledge/voiceTemplates";
 import type { DraftCinematicPlan } from "@/utils/production/videoPlan";
 
 export const endingReserveSeconds = 0.2;
@@ -9,15 +9,17 @@ const voiceoverSources = new Set(["vs02", "vs03", "vs04", "vs05", "vs06", "vs07"
 export function getVideoSpeechPolicy(audioEnabled: boolean) {
   return {
     audioEnabled,
-    defaultSpeechRateMultiplier: DEFAULT_H3_SPEECH_RATE,
-    defaultSpeechCue: defaultH3SpeechCue,
+    speechRate: {
+      guidance: "根据用户要求、角色状态、对白长度及可用时长决定是否描述语速。不强制填写倍数，也不把任何倍数视为默认值。需要明确倍数时，可在时间轴中统一描述整段语速，也可只在指定角色的对白前写明。以下是英文写法示例，不是模型的最佳参数区间。",
+      examples: [speechRateCue(1.0), speechRateCue(1.1), speechRateCue(1.3)],
+    },
     endingReserveSeconds,
     voiceover: {
       phrase: voiceoverPhrase,
       identity: "所有 H3 模式中，画外音、旁白、角色内心独白和无实体的网文系统对白在 (Sx) 后使用 phrase 原文。每段 </d> 后紧接一句，说明对应画面人物在这段发声期间嘴唇保持闭合。空镜写明无人入画。现场人物在构图外正常开口时写实际方向和听者。内心独白与同一角色的现场对白共用声线及编号。",
       timing: "由模型生成的画外发声纳入 cinematicPlan.dialogue。现场对白可以被同场人物听见，听觉范围按剧本写。只给观众听的旁白与独白不改变画中人的反应。角色的口型按实际发声和可见范围写。提示音写作音效，实际参考音频才使用 <Audio N>。",
     },
-    note: "有同期对白时，在时间轴中统一说明整段视频的默认语速。角色另有指定语速时单独说明。保留剧本原话，并记录开口、说完、停顿的时间及必须先完成的动作。endingReserveSeconds 是镜头结束前预留时间的参考值，具体安排应符合这场戏的需要。抢话时保留各自的 <d> 和原话，关键内容仍需听清。按字数估算的时长仅用于提示风险，实际说话效果以成片为准。",
+    note: "有同期对白时，按场景需要描述语速、吐字和停顿；用户指定倍数时准确照录，未指定且自然语速即可满足时可以不写倍数。整段一致的语速不逐人重复。保留剧本原话，并记录开口、说完、停顿的时间及必须先完成的动作。endingReserveSeconds 是镜头结束前预留时间的参考值，具体安排应符合这场戏的需要。抢话时保留各自的 <d> 和原话，关键内容仍需听清。按字数估算的时长仅用于提示风险，实际说话效果以成片为准。",
   };
 }
 
@@ -123,7 +125,7 @@ export function inspectDialogue(timeline: string, duration: number, plan: DraftC
         findings.push(`${label}须等节拍 ${line.afterBeat}（${beat.action}）在 ${beat.endSeconds} 秒完成，规划却在 ${line.startSeconds} 秒开口。`);
       }
     }
-    // ACT: 字速是保守估算。句内停顿按导演计划单独计入，1.3 倍是表演指令。
+    // ACT: 字速是保守估算。句内停顿按导演计划单独计入，语速描述是表演指令，不保证模型精确按倍数发声。
     const text = language?.[2] ?? "";
     const speechSeconds = (text.match(/\p{Script=Han}/gu)?.length ?? 0) / 4
       + (text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length ?? 0) / 3;

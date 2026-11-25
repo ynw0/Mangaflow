@@ -53,8 +53,8 @@ export function createVideoPromptTools(options: SubAgentModel & {
   const initial: ToolDefinition = {
     name: "draftVideoPrompt",
     label: "制作视频提示词",
-    description: "根据确认的镜头合同和真实参考制作、预检并独立审核 H3 中英文提示词；不启动生成。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；依次调用 getConfig、setConfig 和 getPromptContext；需要将提示词写入节点时，须设置 node.write=true。新镜头没有对应节点时，不传 node，必须传入 duration 和 ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。按同一合同继续生成时，复用已经通过审核的提示词。用户要求修改目标镜头的提示词、拍法或表演时传 regenerate=true；如果只重新审核原稿，传入 reReview=true。原合同未变时用 draftId 调用 resumeVideoPrompt；台词或分镜已经修订时，用更新后的完整合同重新提交。",
-    promptSnippet: "制作 H3 视频提示词时调用 draftVideoPrompt。shotId 用实际分镜编号，放在顶层。已有节点把当前 canvasId 和 nodeId 放进 node，从镜头合同填写本镜原话和实际参考。新镜头直接传 duration 和 ratio。需要导演拍法时传 templateTags，选用分类创作知识时在 creativeSelection 传 ID。",
+    description: "按需委派专业导演，根据确认的镜头合同和真实参考制作、程序预检 H3 中英文提示词；review=true 时才调用独立审核，不启动生成。简单任务、已有提示词的局部修改、对照试验和用户提供的完整提示词可直接通过视频节点 setPrompt 使用，无需调用本工具。参数是单一 JSON 对象：mustHave/mustNotHave/references 必须是数组，duration 是数字，不得传 JSON 字符串。已有节点传 node，不传 modelId/duration/ratio/sampling/seed/seedMode；依次调用 getConfig、setConfig 和 getPromptContext；需要将提示词写入节点时，须设置 node.write=true。新镜头没有对应节点时，不传 node，必须传入 duration 和 ratio。可先调用 searchVideoPromptTemplates 并将选中模板 ID 放入 creativeSelection，避免重复发送模板全文。按同一合同继续生成时复用现有提示词。仅在需要整份重写时传 regenerate=true；需要复审已审核原稿时传 reReview=true。审核编号不是生成前提。原合同未变时用 draftId 调用 resumeVideoPrompt；台词或分镜已经修订时，用更新后的完整合同重新提交。",
+    promptSnippet: "需要专业导演协助编写完整 H3 提示词时可调用 draftVideoPrompt。局部修改直接保留原稿并修改指定内容。shotId 用实际分镜编号，放在顶层。已有节点把当前 canvasId 和 nodeId 放进 node，从镜头合同填写本镜原话和实际参考。新镜头直接传 duration 和 ratio。需要导演拍法时传 templateTags，选用分类创作知识时在 creativeSelection 传 ID。",
     parameters: { type: "object", ...videoPromptToolSchema },
     prepareArguments(raw) {
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("draftVideoPrompt 需要单个镜头合同对象");
@@ -69,7 +69,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
     execute: (...args) => run(undefined, ...args),
   };
   const resume: ToolDefinition = {
-    name: "resumeVideoPrompt", label: "继续视频提示词审核",
+    name: "resumeVideoPrompt", label: "继续视频提示词制作",
     description: "按 draftId 继续原镜头。审核提交失败只重审原稿；内容未通过审核时，按原合同和整改意见修改存在问题的部分。编号遗失时只传 shotId 查询本会话待审稿；用户明确放弃时可传 draftId 和 discard=true。",
     parameters: z.toJSONSchema(resumeParameters, { target: "draft-07" }),
     executionMode: "sequential",
@@ -106,6 +106,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
     const draftId = resumed?.draftId ?? crypto.randomUUID();
     const pendingPath = pendingDraftPath(cwd, parentFile, draftId);
     const prepared = await prepareVideoPrompt(cwd, input, canvas, signal);
+    const reviewRequested = input.review === true || input.reReview === true;
     const { creativeContext, voiceContext } = prepared;
     // 只按调用方为本镜提供的标签查拍法，镜头用途仍用于加载导演资料。
     const candidates = prepared.templateTags ? findVideoPromptTemplates(prepared.templateTags, {
@@ -161,12 +162,12 @@ export function createVideoPromptTools(options: SubAgentModel & {
     };
     const finish = (result: Record<string, unknown>) => {
       const advisory = preflightWarnings.length ? { warnings: preflightWarnings } : {};
-      const reviewScope = result.reviewId ? { reviewScope: "审核编号只适用于本工作区。稿件移到其他工作区后，须在目标工作区重新审核。" } : {};
+      const reviewScope = result.reviewId ? { reviewScope: "此可选审核记录只适用于原工作区及当时的稿件，不是视频生成的前置条件。" } : {};
       const details = { ...result, reviewer: result.reviewId ? reviewerSource : undefined, shotId: input.shotId, workflow: prepared.setup, skills, templateMatches, creativeSelection: creativeContext, attempts,
         ...advisory, ...reviewScope, modelCalls, elapsedMs: Math.round(performance.now() - startedAt) };
       // 节点已写回时，主 Agent 只接收审核状态与定位信息，完整稿仍保存在节点和工具详情中。
       const visible = result.status === "ok" && result.written && input.node
-        ? { status: result.status, shotId: input.shotId, reviewId: result.reviewId, reviewer: reviewerSource, written: true,
+        ? { status: result.status, shotId: input.shotId, reviewId: result.reviewId, reviewer: result.reviewId ? reviewerSource : undefined, written: true,
           node: input.node,
           nextAction: { when: "按当前自动、半自动或目标模式完成相应授权后",
             tool: "nodeTools", args: { canvasId: input.node.canvasId, nodeId: input.node.nodeId, name: "node:generateVideo", args: {} } },
@@ -176,7 +177,7 @@ export function createVideoPromptTools(options: SubAgentModel & {
           : { ...result, shotId: input.shotId, totalTokens: usage.totalTokens };
       return { details, content: [{ type: "text" as const, text: JSON.stringify({ ...visible, ...advisory, ...reviewScope }) }], usage };
     };
-    async function writePrompt(draft: { prompt: string; promptZh: string }, reviewId: string) {
+    async function writePrompt(draft: { prompt: string; promptZh: string }, reviewId?: string) {
       let written = false;
       let writeError: string | undefined;
       if (input.node?.write && canvas && prepared.revision) {
@@ -309,7 +310,19 @@ export function createVideoPromptTools(options: SubAgentModel & {
         update(findings.length ? "程序预检未通过，准备针对发现的问题进行修改" : "程序预检通过");
         if (findings.length) continue;
       }
-      // 审核前保存候选稿，只有通过审核才能签发 reviewId。
+      // 默认完成导演稿及程序预检即可交付，不启动独立审核或签发审核号。
+      if (!reviewRequested) {
+        const refreshed = await prepareVideoPrompt(cwd, input, canvas, signal);
+        requireSameVideoReview(prepared.snapshot, refreshed.snapshot);
+        if (input.node && refreshed.revision !== prepared.revision) {
+          throw new Error("视频节点在制作期间已变化，请读取当前节点");
+        }
+        const generationRequest = videoGenerationSchema.parse({ ...refreshed.generationRequest, prompt: lastDraft.prompt });
+        const write = await writePrompt(lastDraft);
+        if (resumed) await removePendingDraft(pendingPath);
+        return finish({ status: "ok", ...lastDraft, generationRequest, ...write, reused: false });
+      }
+      // 仅在主动要求独立审核时保存候选稿并签发真实审核记录。
       await savePendingDraft(pendingPath, { input, draftKey, revision: prepared.revision, draft: lastDraft, findings: [] });
       onUpdate?.({ content: [{ type: "text", text: `待审稿已保存：${draftId}` }], details: { draftId, nextAction } });
       let review: VideoPromptReview;

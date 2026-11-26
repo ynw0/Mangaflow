@@ -115,6 +115,45 @@ describe("H3 双采高级参数",()=>{
       expect(graph["21"]).toBeUndefined();
     } finally {await rm(dir,{recursive:true,force:true});}
   });
+  test("独立双采保留音视频链路及用户指定参数",async()=>{
+    const {graph,bindings}=await read(names[0]!);
+    const original=structuredClone(graph);
+    graph["150"].inputs.value=32; graph["148"].inputs.value=10;
+    applyH3Options(graph,bindings,{samplingMode:"independent",secondPassDenoise:0.25,scheduler:"beta",sampler:"euler"});
+    expect(graph["7"].inputs.sigmas).toEqual(["119",0]);
+    expect(graph["119"].inputs).toMatchObject({steps:["150",0],denoise:1,scheduler:"beta"});
+    const secondId=graph["113"].inputs.sigmas[0];
+    expect(graph[secondId].class_type).toBe("BasicScheduler");
+    expect(graph[secondId].inputs).toMatchObject({steps:["148",0],denoise:0.25,scheduler:"beta",model:["129",0]});
+    expect(graph["117"]).toBeUndefined(); expect(graph["149"]).toBeUndefined();
+    expect(graph["10"].inputs.sampler_name).toBe("euler");
+    for(const id of ["6","90","106","118","83","128","114","126","98"]) expect(graph[id]).toEqual(original[id]);
+    expect(Object.values(graph).every((n:any)=>Object.values(n.inputs??{}).every(v=>!Array.isArray(v)||v.length!==2||Object.hasOwn(graph,String(v[0]))))).toBe(true);
+  });
+  test("完整32+10独立双采经请求绑定，关闭 LoRA 后仍正确",async()=>{
+    const dir=await realpath(await mkdtemp(join(tmpdir(),"manga-h3-independent-")));
+    try {
+      const request=videoGenerationSchema.parse({providerId:"comfyui",modelId:"video/h3_ref2va_dual",checkpointName:"minimax/Singularity-H3.safetensors",loraName:"",prompt:"test",duration:5,ratio:"9:16",firstPassSteps:32,secondPassSteps:10,outputFirstPass:true,h3Options:{samplingMode:"independent",secondPassDenoise:0.25}});
+      const {workflow}=await prepareComfyWorkflow({directory:dir,mediaType:"video",request});
+      const graph=workflow as Record<string,any>;
+      expect(graph["21"]).toBeUndefined();
+      expect(graph["150"].inputs.value).toBe(32); expect(graph["148"].inputs.value).toBe(10);
+      expect(graph["7"].inputs.sigmas).toEqual(["119",0]);
+      expect(graph[graph["113"].inputs.sigmas[0]].inputs.denoise).toBe(0.25);
+      expect(graph["114"].inputs.audio).toEqual(["83",0]);
+      expect(graph["126"].inputs.audio).toEqual(["128",0]);
+    } finally {await rm(dir,{recursive:true,force:true});}
+  });
+  test("分段模式不改原采样图，独立模式拒绝未知连接和非法降噪",async()=>{
+    const {graph,bindings}=await read(names[0]!);
+    const before=structuredClone(graph);
+    applyH3Options(graph,bindings,{samplingMode:"split"});
+    expect(graph).toEqual(before);
+    expect(()=>applyH3Options(graph,bindings,{samplingMode:"split",secondPassDenoise:0.25})).toThrow("仅适用于独立双采");
+    expect(()=>h3OptionsSchema.parse({samplingMode:"independent",secondPassDenoise:0})).toThrow();
+    graph["999"]={class_type:"Custom",inputs:{sigmas:["117",0]}};
+    expect(()=>applyH3Options(graph,bindings,{samplingMode:"independent"})).toThrow("其他连接");
+  });
   test("未知拓扑或重复/非法 LoRA 不允许改图",async()=>{
     const {graph,bindings}=await read(names[0]!);
     expect(()=>applyH3Options(graph,bindings,{extraLoras:[{name:"test.safetensors",strength:1}]},"test.safetensors")).toThrow("不得重复");

@@ -82,6 +82,9 @@ export const h3OptionsSchema = z.strictObject({
   scheduler: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.-]+$/).optional(),
   videoShift: z.number().finite().min(0.1).max(30).optional(),
   audioShift: z.number().finite().min(0.1).max(30).optional(),
+  /** 省略时沿用旧版分段采样；预设会明确选择采样方式。 */
+  samplingMode: z.enum(["split", "independent"]).optional(),
+  secondPassDenoise: z.number().finite().min(0.05).max(1).optional(),
 });
 export type H3Options = z.infer<typeof h3OptionsSchema>;
 export type H3AdvancedCapability = { loraStrength: number; sampler: string; scheduler: string; videoShift: number; audioShift: number; maxExtraLoras: number };

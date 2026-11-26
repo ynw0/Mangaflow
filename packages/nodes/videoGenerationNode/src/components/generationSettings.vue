@@ -152,6 +152,16 @@
         <div v-if="loraError" class="sizeHint" role="status">{{ loraError }}</div>
         <div v-if="model.h3Advanced" class="h3Advanced">
           <div class="sectionLabel">高级采样与附加 LoRA</div>
+          <div class="sectionLabel">双采方式</div>
+          <el-select :model-value="h3Options?.samplingMode ?? 'split'" :disabled="disabled" aria-label="双采方式" @change="setSamplingMode">
+            <el-option label="分段双采（原工作流）" value="split" />
+            <el-option label="独立双采（完整一采后再细化）" value="independent" />
+          </el-select>
+          <div v-if="h3Options?.samplingMode === 'independent'" class="h3AdvancedRow">
+            <span>二采降噪强度</span>
+            <el-input-number :model-value="h3Options?.secondPassDenoise ?? 0.25" :disabled="disabled" :min="0.05" :max="1" :step="0.05" :precision="2" controls-position="right" @update:model-value="value => patchAdvanced('secondPassDenoise', value)" />
+          </div>
+          <div class="sizeHint">采样预设自动选择双采方式。旧节点未指定方式时保持原分段双采；手动切换方式不会改变步数。</div>
           <div v-if="selectedLora !== '__lora_disabled__'" class="h3AdvancedRow">
             <span>加速 LoRA 强度</span>
             <el-input-number :model-value="h3Options?.loraStrength ?? model.h3Advanced.loraStrength" :disabled="disabled" :min="0.01" :max="2" :step="0.05" :precision="2" controls-position="right" @update:model-value="value => patchAdvanced('loraStrength', value)" />
@@ -191,17 +201,17 @@
           </div>
           <div class="sizeHint" v-if="advancedError">{{ advancedError }}</div>
           <div class="sectionLabel">实验性采样预设（不换主模型）</div>
-          <el-button size="small" :disabled="disabled || !presetPlans.normal.ok" @click="applyPreset('normal')">普通高质量 25步（20+5，Agent 可自定义25～40步）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.normal.ok" @click="applyPreset('normal')">普通高质量（完整32步＋独立二采10步）</el-button>
           <el-button size="small" :disabled="disabled || !presetPlans.preview4.ok" @click="applyPreset('preview4')">极速试镜 4步（2+2，LightX2V Ref2VA）</el-button>
-          <el-button size="small" :disabled="disabled || !presetPlans.balanced82.ok" @click="applyPreset('balanced82')">8+2（无加速）</el-button>
-          <el-button size="small" :disabled="disabled || !presetPlans.balanced84.ok" @click="applyPreset('balanced84')">8+4（无加速）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.balanced82.ok" @click="applyPreset('balanced82')">8+2（无加速独立双采，实验）</el-button>
+          <el-button size="small" :disabled="disabled || !presetPlans.balanced84.ok" @click="applyPreset('balanced84')">8+4（无加速独立双采，实验）</el-button>
           <el-button size="small" :disabled="disabled || !presetPlans.quick62.ok" @click="applyPreset('quick62')">试镜 6+2（加速 LoRA）</el-button>
           <el-button size="small" :disabled="disabled || !presetPlans.fused8.ok" @click="applyPreset('fused8')">试镜 6+2（融合 Turbo）</el-button>
           <div class="sizeHint">智能自动选档在 设置 → 插件 → 已安装 → 技能 → h3SamplingStrategy 中启停；关闭后不向 Agent 提供配套工具，仍可手动使用本预设。</div>
           <div class="sizeHint">{{ presetHint }}</div>
           <div v-if="presetAvailabilityHint" class="sizeHint">{{ presetAvailabilityHint }}</div>
           <el-button text size="small" :disabled="disabled" @click="h3Options = undefined">恢复高级参数默认（不改模型/步数/加速 LoRA）</el-button>
-          <div class="sizeHint">总步数 {{ (firstPassSteps ?? 0)+(secondPassSteps ?? 0) }}；一二采共用同一套采样序列。预设采用文件名识别及手动标记加速 LoRA；实际兼容性需验证。</div>
+          <div class="sizeHint">总步数 {{ (firstPassSteps ?? 0)+(secondPassSteps ?? 0) }}；{{ h3Options?.samplingMode === "independent" ? "一采完整去噪，二采使用独立采样序列。" : "一二采共用同一套采样序列。" }}预设采用文件名识别及手动标记加速 LoRA；实际兼容性需验证。</div>
         </div>
         <div class="sizeHint">选择其他 LoRA 前请确认与 H3 基础模型兼容。</div>
       </div>
@@ -369,6 +379,13 @@ function patchAdvanced<K extends keyof H3Options>(key: K, value: H3Options[K] | 
   if (value === undefined) delete next[key]; else next[key] = value;
   h3Options.value = Object.keys(next).length ? next : undefined;
 }
+function setSamplingMode(value: "split" | "independent") {
+  if (!props.model?.h3Advanced) return;
+  const next: H3Options = {...h3Options.value, samplingMode:value};
+  if (value === "split") delete next.secondPassDenoise;
+  else next.secondPassDenoise ??= 0.25;
+  h3Options.value = next;
+}
 function availableExtraNames(index: number) {
   const selected = extraLoras.value[index]?.name;
   const primary = selectedLora.value;
@@ -423,6 +440,8 @@ function applyPreset(preset: H3SamplingPreset) {
   secondPassSteps.value = plan.secondPassSteps;
   h3Options.value = {
     sampler: plan.sampler, scheduler: "simple", videoShift: 12, audioShift: 3,
+    samplingMode: plan.samplingMode,
+    ...(plan.secondPassDenoise === undefined ? {} : {secondPassDenoise:plan.secondPassDenoise}),
     ...(plan.primaryStrength === undefined ? {} : { loraStrength: plan.primaryStrength }),
     ...(plan.extraLoras.length ? { extraLoras: plan.extraLoras } : {}),
   };

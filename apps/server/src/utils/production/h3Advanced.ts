@@ -34,6 +34,8 @@ export function applyH3Options(graph: Record<string, unknown>, bindings: Workflo
   const spec = h3AdvancedCapability(graph, bindings);
   if (!spec) fail("当前工作流不支持 H3 高级采样或多 LoRA，请选择兼容二采工作流");
   const options = h3OptionsSchema.parse(raw);
+  if (options.secondPassDenoise !== undefined && options.samplingMode !== "independent") fail("二采降噪强度仅适用于独立双采");
+  if (options.samplingMode !== "independent" && (options.secondPassLoras !== undefined || options.secondPassSampler !== undefined || options.secondPassScheduler !== undefined)) fail("二采独立 LoRA、采样器和调度器仅适用于独立双采");
   const primary = get(graph,"21")!.inputs!;
   const shift = get(graph,"156")!.inputs!;
   const name = primaryName ?? String(primary.lora_name);
@@ -44,6 +46,7 @@ export function applyH3Options(graph: Record<string, unknown>, bindings: Workflo
   if (options.scheduler !== undefined) get(graph,"119")!.inputs!.scheduler = options.scheduler;
   if (options.videoShift !== undefined) shift.shift_video = options.videoShift;
   if (options.audioShift !== undefined) shift.shift_audio = options.audioShift;
+  if (options.samplingMode === "independent") applyIndependentSampling(graph, options.secondPassDenoise ?? 0.25);
   let upstream = "21";
   const lockedLoraNodes: string[] = [];
   for (const item of options.extraLoras ?? []) {
@@ -56,16 +59,99 @@ export function applyH3Options(graph: Record<string, unknown>, bindings: Workflo
   }
   // 原节点旁路逻辑稍后处理 primaryName=""，也会重连第一条附加 LoRA。
   shift.model = [upstream,0];
+  if (options.samplingMode === "independent") configureSecondPass(graph, options, lockedLoraNodes);
   return lockedLoraNodes;
+}
+
+// 复用原有模型、采样器、超分与音视频输出，只替换两个阶段的 Sigma 序列。
+function applyIndependentSampling(graph: Record<string, unknown>, denoise: number) {
+  const first = get(graph,"7")!.inputs!, second = get(graph,"113")!.inputs!;
+  const scheduler = get(graph,"119")!.inputs!, sum = get(graph,"149")!.inputs!, split = get(graph,"117")!.inputs!;
+  if (!link(sum["values.a"],"150") || !link(sum["values.b"],"148") || sum.expression !== "a + b"
+    || !link(split.step,"150") || get(graph,"150")?.class_type !== "INTConstant"
+    || get(graph,"148")?.class_type !== "INTConstant") fail("独立双采需要已知的一二采步数绑定");
+  const consumers = (id: string) => Object.entries(graph).flatMap(([key,node]) =>
+    Object.entries((node as Node)?.inputs ?? {}).filter(([,v]) => Array.isArray(v) && v.length === 2 && String(v[0]) === id)
+      .map(([field]) => key+"."+field)).sort().join(",");
+  if (consumers("117") !== "113.sigmas,7.sigmas" || consumers("149") !== "119.steps") fail("采样序列还有其他连接，不能安全切换独立双采");
+  let id = 162;
+  while (Object.hasOwn(graph,String(id))) id++;
+  const secondId = String(id);
+  graph[secondId] = { class_type:"BasicScheduler", inputs:{...scheduler, steps:["148",0], denoise} };
+  scheduler.steps = ["150",0];
+  scheduler.denoise = 1;
+  first.sigmas = ["119",0];
+  second.sigmas = [secondId,0];
+  delete graph["117"];
+  delete graph["149"];
+}
+
+// 二采单独配置时从原始 Attention 模型开始，不继承一采的 LoRA。
+function configureSecondPass(graph: Record<string, unknown>, options: H3Options, locked: string[]) {
+  const second = get(graph,"113")!.inputs!;
+  const sigmaLink = second.sigmas as [string,number];
+  const scheduler = get(graph,String(sigmaLink[0]))!.inputs!;
+  function add(class_type:string, inputs:Record<string,unknown>) {
+    let id=10000;
+    while (Object.hasOwn(graph,String(id))) id++;
+    const key=String(id);
+    graph[key]={class_type,inputs};
+    return key;
+  }
+  if (options.secondPassLoras !== undefined) {
+    let upstream="125";
+    for (const item of options.secondPassLoras) {
+      upstream=add("LoraLoaderModelOnly",{model:[upstream,0],lora_name:item.name,strength_model:item.strength});
+      locked.push(upstream);
+    }
+    const shift=add("MiniMaxH3SigmaShift",{...get(graph,"156")!.inputs!,model:[upstream,0]});
+    const preview=add("ModelPreviewOverrideKJ",{...get(graph,"129")!.inputs!,model:[shift,0]});
+    second.model=[preview,0];
+    scheduler.model=[preview,0];
+  }
+  if (options.secondPassSampler !== undefined) {
+    second.sampler=[add("KSamplerSelect",{sampler_name:options.secondPassSampler}),0];
+  }
+  if (options.secondPassScheduler !== undefined) scheduler.scheduler=options.secondPassScheduler;
+}
+
+// 根据实际连接识别二采 LoRA，避免把独立二采 LoRA 记录到一采附加列表。
+function separateSecondLoraIds(graph: Record<string,unknown>) {
+  const model=get(graph,"113")!.inputs!.model;
+  if (link(model,"129")) return undefined;
+  const source=(value:unknown)=>Array.isArray(value)?String(value[0]):"";
+  const preview=get(graph,source(model));
+  const shift=get(graph,source(preview?.inputs?.model));
+  let id=source(shift?.inputs?.model);
+  const ids:string[]=[];
+  while (get(graph,id)?.class_type==="LoraLoaderModelOnly") {
+    if (ids.includes(id)) fail("二采 LoRA 链路存在循环");
+    ids.unshift(id);
+    id=source(get(graph,id)?.inputs?.model);
+  }
+  if (id!=="125") fail("二采 LoRA 链路未连接原始模型");
+  return ids;
 }
 
 export function effectiveH3Options(graph: Record<string, unknown>, locked: string[]) {
   const primary = get(graph,"21")?.inputs;
-  const nodes = [...(primary ? ["21"] : []), ...locked.filter(id => id !== "21")];
-  const loras = nodes.map(id => get(graph,id)?.inputs).filter((inputs): inputs is Record<string,unknown> => !!inputs)
+  const secondIds = separateSecondLoraIds(graph);
+  const nodes = [...(primary ? ["21"] : []), ...locked.filter(id => id !== "21" && !secondIds?.includes(id))];
+  const readLoras=(ids:string[])=>ids.map(id => get(graph,id)?.inputs).filter((inputs): inputs is Record<string,unknown> => !!inputs)
     .map(inputs => ({ name:String(inputs.lora_name), strength:Number(inputs.strength_model) }));
+  const loras=readLoras(nodes);
+  const secondLoras=secondIds===undefined?undefined:readLoras(secondIds);
+  if (secondLoras && new Set(secondLoras.map(item=>item.name.replaceAll("\\","/"))).size!==secondLoras.length) fail("二采 LoRA 文件重复");
   if (new Set(loras.map(item => item.name.replaceAll("\\", "/"))).size !== loras.length) fail("LoRA 文件经远端路径对齐后重复，请明确选择不重复的权重");
-  const options: H3Options = { ...(primary ? {loraStrength:Number(primary.strength_model)} : {}),
+  const independent = link(get(graph,"7")!.inputs!.sigmas,"119");
+  const secondSigmas = get(graph,"113")!.inputs!.sigmas;
+  const secondScheduler = independent && Array.isArray(secondSigmas) ? get(graph,String(secondSigmas[0]))?.inputs : undefined;
+  const options: H3Options = { samplingMode: independent ? "independent" : "split",
+    ...(secondScheduler ? {secondPassDenoise:Number(secondScheduler.denoise)} : {}),
+    ...(secondLoras === undefined ? {} : {secondPassLoras:secondLoras}),
+    ...(!link(get(graph,"113")!.inputs!.sampler,"10") ? {secondPassSampler:String(get(graph,String((get(graph,"113")!.inputs!.sampler as [string,number])[0]))!.inputs!.sampler_name)} : {}),
+    ...(secondScheduler && secondScheduler.scheduler !== get(graph,"119")!.inputs!.scheduler ? {secondPassScheduler:String(secondScheduler.scheduler)} : {}),
+    ...(primary ? {loraStrength:Number(primary.strength_model)} : {}),
     extraLoras: primary ? loras.slice(1) : loras,
     sampler:String(get(graph,"10")!.inputs!.sampler_name), scheduler:String(get(graph,"119")!.inputs!.scheduler),
     videoShift:Number(get(graph,"156")!.inputs!.shift_video), audioShift:Number(get(graph,"156")!.inputs!.shift_audio) };

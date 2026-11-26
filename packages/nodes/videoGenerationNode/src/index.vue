@@ -1001,7 +1001,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setConfig",
-  description: "修改视频节点配置。选择工作流时，必须同时提供 providerId 和 modelId。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，传入 null 时恢复工作流的默认值。loraName 为空字符串关闭加速 LoRA。manualAccelerationLoras 可设置手动标记的已安装加速 LoRA 文件名数组（最多32个）；先 getConfig(refreshComfyChoices=true) 获取 loraChoices，标记为加速 LoRA 不代表 PDD、PTD、HyperFlow 等特殊方案可以直接运行。h3Options 用于整体替换可选的高级设置，包括：loraStrength、extraLoras（有序数组，每项 name/strength，最多3个）、sampler、scheduler、videoShift、audioShift；null 恢复高级参数默认值。单次采样工作流用 steps、sampler、scheduler 和 scaleOutput；sampler 或 scheduler 传 null 恢复工作流默认值。没有放大倍率时不要传 upscale，没有 h3Advanced 时不要传 h3Options。只使用实际发现的文件和采样选项，不擅自更换已选模型。qcOverride=null 时使用系统默认设置；mode=off 时关闭自动质检；mode=custom 时使用指定的质检策略，模型 ID 从 getConfig.qcChoices 中选择。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
+  description: "修改视频节点配置。选择工作流时，必须同时提供 providerId 和 modelId。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，传入 null 时恢复工作流的默认值。loraName 为空字符串关闭加速 LoRA。manualAccelerationLoras 可设置手动标记的已安装加速 LoRA 文件名数组（最多32个）；先 getConfig(refreshComfyChoices=true) 获取 loraChoices，标记为加速 LoRA 不代表 PDD、PTD、HyperFlow 等特殊方案可以直接运行。h3Options 用于整体替换可选的高级设置，包括：loraStrength、extraLoras（有序数组，每项 name/strength，最多3个）、sampler、scheduler、videoShift、audioShift、samplingMode（split 分段或 independent 独立双采）、secondPassDenoise（仅独立双采，默认0.25）、secondPassLoras（仅独立双采，省略沿用一采全部 LoRA，[] 关闭全部，非空有序数组单独加载最多3个 name/strength）、secondPassSampler、secondPassScheduler（仅独立双采，省略沿用一采）；局部修改须保留 getConfig 返回的其余 h3Options；省略 samplingMode 保留旧版分段采样；null 恢复高级参数默认值。单次采样工作流用 steps、sampler、scheduler 和 scaleOutput；sampler 或 scheduler 传 null 恢复工作流默认值。没有放大倍率时不要传 upscale，没有 h3Advanced 时不要传 h3Options。只使用实际发现的文件和采样选项，不擅自更换已选模型。qcOverride=null 时使用系统默认设置；mode=off 时关闭自动质检；mode=custom 时使用指定的质检策略，模型 ID 从 getConfig.qcChoices 中选择。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
   parameters: z.strictObject({
     providerId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),
@@ -1119,6 +1119,7 @@ nodeTools.register({
     const sameModel = data.value.model === JSON.stringify([choice.providerId, choice.modelId]);
     const nextLora = args.loraName ?? (sameModel ? data.value.loraName : undefined) ?? choice.lora?.defaultName;
     const nextAdvanced = args.h3Options === null ? undefined : args.h3Options ?? (sameModel ? data.value.h3Options : undefined);
+    if (nextAdvanced && nextAdvanced.samplingMode !== "independent" && (nextAdvanced.secondPassDenoise !== undefined || nextAdvanced.secondPassLoras !== undefined || nextAdvanced.secondPassSampler !== undefined || nextAdvanced.secondPassScheduler !== undefined)) throw new Error("二采独立设置仅适用于独立双采");
     if (nextAdvanced?.loraStrength !== undefined && nextLora === "" && args.h3Options != null) throw new Error("关闭主 LoRA 时不能指定主 LoRA 强度");
     if (nextLora && nextAdvanced?.extraLoras?.some(item => item.name.replaceAll("\\", "/") === nextLora.replaceAll("\\", "/"))) throw new Error("主 LoRA 与附加 LoRA 不能重复");
     data.value.model = JSON.stringify([choice.providerId, choice.modelId]);

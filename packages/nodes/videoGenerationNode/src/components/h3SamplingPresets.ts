@@ -18,7 +18,7 @@ export type H3PresetInput = {
 };
 export type H3PresetPlan =
   | { ok: true; primaryLora: string; primaryStrength?: number; extraLoras: ExtraLora[];
-      firstPassSteps: number; secondPassSteps: number; sampler: string; hint: string }
+      firstPassSteps: number; secondPassSteps: number; sampler: string; samplingMode: "split" | "independent"; secondPassDenoise?: number; hint: string }
   | { ok: false; reason: string };
 
 function compatibleWith(name: string, steps: 4 | 8, manual: readonly string[]) {
@@ -60,8 +60,8 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
   const ordinaryExtras = input.extraLoras.filter(item => !isAccelerationLora(item.name, manual)).map(item => ({ ...item }));
   let primaryLora = isAccelerationLora(input.primaryLora, manual) ? "" : input.primaryLora;
   let primaryStrength = primaryLora ? input.primaryStrength : undefined;
-  let firstPassSteps = 20, secondPassSteps = 5, sampler = "res_multistep";
-  let hint = "已切换普通 25 步，仅关闭加速 LoRA，保留普通 LoRA。";
+  let firstPassSteps = 32, secondPassSteps = 10, sampler = "res_multistep";
+  let hint = "已切换完整一采32步＋独立二采10步，降噪强度0.25；仅关闭加速 LoRA，保留普通 LoRA。";
   if (preset === "fused8") {
     firstPassSteps = 6;
     secondPassSteps = 2;
@@ -70,7 +70,7 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
   } else if (preset === "balanced82" || preset === "balanced84") {
     firstPassSteps = 8;
     secondPassSteps = preset === "balanced82" ? 2 : 4;
-    hint = "已切换无加速双采。";
+    hint = "已切换低步数独立双采（无加速，尚需实机验证）。";
   } else if (preset !== "normal") {
     const target: 4 | 8 = preset === "preview4" ? 4 : 8;
     const candidate = speedCandidate(input.installedLoras, input.primaryLora, target, manual);
@@ -101,6 +101,7 @@ export function createH3PresetPlan(preset: H3SamplingPreset, input: H3PresetInpu
     if (sampler === "res_multistep" && input.samplerChoices.includes("euler")) sampler = "euler";
     else return { ok: false, reason: "工作流未提供此预设所需采样器。" };
   }
-  return { ok: true, primaryLora, ...(primaryStrength === undefined ? {} : { primaryStrength }),
+  const independent = preset === "normal" || preset === "balanced82" || preset === "balanced84";
+  return { ok: true, samplingMode: independent ? "independent" : "split", ...(independent ? {secondPassDenoise:0.25} : {}), primaryLora, ...(primaryStrength === undefined ? {} : { primaryStrength }),
     extraLoras: ordinaryExtras, firstPassSteps, secondPassSteps, sampler, hint };
 }

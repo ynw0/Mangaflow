@@ -25,10 +25,12 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     expect(declaredAccelerationSteps("other/8-steps.safetensors")).toBe(8);
     expect(declaredAccelerationSteps("foo/TaoMate-3step.safetensors")).toBe(3);
   });
-  test("普通25步只移除加速 LoRA，保留非加速附加 LoRA", () => {
+  test("普通32+10步独立双采只移除加速 LoRA，保留非加速附加 LoRA", () => {
     const result = success("normal", {extraLoras:[
       {name:"speed/other_8step.safetensors",strength:1}, {name:"style/film.safetensors",strength:0.6}]});
-    expect([result.firstPassSteps,result.secondPassSteps,result.primaryLora]).toEqual([20,5,""]);
+    expect([result.firstPassSteps,result.secondPassSteps,result.primaryLora]).toEqual([32,10,""]);
+    expect(result.samplingMode).toBe("independent");
+    expect(result.secondPassDenoise).toBe(0.25);
     expect(result.extraLoras).toEqual([{name:"style/film.safetensors",strength:0.6}]);
     const ordinaryPrimary=success("normal",{primaryLora:"style/cinematic.safetensors",primaryStrength:0.45});
     expect([ordinaryPrimary.primaryLora,ordinaryPrimary.primaryStrength]).toEqual(["style/cinematic.safetensors",0.45]);
@@ -37,6 +39,7 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
     expect(createH3PresetPlan("preview4", input()).ok).toBe(false);
     const result=success("preview4",{installedLoras:["minimax/"+preferred4StepLora,...input().installedLoras]});
     expect([result.firstPassSteps,result.secondPassSteps]).toEqual([2,2]);
+    expect(result.samplingMode).toBe("split");
     expect(result.primaryLora).toContain(preferred4StepLora);
     expect(result.extraLoras).toHaveLength(1);
   });
@@ -48,6 +51,8 @@ describe("H3 采样预设与加速 LoRA 识别", () => {
   test("无加速 8+4 与试镜 6+2", () => {
     const a=success("balanced84"), b=success("quick62");
     expect([a.firstPassSteps,a.secondPassSteps]).toEqual([8,4]);
+    expect(a.samplingMode).toBe("independent");
+    expect(b.samplingMode).toBe("split");
     expect([b.firstPassSteps,b.secondPassSteps]).toEqual([6,2]);
     expect(b.primaryLora).toBe("custom/pika-v2-turbo_8steps_hd.safetensors");
     expect(b.extraLoras).toEqual([{name:"style/film.safetensors",strength:0.6}]);

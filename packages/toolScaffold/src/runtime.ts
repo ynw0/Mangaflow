@@ -82,6 +82,16 @@ export const h3OptionsSchema = z.strictObject({
   scheduler: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.-]+$/).optional(),
   videoShift: z.number().finite().min(0.1).max(30).optional(),
   audioShift: z.number().finite().min(0.1).max(30).optional(),
+  /** 省略时沿用旧版分段采样；预设会明确选择采样方式。 */
+  samplingMode: z.enum(["split", "independent"]).optional(),
+  secondPassDenoise: z.number().finite().min(0.05).max(1).optional(),
+  /** 独立双采：省略沿用一采全部 LoRA；空数组关闭全部；非空数组独立加载。 */
+  secondPassLoras: z.array(z.strictObject({
+    name: z.string().min(1).max(512).regex(/^[^\x00-\x1f]+$/).refine(name => name.trim() === name),
+    strength: z.number().finite().min(0.01).max(2),
+  })).max(3).refine(items => new Set(items.map(item => item.name.replaceAll("\\", "/"))).size === items.length, "二采 LoRA 文件不得重复").optional(),
+  secondPassSampler: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.-]+$/).optional(),
+  secondPassScheduler: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.-]+$/).optional(),
 });
 export type H3Options = z.infer<typeof h3OptionsSchema>;
 export type H3AdvancedCapability = { loraStrength: number; sampler: string; scheduler: string; videoShift: number; audioShift: number; maxExtraLoras: number };

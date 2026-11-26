@@ -28,7 +28,7 @@ export const h3SamplingStrategyInput = z.strictObject({
   schedulerChoices: z.array(z.string().min(1).max(128)).max(100),
   maxExtraLoras: z.number().int().min(0).max(3).optional().default(3),
   compatibilityConfirmed: z.boolean().default(false).describe("只有使用相同主模型、LoRA 和工作流成功生成过试片，或具备可靠的配置证据时，才设为 true；不能根据文件名推测"),
-  qualitySteps: z.number().int().min(25).max(40).optional().describe("仅质量档自定义总步数，最多 40；不影响预设按钮"),
+  qualitySteps: z.number().int().min(25).max(40).optional().describe("可选的质量档自定义总步数（25～40）；省略使用已验证的32+10独立双采"),
 });
 export type H3SamplingStrategyInput = z.infer<typeof h3SamplingStrategyInput>;
 
@@ -40,7 +40,7 @@ export type H3SamplingDecision = {
   setConfig?: {
     firstPassSteps: number; secondPassSteps: number; loraName: string;
     h3Options: { sampler: string; scheduler: string; videoShift: number; audioShift: number;
-      extraLoras: { name: string; strength: number }[]; loraStrength?: number };
+      extraLoras: { name: string; strength: number }[]; loraStrength?: number; samplingMode: "split" | "independent"; secondPassDenoise?: number };
   };
   totalSteps?: number;
 };
@@ -68,7 +68,7 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
   const scheduler = input.schedulerChoices.includes("simple") ? "simple" : undefined;
   if (!scheduler) return blocked("ComfyUI 未提供 simple 调度器；不能可靠应用当前 H3 采样策略。");
   let loraName = "";
-  let totalSteps = 25, firstPassSteps = 20, secondPassSteps = 5;
+  let totalSteps = 42, firstPassSteps = 32, secondPassSteps = 10;
   let sampler = chooseSampler(["res_multistep", "euler"]);
   let status: H3SamplingDecision["status"] = "ready";
   let warning: string | undefined;
@@ -77,10 +77,12 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
     secondPassSteps = desired === "balanced82" ? 2 : 4;
     totalSteps = firstPassSteps + secondPassSteps;
   } else if (desired === "quality") {
-    totalSteps = input.qualitySteps ?? (input.phase === "final" ? 35 : input.phase === "key" ? 30 : 25);
-    // 25=20+5, 30=24+6, 35=28+7, 40=32+8。总步数最大 40。
-    firstPassSteps = totalSteps - Math.round(totalSteps / 5);
-    secondPassSteps = totalSteps - firstPassSteps;
+    // 显式 qualitySteps 保留旧总步数语义；默认采用已验证的32+10配置。
+    if (input.qualitySteps !== undefined) {
+      totalSteps = input.qualitySteps;
+      firstPassSteps = totalSteps - Math.round(totalSteps / 5);
+      secondPassSteps = totalSteps - firstPassSteps;
+    }
     if (!sampler) return blocked("当前工作流没有 res_multistep 或 euler，不能给出质量档预设。");
   } else if (desired === "fused8") {
     if (!input.compatibilityConfirmed) return blocked("使用融合 Turbo 的 8 步方案前，必须有相同主模型与工作流的兼容性验证记录。");
@@ -121,17 +123,19 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
     secondPassSteps = totalSteps - firstPassSteps;
   }
   if (!sampler) return blocked("当前 ComfyUI 采样器不支持此方案，不能猜测替换。");
+  const independent = desired === "quality" || desired === "balanced82" || desired === "balanced84";
   return {
     status, preset: desired,
     reason: desired === "preview4" ? "极速试镜，用于验证画面方向、参考和镜头方案，不作为默认成片"
-      : desired === "balanced82" || desired === "balanced84" ? "无加速双采，按成品要求选择步数"
+      : desired === "balanced82" || desired === "balanced84" ? "低步数独立双采（无加速，需验证音画质量）"
       : desired === "quick62" ? "6+2 低成本试镜"
-      : desired === "quality" ? "25～40 步质量优先；仅关闭加速 LoRA，保留普通 LoRA"
+      : desired === "quality" ? "完整一采后独立二采，默认32+10步，二采降噪0.25；保留普通 LoRA"
       : "仅适用于确认融合 Turbo 权重的主模型，不额外加载加速 LoRA",
     ...(warning ? { warning } : {}),
     totalSteps,
     setConfig: { loraName, firstPassSteps, secondPassSteps, h3Options: {
       sampler, scheduler, videoShift: 12, audioShift: 3, extraLoras: extras,
+      samplingMode: independent ? "independent" : "split", ...(independent ? {secondPassDenoise:0.25} : {}),
       ...(loraName ? { loraStrength: 1 } : {}),
     } },
   };
@@ -140,7 +144,7 @@ export function planH3Sampling(input: H3SamplingStrategyInput): H3SamplingDecisi
 export function createH3SamplingStrategyTool(): ToolDefinition {
   return {
     name: "suggestH3Sampling", label: "H3 智能选档（只读）",
-    description: "根据已读取的视频节点 getConfig 和镜头合同，建议 4 步快速试镜、6+2 低成本试镜、无加速 8+2/8+4、25～40 步质量或融合 Turbo 档；只返回供 node:setConfig 使用的参数，不提交生成、不自动变更画布。启用 h3SamplingStrategy Skill 才可使用。",
+    description: "根据已读取的视频节点 getConfig 和镜头合同，建议 4 步快速试镜、6+2 低成本试镜、无加速独立双采 8+2/8+4、完整32+10质量档或融合 Turbo 分段双采；只返回供 node:setConfig 使用的参数，不提交生成、不自动变更画布。启用 h3SamplingStrategy Skill 才可使用。",
     promptSnippet: "视频节点在自动或目标制作模式下，若启用了 h3SamplingStrategy，先读取 SKILL.md，再调用 suggestH3Sampling 评估，随后根据返回结果调用节点的 setConfig。模型不兼容时，不要猜测文件名。",
     parameters: z.toJSONSchema(h3SamplingStrategyInput, { io: "input", target: "draft-07" }),
     executionMode: "sequential",

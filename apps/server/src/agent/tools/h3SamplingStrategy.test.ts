@@ -14,6 +14,7 @@ describe("H3 智能采样策略",()=>{
     const p=plan({intent:"preview4"});expect(p.status).toBe("experimental");
     expect(p.setConfig?.loraName).toContain(preferred4StepLora);
     expect([p.setConfig?.firstPassSteps,p.setConfig?.secondPassSteps,p.totalSteps]).toEqual([2,2,4]);
+    expect(p.setConfig?.h3Options.samplingMode).toBe("split");
     expect(p.setConfig?.h3Options.extraLoras).toEqual([{name:"style/cinema.safetensors",strength:0.8}]);
   });
   test("不把 TaoMate 3step 自动当成 Ref2VA 4step",()=>{
@@ -23,6 +24,7 @@ describe("H3 智能采样策略",()=>{
   test("一般成片选择无加速 8+2",()=>{
     const p=plan({phase:"normal"});expect(p.preset).toBe("balanced82");
     expect(p.totalSteps).toBe(10);
+    expect(p.setConfig?.h3Options.samplingMode).toBe("independent");
     expect(p.setConfig?.loraName).toBe("");
   });
   test("正式镜头不依赖加速权重",()=>{
@@ -43,7 +45,12 @@ describe("H3 智能采样策略",()=>{
     expect([b.preset,b.setConfig?.firstPassSteps,b.setConfig?.secondPassSteps]).toEqual(["balanced84",8,4]);
     expect(a.setConfig?.h3Options.sampler).toBe("res_multistep");
   });
-  test("25-40最大上限，保留普通风格LoRA，移除加速LoRA",()=>{
+  test("默认质量档使用完整32+10，二采独立降噪0.25",()=>{
+    const p=plan({intent:"quality",phase:"final"});
+    expect([p.totalSteps,p.setConfig?.firstPassSteps,p.setConfig?.secondPassSteps]).toEqual([42,32,10]);
+    expect(p.setConfig?.h3Options).toMatchObject({samplingMode:"independent",secondPassDenoise:0.25});
+  });
+  test("显式25-40总步数兼容旧配置，保留普通风格LoRA，移除加速LoRA",()=>{
     const p=plan({intent:"quality",phase:"final",qualitySteps:40,selectedLora:"minimax/"+preferred4StepLora,
       extraLoras:[{name:"style/cinema.safetensors",strength:0.8},{name:"xxx_8step.safetensors",strength:1}]});
     expect([p.totalSteps,p.setConfig?.firstPassSteps,p.setConfig?.secondPassSteps]).toEqual([40,32,8]);
@@ -70,6 +77,7 @@ describe("H3 智能采样策略",()=>{
     expect(plan({intent:"fused8",checkpointKind:"fused"}).status).toBe("blocked");
     const p=plan({intent:"fused8",checkpointKind:"fused",compatibilityConfirmed:true});
     expect([p.status,p.totalSteps,p.setConfig?.loraName]).toEqual(["ready",8,""]);
+    expect(p.setConfig?.h3Options.samplingMode).toBe("split");
   });
   test("不支持双采的工作流直接拒绝",()=>{expect(plan({isRef2vaWorkflow:false}).status).toBe("blocked");});
   test("已选加速LoRA重复出现在普通风格中会过滤",()=>{

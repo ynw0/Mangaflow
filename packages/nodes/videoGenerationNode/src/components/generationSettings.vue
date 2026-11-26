@@ -157,6 +157,7 @@
             <el-option label="分段双采（原工作流）" value="split" />
             <el-option label="独立双采（完整一采后再细化）" value="independent" />
           </el-select>
+          <div class="sizeHint">不使用加速 LoRA 时推荐独立双采；使用加速 LoRA 时推荐分段双采。两种方式均可手动选择。</div>
           <div v-if="h3Options?.samplingMode === 'independent'" class="h3AdvancedRow">
             <span>二采降噪强度</span>
             <el-input-number :model-value="h3Options?.secondPassDenoise ?? 0.25" :disabled="disabled" :min="0.05" :max="1" :step="0.05" :precision="2" controls-position="right" @update:model-value="value => patchAdvanced('secondPassDenoise', value)" />

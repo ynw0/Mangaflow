@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { h3OptionsSchema } from "@toonflow/tools-scaffold/runtime";
 import { videoGenerationSchema } from "@toonflow/tool-media-generation/runtime";
-import { h3AdvancedCapability, applyH3Options } from "./h3Advanced";
+import { h3AdvancedCapability, applyH3Options, effectiveH3Options } from "./h3Advanced";
 import { parseWorkflowBindings } from "./bindings";
 import { prepareComfyWorkflow } from "./run";
 const root=resolve(import.meta.dirname,"../../../../../workflows/video");
@@ -143,6 +143,64 @@ describe("H3 双采高级参数",()=>{
       expect(graph["114"].inputs.audio).toEqual(["83",0]);
       expect(graph["126"].inputs.audio).toEqual(["128",0]);
     } finally {await rm(dir,{recursive:true,force:true});}
+  });
+  test("二采默认沿用一采；关闭或自定义 LoRA 不修改一采，二采调度器与模型匹配",async()=>{
+    for(const secondPassLoras of [undefined,[],[{name:"second.safetensors",strength:0.7},{name:"shared.safetensors",strength:0.4}]]){
+      const {graph,bindings}=await read(names[0]!);
+      graph["21"].inputs.lora_name="primary.safetensors";
+      const options={samplingMode:"independent" as const,extraLoras:[{name:"shared.safetensors",strength:0.8}],secondPassLoras,
+        secondPassSampler:"euler",secondPassScheduler:"beta"};
+      const locked=applyH3Options(graph,bindings,options);
+      expect(graph["14"].inputs.model).toEqual(["129",0]);
+      expect(graph["156"].inputs.model).toEqual([locked[0],0]);
+      expect(graph["10"].inputs.sampler_name).toBe("res_multistep");
+      expect(graph["119"].inputs.scheduler).toBe("simple");
+      const second=graph["113"].inputs, scheduler=graph[second.sigmas[0]].inputs;
+      expect(graph[second.sampler[0]].inputs.sampler_name).toBe("euler");
+      expect(scheduler.scheduler).toBe("beta");
+      expect(scheduler.model).toEqual(second.model);
+      if(secondPassLoras===undefined) expect(second.model).toEqual(["129",0]);
+      else {
+        expect(second.model).not.toEqual(["129",0]);
+        const shift=graph[graph[second.model[0]].inputs.model[0]].inputs;
+        let cursor=shift.model[0];
+        for(const item of [...secondPassLoras].reverse()){
+          expect(graph[cursor].inputs).toMatchObject({lora_name:item.name,strength_model:item.strength});
+          expect(locked).toContain(cursor);
+          cursor=graph[cursor].inputs.model[0];
+        }
+        expect(cursor).toBe("125");
+      }
+      const effective=effectiveH3Options(graph,locked);
+      expect(effective.h3Loras).toEqual([{name:"primary.safetensors",strength:1},{name:"shared.safetensors",strength:0.8}]);
+      expect(effective.h3Options.secondPassLoras).toEqual(secondPassLoras);
+      expect(effective.h3Options.secondPassSampler).toBe("euler");
+      expect(effective.h3Options.secondPassScheduler).toBe("beta");
+    }
+  });
+  test("一采关闭 LoRA 时二采可独立启用，且保留原输出节点",async()=>{
+    const dir=await realpath(await mkdtemp(join(tmpdir(),"manga-h3-second-lora-")));
+    try {
+      const request=videoGenerationSchema.parse({providerId:"comfyui",modelId:"video/h3_ref2va_dual",checkpointName:"minimax/Singularity-H3.safetensors",loraName:"",prompt:"test",duration:5,ratio:"16:9",firstPassSteps:32,secondPassSteps:10,outputFirstPass:true,h3Options:{samplingMode:"independent",secondPassLoras:[{name:"refine.safetensors",strength:0.8}]}});
+      const {workflow,lockedLoraNodes}=await prepareComfyWorkflow({directory:dir,mediaType:"video",request});
+      const graph=workflow as Record<string,any>;
+      expect(graph["21"]).toBeUndefined();
+      expect(graph["156"].inputs.model).toEqual(["125",0]);
+      expect(lockedLoraNodes).toHaveLength(1);
+      expect(graph[lockedLoraNodes[0]!].inputs.model).toEqual(["125",0]);
+      expect(effectiveH3Options(graph,lockedLoraNodes).h3Options.secondPassLoras).toEqual(request.h3Options?.secondPassLoras);
+      expect(graph["114"].inputs.audio).toEqual(["83",0]);
+      expect(graph["126"].inputs.audio).toEqual(["128",0]);
+    }finally{await rm(dir,{recursive:true,force:true});}
+  });
+  test("分段双采拒绝二采独立设置",async()=>{
+    const {graph,bindings}=await read(names[0]!);
+    const before=structuredClone(graph);
+    for(const options of [{secondPassLoras:[]},{secondPassSampler:"euler"},{secondPassScheduler:"beta"}]){
+      expect(()=>applyH3Options(graph,bindings,{samplingMode:"split",...options})).toThrow("仅适用于独立双采");
+      expect(graph).toEqual(before);
+    }
+    expect(()=>h3OptionsSchema.parse({secondPassLoras:[{name:"a/b",strength:1},{name:"a/b",strength:.5}]})).toThrow();
   });
   test("分段模式不改原采样图，独立模式拒绝未知连接和非法降噪",async()=>{
     const {graph,bindings}=await read(names[0]!);

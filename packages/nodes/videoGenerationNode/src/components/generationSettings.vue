@@ -161,7 +161,7 @@
             <span>二采降噪强度</span>
             <el-input-number :model-value="h3Options?.secondPassDenoise ?? 0.25" :disabled="disabled" :min="0.05" :max="1" :step="0.05" :precision="2" controls-position="right" @update:model-value="value => patchAdvanced('secondPassDenoise', value)" />
           </div>
-          <div class="sizeHint">采样预设自动选择双采方式。旧节点未指定方式时保持原分段双采；手动切换方式不会改变步数。</div>
+          <div class="sizeHint">采样预设自动选择双采方式。旧节点未指定方式时保持原分段双采；手动切换方式不会改变步数。切换分段双采会恢复二采沿用一采设置。</div>
           <div v-if="selectedLora !== '__lora_disabled__'" class="h3AdvancedRow">
             <span>加速 LoRA 强度</span>
             <el-input-number :model-value="h3Options?.loraStrength ?? model.h3Advanced.loraStrength" :disabled="disabled" :min="0.01" :max="2" :step="0.05" :precision="2" controls-position="right" @update:model-value="value => patchAdvanced('loraStrength', value)" />
@@ -181,16 +181,49 @@
           <el-select v-if="extraLoras.length < model.h3Advanced.maxExtraLoras" :model-value="undefined" placeholder="添加已安装 LoRA" filterable :append-to="settingsHost" :disabled="disabled || !availableExtraNames(-1).length" @change="addExtra">
             <el-option v-for="name in availableExtraNames(-1)" :key="name" :value="name" :label="name"/>
           </el-select>
-          <div class="sectionLabel">采样器</div>
+          <div class="sectionLabel">一采采样器（分段时共用）</div>
           <el-select :model-value="h3Options?.sampler ?? '__workflow_default__'" filterable :append-to="settingsHost" :disabled="disabled" @change="value => patchAdvanced('sampler',value === '__workflow_default__' ? undefined : value)">
             <el-option :label="'默认 · '+model.h3Advanced.sampler" value="__workflow_default__"/>
             <el-option v-for="name in samplerOptions" :key="name" :value="name" :label="name"/>
           </el-select>
-          <div class="sectionLabel">调度器</div>
+          <div class="sectionLabel">一采调度器（分段时共用）</div>
           <el-select :model-value="h3Options?.scheduler ?? '__workflow_default__'" filterable :append-to="settingsHost" :disabled="disabled" @change="value => patchAdvanced('scheduler',value === '__workflow_default__' ? undefined : value)">
             <el-option :label="'默认 · '+model.h3Advanced.scheduler" value="__workflow_default__"/>
             <el-option v-for="name in schedulerOptions" :key="name" :value="name" :label="name"/>
           </el-select>
+          <template v-if="h3Options?.samplingMode === 'independent'">
+            <div class="sectionLabel">二采 LoRA</div>
+            <div class="sizeHint">{{ h3Options?.secondPassLoras === undefined ? "沿用一采全部 LoRA" : h3Options.secondPassLoras.length ? "单独配置二采 LoRA" : "关闭二采全部 LoRA" }}。一采设置不受影响。</div>
+            <div class="h3AdvancedRow">
+              <el-button size="small" :disabled="disabled || h3Options?.secondPassLoras === undefined" @click="patchAdvanced('secondPassLoras', undefined)">沿用一采</el-button>
+              <el-button size="small" :disabled="disabled || h3Options?.secondPassLoras?.length === 0" @click="patchAdvanced('secondPassLoras', [])">关闭全部</el-button>
+            </div>
+            <div v-for="(item, index) in secondLoras" :key="index" class="h3LoraRow">
+              <el-select :model-value="item.name" filterable :append-to="settingsHost" :disabled="disabled" aria-label="二采 LoRA" @change="value => updateSecondLora(index,{name:value})">
+                <el-option v-for="name in availableSecondNames(index)" :key="name" :value="name" :label="name"/>
+              </el-select>
+              <div class="h3AdvancedRow">
+                <el-input-number :model-value="item.strength" :disabled="disabled" :min="0.01" :max="2" :step="0.05" :precision="2" controls-position="right" aria-label="二采 LoRA 强度" @update:model-value="value => {if (value !== undefined) updateSecondLora(index,{strength:value})}"/>
+                <el-button size="small" text :disabled="disabled || index===0" @click="moveSecondLora(index,-1)">上移</el-button>
+                <el-button size="small" text :disabled="disabled || index===secondLoras.length-1" @click="moveSecondLora(index,1)">下移</el-button>
+                <el-button size="small" text type="danger" :disabled="disabled" @click="removeSecondLora(index)">删除</el-button>
+              </div>
+            </div>
+            <el-select v-if="secondLoras.length < 3" :model-value="undefined" placeholder="单独添加二采 LoRA（最多3个）" filterable :append-to="settingsHost" :disabled="disabled || !availableSecondNames(-1).length" @change="addSecondLora">
+              <el-option v-for="name in availableSecondNames(-1)" :key="name" :value="name" :label="name"/>
+            </el-select>
+            <div class="sectionLabel">二采采样器</div>
+            <el-select :model-value="h3Options?.secondPassSampler ?? '__inherit__'" filterable :append-to="settingsHost" :disabled="disabled" @change="value => patchAdvanced('secondPassSampler',value === '__inherit__' ? undefined : value)">
+              <el-option :label="'沿用一采 · '+(h3Options?.sampler ?? model.h3Advanced.sampler)" value="__inherit__"/>
+              <el-option v-for="name in samplerOptions" :key="name" :value="name" :label="name"/>
+            </el-select>
+            <div class="sectionLabel">二采调度器</div>
+            <el-select :model-value="h3Options?.secondPassScheduler ?? '__inherit__'" filterable :append-to="settingsHost" :disabled="disabled" @change="value => patchAdvanced('secondPassScheduler',value === '__inherit__' ? undefined : value)">
+              <el-option :label="'沿用一采 · '+(h3Options?.scheduler ?? model.h3Advanced.scheduler)" value="__inherit__"/>
+              <el-option v-for="name in schedulerOptions" :key="name" :value="name" :label="name"/>
+            </el-select>
+            <div class="sizeHint">单独配置会使用同一基础模型。关闭 LoRA 不能去除已融合到主模型中的 Turbo 权重。</div>
+          </template>
           <div class="h3AdvancedRow">
             <span>Video Shift</span>
             <el-input-number :model-value="h3Options?.videoShift ?? model.h3Advanced.videoShift" :disabled="disabled" :min="0.1" :max="30" :step="0.5" :precision="2" controls-position="right" @update:model-value="value => patchAdvanced('videoShift', value)"/>
@@ -371,8 +404,8 @@ function removeManualAccelerationLora(name: string) {
   manualAccelerationNotice.value = "已取消手动加速标记，不会删除 ComfyUI 中的文件。";
 }
 const extraLoras = computed(() => h3Options.value?.extraLoras ?? []);
-const samplerOptions = computed(() => [...new Set([...(props.samplerChoices ?? []),h3Options.value?.sampler])].filter((x):x is string => !!x));
-const schedulerOptions = computed(() => [...new Set([...(props.schedulerChoices ?? []),h3Options.value?.scheduler])].filter((x):x is string => !!x));
+const samplerOptions = computed(() => [...new Set([...(props.samplerChoices ?? []),h3Options.value?.sampler,h3Options.value?.secondPassSampler])].filter((x):x is string => !!x));
+const schedulerOptions = computed(() => [...new Set([...(props.schedulerChoices ?? []),h3Options.value?.scheduler,h3Options.value?.secondPassScheduler])].filter((x):x is string => !!x));
 function patchAdvanced<K extends keyof H3Options>(key: K, value: H3Options[K] | undefined) {
   if (!props.model?.h3Advanced) return;
   const next = {...h3Options.value};
@@ -382,9 +415,32 @@ function patchAdvanced<K extends keyof H3Options>(key: K, value: H3Options[K] | 
 function setSamplingMode(value: "split" | "independent") {
   if (!props.model?.h3Advanced) return;
   const next: H3Options = {...h3Options.value, samplingMode:value};
-  if (value === "split") delete next.secondPassDenoise;
+  if (value === "split") {
+    delete next.secondPassDenoise; delete next.secondPassLoras; delete next.secondPassSampler; delete next.secondPassScheduler;
+  }
   else next.secondPassDenoise ??= 0.25;
   h3Options.value = next;
+}
+const secondLoras = computed(() => h3Options.value?.secondPassLoras ?? []);
+function availableSecondNames(index:number) {
+  const selected=secondLoras.value[index]?.name;
+  return [...new Set([...(props.loraChoices ?? []),selected])].filter((name):name is string=>!!name)
+    .filter(name=>name===selected || !secondLoras.value.some((item,i)=>i!==index && sameLora(item.name,name)));
+}
+function updateSecondLora(index:number,patch:{name?:string;strength?:number}) {
+  if (!secondLoras.value[index] || (patch.name!==undefined && !availableSecondNames(index).includes(patch.name))) return;
+  patchAdvanced("secondPassLoras",secondLoras.value.map((item,i)=>i===index?{...item,...patch}:item));
+}
+function addSecondLora(name:string) {
+  if(secondLoras.value.length>=3 || !availableSecondNames(-1).includes(name)) return;
+  patchAdvanced("secondPassLoras",[...secondLoras.value,{name,strength:1}]);
+}
+function removeSecondLora(index:number) {patchAdvanced("secondPassLoras",secondLoras.value.filter((_,i)=>i!==index));}
+function moveSecondLora(index:number,direction:number) {
+  const items=[...secondLoras.value],other=index+direction;
+  if(!items[index] || !items[other]) return;
+  [items[index],items[other]]=[items[other]!,items[index]!];
+  patchAdvanced("secondPassLoras",items);
 }
 function availableExtraNames(index: number) {
   const selected = extraLoras.value[index]?.name;
@@ -438,7 +494,9 @@ function applyPreset(preset: H3SamplingPreset) {
   loraName.value = plan.primaryLora;
   firstPassSteps.value = plan.firstPassSteps;
   secondPassSteps.value = plan.secondPassSteps;
+  const previous = h3Options.value;
   h3Options.value = {
+    ...(plan.samplingMode === "independent" ? {secondPassLoras:previous?.secondPassLoras,secondPassSampler:previous?.secondPassSampler,secondPassScheduler:previous?.secondPassScheduler} : {}),
     sampler: plan.sampler, scheduler: "simple", videoShift: 12, audioShift: 3,
     samplingMode: plan.samplingMode,
     ...(plan.secondPassDenoise === undefined ? {} : {secondPassDenoise:plan.secondPassDenoise}),

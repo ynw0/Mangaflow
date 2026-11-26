@@ -3,7 +3,7 @@ prompt_format: h3Ref2va
 first_pass_output: 126
 optional_lora_node: 21
 label: MiniMax H3 Ref2VA 双采（比例可选）
-usage: 统一的本机/AutoDL H3 Ref2VA 二采工作流；可选9张参考图、1路参考视频、3路参考音频。主模型必须明确选择；加速LoRA默认关闭。可配置比例、采样参数、分段双采或完整一采后独立二采（由服务端按高级设置切换）。旧设置未指定方式时沿用原分段双采。
+usage: 统一的本机/AutoDL H3 Ref2VA 二采工作流；可选9张参考图、1路参考视频、3路参考音频。主模型必须明确选择；加速LoRA默认关闭。可配置比例、采样参数、分段双采或完整一采后独立二采（由服务端按高级设置切换）。独立双采可单独配置二采 LoRA、采样器、调度器，默认沿用一采。旧设置未指定方式时沿用原分段双采。
 version: 4
 capabilities:
   duration_seconds:

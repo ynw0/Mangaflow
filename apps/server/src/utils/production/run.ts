@@ -395,13 +395,16 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
       if (!names.includes(name)) fail(`当前 ComfyUI 未安装所选 LoRA：${name}，请刷新画布模型列表`);
     }
   }
-  if (request.h3Options?.sampler !== undefined) {
+  const h3=request.h3Options;
+  if (h3?.sampler !== undefined || h3?.secondPassSampler !== undefined) {
     const names = await readNodeChoices(baseUrl, "KSamplerSelect", "sampler_name", signal);
-    if (!names.includes(request.h3Options.sampler)) fail("当前 ComfyUI 不支持所选采样器");
+    if (h3.sampler !== undefined && !names.includes(h3.sampler)) fail("当前 ComfyUI 不支持所选一采采样器");
+    if (h3.secondPassSampler !== undefined && !names.includes(h3.secondPassSampler)) fail("当前 ComfyUI 不支持所选二采采样器");
   }
-  if (request.h3Options?.scheduler !== undefined) {
+  if (h3?.scheduler !== undefined || h3?.secondPassScheduler !== undefined) {
     const names = await readNodeChoices(baseUrl, "BasicScheduler", "scheduler", signal);
-    if (!names.includes(request.h3Options.scheduler)) fail("当前 ComfyUI 不支持所选调度器");
+    if (h3.scheduler !== undefined && !names.includes(h3.scheduler)) fail("当前 ComfyUI 不支持所选一采调度器");
+    if (h3.secondPassScheduler !== undefined && !names.includes(h3.secondPassScheduler)) fail("当前 ComfyUI 不支持所选二采调度器");
   }
   if (request.sampler !== undefined) {
     const names = await readNodeChoices(baseUrl, "KSamplerSelect", "sampler_name", signal);

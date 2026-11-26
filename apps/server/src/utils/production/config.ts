@@ -78,7 +78,7 @@ const defaults: ProductionConfig = {
 /** Deleted H3 workflow IDs remain aliases for saved canvas/task metadata, not visible catalog entries. */
 export const unifiedH3WorkflowId = "video/h3_ref2va_dual";
 export function canonicalVideoWorkflowId(id: string): string {
-  return /^(?:video\/h3_erca_(?:16x9|9x16)(?:_autodl)?|video\/h3_ref2va_1080p)$/.test(id)
+  return /^video\/h3_erca_(?:16x9|9x16)(?:_autodl)?$/.test(id)
     ? unifiedH3WorkflowId : id;
 }
 function text(value: unknown, fallback: string) {

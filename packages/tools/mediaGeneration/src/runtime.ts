@@ -83,6 +83,10 @@ export const videoGenerationSchema = z.strictObject({
   // 二采节点 150 / 148 的步数，范围与目录里的 firstPassMin/Max 一致。云视频组装参数时不用。
   firstPassSteps: z.number().int().min(1).max(64).optional(),
   secondPassSteps: z.number().int().min(1).max(64).optional(),
+  steps: z.number().int().min(1).max(64).optional(),
+  sampler: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.-]+$/).optional(),
+  scheduler: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.-]+$/).optional(),
+  scaleOutput: z.boolean().optional(),
   outputFirstPass: z.boolean().optional(),
   loraName: z.string().max(512).refine(v => !/[\u0000-\u001f]/.test(v), "LoRA 文件名不能包含控制字符").optional(),
   checkpointName: z.string().trim().min(1).max(512).regex(/^[^\x00-\x1f]+$/)

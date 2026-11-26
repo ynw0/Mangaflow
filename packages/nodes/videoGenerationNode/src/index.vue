@@ -128,6 +128,10 @@
             v-model:upscale="data.upscale"
             v-model:firstPassSteps="data.firstPassSteps"
             v-model:secondPassSteps="data.secondPassSteps"
+            v-model:steps="data.steps"
+            v-model:sampler="data.sampler"
+            v-model:scheduler="data.scheduler"
+            v-model:scaleOutput="data.scaleOutput"
             v-model:outputFirstPass="data.outputFirstPass"
             v-model:loraName="data.loraName"
             v-model:manualAccelerationLoras="data.manualAccelerationLoras"
@@ -216,7 +220,7 @@ const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals 
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
-const data = computed(() => node.data as { prompt: string; promptZh: string; qcContract?: NodeVideoRequest["qcContract"]; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; outputFirstPass: boolean; loraName?: string; manualAccelerationLoras?: string[]; checkpointEvidence?: { model: string; name: string; kind: "standard" | "fused" }; checkpointName?: string; h3Options?: NodeVideoRequest["h3Options"]; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
+const data = computed(() => node.data as { prompt: string; promptZh: string; qcContract?: NodeVideoRequest["qcContract"]; promptModel: PromptModel; model: string; duration?: number; resolution: string; megapixels?: number; upscale?: number; firstPassSteps?: number; secondPassSteps?: number; steps?: number; sampler?: string; scheduler?: string; scaleOutput?: boolean; outputFirstPass: boolean; loraName?: string; manualAccelerationLoras?: string[]; checkpointEvidence?: { model: string; name: string; kind: "standard" | "fused" }; checkpointName?: string; h3Options?: NodeVideoRequest["h3Options"]; qcOverride?: NodeVideoRequest["qcOverride"]; ratio: string; mode: string; generateAudio: boolean; seed: number; seedMode: SeedMode; lastSeed?: number; activeGenerationRequest?: Omit<NodeVideoRequest, "directory">; lastGenerationId?: string });
 data.value.prompt ??= "";
 data.value.promptZh ??= "";
 data.value.promptModel ??= [];
@@ -439,14 +443,19 @@ watch([selectedModel, () => data.value.duration], ([choice]) => {
   if (!resolutions.includes(data.value.resolution)) data.value.resolution = resolutions[0] ?? "";
   const spec = choice.sampling;
   if (spec) {
-    if (!spec.megapixels.includes(data.value.megapixels ?? Number.NaN)) data.value.megapixels = spec.megapixels[0];
-    const scale = data.value.upscale;
-    if (scale == null || scale < spec.upscaleMin || scale > spec.upscaleMax) data.value.upscale = spec.upscaleDefault;
+    if (!spec.megapixels.includes(data.value.megapixels ?? Number.NaN)) data.value.megapixels = spec.megapixelsDefault ?? spec.megapixels[0];
+    if (spec.upscaleDefault != null && spec.upscaleMin != null && spec.upscaleMax != null) {
+      const scale = data.value.upscale;
+      if (scale == null || scale < spec.upscaleMin || scale > spec.upscaleMax) data.value.upscale = spec.upscaleDefault;
+    }
     if (spec.firstPassDefault != null && spec.firstPassMin != null && spec.firstPassMax != null) {
       data.value.firstPassSteps = clampInt(data.value.firstPassSteps, spec.firstPassMin, spec.firstPassMax, spec.firstPassDefault);
     }
     if (spec.secondPassDefault != null && spec.secondPassMin != null && spec.secondPassMax != null) {
       data.value.secondPassSteps = clampInt(data.value.secondPassSteps, spec.secondPassMin, spec.secondPassMax, spec.secondPassDefault);
+    }
+    if (spec.stepsDefault != null && spec.stepsMin != null && spec.stepsMax != null) {
+      data.value.steps = clampInt(data.value.steps, spec.stepsMin, spec.stepsMax, spec.stepsDefault);
     }
   }
   if (!ratioOptions.includes(data.value.ratio)) data.value.ratio = "9:16";
@@ -493,9 +502,13 @@ const generationInput = computed<Omit<NodeVideoRequest, "directory"> | undefined
     duration: data.value.duration,
     resolution: choice.sampling ? undefined : data.value.resolution || undefined,
     megapixels: choice.sampling && typeof data.value.megapixels === "number" ? data.value.megapixels : undefined,
-    upscale: choice.sampling && typeof data.value.upscale === "number" ? data.value.upscale : undefined,
+    upscale: choice.sampling?.upscaleDefault != null && typeof data.value.upscale === "number" ? data.value.upscale : undefined,
     firstPassSteps: choice.sampling?.firstPassDefault != null ? data.value.firstPassSteps : undefined,
     secondPassSteps: choice.sampling?.secondPassDefault != null ? data.value.secondPassSteps : undefined,
+    steps: choice.sampling?.stepsDefault != null ? data.value.steps : undefined,
+    sampler: choice.sampling?.sampler && !choice.h3Advanced ? data.value.sampler : undefined,
+    scheduler: choice.sampling?.scheduler && !choice.h3Advanced ? data.value.scheduler : undefined,
+    scaleOutput: choice.supportsScaleOutput ? data.value.scaleOutput !== false : undefined,
     outputFirstPass: choice.supportsFirstPassOutput ? data.value.outputFirstPass === true : undefined,
     loraName: choice.lora ? (data.value.loraName ?? choice.lora.defaultName) : undefined,
     checkpointName: choice.checkpoint ? data.value.checkpointName : undefined,
@@ -579,7 +592,7 @@ function migrateLegacyH3Model(value: string): string {
     const parsed: unknown = JSON.parse(value);
     if (!Array.isArray(parsed) || parsed.length !== 2 || parsed[0] !== "comfyui") return value;
     if (typeof parsed[1] === "string" &&
-      /^(?:video\/h3_erca_(?:16x9|9x16)(?:_autodl)?|video\/h3_ref2va_1080p)$/.test(parsed[1])) {
+      /^video\/h3_erca_(?:16x9|9x16)(?:_autodl)?$/.test(parsed[1])) {
       return JSON.stringify(["comfyui", unifiedH3WorkflowId]);
     }
   } catch { /* Malformed legacy value remains visible until the user selects a valid workflow. */ }
@@ -900,6 +913,10 @@ function getConfig() {
       upscale: data.value.upscale,
       firstPassSteps: data.value.firstPassSteps,
       secondPassSteps: data.value.secondPassSteps,
+      steps: data.value.steps,
+      sampler: data.value.sampler,
+      scheduler: data.value.scheduler,
+      scaleOutput: data.value.scaleOutput,
       outputFirstPass: data.value.outputFirstPass,
       loraName: selectedModel.value?.lora ? (data.value.loraName ?? selectedModel.value.lora.defaultName) : undefined,
       checkpointKind: checkpointKind.value,
@@ -931,7 +948,14 @@ function getConfig() {
   };
 }
 
-function getPromptContext() {
+async function sha256Hex(value: string) {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) throw new Error("当前环境无法计算提示词版本");
+  const digest = await subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function getPromptContext() {
   const input = generationInput.value;
   if (!input || !input.mode || !matchingModes.value.some(mode => JSON.stringify(mode) === JSON.stringify(input.mode))) {
     throw new Error("请先选择与实际引用匹配的视频工作流和模式");
@@ -941,10 +965,10 @@ function getPromptContext() {
   }
   const config = getConfig().config;
   const { images, videos, audios, firstFrame, lastFrame } = input;
-  // 仅比较会影响原稿、参考和声音的字段。采样调整允许与提示词审核并行。
-  const revision = JSON.stringify([selectedModel.value?.promptFormat, data.value.prompt, data.value.promptZh,
+  // 只哈希会影响原稿、参考和声音的字段；对外只给 64 位，避免模型手抄整份正文。
+  const revision = await sha256Hex(JSON.stringify([selectedModel.value?.promptFormat, data.value.prompt, data.value.promptZh,
     input.duration, input.ratio, input.mode, input.generateAudio, images, videos, audios, firstFrame, lastFrame,
-    ...(input.qcContract ? [input.qcContract] : [])]);
+    ...(input.qcContract ? [input.qcContract] : [])]));
   // 随机种子留到实际生成时取值，固定上次随机必须交付具体值供审核绑定。
   const seed = config.supportsSeed && config.seedMode !== "random" ? resolveSeed() : undefined;
   return { config, images, videos, audios, firstFrame, lastFrame, revision, rawPrompt: data.value.prompt, promptZh: data.value.promptZh, request: { ...input, seed } };
@@ -952,7 +976,7 @@ function getPromptContext() {
 
 nodeTools.register({
   name: "getPromptContext",
-  description: "读取编写视频提示词所需的实际工作流、生成模式、参数、按生成顺序排列的参考素材，以及写入提示词时需要使用的版本信息。",
+  description: "读取编写视频提示词所需的实际工作流、生成模式、参数、按生成顺序排列的参考素材。revision 是当前提示词、参考与合同的 64 位哈希；覆盖已有提示词或使用 edits 时，把该值原样传入 setPrompt.expectedRevision，不要手抄正文。",
   parameters: z.strictObject({}),
   async execute(_args, { signal }) {
     await loadModels();
@@ -963,7 +987,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "getConfig",
-  description: "读取视频节点的配置、工作流能力、画幅比例及适用的生成模式。manualAccelerationLoras 记录该节点长期保存的手动加速 LoRA 标记，候选文件必须来自已安装的 loraChoices；标记为加速 LoRA 并不代表一定兼容。refreshComfyChoices=true 时，向当前 ComfyUI 查询可用的 checkpointChoices 和 loraChoices，不启动主机。双阶段采样工作流的 sampling 返回百万像素、放大倍率及两个采样阶段的步数。h3Advanced 返回高级设置支持的功能和默认值，samplerChoices 和 schedulerChoices 是远端实际返回的可用选项。qcChoices 返回系统已启用的质检模型；refreshQcChoices=true 时只查询已经安装的模型权重，不启动主机。",
+  description: "读取视频节点的配置、工作流能力、画幅比例及适用的生成模式。manualAccelerationLoras 记录该节点长期保存的手动加速 LoRA 标记，候选文件必须来自已安装的 loraChoices；标记为加速 LoRA 并不代表一定兼容。refreshComfyChoices=true 时，向当前 ComfyUI 查询可用的 checkpointChoices 和 loraChoices，不启动主机。双阶段采样工作流的 sampling 返回百万像素、放大倍率及两个采样阶段的步数。单次采样工作流返回 steps、sampler、scheduler，supportsScaleOutput 表示可开关 1080P 输出。h3Advanced 返回高级设置支持的功能和默认值，samplerChoices 和 schedulerChoices 是远端实际返回的可用选项。qcChoices 返回系统已启用的质检模型；refreshQcChoices=true 时只查询已经安装的模型权重，不启动主机。",
   parameters: z.strictObject({ refreshComfyChoices: z.boolean().optional(), refreshQcChoices: z.boolean().optional() }),
   async execute(args, { signal }) {
     signal?.throwIfAborted();
@@ -977,7 +1001,7 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setConfig",
-  description: "修改视频节点配置。选择工作流时，必须同时提供 providerId 和 modelId。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，传入 null 时恢复工作流的默认值。loraName 为空字符串关闭加速 LoRA。manualAccelerationLoras 可设置手动标记的已安装加速 LoRA 文件名数组（最多32个）；先 getConfig(refreshComfyChoices=true) 获取 loraChoices，标记为加速 LoRA 不代表 PDD、PTD、HyperFlow 等特殊方案可以直接运行。h3Options 用于整体替换可选的高级设置，包括：loraStrength、extraLoras（有序数组，每项 name/strength，最多3个）、sampler、scheduler、videoShift、audioShift；null 恢复高级参数默认值。只使用实际发现的文件和采样选项，不擅自更换已选模型。qcOverride=null 时使用系统默认设置；mode=off 时关闭自动质检；mode=custom 时使用指定的质检策略，模型 ID 从 getConfig.qcChoices 中选择。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
+  description: "修改视频节点配置。选择工作流时，必须同时提供 providerId 和 modelId。支持更换 H3 权重时，checkpointName 使用 getConfig({refreshComfyChoices:true}) 返回的文件名，传入 null 时恢复工作流的默认值。loraName 为空字符串关闭加速 LoRA。manualAccelerationLoras 可设置手动标记的已安装加速 LoRA 文件名数组（最多32个）；先 getConfig(refreshComfyChoices=true) 获取 loraChoices，标记为加速 LoRA 不代表 PDD、PTD、HyperFlow 等特殊方案可以直接运行。h3Options 用于整体替换可选的高级设置，包括：loraStrength、extraLoras（有序数组，每项 name/strength，最多3个）、sampler、scheduler、videoShift、audioShift；null 恢复高级参数默认值。单次采样工作流用 steps、sampler、scheduler 和 scaleOutput；sampler 或 scheduler 传 null 恢复工作流默认值。没有放大倍率时不要传 upscale，没有 h3Advanced 时不要传 h3Options。只使用实际发现的文件和采样选项，不擅自更换已选模型。qcOverride=null 时使用系统默认设置；mode=off 时关闭自动质检；mode=custom 时使用指定的质检策略，模型 ID 从 getConfig.qcChoices 中选择。mode 使用返回的原始字符串或数组，须匹配当前引用。不修改提示词、不启动生成。",
   parameters: z.strictObject({
     providerId: z.string().min(1).optional(),
     modelId: z.string().min(1).optional(),
@@ -987,6 +1011,10 @@ nodeTools.register({
     upscale: z.number().min(1).max(4).optional(),
     firstPassSteps: z.number().int().min(1).max(64).optional(),
     secondPassSteps: z.number().int().min(1).max(64).optional(),
+    steps: z.number().int().min(1).max(64).optional(),
+    sampler: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.-]+$/).nullable().optional(),
+    scheduler: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_.-]+$/).nullable().optional(),
+    scaleOutput: z.boolean().optional(),
     outputFirstPass: z.boolean().optional(),
     loraName: z.string().max(512).optional(),
     manualAccelerationLoras: z.array(z.string().trim().min(1).max(512).regex(/^[^\x00-\x1f]+$/)).max(32).optional(),
@@ -1051,18 +1079,27 @@ nodeTools.register({
     const duration = args.duration ?? (durations.includes(data.value.duration!) ? data.value.duration : durations[0]);
     const resolutions = getResolutions(choice, duration);
     const spec = choice.sampling;
+    const singleSampler = Boolean(spec?.sampler && spec.scheduler && !choice.h3Advanced);
+    if ((args.sampler !== undefined || args.scheduler !== undefined) && !singleSampler) throw new Error("当前工作流不支持单独设置采样器或调度器");
+    if (args.scaleOutput !== undefined && !choice.supportsScaleOutput) throw new Error("当前工作流不支持切换 1080P 输出");
     if (spec) {
-      if (args.resolution !== undefined) throw new Error("二采由百万像素和放大倍率决定，不使用分辨率");
+      if (args.resolution !== undefined) throw new Error(spec.upscaleDefault != null ? "二采由百万像素和放大倍率决定，不使用分辨率" : "当前工作流由采样百万像素决定尺寸，不使用分辨率");
       if (args.megapixels !== undefined && !spec.megapixels.includes(args.megapixels)) throw new Error(`采样百万像素须是 ${spec.megapixels.join("、")}`);
-      if (args.upscale !== undefined && (args.upscale < spec.upscaleMin || args.upscale > spec.upscaleMax)) throw new Error(`放大倍率需要在 ${spec.upscaleMin} 到 ${spec.upscaleMax}`);
+      if (args.upscale !== undefined) {
+        if (spec.upscaleMin == null || spec.upscaleMax == null) throw new Error("当前工作流不使用放大倍率");
+        if (args.upscale < spec.upscaleMin || args.upscale > spec.upscaleMax) throw new Error(`放大倍率需要在 ${spec.upscaleMin} 到 ${spec.upscaleMax}`);
+      }
       if (spec.firstPassDefault != null && spec.firstPassMin != null && spec.firstPassMax != null && spec.secondPassDefault != null && spec.secondPassMin != null && spec.secondPassMax != null) {
         if (args.firstPassSteps !== undefined && (args.firstPassSteps < spec.firstPassMin || args.firstPassSteps > spec.firstPassMax)) throw new Error(`一采步数需要在 ${spec.firstPassMin} 到 ${spec.firstPassMax}`);
         if (args.secondPassSteps !== undefined && (args.secondPassSteps < spec.secondPassMin || args.secondPassSteps > spec.secondPassMax)) throw new Error(`二采步数需要在 ${spec.secondPassMin} 到 ${spec.secondPassMax}`);
       } else if (args.firstPassSteps !== undefined || args.secondPassSteps !== undefined) {
         throw new Error("当前模型不使用一采步数或二采步数");
       }
-    } else if (args.megapixels !== undefined || args.upscale !== undefined || args.firstPassSteps !== undefined || args.secondPassSteps !== undefined) {
-      throw new Error("当前模型不使用采样百万像素、放大倍率或一二采步数");
+      if (spec.stepsDefault != null && spec.stepsMin != null && spec.stepsMax != null) {
+        if (args.steps !== undefined && (args.steps < spec.stepsMin || args.steps > spec.stepsMax)) throw new Error(`采样步数需要在 ${spec.stepsMin} 到 ${spec.stepsMax}`);
+      } else if (args.steps !== undefined) throw new Error("当前模型不使用单次采样步数");
+    } else if (args.megapixels !== undefined || args.upscale !== undefined || args.firstPassSteps !== undefined || args.secondPassSteps !== undefined || args.steps !== undefined) {
+      throw new Error("当前模型不使用采样百万像素、放大倍率或步数");
     } else if (args.resolution !== undefined && !resolutions.includes(args.resolution)) {
       throw new Error(`当前时长不支持分辨率 ${args.resolution}，可选：${resolutions.join("、")}`);
     }
@@ -1089,16 +1126,22 @@ nodeTools.register({
     data.value.resolution = resolution;
     if (spec) {
       if (args.megapixels !== undefined) data.value.megapixels = args.megapixels;
-      else if (!spec.megapixels.includes(data.value.megapixels ?? Number.NaN)) data.value.megapixels = spec.megapixels[0];
+      else if (!spec.megapixels.includes(data.value.megapixels ?? Number.NaN)) data.value.megapixels = spec.megapixelsDefault ?? spec.megapixels[0];
       if (args.upscale !== undefined) data.value.upscale = args.upscale;
-      else if (data.value.upscale == null) data.value.upscale = spec.upscaleDefault;
+      else if (spec.upscaleDefault != null && data.value.upscale == null) data.value.upscale = spec.upscaleDefault;
       if (spec.firstPassDefault != null && spec.firstPassMin != null && spec.firstPassMax != null) {
         data.value.firstPassSteps = args.firstPassSteps ?? clampInt(data.value.firstPassSteps, spec.firstPassMin, spec.firstPassMax, spec.firstPassDefault);
       }
       if (spec.secondPassDefault != null && spec.secondPassMin != null && spec.secondPassMax != null) {
         data.value.secondPassSteps = args.secondPassSteps ?? clampInt(data.value.secondPassSteps, spec.secondPassMin, spec.secondPassMax, spec.secondPassDefault);
       }
+      if (spec.stepsDefault != null && spec.stepsMin != null && spec.stepsMax != null) {
+        data.value.steps = args.steps ?? clampInt(data.value.steps, spec.stepsMin, spec.stepsMax, spec.stepsDefault);
+      }
     }
+    if (args.sampler !== undefined) data.value.sampler = args.sampler ?? undefined;
+    if (args.scheduler !== undefined) data.value.scheduler = args.scheduler ?? undefined;
+    if (args.scaleOutput !== undefined) data.value.scaleOutput = args.scaleOutput;
     if (args.ratio !== undefined) data.value.ratio = args.ratio;
     if (args.mode !== undefined) data.value.mode = JSON.stringify(args.mode);
     if (args.generateAudio !== undefined) data.value.generateAudio = args.generateAudio;
@@ -1121,10 +1164,10 @@ nodeTools.register({
 
 nodeTools.register({
   name: "setPrompt",
-  description: "保存视频提示词。首次写稿或明确整稿重写传 prompt 和可选 promptZh；局部修改、语速等单变量对比优先传 edits（field、唯一原文 before、替换后 after）及 expectedRevision，不传整稿。程序只替换指定原文，其余字节、参考、参数及剧情合同不变；英文改动影响中文时同步替换 promptZh。完整写稿可附已确认的 qcContract，明确传 null 才清除。只保存，不生成。",
+  description: "保存视频提示词。首次写稿或明确整稿重写传 prompt 和可选 promptZh；局部修改、语速等单变量对比优先传 edits（field、唯一原文 before、替换后 after）及 getPromptContext 返回的 64 位 expectedRevision，不传整稿、不手抄正文。程序只替换指定原文，其余字节、参考、参数及剧情合同不变；英文改动影响中文时同步替换 promptZh。完整写稿可附已确认的 qcContract，明确传 null 才清除。只保存，不生成。",
   parameters: z.strictObject({ prompt: z.string().optional(), promptZh: z.string().optional(), qcContract: videoQcContractSchema.nullable().optional(), expectedRevision: z.string().optional(),
     edits: z.array(z.strictObject({ field: z.enum(["prompt", "promptZh"]), before: z.string().min(1), after: z.string() })).min(1).max(64).optional() }),
-  execute({ prompt: value, promptZh, qcContract, expectedRevision, edits }) {
+  async execute({ prompt: value, promptZh, qcContract, expectedRevision, edits }) {
     if ((value === undefined) === (edits === undefined)) throw new Error("完整提示词 prompt 和局部替换 edits 必须且只能选择一种");
     if (edits && (!expectedRevision || promptZh !== undefined || qcContract !== undefined)) {
       throw new Error("局部替换须传 expectedRevision，不同时传整稿、中文全文或剧情合同");
@@ -1133,8 +1176,12 @@ nodeTools.register({
       throw new Error("修改已有提示词须先读取 getPromptContext 并传 expectedRevision；局部修改使用 edits");
     }
     if (deleting.value) throw new Error("节点正在删除，请稍后修改");
-    if (generating.value || (expectedRevision !== undefined && getPromptContext().revision !== expectedRevision)) {
-      throw new Error("视频节点正在生成或已变化，请先读取当前节点，不要覆盖新内容");
+    if (expectedRevision !== undefined && !/^[a-f0-9]{64}$/.test(expectedRevision)) {
+      throw new Error("expectedRevision 必须是 getPromptContext 返回的 64 位哈希，请重新读取后原样传入");
+    }
+    if (generating.value) throw new Error("视频节点正在生成，请等待完成后再修改提示词");
+    if (expectedRevision !== undefined && (await getPromptContext()).revision !== expectedRevision) {
+      throw new Error("节点提示词、参考或合同已变化，请重新读取 getPromptContext，将返回的 revision 原样传入 expectedRevision");
     }
     const original = { prompt: data.value.prompt, promptZh: data.value.promptZh };
     const patched = edits ? applyPromptEdits(original, edits) : undefined;

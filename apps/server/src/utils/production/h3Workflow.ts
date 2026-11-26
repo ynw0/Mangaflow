@@ -6,8 +6,8 @@ export function isH3CheckpointName(name: string) {
 }
 
 export function findH3Checkpoint(nodes: Record<string, unknown>, bindings: WorkflowBindings) {
-  if (!bindings.promptFormat || !bindings.optionalLoraNode || !bindings.firstPassOutputNode) return;
-  // 二采工作流只允许替换唯一的模型加载器，避免误改其他模型输入。
+  // 全能参考只有一张 UNET 时即可更换主模型。首尾帧不走这里。
+  if (bindings.promptFormat !== "h3Ref2va") return;
   const loaders = Object.entries(nodes as Record<string, { class_type?: string; inputs?: { unet_name?: unknown } }>)
     .filter(([, node]) => node?.class_type === "UNETLoader");
   const loader = loaders[0];

@@ -23,6 +23,8 @@ export type WorkflowEntry = {
   stepDefaults?: { firstPass: number; secondPass: number };
   /** 原工作流内加载的 LoRA 文件名，保持旧画布默认行为。 */
   loraDefaultName?: string;
+  /** 绑定节点上现成的百万像素、单次步数、采样器和调度器。 */
+  samplingDefaults?: { megapixels?: number; steps?: number; sampler?: string; scheduler?: string };
   checkpoint?: ReturnType<typeof findH3Checkpoint>;
   h3Advanced?: ReturnType<typeof h3AdvancedCapability>;
 };
@@ -33,6 +35,7 @@ const labels: Record<string, string> = {
   "image/flux3KleinEdit": "Flux.3 Klein 图像编辑",
   "image/flux3KleinDistilledEdit": "Flux.3 Klein 蒸馏图像编辑",
   "video/h3_ref2va_dual": "MiniMax H3 Ref2VA 双采",
+  "video/h3_ref2va_1080p": "全能参考 1080P",
   "video/h3_flf_repair": "H3 首尾帧",
   "qc/gemma4": "Gemma 4 成片质检",
 };
@@ -110,6 +113,7 @@ async function readEntry(root: string, id: string): Promise<WorkflowEntry> {
     hasVideoAudio,
     version: parsed.version,
     stepDefaults: await readStepDefaults(workflowPath, parsed),
+    samplingDefaults: await readSamplingDefaults(workflowPath, parsed),
     loraDefaultName: await readLoraDefault(workflowPath, parsed),
     checkpoint,
     h3Advanced,
@@ -135,6 +139,33 @@ async function readStepDefaults(workflowPath: string, bindings: WorkflowBindings
   const secondPass = readBoundInteger(parsed, secondTarget);
   if (firstPass == null || secondPass == null) return;
   return { firstPass, secondPass };
+}
+
+function readBoundValue(source: unknown, path: string) {
+  let current = source;
+  for (const part of path.split(".")) {
+    if (!current || typeof current !== "object" || Array.isArray(current) || !Object.hasOwn(current, part)) return;
+    current = (current as Record<string, unknown>)[part];
+  }
+  return current;
+}
+
+async function readSamplingDefaults(workflowPath: string, bindings: WorkflowBindings) {
+  const parsed = JSON.parse(await readFile(workflowPath, "utf8")) as unknown;
+  const read = (source: string) => {
+    const target = bindings.bindings.find(item => item.source === source)?.target;
+    return target ? readBoundValue(parsed, target) : undefined;
+  };
+  const megapixels = read("megapixels");
+  const steps = read("steps");
+  const sampler = read("sampler");
+  const scheduler = read("scheduler");
+  const defaults: NonNullable<WorkflowEntry["samplingDefaults"]> = {};
+  if (typeof megapixels === "number" && Number.isFinite(megapixels) && megapixels > 0) defaults.megapixels = megapixels;
+  if (typeof steps === "number" && Number.isInteger(steps) && steps >= 1) defaults.steps = steps;
+  if (typeof sampler === "string" && sampler.trim()) defaults.sampler = sampler;
+  if (typeof scheduler === "string" && scheduler.trim()) defaults.scheduler = scheduler;
+  return Object.keys(defaults).length ? defaults : undefined;
 }
 
 async function readLoraDefault(workflowPath: string, bindings: WorkflowBindings) {
@@ -226,26 +257,41 @@ export function workflowSummary(entry: WorkflowEntry) {
   return { id: entry.id, label: entry.label, usage: entry.bindings.usage, ...(entry.kind === "image" ? { imageReferences: imageReferenceRange(entry) } : {}) };
 }
 
-// 二采的分辨率是节点 8 百万像素（倍数 32）再乘节点 151 的放大倍率。
+// 有百万像素绑定就暴露采样尺寸。放大倍率、一二采步数只在对应绑定存在时出现。
 function samplingFor(entry: WorkflowEntry) {
   const sources = new Set(entry.bindings.bindings.map(item => item.source));
-  if (!sources.has("megapixels") || !sources.has("upscale")) return;
+  if (!sources.has("megapixels")) return;
+  const dual = sources.has("upscale");
   const steps = entry.stepDefaults;
+  const singleSteps = entry.samplingDefaults?.steps;
+  const defaults = entry.samplingDefaults;
   return {
     megapixels: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.98, 1, 1.2, 1.5, 1.8, 2],
     multiple: 32,
-    upscaleMin: 1,
-    upscaleMax: 4,
-    upscaleStep: 0.05,
-    upscaleDefault: 2,
+    megapixelsDefault: defaults?.megapixels ?? (dual ? 0.2 : 0.5),
+    ...(dual ? {
+      upscaleMin: 1,
+      upscaleMax: 4,
+      upscaleStep: 0.05,
+      upscaleDefault: 2,
+    } : {}),
     // 统一 H3 双采未指定时默认一采 4、二采 4，避免与工作流 JSON 默认值不一致。
-    ...(steps ? {
+    ...(dual && steps ? {
       firstPassMin: 1,
       firstPassMax: 64,
       firstPassDefault: 4,
       secondPassMin: 1,
       secondPassMax: 64,
       secondPassDefault: 4,
+    } : {}),
+    ...(singleSteps != null && !dual ? {
+      stepsMin: 1,
+      stepsMax: 64,
+      stepsDefault: singleSteps,
+    } : {}),
+    ...(!entry.h3Advanced && defaults?.sampler && defaults.scheduler ? {
+      sampler: defaults.sampler,
+      scheduler: defaults.scheduler,
     } : {}),
   };
 }
@@ -291,6 +337,7 @@ export function toMediaModel(entry: WorkflowEntry) {
     usage: entry.bindings.usage,
     promptFormat: entry.bindings.promptFormat,
     supportsFirstPassOutput: Boolean(entry.bindings.firstPassOutputNode),
+    supportsScaleOutput: Boolean(entry.bindings.scaleOutputNode),
     ...(entry.bindings.optionalLoraNode ? { lora: { defaultName: entry.loraDefaultName ?? "" } } : {}),
     ...(entry.checkpoint ? { checkpoint: { defaultName: entry.checkpoint.defaultName } } : {}),
     ...(entry.h3Advanced ? { h3Advanced: entry.h3Advanced } : {}),

@@ -17,7 +17,8 @@ export default Router().get("/", validateFields({ modelId: z.string().trim().min
     u.production.readNodeChoices(baseUrl, "LoraLoaderModelOnly", "lora_name", signal),
     entry.checkpoint ? u.production.readNodeChoices(baseUrl, "UNETLoader", "unet_name", signal) : [],
   ]);
-  const advanced = entry.h3Advanced ? await Promise.allSettled([
+  const wantsSampler = Boolean(entry.h3Advanced) || entry.bindings.bindings.some(item => item.source === "sampler" || item.source === "scheduler");
+  const advanced = wantsSampler ? await Promise.allSettled([
     u.production.readNodeChoices(baseUrl, "KSamplerSelect", "sampler_name", signal),
     u.production.readNodeChoices(baseUrl, "BasicScheduler", "scheduler", signal),
   ]) : undefined;

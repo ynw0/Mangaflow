@@ -34,7 +34,7 @@
           </el-select>
         </div>
       </div>
-      <div v-if="sampling" class="upscaleOption">
+      <div v-if="sampling?.upscaleDefault != null" class="upscaleOption">
         <div class="sectionLabel">放大倍率</div>
         <el-input-number
           v-model="upscale"
@@ -75,6 +75,37 @@
             controlsPosition="right"
             aria-label="二采步数" />
         </div>
+      </div>
+      <div v-if="singlePass" class="outputField">
+        <div class="sectionLabel">步数</div>
+        <el-input-number
+          v-model="steps"
+          class="stepInput"
+          :disabled="disabled"
+          :min="singlePass.stepsMin"
+          :max="singlePass.stepsMax"
+          :step="1"
+          :precision="0"
+          controlsPosition="right"
+          aria-label="采样步数" />
+      </div>
+      <template v-if="singleSampler">
+        <div class="sectionLabel">采样器</div>
+        <el-select :model-value="sampler ?? '__workflow_default__'" filterable :append-to="settingsHost" :disabled="disabled" aria-label="采样器" @change="value => sampler = value === '__workflow_default__' ? undefined : value">
+          <el-option :label="'默认 · ' + singleSampler.sampler" value="__workflow_default__" />
+          <el-option v-for="name in passSamplerOptions" :key="name" :value="name" :label="name" />
+        </el-select>
+        <div class="sectionLabel">调度器</div>
+        <el-select :model-value="scheduler ?? '__workflow_default__'" filterable :append-to="settingsHost" :disabled="disabled" aria-label="调度器" @change="value => scheduler = value === '__workflow_default__' ? undefined : value">
+          <el-option :label="'默认 · ' + singleSampler.scheduler" value="__workflow_default__" />
+          <el-option v-for="name in passSchedulerOptions" :key="name" :value="name" :label="name" />
+        </el-select>
+        <div v-if="advancedError" class="sizeHint">{{ advancedError }}</div>
+      </template>
+      <div v-if="model?.supportsScaleOutput" class="audioOption">
+        <span class="sectionLabel">输出 1080P</span>
+        <el-switch :model-value="scaleOutput !== false" :disabled="disabled" aria-label="输出 1080P" @change="value => { if (typeof value === 'boolean') scaleOutput = value }" />
+        <div v-if="outputSize" class="sizeHint">成片 {{ outputSize.width }}×{{ outputSize.height }}</div>
       </div>
       <div class="sectionLabel">通用比例</div>
       <div class="ratioOptions" role="group" aria-label="视频比例">
@@ -273,6 +304,10 @@ const megapixels = defineModel<number | undefined>("megapixels");
 const upscale = defineModel<number | undefined>("upscale");
 const firstPassSteps = defineModel<number | undefined>("firstPassSteps");
 const secondPassSteps = defineModel<number | undefined>("secondPassSteps");
+const steps = defineModel<number | undefined>("steps");
+const sampler = defineModel<string | undefined>("sampler");
+const scheduler = defineModel<string | undefined>("scheduler");
+const scaleOutput = defineModel<boolean | undefined>("scaleOutput");
 const outputFirstPass = defineModel<boolean>("outputFirstPass", { required: true });
 const loraName = defineModel<string | undefined>("loraName");
 const checkpointName = defineModel<string | undefined>("checkpointName");
@@ -423,6 +458,18 @@ const stepSpec = computed(() => {
   if (!value || value.firstPassDefault == null || value.secondPassDefault == null || value.firstPassMin == null || value.firstPassMax == null || value.secondPassMin == null || value.secondPassMax == null) return;
   return value;
 });
+const singlePass = computed(() => {
+  const value = sampling.value;
+  if (!value || stepSpec.value || value.stepsDefault == null || value.stepsMin == null || value.stepsMax == null) return;
+  return value;
+});
+const singleSampler = computed(() => {
+  const value = sampling.value;
+  if (!value?.sampler || !value.scheduler || props.model?.h3Advanced) return;
+  return value;
+});
+const passSamplerOptions = computed(() => [...new Set([...(props.samplerChoices ?? []), sampler.value])].filter((name): name is string => !!name && name !== singleSampler.value?.sampler));
+const passSchedulerOptions = computed(() => [...new Set([...(props.schedulerChoices ?? []), scheduler.value])].filter((name): name is string => !!name && name !== singleSampler.value?.scheduler));
 // 与 ComfyUI ResolutionSelector 一致：总像素 = 百万像素 × 1024²，再按倍数取整。
 const aspectPairs: Record<string, [number, number]> = {
   "1:1": [1, 1], "2:3": [2, 3], "3:2": [3, 2], "3:4": [3, 4], "4:3": [4, 3], "9:16": [9, 16], "16:9": [16, 9], "21:9": [21, 9],
@@ -460,9 +507,21 @@ const megapixelOptions = computed(() => (sampling.value?.megapixels ?? []).map(v
   const size = sampling.value ? selectorPixels(ratio.value, value, sampling.value.multiple) : undefined;
   return { value, label: size ? `${value} · ${size.width}×${size.height}` : String(value) };
 }));
-const outputSize = computed(() => sampling.value && megapixels.value != null && upscale.value != null
-  ? deliveredPixels(ratio.value, megapixels.value, upscale.value, sampling.value.multiple)
-  : undefined);
+// 与服务端 videoDelivery 一致：开启 1080P 时按比例裁到这些交付尺寸。
+const deliverySizes: Record<string, [number, number]> = {
+  "16:9": [1920, 1080], "9:16": [1080, 1920], "1:1": [1080, 1080], "4:3": [1440, 1080],
+  "3:4": [1080, 1440], "3:2": [1620, 1080], "2:3": [1080, 1620], "21:9": [2520, 1080],
+};
+const outputSize = computed(() => {
+  const spec = sampling.value;
+  if (!spec || megapixels.value == null) return;
+  if (spec.upscaleDefault != null && upscale.value != null) return deliveredPixels(ratio.value, megapixels.value, upscale.value, spec.multiple);
+  if (props.model?.supportsScaleOutput && scaleOutput.value !== false) {
+    const pair = deliverySizes[ratio.value];
+    return pair ? { width: pair[0], height: pair[1] } : undefined;
+  }
+  return selectorPixels(ratio.value, megapixels.value, spec.multiple);
+});
 const summary = computed(() => {
   const sizeText = sampling.value ? (outputSize.value ? `${outputSize.value.width}×${outputSize.value.height}` : "") : resolution.value;
   return [ratio.value, sizeText, duration.value ? `${duration.value}秒` : ""].filter(Boolean).join(" · ");

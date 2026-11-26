@@ -15,6 +15,8 @@ export type WorkflowBindings = {
   firstPassOutputNode?: string;
   /** 可选择或旁路的 LoRA 加载器节点 ID。 */
   optionalLoraNode?: string;
+  /** 成片像素放大节点。关闭 1080P 输出时旁路，CreateVideo 直接接解码结果。 */
+  scaleOutputNode?: string;
   version?: number;
   capabilities: { durationSeconds?: { min: number; max: number } };
   bindings: WorkflowBinding[];
@@ -56,6 +58,7 @@ export function parseWorkflowBindings(text: string): WorkflowBindings {
   let promptFormat: WorkflowBindings["promptFormat"];
   let firstPassOutputNode: string | undefined;
   let optionalLoraNode: string | undefined;
+  let scaleOutputNode: string | undefined;
   let version: number | undefined;
   let durationMin: number | undefined;
   let durationMax: number | undefined;
@@ -104,6 +107,9 @@ export function parseWorkflowBindings(text: string): WorkflowBindings {
       } else if (key === "optional_lora_node") {
         if (optionalLoraNode || !/^\d+$/.test(value)) failMessage("optional_lora_node 必须是唯一的节点 ID");
         optionalLoraNode = value;
+      } else if (key === "scale_output_node") {
+        if (scaleOutputNode || !/^\d+$/.test(value)) failMessage("scale_output_node 必须是唯一的节点 ID");
+        scaleOutputNode = value;
       } else if (key === "version") {
         if (version !== undefined) failMessage("绑定重复 version");
         if (!/^[1-9]\d*$/.test(value)) failMessage("version 必须是正整数");
@@ -157,7 +163,7 @@ export function parseWorkflowBindings(text: string): WorkflowBindings {
   }
   if (!bindings.length) failMessage("绑定文件没有 bindings");
   const capabilities = durationMin !== undefined && durationMax !== undefined ? { durationSeconds: { min: durationMin, max: durationMax } } : {};
-  return { workflow, label, usage, promptFormat, firstPassOutputNode, optionalLoraNode, version, capabilities, bindings };
+  return { workflow, label, usage, promptFormat, firstPassOutputNode, optionalLoraNode, scaleOutputNode, version, capabilities, bindings };
 }
 
 /** 把内存里的 bindings 写成与内置文件同款的 yaml 文本。 */
@@ -169,6 +175,7 @@ export function serializeWorkflowBindings(value: WorkflowBindings) {
   if (value.promptFormat) lines.push(`prompt_format: ${value.promptFormat}`);
   if (value.firstPassOutputNode) lines.push(`first_pass_output: ${value.firstPassOutputNode}`);
   if (value.optionalLoraNode) lines.push(`optional_lora_node: ${value.optionalLoraNode}`);
+  if (value.scaleOutputNode) lines.push(`scale_output_node: ${value.scaleOutputNode}`);
   const limits = value.capabilities.durationSeconds;
   if (limits) {
     lines.push("capabilities:", "  duration_seconds:", `    min: ${limits.min}`, `    max: ${limits.max}`);

@@ -180,6 +180,28 @@ function selectWorkflowLora(workflow: Record<string, unknown>, nodeId: string, n
   delete workflow[nodeId];
 }
 
+// 关闭 1080P 时，成片直接使用 VAE 解码，不再经过像素放大裁切。
+function bypassImageScale(workflow: Record<string, unknown>, nodeId: string) {
+  const node = workflow[nodeId] as { class_type?: string; inputs?: { image?: unknown } } | undefined;
+  const source = node?.inputs?.image;
+  if (node?.class_type !== "ImageScale" || !Array.isArray(source) || source.length !== 2 || !Object.hasOwn(workflow, String(source[0]))) {
+    fail(`1080P 输出节点 ${nodeId} 无效`);
+  }
+  let rewired = 0;
+  for (const [id, value] of Object.entries(workflow)) {
+    if (id === nodeId || !value || typeof value !== "object") continue;
+    const inputs = (value as { inputs?: Record<string, unknown> }).inputs;
+    if (!inputs) continue;
+    for (const [key, input] of Object.entries(inputs)) {
+      if (!Array.isArray(input) || input.length !== 2 || String(input[0]) !== nodeId) continue;
+      inputs[key] = [...source];
+      rewired += 1;
+    }
+  }
+  if (!rewired) fail(`1080P 输出节点 ${nodeId} 没有下游`);
+  delete workflow[nodeId];
+}
+
 function terminalNodeIds(workflow: Record<string, unknown>) {
   return Object.keys(workflow).filter(nodeId => !hasConsumer(workflow, nodeId));
 }
@@ -233,6 +255,9 @@ async function renderWorkflow(entry: WorkflowEntry, context: Record<string, unkn
   if (entry.bindings.firstPassOutputNode && context.output_first_pass !== true) {
     omitFirstPassOutput(workflow, entry.bindings.firstPassOutputNode);
   }
+  if (context.scale_output === false && entry.bindings.scaleOutputNode) {
+    bypassImageScale(workflow, entry.bindings.scaleOutputNode);
+  }
   if (entry.kind === "video" && context.generate_audio === false) {
     for (const inputs of videoAudioInputs(workflow)) delete inputs.audio;
   }
@@ -277,7 +302,12 @@ export async function prepareComfyWorkflow(options: {
   refs.last_frame = await localFile(directory, request.lastFrame) ?? (images.length > 1 ? await localFile(directory, images[1]) : undefined);
   const ratio = request.ratio?.trim() ?? "";
   const bound = new Set(entry.bindings.bindings.map(item => item.source));
-  // 用户没指定采样时：一采 4 步、二采 4 步、百万像素 0.2、放大 2。工作流没绑的项不写。
+  if (request.steps !== undefined && !bound.has("steps")) fail(`${entry.label} 不使用单次采样步数`);
+  if ((request.sampler !== undefined || request.scheduler !== undefined) && (!bound.has("sampler") || !bound.has("scheduler"))) {
+    fail(`${entry.label} 不支持单独设置采样器或调度器`);
+  }
+  if (request.scaleOutput === false && !entry.bindings.scaleOutputNode) fail(`${entry.label} 不支持关闭 1080P 输出`);
+  // 用户没指定采样时：一采 4 步、二采 4 步、百万像素沿用工作流，双采为 0.2、放大 2。没绑的项不写。
   const sampling = (source: string, given: number | undefined, fallback: number) => bound.has(source) ? given ?? fallback : undefined;
   const context = {
     prompt: request.prompt,
@@ -287,10 +317,14 @@ export async function prepareComfyWorkflow(options: {
     seed: request.seed ?? crypto.getRandomValues(new Uint32Array(1))[0],
     duration: request.duration,
     aspect_ratio: videoAspect[ratio],
-    megapixels: sampling("megapixels", request.megapixels, 0.2),
+    megapixels: sampling("megapixels", request.megapixels, entry.samplingDefaults?.megapixels ?? 0.2),
     upscale: sampling("upscale", request.upscale, 2),
     first_pass_steps: sampling("first_pass_steps", request.firstPassSteps, 4),
     second_pass_steps: sampling("second_pass_steps", request.secondPassSteps, 4),
+    steps: bound.has("steps") ? request.steps : undefined,
+    sampler: bound.has("sampler") ? request.sampler : undefined,
+    scheduler: bound.has("scheduler") ? request.scheduler : undefined,
+    scale_output: entry.bindings.scaleOutputNode ? request.scaleOutput !== false : undefined,
     output_first_pass: request.outputFirstPass === true,
     generate_audio: mediaType === "video" && entry.hasVideoAudio === true && request.generateAudio !== false,
     lora_name: request.loraName,
@@ -368,6 +402,14 @@ export async function runComfyWorkflow(options: Parameters<typeof prepareComfyWo
   if (request.h3Options?.scheduler !== undefined) {
     const names = await readNodeChoices(baseUrl, "BasicScheduler", "scheduler", signal);
     if (!names.includes(request.h3Options.scheduler)) fail("当前 ComfyUI 不支持所选调度器");
+  }
+  if (request.sampler !== undefined) {
+    const names = await readNodeChoices(baseUrl, "KSamplerSelect", "sampler_name", signal);
+    if (!names.includes(request.sampler)) fail("当前 ComfyUI 不支持所选采样器");
+  }
+  if (request.scheduler !== undefined) {
+    const names = await readNodeChoices(baseUrl, "BasicScheduler", "scheduler", signal);
+    if (!names.includes(request.scheduler)) fail("当前 ComfyUI 不支持所选调度器");
   }
   const uploadDirectory = `toonflow/${crypto.randomUUID()}`;
   for (const [index, binding] of entry.bindings.bindings.entries()) {

@@ -108,20 +108,28 @@ export interface MediaModel {
   imageSizes?: string[];
   imageRatios?: string[];
   durationResolutionMap?: { duration: number[]; resolution: string[] }[];
-  /** 二采：节点 8 的百万像素档，以及节点 151 的放大倍率。有步数字段时还可改一采、二采步数。有此字段时界面不使用分辨率。 */
+  /** 有像素放大裁切节点时，可关闭并直接输出采样尺寸。 */
+  supportsScaleOutput?: boolean;
+  /** 百万像素必有。放大倍率和一二采只在工作流绑了对应节点时出现；单次采样使用 steps 与采样器。有此字段时界面不使用分辨率。 */
   sampling?: {
     megapixels: number[];
     multiple: number;
-    upscaleMin: number;
-    upscaleMax: number;
-    upscaleStep: number;
-    upscaleDefault: number;
+    megapixelsDefault?: number;
+    upscaleMin?: number;
+    upscaleMax?: number;
+    upscaleStep?: number;
+    upscaleDefault?: number;
     firstPassMin?: number;
     firstPassMax?: number;
     firstPassDefault?: number;
     secondPassMin?: number;
     secondPassMax?: number;
     secondPassDefault?: number;
+    stepsMin?: number;
+    stepsMax?: number;
+    stepsDefault?: number;
+    sampler?: string;
+    scheduler?: string;
   };
   audio?: boolean | "optional";
   voices?: { title: string; voice: string }[];
@@ -168,6 +176,13 @@ export interface MediaGenerationRequest {
   firstPassSteps?: number;
   /** 二采节点 148 的二采步数；总步数由工作流 a+b 计算。云视频可忽略 */
   secondPassSteps?: number;
+  /** 单次采样步数。 */
+  steps?: number;
+  /** 单次采样的采样器、调度器。省略则保留工作流原值。 */
+  sampler?: string;
+  scheduler?: string;
+  /** 关闭时成片保持采样尺寸，不再放大裁切到 1080P。省略视为开启。 */
+  scaleOutput?: boolean;
   /** 只决定是否额外保存一采视频，不跳过或改变一采采样。 */
   outputFirstPass?: boolean;
   /** 省略沿用工作流默认 LoRA；空字符串完全旁路；非空为 ComfyUI 已安装的 LoRA 名称。 */

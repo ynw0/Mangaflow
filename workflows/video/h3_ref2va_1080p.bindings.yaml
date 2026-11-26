@@ -1,0 +1,91 @@
+workflow: ./h3_ref2va_1080p_api.json
+label: 全能参考 1080P
+prompt_format: h3Ref2va
+optional_lora_node: 50
+scale_output_node: 52
+usage: 用已批准的图片、视频或音频做单镜连续成片，按 H3 Ref2VA 六段格式和实际槽位编写。适合需 1080P 交付的参考生成。单次采样，默认 0.5 百万像素、8 步，可按比例裁到 1080P。
+capabilities:
+  duration_seconds:
+    min: 4
+    max: 15
+bindings:
+- source: prompt
+  target: 40.inputs.prompt
+  kind: value
+- source: seed
+  target: 41.inputs.noise_seed
+  kind: value
+- source: duration
+  target: 6.inputs.value
+  kind: value
+- source: aspect_ratio
+  target: 5.inputs.aspect_ratio
+  kind: value
+  required: false
+- source: megapixels
+  target: 5.inputs.megapixels
+  kind: value
+  required: false
+- source: steps
+  target: 44.inputs.steps
+  kind: value
+  required: false
+- source: sampler
+  target: 43.inputs.sampler_name
+  kind: value
+  required: false
+- source: scheduler
+  target: 44.inputs.scheduler
+  kind: value
+  required: false
+- source: delivery.width
+  target: 52.inputs.width
+  kind: value
+  required: false
+- source: delivery.height
+  target: 52.inputs.height
+  kind: value
+  required: false
+- source: refs.slot1
+  target: 20.inputs.image
+  kind: image
+- source: refs.slot2
+  target: 21.inputs.image
+  kind: image
+  required: false
+- source: refs.slot3
+  target: 22.inputs.image
+  kind: image
+  required: false
+- source: refs.slot4
+  target: 23.inputs.image
+  kind: image
+  required: false
+- source: refs.slot5
+  target: 24.inputs.image
+  kind: image
+  required: false
+- source: refs.slot6
+  target: 25.inputs.image
+  kind: image
+  required: false
+- source: refs.slot7
+  target: 26.inputs.image
+  kind: image
+  required: false
+- source: refs.slot8
+  target: 27.inputs.image
+  kind: image
+  required: false
+- source: refs.slot9
+  target: 28.inputs.image
+  kind: image
+  required: false
+- source: media.video1
+  target: 58.inputs.video
+  kind: video
+  required: false
+- source: media.audio1
+  target: 59.inputs.audio
+  kind: audio
+  required: false

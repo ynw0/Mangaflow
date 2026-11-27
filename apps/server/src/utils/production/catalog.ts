@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "@toonflow/file";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseWorkflowBindings, type WorkflowBindings } from "@/utils/production/bindings";
-import { readProduction, canonicalVideoWorkflowId, fail } from "@/utils/production/config";
+import { readProduction, canonicalVideoWorkflowId, isRetiredWorkflowId, fail } from "@/utils/production/config";
 import { resolveAppDirectory } from "@/resolveAppDirectory";
 import { h3AdvancedCapability } from "@/utils/production/h3Advanced";
 import { findH3Checkpoint, validateH3Workflow, videoAudioInputs } from "@/utils/production/h3Workflow";
@@ -211,7 +211,8 @@ export async function loadWorkflowCatalog(): Promise<{ entries: WorkflowEntry[];
   const notices: string[] = [];
   for (const root of roots) {
     for (const id of (await walkBindings(root)).sort((a, b) => a.localeCompare(b, "zh-CN"))) {
-      if (["qc/gemma4E2b", "qc/gemma4E4b", "qc/gemma4_12B"].includes(id)) continue;
+      // 在读取旧绑定前过滤，避免覆盖升级残留的文件重新出现或影响目录加载。
+      if (isRetiredWorkflowId(id)) continue;
       const entry = await readEntry(root, id);
       const current = chosen.get(id);
       if (!current) {

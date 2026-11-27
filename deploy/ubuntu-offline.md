@@ -79,3 +79,5 @@ ComfyUI 在宿主机运行且监听容器可达地址时，可在工作流设置
 ## 6. 更新
 
 下载新 release 的离线包，先校验和导入。在原部署目录备份 .env、compose.yaml、version.env 与数据卷，更新 compose.yaml、version.env、caddyLanConfig（不覆盖 .env）。维持原 Compose 项目名，任务结束后再运行第3节的 up 命令。不要运行 down -v，保留 toonflowData 及 caddyLanData（含 CA）。旧镜像保留可供回退；应用数据兼容性仍需评估。此安装包不改动 ComfyUI/PyTorch/CUDA 环境。
+
+内置工作流随新镜像更新，不需要复制到数据卷。已被统一工作流替代的旧 H3 ID 与旧 Gemma 规格 ID 不再出现在工作流列表中；历史 H3 引用仍可解析到统一双采。通过系统上传的自定义工作流保存在数据卷，额外配置的工作流目录也不会被升级删除。若曾把旧内置工作流手动复制到这些目录，其文件仍保留，但废弃 ID 不会作为可选项加载。

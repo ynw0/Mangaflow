@@ -167,6 +167,12 @@ tarReady:
   IfFileExists "$INSTDIR\app\Resources\app\providers\*.*" 0 +2
     RMDir /r "$INSTDIR\app\Resources\app\providers"
   IfErrors installFailed
+  ; 内置工作流由安装包完整提供；数据目录及额外工作流目录不参与清理。
+  StrCpy $installStep "更新内置工作流文件"
+  ClearErrors
+  IfFileExists "$INSTDIR\app\Resources\app\workflows\*.*" 0 +2
+    RMDir /r "$INSTDIR\app\Resources\app\workflows"
+  IfErrors installFailed
   ; ACT: 仅打包一份 tar，释放应用后保留原文件作为增量更新基线。
   nsExec::ExecToStack '"$WINDIR\Sysnative\tar.exe" -xf "$INSTDIR\self-extraction\${appHash}.tar" -C "$INSTDIR\app" --strip-components=1'
   Pop $0

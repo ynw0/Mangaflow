@@ -8,7 +8,7 @@ import {
   type WorkflowBindings,
 } from "@/utils/production/bindings";
 import { customWorkflowRoot, listWorkflowCatalog, resolveBuiltinWorkflowsRoot } from "@/utils/production/catalog";
-import { fail } from "@/utils/production/config";
+import { fail, isRetiredWorkflowId } from "@/utils/production/config";
 import { validateH3Workflow } from "@/utils/production/h3Workflow";
 
 const slugPattern = /^[a-z][a-z0-9_]{0,63}$/;
@@ -182,6 +182,7 @@ export async function uploadVideoWorkflow(input: {
   modelId?: string;
 }) {
   const { id, slug } = normalizeId(input.id);
+  if (isRetiredWorkflowId(id)) fail(`工作流 ID ${id} 已废弃并保留用于旧画布兼容，请使用其他 ID。`);
   const nodes = asApiJson(input.apiJson);
   const catalog = await listWorkflowCatalog();
   if (catalog.some(item => item.id === id)) {

@@ -81,6 +81,10 @@ export function canonicalVideoWorkflowId(id: string): string {
   return /^video\/h3_erca_(?:16x9|9x16)(?:_autodl)?$/.test(id)
     ? unifiedH3WorkflowId : id;
 }
+/** 已被统一工作流替代的旧 ID：保留历史引用兼容，不再作为可选工作流。 */
+export function isRetiredWorkflowId(id: string): boolean {
+  return canonicalVideoWorkflowId(id) !== id || ["qc/gemma4E2b", "qc/gemma4E4b", "qc/gemma4_12B"].includes(id);
+}
 function text(value: unknown, fallback: string) {
   return typeof value === "string" ? value.trim() : fallback;
 }

@@ -10,7 +10,8 @@ const chainNames = new Set<string>(chainMethods);
 const queryNames = new Set<string>(queryMethods);
 const runNames = new Set<string>(runMethods);
 const inputNames = new Set(["input", "addInput", "mergeAdd"]);
-const outputNames = new Set(["output", "addOutput", "save", "saveToFile", "concat", "concatenate", "mergeToFile"]);
+const outputNames = new Set(["output", "addOutput", "concat", "concatenate", "mergeToFile"]);
+const saveNames = new Set(["save", "saveToFile"]);
 
 function serializeError(error: unknown) {
   return error instanceof Error
@@ -26,11 +27,18 @@ function serializeError(error: unknown) {
 }
 
 function invoke(command: FfmpegCommand, call: FfmpegCall, extra: unknown[] = []) {
-  if ((inputNames.has(call.method) || outputNames.has(call.method)) && typeof call.args[0] !== "string") {
+  const missingPath = typeof call.args[0] !== "string";
+  if ((inputNames.has(call.method) || outputNames.has(call.method)) && missingPath) {
     throw new Error("浏览器 FFmpeg 输入、输出必须使用工作区文件路径");
   }
+  if (saveNames.has(call.method) && call.args.length > 0 && missingPath) {
+    throw new Error("浏览器 FFmpeg 输入、输出必须使用工作区文件路径");
+  }
+  const target = command as unknown as Record<string, (...args: unknown[]) => unknown>;
+  // save() 不带路径时，fluent 会把 undefined 再交给 output()，冲掉 steps 里已经写好的输出。
+  if (saveNames.has(call.method) && missingPath) return Reflect.apply(target.run!, command, extra);
   const args = call.args.map((value, index) => call.undefinedArgs?.includes(index) ? undefined : value);
-  return Reflect.apply((command as unknown as Record<string, (...args: unknown[]) => unknown>)[call.method]!, command, [...args, ...extra]);
+  return Reflect.apply(target[call.method]!, command, [...args, ...extra]);
 }
 
 /** 浏览器只传链式调用数据，执行及显式路径检查仍使用原生工作区工厂。 */

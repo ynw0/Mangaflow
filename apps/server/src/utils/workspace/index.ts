@@ -10,7 +10,7 @@ function forwardedRequest(req: Request) {
   return Boolean(req.get("x-forwarded-for") || req.get("forwarded") || req.get("x-real-ip"));
 }
 
-export function isLocalWorkspaceRequest(req: Request) {
+function sameOriginLocalPage(req: Request) {
   if (isMobileLinkRequest(req) || isPublicRequest(req)) return false;
   // ACT: 反代之后 socket 都是 127.0.0.1。未显式信任代理时，带转发头的请求不再视为本机。
   if (forwardedRequest(req) && process.env.TOONFLOW_TRUST_PROXY !== "1") return false;
@@ -18,18 +18,27 @@ export function isLocalWorkspaceRequest(req: Request) {
   const localHost = ["localhost", "127.0.0.1", "[::1]"].includes(req.hostname);
   const origin = req.get("origin");
   const localOrigin = `${req.protocol}://${req.get("host")}`;
-  const sameOrigin = origin === undefined ? req.get("referer")?.startsWith(`${localOrigin}/`) : origin === localOrigin;
-  return localAddress && localHost && sameOrigin && req.get("x-toonflow-workspace") === "1";
+  const sameOrigin = origin === undefined ? req.get("referer")?.startsWith(`${localOrigin}/`) === true : origin === localOrigin;
+  return localAddress && localHost && sameOrigin;
 }
 
-export async function resolveWorkspace(req: Request, path: string) {
+export function isLocalWorkspaceRequest(req: Request) {
+  return sameOriginLocalPage(req) && req.get("x-toonflow-workspace") === "1";
+}
+
+/** 页面里的 video 不能加自定义头，只放行本机同源的文件读取。 */
+export function isLocalPageRead(req: Request) {
+  return req.method === "GET" && sameOriginLocalPage(req);
+}
+
+export async function resolveWorkspace(req: Request, path: string, allowPageRead = false) {
   if (!isAbsolute(path)) throw Object.assign(new Error("工作目录必须是绝对路径"), { status: 400 });
   const directory = await realpath(path).catch((err: NodeJS.ErrnoException) => {
     if (err.code === "ENOENT" || err.code === "ENOTDIR") throw Object.assign(new Error("工作目录不存在，请重新选择文件夹"), { status: 404 });
     throw err;
   });
   if (!(await stat(directory)).isDirectory()) throw Object.assign(new Error("工作目录不是文件夹，请重新选择"), { status: 404 });
-  if (getRuntimePlatform().local && isLocalWorkspaceRequest(req)) return directory;
+  if (getRuntimePlatform().local && (isLocalWorkspaceRequest(req) || (allowPageRead && isLocalPageRead(req)))) return directory;
 
   if (isMobileLinkRequest(req)) {
     for (const root of getMobileLinkConfig().directories) {

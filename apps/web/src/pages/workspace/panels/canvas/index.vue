@@ -234,6 +234,10 @@ const canvasSaveError = ref("");
 const documentObservers = new Set<() => void>();
 onScopeDispose(() => { for (const release of documentObservers) release(); });
 provide("nodeDocument", nodeDocument);
+provide("shotVideoName", () => ({
+  projectName: project.value?.name?.trim() ?? "",
+  canvasFile: canvasId.value,
+}));
 onScopeDispose(anonymousData.observeCanvas(() => props.active && canvasId.value
   ? { nodes: flow.nodes.value, edgeCount: flow.edges.value.length }
   : undefined));

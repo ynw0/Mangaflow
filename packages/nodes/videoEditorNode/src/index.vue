@@ -1,5 +1,5 @@
 <template>
-  <nodeSkeleton v-bind="nodeProps" :downloadUrl="outputUrl" downloadName="video.mp4">
+  <nodeSkeleton v-bind="nodeProps" :downloadUrl="outputUrl" :downloadName="outputName">
     <div class="editor nopan nodrag nowheel">
       <video v-if="outputUrl" class="outputPreview" :src="outputUrl" controls playsinline preload="metadata" aria-label="成片预览" />
       <div class="toolbar">
@@ -112,7 +112,11 @@ const offsets = computed(() => {
 });
 const sourceUrl = files.useFileUrl(computed(() => visible.value && selected.value ? { url: selected.value.path, mimeType: "video/mp4" } : undefined),
   error => showNodeError(error, "片段预览失败"));
-const outputUrl = files.useFileUrl(output, error => showNodeError(error, "成片预览失败"));
+const outputUrl = computed(() => {
+  const path = output.value?.url;
+  const mediaUrl = path ? files.getWorkspaceFiles().mediaUrl?.(path) : "";
+  return mediaUrl || "";
+});
 const outputName = computed(() => output.value?.url.split(/[\\/]/).at(-1) || "video.mp4");
 const downloading = ref(false);
 const revealing = ref(false);

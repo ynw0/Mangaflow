@@ -17,6 +17,7 @@ import { getStoredGenerationRequest, runGenerationJob } from "@/utils/production
 import { reserveMediaBudget } from "@/utils/media/budget";
 
 const maxMediaSize = 100 * 1024 * 1024;
+const shotBaseName = /^[^\\/:*?"<>|\u0000-\u001f]+EP\d{3}S\d{2,}$/;
 const mediaExtensions: Record<string, string> = {
   "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
   "image/avif": "avif", "image/bmp": "bmp", "image/tiff": "tiff",
@@ -27,6 +28,33 @@ const mediaExtensions: Record<string, string> = {
 
 function invalid(message: string): never {
   throw Object.assign(new Error(message), { status: 400 });
+}
+
+function checksum(bytes: Uint8Array) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function videoFileName(baseName: string | undefined, index: number, suffix: string, fallback: string) {
+  if (!baseName) return `${fallback}.${suffix}`;
+  if (!shotBaseName.test(baseName)) invalid("视频文件名必须是项目名加 EP 集号和 S 镜号，例如 咪咪EP001S02");
+  const stem = index === 0 ? baseName : `${baseName}-${index}`;
+  return `${stem}.${suffix}`;
+}
+
+async function placeFile(directory: string, outputDirectory: string, fileName: string, bytes: Uint8Array, replace: boolean) {
+  const resolved = await resolveWorkspacePath(directory, join(outputDirectory, fileName), true);
+  const previous = await readFile(resolved.path).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (previous) {
+    if (checksum(previous) === checksum(bytes)) return resolved.path;
+    if (!replace) throw new Error("已存在同名生成文件但内容不同，禁止覆盖");
+    await writeWorkspaceFile(resolved.path, bytes);
+  } else {
+    await writeWorkspaceFile(resolved.path, bytes, true);
+  }
+  return resolved.path;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -227,7 +255,7 @@ async function writeGenerated(directory: string, outputDirectory: string, mediaT
 
 
 async function writeTrackedVideos(directory: string, outputDirectory: string,
-  id: string, files: { bytes: Uint8Array; mimeType: string }[], signal: AbortSignal) {
+  id: string, baseName: string | undefined, files: { bytes: Uint8Array; mimeType: string }[], signal: AbortSignal) {
   const output = await resolveWorkspacePath(directory, outputDirectory, true);
   const release = lockWorkspaceFiles([output.path]);
   const saved: GeneratedMedia[] = [];
@@ -237,19 +265,9 @@ async function writeTrackedVideos(directory: string, outputDirectory: string,
       signal.throwIfAborted();
       const suffix = mediaExtensions[file.mimeType];
       if (!suffix || !file.mimeType.startsWith("video/") || !file.bytes.length) invalid("ComfyUI 返回了无效视频");
-      const name = join(outputDirectory, `video${id}-${index}.${suffix}`);
-      const resolved = await resolveWorkspacePath(directory, name, true);
-      const previous = await readFile(resolved.path).catch((error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return undefined;
-        throw error;
-      });
-      if (previous) {
-        const checksum = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
-        if (checksum(previous) !== checksum(file.bytes)) throw new Error("已存在同名生成文件但内容不同，禁止覆盖");
-      } else {
-        await writeWorkspaceFile(resolved.path, file.bytes, true);
-      }
-      saved.push({ path: relative(directory, resolved.path).replaceAll("\\", "/"), mimeType: file.mimeType, mediaType: "video" });
+      const fileName = videoFileName(baseName, index, suffix, `video${id}-${index}`);
+      const path = await placeFile(directory, outputDirectory, fileName, file.bytes, Boolean(baseName));
+      saved.push({ path: relative(directory, path).replaceAll("\\", "/"), mimeType: file.mimeType, mediaType: "video" });
     }
     return saved;
   } finally { release(); }
@@ -293,7 +311,7 @@ export async function generateMedia(
         generate: ({ signal: jobSignal, manual, resume, targetResolved, submitting, submitted }) =>
           runComfyWorkflow({ directory, mediaType, request: tracked, signal: jobSignal, resume, manual,
             onTargetResolved: targetResolved, onSubmitting: submitting, onSubmitted: submitted }),
-        save: (files, id, jobSignal) => writeTrackedVideos(directory, outputDirectory, id, files, jobSignal),
+        save: (files, id, jobSignal) => writeTrackedVideos(directory, outputDirectory, id, tracked.outputBaseName, files, jobSignal),
         record: (files, { target: _target, ...execution }, _manual, policy) => recordVideoOutputs(
           directory, files, tracked, execution, policy),
       });
@@ -333,10 +351,11 @@ export async function generateMedia(
         const release = lockWorkspaceFiles([output.path]);
         try {
           await mkdir(output.path, { recursive: true });
-          const file = join(outputDirectory, `${mediaType}${crypto.randomUUID()}.${mediaExtensions[mimeType]}`);
-          const { path } = await resolveWorkspacePath(directory, file);
+          const suffix = mediaExtensions[mimeType];
+          if (!suffix) invalid("生成结果不是支持的视频格式");
+          const fileName = videoFileName(request.outputBaseName, result.length, suffix, `${mediaType}${crypto.randomUUID()}`);
           signal?.throwIfAborted();
-          await writeWorkspaceFile(path, bytes, true);
+          const path = await placeFile(directory, outputDirectory, fileName, bytes, Boolean(request.outputBaseName));
           written.push(path);
           result.push({ path: relative(directory, path).replace(/\\/g, "/"), mimeType, mediaType });
         } finally { release(); }
@@ -373,10 +392,13 @@ export async function generateMedia(
       const release = lockWorkspaceFiles([output.path]);
       try {
         await mkdir(output.path, { recursive: true });
-        const file = join(outputDirectory, `${mediaType}${crypto.randomUUID()}.${mediaExtensions[mimeType]}`);
-        const { path } = await resolveWorkspacePath(directory, file);
+        const suffix = mediaExtensions[mimeType];
+        if (!suffix) invalid("生成结果不是支持的媒体格式");
+        const fileName = mediaType === "video"
+          ? videoFileName(request.outputBaseName, result.length, suffix, `${mediaType}${crypto.randomUUID()}`)
+          : `${mediaType}${crypto.randomUUID()}.${suffix}`;
         signal?.throwIfAborted();
-        await writeWorkspaceFile(path, bytes, true);
+        const path = await placeFile(directory, outputDirectory, fileName, bytes, mediaType === "video" && Boolean(request.outputBaseName));
         written.push(path);
         result.push({ path: relative(directory, path).replace(/\\/g, "/"), mimeType, mediaType });
       } finally { release(); }

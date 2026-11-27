@@ -6,6 +6,7 @@ export interface WorkspaceFiles {
   list(path?: string): Promise<{ directory: string; entries: { name: string; path: string; type: "file" | "directory" }[] }>;
   read(path: string): Promise<ArrayBuffer>;
   acquireUrl?(path: string, mimeType: string): { url: Promise<string>; release(): void };
+  mediaUrl?(path: string): string;
   readText(path: string): Promise<string>;
   readTextSnapshot(path: string): Promise<{ text: string; revision: string; encoding: "utf-8" | "utf-8-bom" | "utf-16le" | "utf-16be" }>;
   writeTextSnapshot(path: string, text: string, snapshot: { revision: string; encoding: "utf-8" | "utf-8-bom" | "utf-16le" | "utf-16be" }): Promise<string>;

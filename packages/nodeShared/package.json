@@ -12,7 +12,8 @@
     "./useNodeReferences": "./src/useNodeReferences.ts",
     "./useNodeGeneration": "./src/useNodeGeneration.ts",
     "./groupNodeModels": "./src/groupNodeModels.ts",
-    "./videoCommands": "./src/videoCommands.ts"
+    "./videoCommands": "./src/videoCommands.ts",
+    "./mediaFileName": "./src/mediaFileName.ts"
   },
   "scripts": {
     "typecheck": "vue-tsc --noEmit"

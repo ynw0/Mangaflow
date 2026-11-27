@@ -188,7 +188,8 @@
 
 <script setup lang="ts">
 import { applyPromptEdits } from "./promptEdits";
-import { computed, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
+import { computed, inject, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
+import { shotVideoBaseName, type ShotVideoContext } from "@toonflow/node-shared/mediaFileName";
 import { ElButton, ElCard, ElSelect, ElOption, ElOptionGroup, ElLoading, ElDropdown, ElDropdownMenu, ElDropdownItem, ElMessageBox } from "element-plus";
 import { IconCameraAi, IconSparkles, IconArrowUp, IconPlayerStop, IconTransfer, IconMusic, IconLayersSubtract, IconScissors, IconPhotoScan, IconPlayerSkipBack, IconPlayerSkipForward } from "@tabler/icons-vue";
 import { nodeSkeleton, nodeTools, useNode, z, h3OptionsSchema, videoQcContractSchema, type NodeMediaModel, type NodeVideoRequest, type NodeHandle } from "@toonflow/nodes-scaffold/runtime";
@@ -217,6 +218,7 @@ const vLoading = ElLoading.directive;
 const { id, node, nodeProps, nodeEvent, outputs, files, ai, updateNodeInternals } = useNode({
   label: "视频生成",
 });
+const videoContext = inject<(() => ShotVideoContext) | undefined>("shotVideoName", undefined);
 type PromptModel = NonNullable<InstanceType<typeof promptInput>["$props"]["modelValue"]>;
 type SeedMode = "fixed" | "random" | "last";
 const defaultSeed = 519111680057095;
@@ -804,6 +806,12 @@ async function resumeDetachedGeneration(manual?: true) {
   return { status: "requested", generationId, resumed: true };
 }
 
+function shotFileBaseName() {
+  const info = videoContext?.();
+  if (!info) throw new Error("请在画布中生成视频");
+  return shotVideoBaseName(info.projectName, info.canvasFile, String(node.data.label ?? ""));
+}
+
 async function startGeneration(manual?: true, qcModelCallAllowed?: boolean) {
   const current = data.value.activeGenerationRequest;
   const choice = selectedModel.value;
@@ -820,7 +828,7 @@ async function startGeneration(manual?: true, qcModelCallAllowed?: boolean) {
   if (choice.mode?.length && !matchingModes.value.length) throw new Error("当前模型没有适合这些参考素材的生成模式，请更换模型或调整引用");
   const seed = choice.supportsSeed ? resolveSeed() : undefined;
   const request: Omit<NodeVideoRequest, "directory"> = {
-    ...input, seed, ...(qcModelCallAllowed === undefined ? {} : { qcModelCallAllowed }), ...(choice.providerId === "comfyui" ? { generationId: crypto.randomUUID() } : {}),
+    ...input, outputBaseName: shotFileBaseName(), seed, ...(qcModelCallAllowed === undefined ? {} : { qcModelCallAllowed }), ...(choice.providerId === "comfyui" ? { generationId: crypto.randomUUID() } : {}),
   };
   if (request.generationId) {
     data.value.activeGenerationRequest = request;

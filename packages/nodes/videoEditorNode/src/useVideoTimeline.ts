@@ -1,10 +1,12 @@
-import { computed, onScopeDispose, ref } from "vue";
+import { computed, inject, onScopeDispose, ref } from "vue";
 import { nodeTools, useNode, useNodeInputs, z } from "@toonflow/nodes-scaffold/runtime";
+import { episodeVideoFileName, type ShotVideoContext } from "@toonflow/node-shared/mediaFileName";
 import { aspectSchema, checkRange, clipRange, inspectSource, maxClips, renderTimeline, sourcePath, timelineSchema, type Aspect, type Clip } from "./timeline";
 
 export function useVideoTimeline() {
   const host = useNode({ label: "视频剪辑" });
   const { id, node, nodeEvent, files, ffmpeg, outputs } = host;
+  const videoContext = inject<(() => ShotVideoContext) | undefined>("shotVideoName", undefined);
   const data = computed(() => node.data as typeof node.data & { clips?: Clip[]; aspect?: Aspect; renderedTimeline?: string });
   const inputs = useNodeInputs();
   const clips = computed(() => timelineSchema.parse(data.value.clips ?? []));
@@ -123,6 +125,9 @@ export function useVideoTimeline() {
     const currentRevision = revision.value;
     const workspace = files.getWorkspaceFiles();
     if (!id || /[\\/]/.test(id) || id === "." || id === "..") throw new Error("节点 ID 不能作为文件夹名称");
+    const info = videoContext?.();
+    if (!info) throw new Error("请在画布中导出成片");
+    const fileName = episodeVideoFileName(info.projectName, info.canvasFile);
     const current = controller = new AbortController();
     renderStatus.value = "rendering";
     progress.value = 0;
@@ -130,7 +135,7 @@ export function useVideoTimeline() {
     // 独占目录容纳本次导出；失败只清理本次目录，已有成片继续可用。
     const nodeDirectory = `assets/${id}`;
     const renderDirectory = `${nodeDirectory}/${crypto.randomUUID()}`;
-    const path = `${renderDirectory}/video.mp4`;
+    const path = `${renderDirectory}/${fileName}`;
     job = (async () => {
       let created = false;
       try {

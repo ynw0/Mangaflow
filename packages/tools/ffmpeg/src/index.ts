@@ -68,9 +68,10 @@ const plugin: ToolPlugin = {
     }, {
       name: "ffmpeg",
       label: "处理媒体",
-      description: "通过宿主 fluent-ffmpeg 处理工作区媒体。steps 中的链式调用方法和 args 均原样传递。支持宿主提供的全部配置方法及其别名、原始 inputOptions 和 outputOptions、复杂滤镜、多个输入或输出、文件序列及分片。operation 默认 run，也支持 save、screenshots、concat 和能力查询。不会自动重命名输出文件，也不限制执行时长。输出目录必须已经存在，是否覆盖文件遵循 fluent-ffmpeg 的原生规则。",
-      promptSnippet: "使用 ffmpeg 处理本地媒体，ffprobe 查询媒体信息；按用户要求选择输出位置。",
+      description: "通过宿主 fluent-ffmpeg 处理单个工作区媒体，用于抽帧、转码、探测和用户明确要求的单文件操作。steps 中的链式调用方法和 args 均原样传递。operation 默认 run，也支持 save、screenshots 和能力查询。不会自动重命名输出文件，也不限制执行时长。输出目录必须已经存在。整集的排序、裁剪和导出必须使用画布上的视频剪辑节点，不要用本工具拼接成片。",
+      promptSnippet: "ffmpeg 只处理单个媒体：抽帧、转码、探测。把多段视频剪成一集时，使用画布上的视频剪辑节点连线、排序并导出。",
       promptGuidelines: [
+        "整集剪辑不使用 ffmpeg。在当前画布找到或新建视频剪辑节点，连上各段视频，按剧情排序、裁剪后导出 MP4。",
         '截帧示例：{"steps":[{"method":"input","args":["assets/input.mp4"]},{"method":"seekInput","args":[1]},{"method":"frames","args":[1]},{"method":"output","args":["assets/frame.png"]}]}。',
         'inputOptions/outputOptions 按 fluent 原生语法传参，不额外拆分空格。含空格的元数据使用 args:["-metadata","title=a b"]，不要再嵌套数组。先用 operation={"method":"availableEncoders","args":[]} 等查询实际能力，不猜测本机编码器。',
         "除非用户要求覆盖，否则使用新文件名。显式路径超出当前工作区时，宿主会请求授权；系统目录不会被授权，删除盘符根目录也不会。",

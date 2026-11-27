@@ -161,7 +161,7 @@ export interface MediaGenerationRequest {
   modelId: string;
   prompt: string;
   outputDirectory?: string;
-  /** 单镜头成片主文件名，不含扩展名：项目名 + EP*** + S**。 */
+  /** 单镜头成片主文件名，不含扩展名：项目名 + EP*** + S** + V**。 */
   outputBaseName?: string;
   images?: MediaReference[];
   videos?: MediaReference[];

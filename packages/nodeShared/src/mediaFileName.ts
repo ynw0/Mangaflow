@@ -21,9 +21,15 @@ export function shotCode(label: string) {
   return `S${match[1].padStart(2, "0")}`;
 }
 
-/** 单镜头成片：项目名 + EP*** + S**，不含扩展名。 */
+/** 单镜头成片主干：项目名 + EP*** + S**，不含版本和扩展名。 */
 export function shotVideoBaseName(projectName: string, canvasFile: string, label: string) {
   return `${projectFileName(projectName)}${episodeCode(canvasFile)}${shotCode(label)}`;
+}
+
+/** 同镜头的一次生成：主干后加 V**，例如 咪咪EP001S02V01。 */
+export function versionedShotBaseName(stem: string, version: number) {
+  if (!Number.isInteger(version) || version < 1) throw new Error("版本号无效");
+  return `${stem}V${String(version).padStart(2, "0")}`;
 }
 
 /** 剪辑节点导出的整集成片。 */

@@ -66,8 +66,8 @@ export const imageGenerationSchema = z.strictObject({
 });
 export const videoGenerationSchema = z.strictObject({
   ...sharedFields,
-  outputBaseName: z.string().trim().min(1).max(180).regex(/^[^\\/:*?"<>|\u0000-\u001f]+EP\d{3}S\d{2,}$/).optional()
-    .describe("单镜头成片主文件名，不含扩展名，例如 咪咪EP001S02"),
+  outputBaseName: z.string().trim().min(1).max(180).regex(/^[^\\/:*?"<>|\u0000-\u001f]+EP\d{3}S\d{2,}V\d{2,}$/).optional()
+    .describe("单镜头成片主文件名，不含扩展名，例如 咪咪EP001S02V01"),
   qcContract: videoQcContractSchema.optional().describe("已确认的剧情及台词，仅供成片质检，与生成提示词独立"),
   generationId: z.uuid().optional().describe("单次视频生成的固定任务 ID；用于重连与防止重复提交"),
   seedMode: z.enum(["fixed", "random", "last"]).optional(),

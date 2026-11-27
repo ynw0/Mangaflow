@@ -189,7 +189,7 @@
 <script setup lang="ts">
 import { applyPromptEdits } from "./promptEdits";
 import { computed, inject, nextTick, onMounted, onScopeDispose, ref, watch } from "vue";
-import { shotVideoBaseName, type ShotVideoContext } from "@toonflow/node-shared/mediaFileName";
+import { shotVideoBaseName, versionedShotBaseName, type ShotVideoContext } from "@toonflow/node-shared/mediaFileName";
 import { ElButton, ElCard, ElSelect, ElOption, ElOptionGroup, ElLoading, ElDropdown, ElDropdownMenu, ElDropdownItem, ElMessageBox } from "element-plus";
 import { IconCameraAi, IconSparkles, IconArrowUp, IconPlayerStop, IconTransfer, IconMusic, IconLayersSubtract, IconScissors, IconPhotoScan, IconPlayerSkipBack, IconPlayerSkipForward } from "@tabler/icons-vue";
 import { nodeSkeleton, nodeTools, useNode, z, h3OptionsSchema, videoQcContractSchema, type NodeMediaModel, type NodeVideoRequest, type NodeHandle } from "@toonflow/nodes-scaffold/runtime";
@@ -806,10 +806,27 @@ async function resumeDetachedGeneration(manual?: true) {
   return { status: "requested", generationId, resumed: true };
 }
 
-function shotFileBaseName() {
+async function nextOutputBaseName() {
   const info = videoContext?.();
-  if (!info) throw new Error("请在画布中生成视频");
-  return shotVideoBaseName(info.projectName, info.canvasFile, String(node.data.label ?? ""));
+  if (!info) return;
+  let stem: string;
+  try {
+    stem = shotVideoBaseName(info.projectName, info.canvasFile, String(node.data.label ?? ""));
+  } catch {
+    return;
+  }
+  const pattern = new RegExp(`^${stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}V(\\d+)(?:-\\d+)?\\.`, "i");
+  let version = 1;
+  try {
+    const { entries } = await files.getWorkspaceFiles().list(`assets/${id}`);
+    for (const entry of entries) {
+      const match = pattern.exec(entry.name);
+      if (match?.[1]) version = Math.max(version, Number(match[1]) + 1);
+    }
+  } catch (error) {
+    if ((error as { response?: { status?: number } }).response?.status !== 404) throw error;
+  }
+  return versionedShotBaseName(stem, version);
 }
 
 async function startGeneration(manual?: true, qcModelCallAllowed?: boolean) {
@@ -827,8 +844,9 @@ async function startGeneration(manual?: true, qcModelCallAllowed?: boolean) {
   if (refList.value.some(item => item.value === undefined)) throw new Error("引用节点暂无内容，请先补充引用内容");
   if (choice.mode?.length && !matchingModes.value.length) throw new Error("当前模型没有适合这些参考素材的生成模式，请更换模型或调整引用");
   const seed = choice.supportsSeed ? resolveSeed() : undefined;
+  const outputBaseName = await nextOutputBaseName();
   const request: Omit<NodeVideoRequest, "directory"> = {
-    ...input, outputBaseName: shotFileBaseName(), seed, ...(qcModelCallAllowed === undefined ? {} : { qcModelCallAllowed }), ...(choice.providerId === "comfyui" ? { generationId: crypto.randomUUID() } : {}),
+    ...input, ...(outputBaseName ? { outputBaseName } : {}), seed, ...(qcModelCallAllowed === undefined ? {} : { qcModelCallAllowed }), ...(choice.providerId === "comfyui" ? { generationId: crypto.randomUUID() } : {}),
   };
   if (request.generationId) {
     data.value.activeGenerationRequest = request;

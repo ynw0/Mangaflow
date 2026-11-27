@@ -17,7 +17,7 @@ import { getStoredGenerationRequest, runGenerationJob } from "@/utils/production
 import { reserveMediaBudget } from "@/utils/media/budget";
 
 const maxMediaSize = 100 * 1024 * 1024;
-const shotBaseName = /^[^\\/:*?"<>|\u0000-\u001f]+EP\d{3}S\d{2,}$/;
+const shotBaseName = /^[^\\/:*?"<>|\u0000-\u001f]+EP\d{3}S\d{2,}V\d{2,}$/;
 const mediaExtensions: Record<string, string> = {
   "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
   "image/avif": "avif", "image/bmp": "bmp", "image/tiff": "tiff",
@@ -36,7 +36,7 @@ function checksum(bytes: Uint8Array) {
 
 function videoFileName(baseName: string | undefined, index: number, suffix: string, fallback: string) {
   if (!baseName) return `${fallback}.${suffix}`;
-  if (!shotBaseName.test(baseName)) invalid("视频文件名必须是项目名加 EP 集号和 S 镜号，例如 咪咪EP001S02");
+  if (!shotBaseName.test(baseName)) invalid("视频文件名必须是项目名、EP 集号、S 镜号和 V 版本，例如 咪咪EP001S02V01");
   const stem = index === 0 ? baseName : `${baseName}-${index}`;
   return `${stem}.${suffix}`;
 }
@@ -266,7 +266,7 @@ async function writeTrackedVideos(directory: string, outputDirectory: string,
       const suffix = mediaExtensions[file.mimeType];
       if (!suffix || !file.mimeType.startsWith("video/") || !file.bytes.length) invalid("ComfyUI 返回了无效视频");
       const fileName = videoFileName(baseName, index, suffix, `video${id}-${index}`);
-      const path = await placeFile(directory, outputDirectory, fileName, file.bytes, Boolean(baseName));
+      const path = await placeFile(directory, outputDirectory, fileName, file.bytes, false);
       saved.push({ path: relative(directory, path).replaceAll("\\", "/"), mimeType: file.mimeType, mediaType: "video" });
     }
     return saved;
@@ -355,7 +355,7 @@ export async function generateMedia(
           if (!suffix) invalid("生成结果不是支持的视频格式");
           const fileName = videoFileName(request.outputBaseName, result.length, suffix, `${mediaType}${crypto.randomUUID()}`);
           signal?.throwIfAborted();
-          const path = await placeFile(directory, outputDirectory, fileName, bytes, Boolean(request.outputBaseName));
+          const path = await placeFile(directory, outputDirectory, fileName, bytes, false);
           written.push(path);
           result.push({ path: relative(directory, path).replace(/\\/g, "/"), mimeType, mediaType });
         } finally { release(); }
@@ -398,7 +398,7 @@ export async function generateMedia(
           ? videoFileName(request.outputBaseName, result.length, suffix, `${mediaType}${crypto.randomUUID()}`)
           : `${mediaType}${crypto.randomUUID()}.${suffix}`;
         signal?.throwIfAborted();
-        const path = await placeFile(directory, outputDirectory, fileName, bytes, mediaType === "video" && Boolean(request.outputBaseName));
+        const path = await placeFile(directory, outputDirectory, fileName, bytes, false);
         written.push(path);
         result.push({ path: relative(directory, path).replace(/\\/g, "/"), mimeType, mediaType });
       } finally { release(); }

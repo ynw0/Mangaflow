@@ -304,6 +304,8 @@ export interface QcVideoResult {
   videoModelId: string;
   audioModelId: string;
   merged: boolean;
+  /** 质检模型作为观众写下的原文，不要求固定字段。 */
+  notes?: string;
 }
 
 export type VideoQcState =
@@ -329,6 +331,8 @@ export type VideoQcReport = VideoQcState & {
   qcRevision?: string;
   rectificationPlan?: VideoQcRectificationPlan;
   generation?: { providerId: string; modelId: string; duration?: number; ratio?: string; execution?: VideoExecution };
+  /** 已保存的质检观看原文。 */
+  notes?: string;
 };
 
 export type VideoQcActionResult = QcVideoResult | Extract<VideoQcState, { status: "awaitingAgent" }>;

@@ -46,7 +46,7 @@ const plugin: ToolPlugin = {
     const qcStatusTool: ToolDefinition = {
       name: "getVideoQcStatus",
       label: "查询成片质检状态",
-      description: "根据成片路径读取已经保存的质检记录。当状态为 completed 时，issues 会列出具体错误、缺少的证据、相关时间及验收要求，qcRevision 用于关联整改方案与对应的质检版本。如果结果为 rejected 或 unverified，主 Agent 必须先制定整改方案，再调用 saveVideoQcRectificationPlan 保存；此工具本身不会启动生成。",
+      description: "根据成片路径读取已经保存的质检记录。notes 是质检模型写下的观看原文，包括画面、声音、观感，以及和剧本、提示词、台词的差别。主 Agent 阅读 notes 后再分析。此工具本身不会启动生成。",
       parameters: z.toJSONSchema(videoQcStatusSchema, { io: "input", target: "draft-07" }),
       async execute(_id, params, signal) {
         signal?.throwIfAborted();

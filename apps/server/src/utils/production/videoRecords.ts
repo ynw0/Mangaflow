@@ -294,8 +294,12 @@ export async function getVideoQcStatus(directory: string, videoPath: string): Pr
     ...state.result,
     ...(!state.result.issues ? { issues: summarizeQc(state.result.checks).issues } : {}),
   } : undefined;
+  const notes = state.status === "completed" ? state.result.notes
+    : state.status === "awaitingAgent" ? state.modelResult?.notes
+    : undefined;
+  const savedNotes = notes || record?.rawQc?.map(item => item.trim()).filter(Boolean).join("\n\n") || undefined;
   return { ...state, ...(result ? { result } : {}), generation: parameters, ...policyInfo,
-    agentResult: record?.agentResult, qcRevision: revision, rectificationPlan };
+    agentResult: record?.agentResult, qcRevision: revision, rectificationPlan, ...(savedNotes ? { notes: savedNotes } : {}) };
 }
 
 async function waitForQc(job: Promise<VideoQcActionResult>, signal?: AbortSignal) {

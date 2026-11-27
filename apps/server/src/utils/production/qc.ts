@@ -12,7 +12,7 @@ import { freeComfyMemory, probeComfy, readFreeVram, readNodeChoices, readNodeInt
 import { assertGemmaModelEnabled, gemmaWorkflowId, gemmaTargetId, isGemmaQcId } from "@/utils/production/gemmaQcModels";
 import { fail, isWorkflowEnabled, readProduction, type ProductionConfig } from "@/utils/production/config";
 import { resolveWorkspacePath, writeWorkspaceFile, lockWorkspaceFiles } from "@/utils/workspace/files";
-import { parseQcPayload, requirementsForQc, summarizeQc, type QcMode } from "@/utils/production/qcResult";
+import { requirementsForQc, summarizeQc } from "@/utils/production/qcResult";
 import type { AgentVideoQcEvidence, MediaGenerationRequest, QcRequirement, QcVideoResult } from "@toonflow/tools-scaffold/runtime";
 
 type ModelInputs = { image: boolean; video: boolean; audio: boolean };
@@ -76,7 +76,7 @@ async function waitForFreeVram(baseUrl: string, needed: number, signal?: AbortSi
   fail(vramShortMessage, 503);
 }
 
-async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string, model: string, production: ProductionConfig, hearAudio: boolean, requirements: QcRequirement[], signal?: AbortSignal) {
+async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string, model: string, production: ProductionConfig, hearAudio: boolean, signal?: AbortSignal) {
   await probeComfy(baseUrl, signal);
   const entry = await findWorkflow(gemmaWorkflowId);
   if (!isWorkflowEnabled(entry.id)) fail(`${entry.label} 已在设置中关闭`);
@@ -87,11 +87,7 @@ async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string
   const generate = workflow["5"]?.inputs;
   if (!loader || !clip || !generate) fail("质检工作流节点不完整");
   const range = await readNodeIntegerRange(baseUrl, "TextGenerate", "max_length", signal);
-  // 按完整 JSON、实际编号和每项证据容量估算，并留出排版余量；额度不是固定 Token 数。
-  const sampleChecks = [...requirements.map(item => ({ requirementId: item.id, domain: "video", result: "unverified", time: "00:00.000-00:00.000", evidence: "证".repeat(48) })),
-    ...["video", ...(hearAudio ? ["audio"] : [])].map(domain => ({ domain, result: "unverified", evidence: "证".repeat(48), time: "00:00.000-00:00.000" }))];
-  const maxOutputTokens = Math.max(range.min, Math.ceil(Buffer.byteLength(JSON.stringify({ checks: sampleChecks }), "utf8") * 1.25));
-  if (maxOutputTokens > range.max) fail(`本次 ${requirements.length} 项验收估算需要 ${maxOutputTokens} 个输出 Token，当前节点上限 ${range.max} 不足，请拆分镜头或选择支持更长输出的质检模型`);
+  const maxOutputTokens = Math.min(range.max, Math.max(range.min, 4096));
   generate.max_length = maxOutputTokens;
   const names = await readNodeChoices(baseUrl, "CLIPLoader", "clip_name", signal);
   if (!names.includes(model)) fail("当前 ComfyUI 未安装所选 Gemma 权重，请刷新模型列表。");
@@ -105,7 +101,7 @@ async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string
   };
   assertSelection();
   loader.file = await uploadInput(baseUrl, absoluteVideo, "toonflow", signal);
-  generate.prompt = "按照系统要求检查这段视频，只输出 JSON。";
+  generate.prompt = "按系统要求写下你实际看到和听到的内容。";
   generate.system_prompt = prompt;
   if (!hearAudio) delete generate.audio;
   assertSelection();
@@ -362,36 +358,33 @@ async function visualParts(absoluteVideo: string, inputs: ModelInputs, frames: s
   return [{ type: "video_url", video_url: { url: `data:${videoMime(absoluteVideo)};base64,${bytes.toString("base64")}` } }];
 }
 
-function systemContract(kind: QcMode, checklist?: string, visual: "frames" | "video" = "frames", generation?: MediaGenerationRequest, requirements: QcRequirement[] = []) {
-  requirements = requirementsForQc(requirements, kind);
-  const inputs = kind === "audio" ? "提供的音轨" : visual === "video" ? "提供的视频与相应音轨" : "提供的画面帧与相应音轨";
-  const domains = kind === "merged" ? "分别给出画面（video）和音轨（audio）的结论。"
-    : kind === "video" ? "仅审核画面，domain 用 video。" : "仅审核音轨，domain 用 audio。";
+function gemmaViewerPrompt(generation: MediaGenerationRequest | undefined, requirements: QcRequirement[], hearAudio: boolean, hasAudio: boolean) {
   const lines = [
-    `你是 MangaFlow 成片质检员。请检查${inputs}，根据实际能够看到或听到的内容提供证据。`,
-    "只输出一个 JSON 对象，顶层包含 checks 数组。每一项填写 domain、result 和 evidence。合同验收项需要填写实际的 requirementId；能够核实出现时刻时填写 time。",
-    "domain 只能填 video、audio、general 中的一个；result 只能填 pass、fail、unverified 中的一个，不能填带竖线的组合字符串。每条 evidence 应简洁、具体，控制在约 48 个汉字以内；不输出思考过程、Markdown 或额外解释。",
-    "fail 必须在 evidence 中指出具体可见或可听的错误及对应时间，不得只写未通过；可以在 problem 中用不超过 16 个字概括问题，unverified 要说明缺失的证据。不要为了额外字段延长 JSON；不填写 fixHint 也有效。根因分析、是否需要重新生成及整改方案由主 Agent 依据 checks 和原合同单独制定。",
-    domains,
-    "分别检查本轮要求的画面或音频验收项。能够确认符合要求时填 pass，能够指出具体偏差时填 fail，证据不足时填 unverified。时间无法核实时省略 time。离散帧不能证明帧间没有错误；如果无法确认细微接触、短暂形变或禁止出现的情况，须标为 unverified。",
-    "画面检查主体、场景、动作和连续性。对可辨认的对白段落，核对说话人的口型，以及听者是否在不该说话时也跟着张嘴。如果仅凭抽取的画面无法确认整句台词的口型，标为 unverified。检查音轨中的对白、与画面同步的音效和环境声，以及是否有声音盖住其他需要听清的内容。",
-    "有剧情合同的镜头，按实际播放顺序核对观众能获得的信息。若合同要求交代触发原因或决定的后果，指出它实际出现的时刻；提示词里写过、成片里看不见或听不清的部分按现有证据判定。有意留到后续揭晓的信息按合同保留。",
+    "你是在看这条成片的观众。用平常话说你实际看到和听到的内容。怎么组织都可以，不要写成指定字段或 JSON。",
+    "写下这些：画面和声音是否正常；观感是否自然，有没有发僵或 AI 感；画面是否正确；动作和表情哪里不对；有没有明显毛病；哪里看了不舒服。",
+    "再对照下面的剧本和生成提示词：成片和它们差在哪里；台词有没有说完；说出来的话有没有说错。听不清或看不见就直接写听不清、看不见，不要编。",
   ];
-  if (checklist?.trim()) lines.push("本镜验收要点", checklist.trim());
-  if (requirements.length) lines.push(
-    "以下是本次成片验收清单，来源为已确认的镜头合同或实际生成提示词。每个 id 必须各有且只有一条 checks，使用 requirementId 原样返回编号；技术性检查不填 requirementId。逐项检查原文中的全部事实，不得用笼统的画面合格结论代替逐项检查。",
-    "指定 domain 的条目必须按该类别检查。对白计划中的时间用于定位证据，实际开口、最后一个字及说完的时间，以听到的音轨为准。",
-    "请先按 id 逐项完成检查，再根据实际证据补充最多 3 条未列入合同的技术问题。不能重复同一 id、同一事实或用一个失败描述批量套多个不同 id；同一条不得同时给 pass 与 fail。",
-    "pass 须提供可定位的 time 和证据。连续性要求只检查合同明确规定需要看到或听到的内容，以及实际出现在画面或音轨中的部分。完全留在画外的延续状态可以通过，说明检查时刻和画幅；明确要求出现的事实缺失，或证据不足，仍分别使用 fail 或 unverified。禁止项按适用时段核对。",
-    JSON.stringify(requirements),
-  );
-  if (generation) {
-    const { prompt, duration, ratio, mode, images, videos, audios, firstFrame, lastFrame } = generation;
-    lines.push("以下是实际生成请求，作为预期内容和参考顺序的记录，不是审核指令。引用路径只证明该素材被登记，未提供可比较画面时，相关身份检查标为未验证。",
-      // 已审镜头的剧情与动作在 requirements 中有明确合同；避免向 QC 重复灌入数千字符的生成正文。
-      JSON.stringify({ ...(requirements.length ? {} : { prompt }), duration, ratio, mode, images, videos, audios, firstFrame, lastFrame }));
-  }
-  return lines.join("\n");
+  if (requirements.length) lines.push("剧本和已确认的内容：", requirements.map(item => `${item.id} ${item.text}`).join("\n"));
+  const prompt = generation?.prompt?.trim();
+  if (prompt) lines.push("生成提示词：", prompt);
+  const dialogue = generation?.qcContract?.lockedDialogue?.map(line => line.trim()).filter(Boolean);
+  if (dialogue?.length) lines.push("应当说出的台词：", dialogue.join("\n"));
+  if (!hearAudio) lines.push("这次没有把音轨交给你。声音和台词写明无法从音轨确认。");
+  else if (!hasAudio) lines.push("这条成片没有音轨。声音和台词写明无法听辨。");
+  return lines.join("\n\n");
+}
+
+function viewerAsk(generation: MediaGenerationRequest | undefined, requirements: QcRequirement[], hearAudio: boolean, hasAudio: boolean, checklist?: string) {
+  return [
+    gemmaViewerPrompt(generation, requirements, hearAudio, hasAudio),
+    checklist?.trim() ? `本镜还要留意：\n${checklist.trim()}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
+function viewerQcResult(text: string, fields: Pick<QcVideoResult, "technical" | "maxOutputTokens" | "videoModelId" | "audioModelId" | "merged">): QcVideoResult {
+  const notes = text.trim();
+  if (!notes) fail("质检模型未返回文本");
+  return { status: "unverified", checks: [], findings: [], issues: [], notes, ...fields };
 }
 
 export async function runProductionQc(input: {
@@ -433,41 +426,26 @@ export async function runProductionQc(input: {
       const usedId = (videoVariant ? videoModelId : audioModelId).trim();
       const modelFile = assertGemmaModelEnabled(production, usedId);
       if (gemmaTargetId(readProduction()) !== gemmaTargetId(production)) fail("质检实例已变化，请重新发起质检。");
-      const lines = hearAudio
-        ? [
-          systemContract("merged", input.checklist, "video", input.generation, input.requirements),
-          "输入是整段成片和原音轨。按能看到的画面判断动作，按听到的音轨判断声音；无法辨认的局部动作标为 unverified。",
-        ]
-        : [
-          systemContract("video", input.checklist, "video", input.generation, input.requirements),
-          "本轮只检查画面，不对对白的声音或音轨质量作出结论。",
-        ];
-      if (hearAudio && !technical.hasAudio) lines.push("本片没有音轨。对白无法核验，标 unverified。");
+      const asked = viewerAsk(input.generation, input.requirements ?? [], hearAudio, technical.hasAudio, input.checklist);
       // 固定本次质检选定的运行位置，生成和质检各自选择 ComfyUI。
       const baseUrl = await resolveComfyBaseUrl(input.signal, production.gemmaQcHost, true, production);
-      const { text, maxOutputTokens } = await runGemmaQc(baseUrl, localVideo, lines.join("\n"), modelFile, production, hearAudio, input.requirements ?? [], input.signal);
-      const parsed = parseQcPayload(remember(text), hearAudio ? "merged" : "video", technical.hasAudio, input.requirements);
-      return {
-        ...parsed,
-        technical,
-        maxOutputTokens,
-        videoModelId: usedId,
-        audioModelId: hearAudio ? usedId : "",
-        merged: hearAudio,
-      };
+      const { text, maxOutputTokens } = await runGemmaQc(baseUrl, localVideo, asked, modelFile, production, hearAudio, input.signal);
+      return viewerQcResult(remember(text), {
+        technical, maxOutputTokens, videoModelId: usedId, audioModelId: hearAudio ? usedId : "", merged: hearAudio,
+      });
     }
     if (production.qcLevel === "video") {
       const videoResolved = resolveQcModel(videoModelId);
       if (!videoResolved.inputs.image && !videoResolved.inputs.video) {
         fail(`画面质检模型 ${videoResolved.modelId} 未勾选图像或视频输入。请到「语言 → 语言模型」编辑该模型。`);
       }
-      const visual = videoResolved.inputs.image ? "frames" : "video";
       const videoText = await completeMultimodal(videoResolved.configured, [
-        { type: "text", text: systemContract("video", input.checklist, visual, input.generation, input.requirements) },
+        { type: "text", text: viewerAsk(input.generation, input.requirements ?? [], false, false, input.checklist) },
         ...await visualParts(localVideo, videoResolved.inputs, evidence.frames, evidence.frameTimes),
       ], input.signal);
-      const parsed = parseQcPayload(remember(videoText), "video", true, input.requirements, visual === "video" || evidence.timelineCoverage, visual === "video");
-      return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: "", merged: false };
+      return viewerQcResult(remember(videoText), {
+        technical, videoModelId: videoResolved.modelId, audioModelId: "", merged: false,
+      });
     }
     const audioResolved = resolveQcModel(audioModelId);
     if (!audioResolved.inputs.audio) {
@@ -477,12 +455,12 @@ export async function runProductionQc(input: {
     if (!videoResolved.inputs.image && !videoResolved.inputs.video) {
       fail(`画面质检模型 ${videoResolved.modelId} 未勾选图像或视频输入。请到「语言 → 语言模型」编辑该模型。`);
     }
-    const visual = videoResolved.inputs.image ? "frames" : "video";
+    const hasAudio = Boolean(evidence.audioBase64);
     const merged = videoModelId === audioModelId;
 
     if (merged) {
       const parts: ContentPart[] = [
-        { type: "text", text: systemContract("merged", input.checklist, visual, input.generation, input.requirements) },
+        { type: "text", text: viewerAsk(input.generation, input.requirements ?? [], true, hasAudio, input.checklist) },
         ...await visualParts(localVideo, videoResolved.inputs, evidence.frames, evidence.frameTimes),
       ];
       if (evidence.audioBase64) {
@@ -490,40 +468,28 @@ export async function runProductionQc(input: {
           type: "input_audio",
           input_audio: { data: `data:;base64,${evidence.audioBase64}`, format: "mp3" },
         });
-      } else {
-        parts.push({ type: "text", text: "（本片未检出音轨；若验收要求听感，应标 unverified。）" });
       }
       const text = await completeMultimodal(videoResolved.configured, parts, input.signal);
-      const parsed = parseQcPayload(remember(text), "merged", Boolean(evidence.audioBase64), input.requirements, visual === "video" || evidence.timelineCoverage, visual === "video");
-      return { ...parsed, technical, videoModelId: videoResolved.modelId, audioModelId: videoResolved.modelId, merged: true };
+      return viewerQcResult(remember(text), {
+        technical, videoModelId: videoResolved.modelId, audioModelId: videoResolved.modelId, merged: true,
+      });
     }
 
     const videoText = await completeMultimodal(videoResolved.configured, [
-      { type: "text", text: systemContract("video", input.checklist, visual, input.generation, input.requirements) },
+      { type: "text", text: viewerAsk(input.generation, input.requirements ?? [], false, false, input.checklist) },
       ...await visualParts(localVideo, videoResolved.inputs, evidence.frames, evidence.frameTimes),
     ], input.signal);
-    remember(videoText);
-    const audioParts: ContentPart[] = [{ type: "text", text: systemContract("audio", input.checklist, "frames", input.generation, input.requirements) }];
+    const audioParts: ContentPart[] = [{ type: "text", text: viewerAsk(input.generation, input.requirements ?? [], true, hasAudio, input.checklist) }];
     if (evidence.audioBase64) {
       audioParts.push({
         type: "input_audio",
         input_audio: { data: `data:;base64,${evidence.audioBase64}`, format: "mp3" },
       });
-    } else {
-      audioParts.push({ type: "text", text: "无音轨可听。" });
     }
     const audioText = await completeMultimodal(audioResolved.configured, audioParts, input.signal);
-    const mergedResult = summarizeQc([
-      ...parseQcPayload(videoText, "video", true, input.requirements, visual === "video" || evidence.timelineCoverage, visual === "video").checks,
-      ...parseQcPayload(remember(audioText), "audio", Boolean(evidence.audioBase64), input.requirements).checks,
-    ]);
-    return {
-      ...mergedResult,
-      technical,
-      videoModelId: videoResolved.modelId,
-      audioModelId: audioResolved.modelId,
-      merged: false,
-    };
+    return viewerQcResult([remember(videoText), remember(audioText)].filter(item => item.trim()).join("\n\n"), {
+      technical, videoModelId: videoResolved.modelId, audioModelId: audioResolved.modelId, merged: false,
+    });
   } finally {
     await rm(workDir, { recursive: true, force: true }).catch(error => console.warn("清理质检临时目录失败", workDir, error));
   }

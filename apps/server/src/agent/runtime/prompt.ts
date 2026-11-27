@@ -49,7 +49,7 @@ ${chineseWritingRules}
 - 后续步骤必须依据工具实际返回的结果。失败先按错误修正，重试前核对已有状态，避免重复创建和生成；缺权限说明具体限制。如果后续步骤依赖前一阶段已采用的成果，必须先取得实际结果，再继续执行。
 - 制作状态：提示词已保存并复核 → 已提交 → 已保存视频 → 质检中/待主 Agent → 质检结论 → 用户采用。同一次视频生成只查询原任务，不重复生成。自动质检用 getVideoQcStatus；手动质检仅在用户授权时发起。awaitingAgent 时用 getVideoQcFrames 看真实图片，再携带 revision 用 submitVideoQc。路径或缩略图不算已看片。不另开同模型会话代替当前主 Agent。
 - 节点返回 requested/generating 只表示本机已发起。汇报远端前用 getPersistentGenerationStatus 核对 generationId；有 promptId 且 phase 为 submitted/saved/completed 才可说远端已接收。submitted 仍可能在排队；preparing/submitting 报尚待确认，failed/cancelled 报实际结果。
-- QC 仅在 status=completed 且 result.status=ok 时可称通过。rejected/unverified 先取 issues 与 qcRevision，说明可见事实与整改目标；根因只作为待验证的假设。用 saveVideoQcRectificationPlan 按 issueIds 保存覆盖全部问题的方案，写明具体变更与下次检查标准（reference/prompt/workflow/sampling/camera/audio/verification）。保存整改方案不代表已经具备重新生成的条件。连续两次同类结构缺陷时审查参考、控制模式或生成策略，不只换提示词。只改目标镜头，不删剧情合同。重新生成前核对已授权的次数。QC failed 或 interrupted 先诊断，不能直接认定画面不合格并重新生成。目标模式也不用重复提案代替工具结果。
+- 质检模型的观看原文在 getVideoQcStatus 的 notes。阅读原文，分析画面、声音、观感，以及和剧本、提示词、台词的差别。原文不必是规定格式，缺少 checks 不算质检失败，也不能据此直接重生成。只有你根据原文和实际看到、听到的内容作出判断后，才能说明成片问题。QC failed 或 interrupted 先诊断。目标模式也不用重复提案代替工具结果。
 - 已生成、已核验、已采用、已合成成片必须分开说。没有状态能力时不承诺后台跟进。交付用真实工作区相对路径；含空格的路径用尖括号。图片用 Markdown 图片，视频和音频用可打开的链接。未看完的视频或未听完的音频如实说明。
 
 ## 消耗算力前的确认
@@ -97,7 +97,7 @@ function conductText(production?: ProductionPrompt) {
   if (production.qcLevel !== "none" && production.qcMethod && production.qcMethod !== "model") {
     lines.push(production.qcMethod === "agentFrames" ? "- 当前采用主 Agent 抽帧质检，不调用专用质检模型。" : "- 当前采用主 Agent 抽帧与专用 QC 两方验收；保留两方结论，不能用一方通过替代另一方。");
     lines.push("- 服务端准备画面后会返回 awaitingAgent。当前主 Agent 必须用 getVideoQcFrames 接收图片，看清镜头结束时的状态、主体、动作和人物表演，再逐项 submitVideoQc。对话停止时任务保留待验收，不启动后台替代会话。仅看画面不能声称声音合格，证据不足用 unverified。如果当前模型不支持图像输入，说明无法完成检查的原因，不能仅根据路径提交通过。");
-    lines.push("- 主 Agent 提交 QC 后如果结论为 rejected/unverified，要以 getVideoQcStatus 返回的 issues 为证据制定整改计划并用 saveVideoQcRectificationPlan 保存。失败事实和根因推测分别标注，不自行启动新生成。");
+    lines.push("- 主 Agent 阅读 getVideoQcStatus 的 notes，对照剧本、提示词和台词分析问题。有抽帧任务时仍要看实际画面。分析写在回复里，不把质检原文当成合格或不合格的最终结论。");
   }
   if (production.imageAdvanceMode === "auto") {
     lines.push("- 出图是自动模式。对已授权的对象、数量和预算，自行生成、检验及返工，无需重复确认。超出授权范围前先询问用户。自动出图没有授予视频生成权限。同一问题连续两次仍不合格时停下来说明。");

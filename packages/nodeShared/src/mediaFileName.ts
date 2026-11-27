@@ -8,11 +8,18 @@ export function projectFileName(projectName: string) {
   return name;
 }
 
-export function episodeCode(canvasFile: string) {
+function parseCanvasEpisode(canvasFile: string) {
   const stem = canvasFile.split(/[\\/]/).pop()?.replace(/\.json$/i, "") ?? "";
-  const match = /^EP(\d{1,3})$/i.exec(stem);
-  if (!match?.[1]) throw new Error("画布文件名需为 EP001 这种集号");
-  return `EP${match[1].padStart(3, "0")}`;
+  const match = /^EP(\d{1,3})(?:-?V(\d{1,3}))?$/i.exec(stem);
+  if (!match?.[1]) throw new Error("画布文件名需为 EP001，或同一集的另一版 EP001V2、EP001-V2");
+  return {
+    episode: `EP${match[1].padStart(3, "0")}`,
+    cut: match[2] ? `V${match[2].padStart(2, "0")}` : "",
+  };
+}
+
+export function episodeCode(canvasFile: string) {
+  return parseCanvasEpisode(canvasFile).episode;
 }
 
 export function shotCode(label: string) {
@@ -32,7 +39,8 @@ export function versionedShotBaseName(stem: string, version: number) {
   return `${stem}V${String(version).padStart(2, "0")}`;
 }
 
-/** 剪辑节点导出的整集成片。 */
+/** 剪辑节点导出的整集成片。画布带版本时，集号后加 V**。 */
 export function episodeVideoFileName(projectName: string, canvasFile: string) {
-  return `${projectFileName(projectName)}${episodeCode(canvasFile)}.mp4`;
+  const { episode, cut } = parseCanvasEpisode(canvasFile);
+  return `${projectFileName(projectName)}${episode}${cut}.mp4`;
 }

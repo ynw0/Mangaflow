@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync, readdirSync } from "node:fs";
 import { readProduction } from "./config";
 import { gemmaModelFile, gemmaTargetId, isGemmaModelFile, assertGemmaModelEnabled } from "./gemmaQcModels";
 import { assertQcCallAllowed, captureQcPolicy, productionForQc } from "./qcPolicy";
@@ -11,6 +12,19 @@ function config() {
   return { ...config, enabledGemmaQcModels: { [gemmaTargetId(config)]: [bf16] } };
 }
 describe("Gemma QC 精确模型与实例", () => {
+  test("Gemma 共用一个工作流，使用 ComfyUI 默认采样参数及 32768 输出上限", () => {
+    const root = new URL("../../../../../workflows/qc/", import.meta.url);
+    expect(readdirSync(root).filter(name => name.endsWith(".json"))).toEqual(["gemma4Api.json"]);
+    const workflow = JSON.parse(readFileSync(new URL("gemma4Api.json", root), "utf8"));
+    expect(workflow["4"].class_type).toBe("CLIPLoader");
+    expect(workflow["5"].inputs).toMatchObject({
+      clip: ["4", 0], video: ["2", 0], audio: ["2", 1], max_length: 32768,
+      sampling_mode: "on", "sampling_mode.temperature": 0.7, "sampling_mode.top_k": 64,
+      "sampling_mode.top_p": 0.95, "sampling_mode.min_p": 0.05,
+      "sampling_mode.repetition_penalty": 1.05, "sampling_mode.presence_penalty": 0,
+      thinking: false, use_default_template: true, mtp: "off",
+    });
+  });
   test("完整文件名和精度不被替代", () => {
     expect(gemmaModelFile(id)).toBe(bf16);
     expect(isGemmaModelFile(bf16)).toBe(true);

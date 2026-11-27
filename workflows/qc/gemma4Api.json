@@ -8,7 +8,19 @@
   "2": {
     "class_type": "GetVideoComponents",
     "inputs": {
-      "video": ["1", 0]
+      "video": [
+        "1",
+        0
+      ]
+    }
+  },
+  "3": {
+    "class_type": "PreviewAny",
+    "inputs": {
+      "source": [
+        "5",
+        0
+      ]
     }
   },
   "4": {
@@ -22,29 +34,32 @@
   "5": {
     "class_type": "TextGenerate",
     "inputs": {
-      "clip": ["4", 0],
-      "prompt": "按系统要求质检这条成片，只输出 JSON。",
-      "video": ["2", 0],
-      "audio": ["2", 1],
-      "max_length": 1024,
+      "clip": [
+        "4",
+        0
+      ],
+      "prompt": "按系统要求写下你实际看到和听到的内容。",
+      "video": [
+        "2",
+        0
+      ],
+      "audio": [
+        "2",
+        1
+      ],
+      "max_length": 32768,
       "sampling_mode": "on",
-      "sampling_mode.temperature": 0.2,
+      "sampling_mode.temperature": 0.7,
       "sampling_mode.top_k": 64,
-      "sampling_mode.top_p": 0.9,
+      "sampling_mode.top_p": 0.95,
       "sampling_mode.min_p": 0.05,
-      "sampling_mode.repetition_penalty": 1,
+      "sampling_mode.repetition_penalty": 1.05,
       "sampling_mode.seed": 1,
       "sampling_mode.presence_penalty": 0,
       "thinking": false,
       "use_default_template": true,
       "mtp": "off",
       "system_prompt": ""
-    }
-  },
-  "3": {
-    "class_type": "PreviewAny",
-    "inputs": {
-      "source": ["5", 0]
     }
   }
 }

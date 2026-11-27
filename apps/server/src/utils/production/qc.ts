@@ -87,7 +87,7 @@ async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string
   const generate = workflow["5"]?.inputs;
   if (!loader || !clip || !generate) fail("质检工作流节点不完整");
   const range = await readNodeIntegerRange(baseUrl, "TextGenerate", "max_length", signal);
-  const maxOutputTokens = Math.min(range.max, Math.max(range.min, 4096));
+  const maxOutputTokens = Math.min(range.max, Math.max(range.min, 32768));
   generate.max_length = maxOutputTokens;
   const names = await readNodeChoices(baseUrl, "CLIPLoader", "clip_name", signal);
   if (!names.includes(model)) fail("当前 ComfyUI 未安装所选 Gemma 权重，请刷新模型列表。");
@@ -102,7 +102,7 @@ async function runGemmaQc(baseUrl: string, absoluteVideo: string, prompt: string
   assertSelection();
   loader.file = await uploadInput(baseUrl, absoluteVideo, "toonflow", signal);
   generate.prompt = "按系统要求写下你实际看到和听到的内容。";
-  generate.system_prompt = prompt;
+  generate.system_prompt = `${prompt}\n\n使用自然、准确的简体中文回答。`;
   if (!hearAudio) delete generate.audio;
   assertSelection();
   const promptId = await submitWorkflow(baseUrl, workflow, signal, { lockedClipNode: "4", onSubmitting: async () => assertSelection() });

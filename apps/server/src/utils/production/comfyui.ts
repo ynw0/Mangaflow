@@ -421,7 +421,7 @@ function textFromOutputs(outputs: unknown) {
 }
 
 export async function waitForText(baseUrl: string, promptId: string, signal?: AbortSignal) {
-  const deadline = Date.now() + 20 * 60_000;
+  const deadline = Date.now() + 45 * 60_000;
   const stop = trackPrompt(baseUrl, promptId, signal);
   try {
     while (Date.now() < deadline) {
